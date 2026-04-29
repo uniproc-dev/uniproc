@@ -773,9 +773,11 @@ name = "build-utils"
 version = "0.1.0"
 dependencies = [
  "i-slint-compiler",
+ "proc-macro2",
  "quote",
  "serde",
  "serde_json",
+ "strsim",
  "syn",
  "walkdir",
 ]
@@ -2278,6 +2280,7 @@ dependencies = [
  "serde_json",
  "slint",
  "tempfile",
+ "tokio",
  "tracing",
  "uuid",
  "window-vibrancy",
@@ -3613,6 +3616,7 @@ name = "macros"
 version = "0.1.0"
 dependencies = [
  "build-utils",
+ "heck",
  "proc-macro2",
  "quote",
  "serde",

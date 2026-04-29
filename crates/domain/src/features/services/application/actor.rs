@@ -1,6 +1,9 @@
 use crate::features::services::application::snapshot_actor::ActiveStatus;
 use crate::features::services::view::ServiceTable;
+use crate::features::services::ServicesBinder;
+use crate::features::services::UiServicesBindings;
 use app_contracts::features::agents::{WindowsActionRequest, WindowsActionResponse};
+use app_contracts::features::services::ServicesPartialBinder;
 use app_contracts::features::services::{
     ServiceActionKind, ServiceEntryVm, ServiceSnapshot, UiServiceDetailsPort,
     UiServicesPort, PROPERTIES_DIALOG_KEY,
@@ -22,28 +25,30 @@ use std::sync::Arc;
 use uniproc_protocol::{ServiceCommand, WindowsRequest};
 use uuid::Uuid;
 
-#[actor_manifest]
+#[actor_manifest(binder = ServicesBinde)]
 impl<P: UiServicesPort> ManagedActor for ServiceActor<P> {
     type Bus = Events<bus!(ServiceSnapshot, WindowsActionResponse, OpenedWindow)>;
     type Handlers = handlers!(
         @ServiceSnapshot,
         @WindowsActionResponse,
         @OpenedWindow,
-        ServiceAction {
-            name: String,
-            kind: ServiceActionKind
+        bind {
+            ServiceAction {
+                name: SharedString,
+                kind: ServiceActionKind
+            },
+            SortBy(SharedString),
+            RowsViewportChanged {
+                start: i32,
+                count: i32
+            },
+            ColumnResized {
+                id: SharedString,
+                width: f32
+            },
+            SelectService(SharedString, i32),
+            OpenPropertiesWindow(ServiceEntryVm)
         },
-        Sort(SharedString),
-        ViewportChanged {
-            start: usize,
-            count: usize
-        },
-        ResizeCol {
-            id: SharedString,
-            width: f32
-        },
-        SelectedService(SharedString, usize),
-        OpenPropertiesWindow(ServiceEntryVm)
     );
 }
 
@@ -104,14 +109,18 @@ fn service_snapshot<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: ServiceS
 }
 
 #[handler]
-fn service_action<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: ServiceAction) {
+fn service_action<P: UiServicesPort>(
+    this: &mut ServiceActor<P>,
+    ServiceAction { name, kind }: ServiceAction,
+) {
+    let name = name.to_string();
     let id = current_or_new_correlation_uuid();
-    let cmd = match msg.kind {
-        ServiceActionKind::Start => ServiceCommand::Start { name: msg.name },
-        ServiceActionKind::Stop => ServiceCommand::Stop { name: msg.name },
-        ServiceActionKind::Restart => ServiceCommand::Restart { name: msg.name },
-        ServiceActionKind::Pause => ServiceCommand::Pause { name: msg.name },
-        ServiceActionKind::Resume => ServiceCommand::Resume { name: msg.name },
+    let cmd = match kind {
+        ServiceActionKind::Start => ServiceCommand::Start { name },
+        ServiceActionKind::Stop => ServiceCommand::Stop { name },
+        ServiceActionKind::Restart => ServiceCommand::Restart { name },
+        ServiceActionKind::Pause => ServiceCommand::Pause { name },
+        ServiceActionKind::Resume => ServiceCommand::Resume { name },
     };
 
     this.pending.insert(id);
@@ -127,7 +136,7 @@ fn on_action_response<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: Window
 }
 
 #[handler]
-fn resize_service_column<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: ResizeCol) {
+fn resize_service_column<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: ColumnResized) {
     let _ = this
         .table
         .resize_column(msg.id.to_string(), msg.width as u64);
@@ -135,7 +144,7 @@ fn resize_service_column<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: Res
 }
 
 #[handler]
-fn sort_services<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: Sort) {
+fn sort_services<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: SortBy) {
     let s = &mut this.table.view.flow.sort;
     if s.field_id.as_ref() == Some(&msg.0) {
         s.descending = !s.descending;
@@ -152,13 +161,16 @@ fn sort_services<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: Sort) {
 }
 
 #[handler]
-fn change_viewport<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: ViewportChanged) {
-    this.table.view.rows.set_viewport(msg.start, msg.count);
+fn change_viewport<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: RowsViewportChanged) {
+    this.table
+        .view
+        .rows
+        .set_viewport(msg.start as usize, msg.count as usize);
     this.push_batch();
 }
 
 #[handler]
-fn select_service<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: SelectedService) {
+fn select_service<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: SelectService) {
     if let Some(dto) = this.table.get_by_name(msg.0.as_str()) {
         match dto.status.as_str() {
             "Running" => this.ui_port.set_active_buttons(false, true, true),
@@ -170,7 +182,7 @@ fn select_service<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: SelectedSe
             .set_selected_service_details(dto.clone().into());
     }
 
-    this.table.select(msg.0.clone(), msg.1);
+    this.table.select(msg.0.clone(), msg.1 as usize);
 }
 
 #[handler]

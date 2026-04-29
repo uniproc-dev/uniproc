@@ -1,5 +1,8 @@
 fn main() {
-    let schema = build_utils::collector::main();
+    let schema = build_utils::collector::SchemaCollector::new()
+        .walk_src("src/features")
+        .with_name("contracts-schema.json")
+        .run();
 
     let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR missing"));
 

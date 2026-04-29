@@ -13,7 +13,6 @@ Architecture guide for AI agents. Read this before touching any code.
   forbidden.
 - **Actor Manifest**: Use `#[actor_manifest]` to declare bus subscriptions and handlers. Manual `EventBus::subscribe` in
   `install()` is forbidden.
-- **Zero Generics**: Do not use `<TWindow>` in domain logic; use `FeatureContextState`
 - Navigation is **URI-based** (e.g., `host://processes`) and driven by the framework Route Registry
 - Before build/check/run commands, inspect `.cargo/*.toml` for project aliases and toolchain config
 - Prefer project cargo aliases for verification; default check command is `cargo cdev`
@@ -367,7 +366,7 @@ Every actor implements `ManagedActor` and `FeatureComponent`. `<TWindow>` is ban
 ```rust
 #[actor_manifest]
 impl ManagedActor for MyActor {
-    type Bus = bus!(LocalMsg, @RouteActivated);
+    type Bus = bus!(LocalMsg, RouteActivated);
     type Handlers = handlers!(LocalMsg, @RouteActivated, DoWork);
 }
 

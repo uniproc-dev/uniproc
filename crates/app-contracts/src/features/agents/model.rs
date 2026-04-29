@@ -1,8 +1,12 @@
 use app_core::actor::traits::Message;
 use std::sync::Arc;
 
+use ogurpchik::codecs::base::{HasAllocator, MessageCodec};
+use ogurpchik::high::client::Client;
+use ogurpchik::pool::buf_guard::BufGuard;
 use uniproc_protocol::{
-    LinuxDockerContainerInfo, LinuxEnvironmentInfo, LinuxMachineStats, LinuxProcessStats,
+    LinuxCodec, LinuxDockerContainerInfo, LinuxEnvironmentInfo, LinuxMachineStats,
+    LinuxProcessStats, WindowsCodec,
 };
 use uuid::Uuid;
 
@@ -19,11 +23,36 @@ pub struct RemoteScanResult {
     pub docker_containers: Vec<LinuxDockerContainerInfo>,
 }
 impl Message for RemoteScanResult {}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AgentConnectionState {
+    Disconnected,
+    Connecting,
+    Connected,
+    WaitingRetry { delay_secs: u64 },
+}
 
 cfg_if::cfg_if! {
     if #[cfg(target_os = "windows")] {
 
+        pub type WslConnectionState = AgentConnectionState;
+
+        #[derive(Clone, Debug)]
+        pub struct WslAgentRuntimeEvent {
+            pub state: AgentConnectionState,
+            pub latency_ms: Option<i32>,
+        }
+        impl Message for WslAgentRuntimeEvent {}
+
+        #[derive(Clone, Debug)]
+        pub struct WindowsAgentRuntimeEvent {
+            pub state: AgentConnectionState,
+            pub latency_ms: Option<i32>,
+        }
+        impl Message for WindowsAgentRuntimeEvent {}
+
         use uniproc_protocol::{WindowsReport, WindowsRequest, WindowsResponse};
+
+        pub type AgentClient = RpcClient<WindowsCodec>;
 
         #[derive(Clone)]
         pub struct WindowsReportMessage(pub WindowsReport);
@@ -76,6 +105,22 @@ cfg_if::cfg_if! {
                 rkyv::from_bytes::<WindowsResponse, rkyv::rancor::Error>(&self.response_bytes)
             }
         }
+    }
+    else {
+        pub type AgentClient = RpcClient<LinuxCodec>;
+        #[derive(Clone)]
+        pub struct LinuxAgentRuntimeEvent {
+            pub state: AgentConnectionState,
+            pub latency_ms: Option<i32>,
+        }
+        impl Message for LinuxAgentRuntimeEvent {}
 
     }
 }
+
+type RpcClient<C> = Client<
+    C,
+    <C as MessageCodec>::Dest,
+    BufGuard<<C as MessageCodec>::Dest, <<C as MessageCodec>::Dest as HasAllocator>::SharedAlloc>,
+>;
+pub type WslClient = RpcClient<LinuxCodec>;

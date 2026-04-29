@@ -1,12 +1,11 @@
 use framework::app::Window;
 mod actor;
 
-use crate::features::window_actions::actor::BreakpointChanged;
-use actor::{Close, Drag, Maximize, Minimize, Resize, WindowActor};
+use crate::features::window_actions::actor::WindowActor;
 use app_contracts::features::window_actions::{
-    UiWindowActionsBindings, UiWindowActionsPort, WindowActionsBinder,
+    UiWindowActionsBindings, UiWindowActionsPort,
 };
-use app_core::actor::addr::Addr;
+use framework::addr::AddrBuilder;
 use framework::feature::{WindowFeature, WindowFeatureInitContext};
 use macros::window_feature;
 
@@ -23,15 +22,10 @@ where
     fn install(&mut self, ctx: &mut WindowFeatureInitContext<TWindow>) -> anyhow::Result<()> {
         let port = (self.make_port)(ctx.ui);
         let token = ctx.ui.new_token();
-        let addr = Addr::new_managed(WindowActor { port: port.clone() }, token, &self.tracker);
 
-        WindowActionsBinder::new(&addr, &port)
-            .on_drag(Drag)
-            .on_close(Close)
-            .on_minimize(Minimize)
-            .on_maximize(Maximize)
-            .on_start_resize(Resize)
-            .on_config_changed(BreakpointChanged);
+        AddrBuilder::new(token, &self.tracker)
+            .managed(WindowActor { port: port.clone() })
+            .ui_bind(&port);
 
         Ok(())
     }

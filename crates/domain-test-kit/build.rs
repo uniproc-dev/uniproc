@@ -7,7 +7,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use syn::{GenericArgument, Ident, PathArguments, Type, parse_str};
+use syn::{parse_str, GenericArgument, Ident, PathArguments, Type};
 
 #[derive(Default)]
 struct FeatureTraits {
@@ -17,7 +17,10 @@ struct FeatureTraits {
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=../app-contracts/contracts-schema.json");
+    println!(
+        "cargo:rerun-if-changed={}",
+        build_utils::collector::get_schema_path().display()
+    );
 
     let schema: Schema = load_schema();
 

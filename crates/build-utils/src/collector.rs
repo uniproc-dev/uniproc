@@ -1,3 +1,4 @@
+use proc_macro2::TokenStream;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
@@ -75,47 +76,111 @@ pub struct CapabilityDef {
     pub key: String,
     pub source_file: String,
 }
+pub fn find_workspace_root() -> PathBuf {
+    let mut path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap_or_default());
+    let mut root = path.clone();
 
-pub fn load_schema() -> Schema {
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR")
-        .expect("CARGO_MANIFEST_DIR must be set (are you running outside of Cargo?)");
-    let schema_path = PathBuf::from(&manifest_dir)
-        .parent()
-        .expect("CARGO_MANIFEST_DIR has no parent")
-        .join("app-contracts")
-        .join("contracts-schema.json");
-    let json = fs::read_to_string(&schema_path).unwrap_or_else(|_| {
-        panic!(
-            "Failed to read {}. Did you build app-contracts first?",
-            schema_path.display()
-        )
-    });
-    serde_json::from_str(&json).expect("Failed to parse contracts-schema.json")
+    while path.pop() {
+        if path.join("target").exists() || path.join("Cargo.lock").exists() {
+            root = path;
+            break;
+        }
+    }
+    root
 }
 
-pub fn main() -> Schema {
-    println!("cargo:rerun-if-changed=src/features/");
+pub fn get_schema_path() -> PathBuf {
+    find_workspace_root().join("target/contracts-schema.json")
+}
 
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let src_dir = Path::new(&manifest_dir).join("src").join("features");
-    let workspace_dir = Path::new(&manifest_dir);
-    let codegen_dir = Path::new(&manifest_dir);
+pub fn with_recompile_trigger(output: TokenStream) -> TokenStream {
+    let path = get_schema_path().to_string_lossy().to_string();
+    quote::quote! {
+        const _: &[u8] = include_bytes!(#path);
+        #output
+    }
+}
 
-    fs::create_dir_all(codegen_dir).expect("Failed to create codegen directory");
-
-    let mut schema = Schema::default();
-
-    for entry in WalkDir::new(&src_dir).into_iter().filter_map(|e| e.ok()) {
-        if entry.path().extension().unwrap_or_default() == "rs" {
-            parse_file(entry.path(), workspace_dir, &mut schema);
+pub fn load_schema() -> Schema {
+    if let Ok(val) = env::var("CONTRACTS_SCHEMA_PATH") {
+        let p = PathBuf::from(val);
+        if p.exists() {
+            return serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap();
         }
     }
 
-    let schema_path = codegen_dir.join("contracts-schema.json");
-    let json = serde_json::to_string_pretty(&schema).unwrap();
-    fs::write(&schema_path, json).expect("Failed to write contracts-schema.json");
+    let schema_path = get_schema_path();
 
-    schema
+    if schema_path.exists() {
+        let json = fs::read_to_string(schema_path).expect("Failed to read schema");
+        return serde_json::from_str(&json).expect("Failed to parse schema");
+    }
+
+    panic!("Schema not found in target/. Did you build the contracts crate first?");
+}
+
+pub struct SchemaCollector {
+    src_dir: PathBuf,
+    output_filename: String,
+}
+
+impl Default for SchemaCollector {
+    fn default() -> Self {
+        Self {
+            src_dir: PathBuf::from("src/features"),
+            output_filename: "contracts-schema.json".to_string(),
+        }
+    }
+}
+
+impl SchemaCollector {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn walk_src(mut self, path: impl Into<PathBuf>) -> Self {
+        self.src_dir = path.into();
+        self
+    }
+
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.output_filename = name.into();
+        self
+    }
+
+    pub fn run(self) -> Schema {
+        let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("No CARGO_MANIFEST_DIR");
+        let absolute_src = Path::new(&manifest_dir).join(&self.src_dir);
+        let workspace_root = find_workspace_root();
+
+        println!("cargo:rerun-if-changed={}", absolute_src.display());
+
+        let mut schema = Schema::default();
+        if absolute_src.exists() {
+            for entry in WalkDir::new(&absolute_src)
+                .into_iter()
+                .filter_map(|e| e.ok())
+            {
+                if entry.path().extension().unwrap_or_default() == "rs" {
+                    parse_file(entry.path(), &workspace_root, &mut schema);
+                }
+            }
+        }
+
+        let json = serde_json::to_string_pretty(&schema).unwrap();
+
+        if let Ok(out_dir) = env::var("OUT_DIR") {
+            let _ = fs::write(Path::new(&out_dir).join(&self.output_filename), &json);
+        }
+
+        let schema_path = workspace_root.join("target").join(&self.output_filename);
+        if let Some(parent) = schema_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        fs::write(&schema_path, &json).expect("Failed to write shared schema");
+
+        schema
+    }
 }
 
 fn parse_file(file_path: &Path, workspace_dir: &Path, schema: &mut Schema) {

@@ -6,8 +6,8 @@ mod state;
 use crate::features::navigation::actor::{NavigationActor, Push};
 use crate::features::navigation::settings::NavigationSettings;
 use app_contracts::features::navigation::PAGE_ROUTES;
-use app_contracts::features::navigation::{NavigationBinder, UiNavigationBindings};
-use app_core::actor::addr::Addr;
+use app_contracts::features::navigation::UiNavigationBindings;
+use framework::addr::AddrBuilder;
 use framework::app::Window;
 use framework::feature::{
     AppFeature, AppFeatureInitContext, WindowFeature, WindowFeatureInitContext,
@@ -21,7 +21,7 @@ use std::sync::Arc;
 pub struct NavigationRegistryFeature;
 
 impl AppFeature for NavigationRegistryFeature {
-    fn install(self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
         let registry = Arc::new(RouteRegistry::new());
         registry.replace_routes(
             PAGE_ROUTES
@@ -61,7 +61,10 @@ where
         let registry = ctx.shared.get::<RouteRegistry>().unwrap();
         let actor = NavigationActor::new(registry.clone(), ctx.window_id);
 
-        let addr = Addr::new_managed(actor, token, &self.tracker);
+        let addr = AddrBuilder::new(token, &self.tracker)
+            .managed(actor)
+            .ui_bind(&ui_port);
+
         let initial_path = settings.default_route_segment().get();
         addr.send(Push(initial_path));
 
@@ -69,8 +72,6 @@ where
         if let Some(registry) = ctx.shared.get::<app_core::actor::registry::ActorRegistry>() {
             registry.register(addr.clone());
         }
-
-        NavigationBinder::new(&addr, &ui_port).on_push(Push);
 
         Ok(())
     }

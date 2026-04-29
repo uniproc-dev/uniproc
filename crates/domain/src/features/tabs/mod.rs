@@ -2,10 +2,10 @@ pub mod actor;
 mod model;
 mod state;
 
-use crate::features::tabs::actor::{RequestTabAdd, RequestTabClose, RequestTabSwitch, TabsActor};
+use crate::features::tabs::actor::TabsActor;
 use crate::features::tabs::model::bootstrap_contexts;
-use app_contracts::features::tabs::{TabsBinder, UiTabsBindings, UiTabsPort};
-use app_core::actor::addr::Addr;
+use app_contracts::features::tabs::{UiTabsBindings, UiTabsPort};
+use framework::addr::AddrBuilder;
 use framework::app::Window;
 use framework::feature::{WindowFeature, WindowFeatureInitContext};
 use framework::navigation::RouteRegistry;
@@ -37,7 +37,9 @@ where
         let available_contexts = actor.available_contexts().to_vec();
         let active_context_key = actor.active_context_key().cloned();
 
-        let addr = Addr::new_managed(actor, token, &self.tracker);
+        let addr = AddrBuilder::new(token, &self.tracker)
+            .managed(actor)
+            .ui_bind(&ui_port);
 
         #[cfg(feature = "test-utils")]
         if let Some(registry) = ctx.shared.get::<app_core::actor::registry::ActorRegistry>() {
@@ -49,11 +51,6 @@ where
         if let Some(active_context_key) = active_context_key {
             ui_port.set_active_context(active_context_key);
         }
-
-        TabsBinder::new(&addr, &ui_port)
-            .on_request_tab_switch(RequestTabSwitch)
-            .on_request_tab_close(RequestTabClose)
-            .on_request_tab_add(RequestTabAdd);
 
         Ok(())
     }

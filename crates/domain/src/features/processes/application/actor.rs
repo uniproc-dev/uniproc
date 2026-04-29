@@ -5,17 +5,16 @@ use crate::processes_impl::application::process_snapshot_actor::{
 };
 use crate::processes_impl::domain::snapshot::BridgeSnapshot;
 #[cfg(target_os = "windows")]
-use app_contracts::features::environments::WindowsAgentRuntimeEvent;
-use app_contracts::features::environments::{AgentConnectionState, WslAgentRuntimeEvent};
+use app_contracts::features::agents::WindowsAgentRuntimeEvent;
+use app_contracts::features::agents::{AgentConnectionState, WslAgentRuntimeEvent};
+use app_contracts::features::processes::ProcessesPartialBinder;
 use app_contracts::features::processes::UiProcessesPort;
-use app_contracts::features::tabs::TabContextKey;
+use app_contracts::features::processes::{ProcessesBinder, UiProcessesBindings};
 use app_core::actor::event_bus::EventBus;
 use app_core::actor::ManagedActor;
 use app_core::actor::{Context, Handler, Message, NoOp};
 use context::page_status::{PageStatus, RouteStatusChanged, RouteStatusRegistry};
 use framework::feature::{Events, FeatureComponent, FeatureContextState};
-use framework::navigation::RouteActivated;
-use framework::settings::SettingSubscription;
 use framework::uri::AppUri;
 use macros::{actor_manifest, handler};
 use slint::SharedString;
@@ -36,7 +35,7 @@ pub struct ProcessActor<P: UiProcessesPort> {
     pub ctx: FeatureContextState,
 }
 
-#[actor_manifest]
+#[actor_manifest(binder = ProcessesBinder)]
 impl<P: UiProcessesPort> ManagedActor for ProcessActor<P> {
     type Bus = Events<
         bus!(
@@ -48,22 +47,24 @@ impl<P: UiProcessesPort> ManagedActor for ProcessActor<P> {
     type Handlers = handlers!(
         @WslAgentRuntimeEvent,
         @WindowsAgentRuntimeEvent,
-        GroupClicked,
-        Sort(SharedString),
-        ToggleExpand(SharedString),
-        ViewportChanged {
-            start: usize,
-            count: usize
+        bind {
+            GroupClicked,
+            SortBy(SharedString),
+            ToggleExpandGroup(SharedString),
+            RowsViewportChanged {
+                start: i32,
+                count: i32
+            },
+            SelectProcess {
+                pid: i32,
+                idx: i32
+            },
+            Terminate,
+            ColumnResized {
+                id: SharedString,
+                width: f32
+            }
         },
-        Select {
-            pid: u32,
-            idx: usize
-        },
-        TerminateSelected,
-        ResizeColumn {
-            id: String,
-            width: f32
-        }
     );
 }
 
@@ -107,7 +108,6 @@ impl<P: UiProcessesPort> ProcessActor<P> {
 }
 
 #[handler]
-#[instrument(name = "process-actor", level = "trace", skip(this, msg), fields(count = msg.total_count))]
 fn process_snapshot_ready<P: UiProcessesPort>(
     this: &mut ProcessActor<P>,
     msg: ProcessSnapshotReady,
@@ -201,7 +201,7 @@ fn sync_windows_agent_status<P: UiProcessesPort>(
 }
 
 #[handler]
-fn sort_table<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: Sort) {
+fn sort_table<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: SortBy) {
     this.table.toggle_sort(msg.0.clone());
     let sort = this.table.sort_state();
     this.ui_port.set_sort_state(msg.0, sort.descending);
@@ -210,23 +210,24 @@ fn sort_table<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: Sort) {
 }
 
 #[handler]
-fn toggle_process_expand<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: ToggleExpand) {
+fn toggle_process_expand<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: ToggleExpandGroup) {
     this.table.toggle_expand(msg.0);
     this.table.refresh(&mut this.metadata).ok();
     this.push_batch();
 }
 
 #[handler]
-fn change_viewport<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: ViewportChanged) {
-    this.table.set_viewport(msg.start, msg.count.max(1));
+fn change_viewport<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: RowsViewportChanged) {
+    this.table
+        .set_viewport(msg.start as usize, msg.count.max(1) as usize);
     this.push_batch();
 }
 
 #[handler]
-fn select_process<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: Select) {
-    this.table.select(msg.pid, msg.idx);
-    this.ui_port.set_selected_pid(msg.pid as i32);
-    if let Some(name) = this.table.selected_name_for_pid(msg.pid) {
+fn select_process<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: SelectProcess) {
+    this.table.select(msg.pid as u32, msg.idx as usize);
+    this.ui_port.set_selected_pid(msg.pid);
+    if let Some(name) = this.table.selected_name_for_pid(msg.pid as u32) {
         this.ui_port.set_selected_name(name);
     }
 }
@@ -234,7 +235,7 @@ fn select_process<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: Select) {
 #[handler]
 fn terminate_selected_process<P: UiProcessesPort>(
     this: &mut ProcessActor<P>,
-    _: TerminateSelected,
+    _: Terminate,
     ctx: &Context<ProcessActor<P>>,
 ) {
     let pid = this.ui_port.get_selected_pid();
@@ -255,8 +256,11 @@ fn terminate_selected_process<P: UiProcessesPort>(
 }
 
 #[handler]
-fn resize_process_column<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: ResizeColumn) {
-    if let Err(e) = this.table.resize_column(msg.id, msg.width as u64) {
+fn resize_process_column<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: ColumnResized) {
+    if let Err(e) = this
+        .table
+        .resize_column(msg.id.to_string(), msg.width as u64)
+    {
         tracing::warn!("resize_column failed: {e}");
         return;
     }

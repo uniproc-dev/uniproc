@@ -9,10 +9,11 @@ use crate::processes_impl::application::process_snapshot_actor::ProcessSnapshotA
 use crate::processes_impl::settings::ProcessSettings;
 
 use app_contracts::features::agents::ScanTick;
-use app_contracts::features::processes::{ProcessesBinder, UiProcessesBindings, UiProcessesPort};
+use app_contracts::features::processes::{UiProcessesBindings, UiProcessesPort};
 use app_core::actor::addr::Addr;
 use app_core::actor::event_bus::EventBus;
 use context::page_status::RouteStatusRegistry;
+use framework::addr::AddrBuilder;
 use framework::feature::{FeatureContextState, WindowFeature, WindowFeatureInitContext};
 use macros::window_feature;
 use std::collections::HashMap;
@@ -52,7 +53,9 @@ where
             ctx: FeatureContextState::new(ctx.window_id, "processes.list"),
         };
 
-        let addr = Addr::new_managed(process_actor, token.clone(), &self.tracker);
+        let addr = AddrBuilder::new(token.clone(), &self.tracker)
+            .managed(process_actor)
+            .ui_bind(&ui_port);
 
         let snapshot_actor = ProcessSnapshotActor {
             snapshots: HashMap::new(),
@@ -64,24 +67,6 @@ where
         };
 
         let _ = Addr::new_managed(snapshot_actor, token, &self.tracker);
-
-        ProcessesBinder::new(&addr, &ui_port)
-            .on_sort_by(Sort)
-            .on_toggle_expand_group(ToggleExpand)
-            .on_terminate(TerminateSelected)
-            .on_group_clicked(GroupClicked)
-            .on_select_process(|pid, idx| Select {
-                pid: pid as u32,
-                idx: idx as usize,
-            })
-            .on_column_resized(|id, width| ResizeColumn {
-                id: id.into(),
-                width,
-            })
-            .on_rows_viewport_changed(|start, count| ViewportChanged {
-                start: start.max(0) as usize,
-                count: count.max(0) as usize,
-            });
 
         let loop_handle = ctx
             .reactor

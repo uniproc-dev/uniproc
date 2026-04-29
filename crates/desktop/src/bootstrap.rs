@@ -37,8 +37,6 @@ macro_rules! with_adapter {
 pub fn run() -> anyhow::Result<()> {
     let _tracing = init_tracing()?;
 
-    let rt = tokio::runtime::Runtime::new()?;
-    let _guard = rt.enter();
     let ui = AppWindow::new()?;
 
     let app = App::new(ui)
@@ -57,6 +55,7 @@ pub fn run() -> anyhow::Result<()> {
         .window_feature(with_adapter!(L10nFeature => SlintL10nPort))
         .window_feature(with_adapter!(ServicesFeature => UiServicesAdapter))
         .window_feature(with_adapter!(ProcessFeature => UiProcessesAdapter));
+
     app.run()
 }
 

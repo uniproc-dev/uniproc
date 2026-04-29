@@ -1,7 +1,4 @@
-use crate::features::services::application::actor::{
-    OpenPropertiesWindow, ResizeCol, SelectedService, ServiceAction, ServiceActor, Sort,
-    ViewportChanged,
-};
+use crate::features::services::application::actor::ServiceActor;
 use crate::features::services::application::snapshot_actor::ServiceSnapshotActor;
 use crate::features::services::settings::ServiceSettings;
 use crate::features::services::view::ServiceTable;
@@ -12,6 +9,7 @@ use app_contracts::features::services::{
 };
 use app_core::actor::addr::Addr;
 use context::page_status::RouteStatusRegistry;
+use framework::addr::AddrBuilder;
 use framework::app::Window;
 use framework::feature::{FeatureContextState, WindowFeature, WindowFeatureInitContext};
 use framework::native_windows::slint_factory::SlintWindowRegistry;
@@ -53,7 +51,9 @@ where
             ctx_state: FeatureContextState::new(ctx.window_id, capabilities::SERVICES),
         };
 
-        let addr = Addr::new_managed(service_actor, token.clone(), &self.tracker);
+        let addr = AddrBuilder::new(token.clone(), &self.tracker)
+            .managed(service_actor)
+            .ui_bind(&ui_port);
 
         let snapshot_actor = ServiceSnapshotActor {
             target: addr.clone(),
@@ -76,20 +76,6 @@ where
             });
 
         self.tracker.track_loop(loop_handle);
-
-        ServicesBinder::new(&addr, &ui_port)
-            .on_service_action(|name, action| ServiceAction {
-                name: name.to_string(),
-                kind: action.into(),
-            })
-            .on_select_service(|s_name, idx| SelectedService(s_name, idx as usize))
-            .on_sort_by(Sort)
-            .on_column_resized(|id, width| ResizeCol { id, width })
-            .on_rows_viewport_changed(|start, count| ViewportChanged {
-                start: start as usize,
-                count: count as usize,
-            })
-            .on_open_properties_window(OpenPropertiesWindow);
 
         ui_port.register(&reg);
 

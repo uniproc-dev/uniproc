@@ -1,5 +1,6 @@
 use crate::app::Window;
 use crate::feature::FeatureContextState;
+use crate::lifecycle_tracker::FeatureLifecycle;
 use crate::navigation::{RouteActivated, RouteDeactivated};
 use crate::reactor::Reactor;
 use crate::uri::AppUri;
@@ -19,7 +20,24 @@ pub struct WindowFeatureInitContext<'a, TWindow: Window> {
     pub reactor: &'a mut Reactor,
 }
 
+impl<'a, TWindow: Window> WindowFeatureInitContext<'a, TWindow> {
+    pub fn token(&self) -> UiThreadToken {
+        self.ui.new_token()
+    }
+}
+
+pub struct WindowFeatureDeinitContext<'a, TWindow: Window> {
+    pub ui: &'a TWindow,
+}
+
 pub struct AppFeatureInitContext<'a> {
+    pub token: UiThreadToken,
+    pub reactor: &'a mut Reactor,
+    pub shared: &'a SharedState,
+    pub tracker: &'a FeatureLifecycle,
+}
+
+pub struct AppFeatureDeinitContext<'a> {
     pub token: UiThreadToken,
     pub reactor: &'a mut Reactor,
     pub shared: &'a SharedState,
@@ -28,17 +46,27 @@ pub struct AppFeatureInitContext<'a> {
 pub trait WindowFeature<TWindow: Window> {
     fn install(&mut self, ctx: &mut WindowFeatureInitContext<TWindow>) -> anyhow::Result<()>;
 
-    fn uninstall(self: Box<Self>, ui: &TWindow) -> anyhow::Result<()>;
+    fn uninstall(
+        self: Box<Self>,
+        ctx: &mut WindowFeatureDeinitContext<TWindow>,
+    ) -> anyhow::Result<()>;
 }
 
 pub trait AppFeature {
-    fn install(self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()>;
+    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()>;
+    fn uninstall(self: Box<Self>, _ctx: &mut AppFeatureDeinitContext) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 pub trait FeatureComponent: Sized + 'static {
     fn context_state(&mut self) -> &mut FeatureContextState;
     fn on_activated(&mut self, uri: &AppUri, ctx: &Context<Self>);
     fn on_deactivated(&mut self, previous_uri: &AppUri, ctx: &Context<Self>);
+}
+
+pub trait FromMessage<Args> {
+    fn from_msg(args: Args) -> Self;
 }
 
 pub struct Events<T>(std::marker::PhantomData<T>);

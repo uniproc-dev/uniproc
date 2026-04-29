@@ -65,8 +65,8 @@ fn process_impl(mut item_impl: ItemImpl) -> TokenStream {
                 };
 
             let uninstall_method: syn::ImplItemFn = syn::parse_quote! {
-                fn uninstall(self: Box<Self>, ui: &#window_ty) -> anyhow::Result<()> {
-                    let token = ui.new_token();
+                fn uninstall(self: Box<Self>, ctx: &mut framework::feature::traits::WindowFeatureDeinitContext<#window_ty>) -> anyhow::Result<()> {
+                    let token = ctx.ui.new_token();
                     let tracker = self.tracker.clone();
 
                     drop(self);

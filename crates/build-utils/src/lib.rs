@@ -5,11 +5,23 @@ pub mod collector;
 pub mod slint_parser;
 
 pub use collector::{
-    ArgDef, BindingDef, BindingMethodDef, CapabilityDef, DtoDef, DtoField, MethodDef, PortDef,
-    Schema, load_schema,
+    load_schema, ArgDef, BindingDef, BindingMethodDef, CapabilityDef, DtoDef, DtoField, MethodDef,
+    PortDef, Schema,
 };
 
 use std::{fs, path::Path};
+use strsim::jaro_winkler;
+
+pub fn suggest_closest<'a>(
+    query: &str,
+    candidates: impl Iterator<Item = &'a str>,
+) -> Option<&'a str> {
+    candidates
+        .map(|cand| (cand, jaro_winkler(query, cand)))
+        .filter(|(_, sim)| *sim > 0.7)
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+        .map(|(cand, _)| cand)
+}
 
 pub fn write_if_changed(path: &Path, content: &str) {
     let existing = fs::read_to_string(path).unwrap_or_default();
@@ -28,10 +40,7 @@ pub fn generate_capabilities_rust(schema: &Schema, out_file: &Path) {
     let entries = caps
         .iter()
         .map(|cap| {
-            let const_name = cap
-                .key
-                .to_uppercase()
-                .replace(['.', '-'], "_");
+            let const_name = cap.key.to_uppercase().replace(['.', '-'], "_");
             format!("    pub const {}: &str = \"{}\";", const_name, cap.key)
         })
         .collect::<Vec<_>>()

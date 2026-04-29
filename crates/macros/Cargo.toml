@@ -13,6 +13,6 @@ quote.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 syn.workspace = true
-
+heck = "0.5"
 [lints]
 workspace = true

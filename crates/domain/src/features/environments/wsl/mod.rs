@@ -4,10 +4,8 @@ pub mod domain;
 
 pub use actor::{Init, InstallAgent, WslEnvActor};
 
-use app_contracts::features::environments::{
-    EnvironmentsBinder, UiEnvironmentsBindings, UiEnvironmentsPort,
-};
-use app_core::actor::addr::Addr;
+use app_contracts::features::environments::{UiEnvironmentsBindings, UiEnvironmentsPort};
+use framework::addr::AddrBuilder;
 use framework::feature::{WindowFeature, WindowFeatureInitContext};
 use macros::window_feature;
 
@@ -23,10 +21,10 @@ where
 {
     fn install(&mut self, ctx: &mut WindowFeatureInitContext<TWindow>) -> anyhow::Result<()> {
         let ui_port = (self.make_port)(ctx.ui);
-        let token = ctx.ui.new_token();
-        let addr = Addr::new_managed(WslEnvActor::new(ui_port.clone()), token, &self.tracker);
 
-        EnvironmentsBinder::new(&addr, &ui_port).on_install_agent(InstallAgent);
+        let addr = AddrBuilder::new(ctx.token(), &self.tracker)
+            .managed(WslEnvActor::new(ui_port.clone()))
+            .ui_bind(&ui_port);
 
         addr.send(Init);
         Ok(())

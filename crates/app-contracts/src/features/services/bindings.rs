@@ -22,9 +22,6 @@ pub trait UiServicesBindings: 'static {
     fn on_column_resized<F>(&self, handler: F)
     where
         F: Fn(SharedString, f32) + 'static;
-    fn on_open_system_services<F>(&self, handler: F)
-    where
-        F: Fn() + 'static;
     fn on_open_properties_window<F>(&self, handler: F)
     where
         F: Fn(ServiceEntryVm) + 'static;

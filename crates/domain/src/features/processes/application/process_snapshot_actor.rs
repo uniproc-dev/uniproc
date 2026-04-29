@@ -5,15 +5,12 @@ use crate::processes_impl::scanner::ctx::StatefulContext;
 use crate::processes_impl::scanner::visitors::linux::WslScanResult;
 use crate::processes_impl::scanner::visitors::windows::WindowsScanResult;
 use app_contracts::features::agents::RemoteScanResult;
-use app_contracts::features::environments::WslAgentRuntimeEvent;
 use app_contracts::features::processes::{
     FieldDefDto, ProcessFieldDto, ProcessNodeDto, UiProcessesPort,
 };
 use app_core::actor::addr::Addr;
 use app_core::actor::ManagedActor;
 use app_core::{messages, ratelimit};
-use framework::feature::Events;
-use framework::navigation::RouteActivated;
 use macros::{actor_manifest, handler};
 use slint::SharedString;
 use std::collections::{HashMap, HashSet};

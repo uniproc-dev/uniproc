@@ -1,10 +1,30 @@
+use crate::environments_impl::host::{HostProviderActor, Init};
+use crate::environments_impl::registry::EnvironmentRegistryActor;
 use app_contracts::features::environments::{UiEnvironmentsBindings, UiEnvironmentsPort};
+use app_core::actor::Addr;
 use framework::app::Window;
-use framework::feature::{WindowFeature, WindowFeatureInitContext};
+use framework::feature::{
+    AppFeature, AppFeatureInitContext, WindowFeature, WindowFeatureInitContext,
+};
 use macros::window_feature;
 
 pub mod host;
+mod registry;
 pub mod wsl;
+
+pub struct EnvironmentsRegistryFeature;
+
+impl AppFeature for EnvironmentsRegistryFeature {
+    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+        let actor = EnvironmentRegistryActor::new();
+        Addr::new_managed(actor, ctx.token.clone(), ctx.tracker);
+
+        let host_addr = Addr::new_managed(HostProviderActor, ctx.token.clone(), ctx.tracker);
+        host_addr.send(Init);
+
+        Ok(())
+    }
+}
 
 #[window_feature]
 pub struct EnvironmentsFeature;

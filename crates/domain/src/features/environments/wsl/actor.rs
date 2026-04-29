@@ -1,20 +1,22 @@
+use crate::environments_impl::UiEnvironmentsBindings;
+use app_contracts::features::environments::EnvironmentsPartialBinder;
 use crate::features::environments::wsl::domain::{
     check_wsl_availability_async, fetch_distros_data, inject_agent_async,
 };
-use app_contracts::features::environments::{
-    UiEnvironmentsPort, WslAgentRuntimeEvent, WslConnectionState, WslDistroDto,
-};
+use app_contracts::features::environments::{EnvironmentsBinder, UiEnvironmentsPort, WslDistroDto};
 use app_core::actor::{Context, ManagedActor};
 
+use app_contracts::features::agents::{WslAgentRuntimeEvent, WslConnectionState};
 use macros::{actor_manifest, handler};
 use std::fmt::Debug;
 use tracing::{error, info};
 
-#[actor_manifest]
+#[actor_manifest(binder = EnvironmentsBinder)]
 impl<P: UiEnvironmentsPort> ManagedActor for WslEnvActor<P> {
     type Bus = bus!(WslAgentRuntimeEvent);
     type Handlers = handlers!(
         Init,
+        #[bind]
         InstallAgent(String),
         CheckStatus,
         SetStatus(bool),
