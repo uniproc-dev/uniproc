@@ -5,7 +5,7 @@ use framework::feature::{AppFeature, AppFeatureInitContext};
 pub struct TestDiscoveryFeature;
 
 impl AppFeature for TestDiscoveryFeature {
-    fn install(self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
         ctx.shared.insert(ActorRegistry::default());
         Ok(())
     }

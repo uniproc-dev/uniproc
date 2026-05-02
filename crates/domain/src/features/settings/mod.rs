@@ -20,9 +20,10 @@ impl SettingsFeature {
 }
 
 impl AppFeature for SettingsFeature {
-    fn install(self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
         let path = self
             .path_override
+            .clone()
             .map(Ok)
             .unwrap_or_else(SettingsStore::default_settings_path)?;
         let store = Arc::new(SettingsStore::load_or_default(path)?);

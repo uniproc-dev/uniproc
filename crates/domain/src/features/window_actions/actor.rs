@@ -1,21 +1,24 @@
 use app_contracts::features::window_actions::{
-    ResizeEdge, UiWindowActionsPort, WindowBreakpoint, WindowConfigChanged,
+    ResizeEdge, UiWindowActionsBindings, UiWindowActionsPort, WindowActionsBinder,
+    WindowActionsPartialBinder, WindowBreakpoint, WindowConfigChanged,
 };
-use app_core::actor::event_bus::EventBus;
-use app_core::actor::ManagedActor;
+use app_core::actor::{Context, ManagedActor};
 use macros::{actor_manifest, handler};
 
-#[actor_manifest]
+#[actor_manifest(binder = WindowActionsBinder)]
 impl<P: UiWindowActionsPort> ManagedActor for WindowActor<P> {
     type Bus = bus!();
     type Handlers = handlers!(
-        Drag,
-        Close,
-        Minimize,
-        Maximize,
-        Resize(ResizeEdge),
-        BreakpointChanged(WindowBreakpoint, u64)
+        bind {
+            Drag,
+            Close,
+            Minimize,
+            Maximize,
+            StartResize(ResizeEdge),
+            ConfigChanged(WindowBreakpoint, u64)
+        },
     );
+    type Signals = bus!(WindowConfigChanged);
 }
 
 pub struct WindowActor<P> {
@@ -43,13 +46,17 @@ fn maximize_window<P: UiWindowActionsPort>(this: &mut WindowActor<P>, _: Maximiz
 }
 
 #[handler]
-fn resize_window<P: UiWindowActionsPort>(this: &mut WindowActor<P>, msg: Resize) {
+fn resize_window<P: UiWindowActionsPort>(this: &mut WindowActor<P>, msg: StartResize) {
     this.port.resize_window(msg.0);
 }
 
 #[handler]
-fn on_breakpoint_changed<P: UiWindowActionsPort>(_: &mut WindowActor<P>, msg: BreakpointChanged) {
-    EventBus::publish(WindowConfigChanged {
+fn on_breakpoint_changed<P: UiWindowActionsPort>(
+    _: &mut WindowActor<P>,
+    msg: ConfigChanged,
+    ctx: &Context<WindowActor<P>>,
+) {
+    ctx.publish(WindowConfigChanged {
         breakpoint: msg.0,
         width: msg.1,
     });

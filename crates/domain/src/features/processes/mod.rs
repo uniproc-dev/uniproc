@@ -68,6 +68,7 @@ where
 
         let _ = Addr::new_managed(snapshot_actor, token, &self.tracker);
 
+        // TODO: absurd, must be: loop -> send(SelfTick) -> handler<SelfTick> -> ScanTick
         let loop_handle = ctx
             .reactor
             .add_dynamic_loop(scan_interval_ms.as_signal(), || EventBus::publish(ScanTick));

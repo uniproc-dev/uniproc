@@ -1,9 +1,8 @@
 use crate::agents_impl::actor::{GenericAgentActor, Init, Ping};
 use crate::agents_impl::backend::AgentBackend;
 use crate::features::agents::settings::AgentSettings;
-use app_contracts::features::agents::{RemoteScanResult, ScanTick};
-use app_contracts::features::environments::{
-    AgentConnectionState, WslAgentRuntimeEvent, WslClient,
+use app_contracts::features::agents::{
+    AgentConnectionState, RemoteScanResult, ScanTick, WslAgentRuntimeEvent, WslClient,
 };
 use app_core::actor::event_bus::EventBus;
 use app_core::{actor::addr::Addr, ratelimit};
@@ -80,13 +79,13 @@ impl AgentBackend for WslBackend {
 
 pub struct WslAgentFeature;
 impl AppFeature for WslAgentFeature {
-    fn install(self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
         let settings = AgentSettings::new(ctx.shared)?;
 
         let addr = Addr::new(
             GenericAgentActor::<WslBackend>::new(settings.connect_timeout_secs()),
             ctx.token.clone(),
-            &FeatureLifecycle::new(),
+            ctx.tracker,
         );
 
         let a = addr.clone();
@@ -95,10 +94,7 @@ impl AppFeature for WslAgentFeature {
                 a.send(Ping)
             });
 
-        EventBus::subscribe::<GenericAgentActor<WslBackend>, ScanTick>(
-            addr.clone(),
-            &FeatureLifecycle::new(),
-        );
+        EventBus::subscribe::<GenericAgentActor<WslBackend>, ScanTick>(addr.clone(), ctx.tracker);
         addr.send(Init);
         Ok(())
     }

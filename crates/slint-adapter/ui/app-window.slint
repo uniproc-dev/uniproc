@@ -67,16 +67,6 @@ export component AppWindow inherits Window {
         z: 2000;
     }
 
-//    if (ContextMenuProxy.is-open): TouchArea {
-//        z: 9999;
-//        pointer-event(evt) => {
-//            if (evt.kind == PointerEventKind.down) {
-//                ContextMenuProxy.is-open = false;
-//                ContextMenuProxy.close-menu();
-//            }
-//        }
-//    }
-
     ResizeHandler {
         resize_requested(dir) => {
             root.start_resize(dir);

@@ -23,7 +23,7 @@ where
 {
     fn install(&mut self, ctx: &mut WindowFeatureInitContext<TWindow>) -> anyhow::Result<()> {
         let ui_port = (self.make_port)(ctx.ui);
-        let token = ctx.ui.new_token();
+        let token = ctx.token();
 
         let routes = ctx
             .shared

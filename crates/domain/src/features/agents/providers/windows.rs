@@ -1,16 +1,14 @@
 use crate::agents_impl::actor::{GenericAgentActor, Init, Ping};
 use crate::agents_impl::backend::AgentBackend;
 use crate::features::agents::settings::AgentSettings;
-use app_contracts::features::agents::{ScanTick, WindowsReportMessage};
-use app_contracts::features::environments::{
-    AgentClient, AgentConnectionState, WindowsAgentRuntimeEvent,
+use app_contracts::features::agents::{
+    AgentClient, AgentConnectionState, ScanTick, WindowsAgentRuntimeEvent, WindowsReportMessage,
 };
 use app_core::{
     actor::{event_bus::EventBus, Addr},
     ratelimit,
 };
 use framework::feature::{AppFeature, AppFeatureInitContext};
-use framework::lifecycle_tracker::FeatureLifecycle;
 use ogurpchik::discovery::Scope;
 use ogurpchik::transport::stream::adapters::uds::UdsTransport;
 use std::ops::Deref;
@@ -74,13 +72,13 @@ impl AgentBackend for WindowsBackend {
 
 pub struct WindowsAgentFeature;
 impl AppFeature for WindowsAgentFeature {
-    fn install(self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
         let settings = AgentSettings::new(ctx.shared)?;
 
         let addr = Addr::new(
             GenericAgentActor::<WindowsBackend>::new(settings.connect_timeout_secs()),
             ctx.token.clone(),
-            &FeatureLifecycle::new(),
+            ctx.tracker,
         );
 
         let a = addr.clone();
@@ -91,7 +89,7 @@ impl AppFeature for WindowsAgentFeature {
 
         let _ = EventBus::subscribe::<GenericAgentActor<WindowsBackend>, ScanTick>(
             addr.clone(),
-            &FeatureLifecycle::new(),
+            ctx.tracker,
         );
 
         addr.send(Init);

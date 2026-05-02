@@ -1,4 +1,4 @@
-use app_contracts::features::environments::AgentConnectionState;
+use app_contracts::features::agents::AgentConnectionState;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConnectionEvent {

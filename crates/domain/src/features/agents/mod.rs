@@ -5,13 +5,13 @@ pub mod providers;
 pub mod settings;
 
 use crate::agents_impl::providers::{windows, wsl};
-use framework::feature::{AppFeature, AppFeatureInitContext};
+use framework::feature::{AppFeature, AppFeatureDeinitContext, AppFeatureInitContext};
 use tracing::info;
 
 pub struct AgentsFeature;
 
 impl AppFeature for AgentsFeature {
-    fn install(self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
         info!("Agents feature installed");
         cfg_if::cfg_if! {
             if #[cfg(target_os = "windows")] {

@@ -128,12 +128,10 @@ impl RouteStatusRegistry {
 
     pub fn get_route_state(&self, key: &RouteStatusKey) -> FeatureState {
         let map = self.route_states.read().unwrap();
-        map.get(key)
-            .cloned()
-            .unwrap_or(FeatureState {
-                status: PageStatus::Loading,
-                error_msg: String::new(),
-            })
+        map.get(key).cloned().unwrap_or(FeatureState {
+            status: PageStatus::Loading,
+            error_msg: String::new(),
+        })
     }
 
     pub fn get_tab_state(&self, tab_id: TabId) -> FeatureState {
@@ -158,19 +156,6 @@ impl RouteStatusRegistry {
                     msg.status,
                     msg.error.clone(),
                 ) {
-                    EventBus::publish(msg);
-                }
-            },
-        );
-    }
-
-    pub fn report_tab(&self, msg: TabStatusChanged) {
-        in_named_scope(
-            "context.page_status.update",
-            Some("tab_id,status"),
-            Some(format!("{:?} | {:?}", msg.tab_id, msg.status)),
-            || {
-                if self.update_tab(msg.tab_id, msg.status, msg.error.clone()) {
                     EventBus::publish(msg);
                 }
             },

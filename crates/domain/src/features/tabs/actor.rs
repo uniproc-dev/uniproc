@@ -1,22 +1,24 @@
 use crate::features::tabs::state::TabsState;
-use app_contracts::features::agents::RemoteScanResult;
 #[cfg(target_os = "windows")]
-use app_contracts::features::environments::WindowsAgentRuntimeEvent;
-use app_contracts::features::environments::{AgentConnectionState, WslAgentRuntimeEvent};
+use app_contracts::features::agents::WindowsAgentRuntimeEvent;
+use app_contracts::features::agents::{
+    AgentConnectionState, RemoteScanResult, WslAgentRuntimeEvent,
+};
 use app_contracts::features::navigation::NavigationProjectionChanged;
 use app_contracts::features::sidebar::RequestTransition;
 use app_contracts::features::tabs::{
-    AvailableContextDescriptor, TabContextKey, TabContextSnapshot, TabDescriptor, UiTabsPort,
+    AvailableContextDescriptor, TabContextKey, TabContextSnapshot, TabDescriptor, TabsBinder,
+    TabsPartialBinder, UiTabsBindings, UiTabsPort,
 };
 use app_core::actor::event_bus::EventBus;
-use app_core::actor::ManagedActor;
+use app_core::actor::{Context, ManagedActor};
 use context::page_status::{PageStatus, RouteStatusChanged};
 use framework::navigation::{RouteActivated, RouteRegistry};
 use macros::{actor_manifest, handler};
 use std::sync::Arc;
 use tracing::{instrument, warn};
 
-#[actor_manifest]
+#[actor_manifest(binder = TabsBinder)]
 impl<P: UiTabsPort + Clone> ManagedActor for TabsActor<P> {
     type Bus = bus!(
         @RouteActivated,
@@ -27,9 +29,11 @@ impl<P: UiTabsPort + Clone> ManagedActor for TabsActor<P> {
         @WindowsAgentRuntimeEvent,
     );
     type Handlers = handlers!(
-        RequestTabSwitch(String),
-        RequestTabClose(String),
-        RequestTabAdd(String),
+        bind {
+            RequestTabSwitch(String),
+            RequestTabClose(String),
+            RequestTabAdd(String),
+        },
         @RouteActivated,
         @RouteStatusChanged,
         @NavigationProjectionChanged,
@@ -38,6 +42,7 @@ impl<P: UiTabsPort + Clone> ManagedActor for TabsActor<P> {
         #[cfg(target_os = "windows")]
         @WindowsAgentRuntimeEvent
     );
+    type Signals = bus!(RequestTransition, NavigationProjectionChanged);
 }
 
 pub struct TabsActor<P: UiTabsPort + Clone> {
@@ -83,10 +88,11 @@ impl<P: UiTabsPort + Clone> TabsActor<P> {
     fn publish_transition_if_needed(
         &self,
         transition: &crate::features::tabs::state::RouteActivation,
+        ctx: &Context<Self>,
     ) {
         if let Some(previous_index) = transition.previous_index {
             if previous_index != transition.next_index {
-                EventBus::publish(RequestTransition {
+                ctx.publish(RequestTransition {
                     from_index: previous_index as i32,
                     to_index: transition.next_index as i32,
                 });
@@ -94,14 +100,19 @@ impl<P: UiTabsPort + Clone> TabsActor<P> {
         }
     }
 
-    fn publish_state(&self) {
-        EventBus::publish(self.state.navigation_projection());
+    fn publish_state(&self, ctx: &Context<Self>) {
+        ctx.publish(self.state.navigation_projection());
     }
 
-    fn update_context_status(&mut self, context_key: &str, status: PageStatus) {
+    fn update_context_status(
+        &mut self,
+        context_key: &str,
+        status: PageStatus,
+        ctx: &Context<Self>,
+    ) {
         if self.state.update_context_status(context_key, status) {
             self.sync_ui_to_state();
-            self.publish_state();
+            self.publish_state(ctx);
         }
     }
 }
@@ -116,11 +127,15 @@ fn runtime_state_to_page_status(state: AgentConnectionState) -> PageStatus {
 }
 
 #[handler]
-fn switch_tab<P: UiTabsPort + Clone>(this: &mut TabsActor<P>, msg: RequestTabSwitch) {
+fn switch_tab<P: UiTabsPort + Clone>(
+    this: &mut TabsActor<P>,
+    msg: RequestTabSwitch,
+    ctx: &Context<TabsActor<P>>,
+) {
     let context_key = TabContextKey(std::borrow::Cow::Owned(msg.0.clone()));
     if this.state.switch_to_context(&context_key) {
         this.sync_ui_to_state();
-        this.publish_state();
+        this.publish_state(ctx);
         return;
     }
 
@@ -128,30 +143,42 @@ fn switch_tab<P: UiTabsPort + Clone>(this: &mut TabsActor<P>, msg: RequestTabSwi
 }
 
 #[handler]
-fn close_tab<P: UiTabsPort + Clone>(this: &mut TabsActor<P>, msg: RequestTabClose) {
+fn close_tab<P: UiTabsPort + Clone>(
+    this: &mut TabsActor<P>,
+    msg: RequestTabClose,
+    ctx: &Context<TabsActor<P>>,
+) {
     if this.state.disable_context(&msg.0) {
         this.sync_ui_to_state();
-        this.publish_state();
+        this.publish_state(ctx);
     }
 }
 
 #[handler]
-fn add_tab<P: UiTabsPort + Clone>(this: &mut TabsActor<P>, msg: RequestTabAdd) {
+fn add_tab<P: UiTabsPort + Clone>(
+    this: &mut TabsActor<P>,
+    msg: RequestTabAdd,
+    ctx: &Context<TabsActor<P>>,
+) {
     if this.state.enable_context(&msg.0) {
         this.sync_ui_to_state();
-        this.publish_state();
+        this.publish_state(ctx);
     }
 }
 
 #[handler]
-fn sync_active_route<P: UiTabsPort + Clone>(this: &mut TabsActor<P>, msg: RouteActivated) {
+fn sync_active_route<P: UiTabsPort + Clone>(
+    this: &mut TabsActor<P>,
+    msg: RouteActivated,
+    ctx: &Context<TabsActor<P>>,
+) {
     if let Some(transition) = this
         .state
         .activate_route(&TabContextKey(msg.uri.context_name), &msg.uri.base.segment)
     {
         this.sync_ui_to_state();
-        this.publish_transition_if_needed(&transition);
-        this.publish_state();
+        this.publish_transition_if_needed(&transition, ctx);
+        this.publish_state(ctx);
     }
 }
 
@@ -174,26 +201,32 @@ fn sync_navigation_projection<P: UiTabsPort + Clone>(
 }
 
 #[handler]
-#[instrument(skip(this, msg), fields(schema_id = msg.schema_id))]
-fn process_remote_scan<P: UiTabsPort + Clone>(this: &mut TabsActor<P>, msg: RemoteScanResult) {
+fn process_remote_scan<P: UiTabsPort + Clone>(
+    this: &mut TabsActor<P>,
+    msg: RemoteScanResult,
+    ctx: &Context<TabsActor<P>>,
+) {
     if this.state.apply_remote_contexts(&msg) {
         this.sync_ui_to_state();
-        this.publish_state();
+        this.publish_state(ctx);
     }
 }
 
 #[handler]
-#[instrument(skip(this), fields(state = ?msg.state, latency = ?msg.latency_ms))]
-fn sync_wsl_status<P: UiTabsPort + Clone>(this: &mut TabsActor<P>, msg: WslAgentRuntimeEvent) {
-    this.update_context_status("wsl", runtime_state_to_page_status(msg.state));
+fn sync_wsl_status<P: UiTabsPort + Clone>(
+    this: &mut TabsActor<P>,
+    msg: WslAgentRuntimeEvent,
+    ctx: &Context<TabsActor<P>>,
+) {
+    this.update_context_status("wsl", runtime_state_to_page_status(msg.state), ctx);
 }
 
 #[cfg(target_os = "windows")]
 #[handler]
-#[instrument(skip(this), fields(state = ?msg.state, latency = ?msg.latency_ms))]
 fn sync_windows_status<P: UiTabsPort + Clone>(
     this: &mut TabsActor<P>,
     msg: WindowsAgentRuntimeEvent,
+    ctx: &Context<TabsActor<P>>,
 ) {
-    this.update_context_status("host", runtime_state_to_page_status(msg.state));
+    this.update_context_status("host", runtime_state_to_page_status(msg.state), ctx);
 }

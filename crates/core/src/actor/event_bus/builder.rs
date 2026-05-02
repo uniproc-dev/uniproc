@@ -2,7 +2,6 @@ use crate::actor::addr::Addr;
 use crate::actor::event_bus::subscribe::Event;
 use crate::actor::event_bus::{EventBus, RpcCall, RpcRequest};
 use crate::actor::traits::Handler;
-use crate::actor::DirectHandler;
 use crate::lifecycle_tracker::LifecycleTracker;
 
 pub trait EventSubscription<A> {
@@ -69,40 +68,3 @@ where
         builder.subscribe::<M>()
     }
 }
-
-macro_rules! impl_batch_for_tuple {
-    ($($M:ident),+) => {
-        impl<A, L, $($M),+> EventBatch<A, L> for ($($M,)+)
-        where
-            L: LifecycleTracker,
-            $(A: Handler<$M> + 'static, $M: Event,)+
-        {
-            fn subscribe_batch(builder: EventBusBuilder<A, L>) -> EventBusBuilder<A, L> {
-                $(
-                    EventBus::subscribe::<A, $M>(builder.addr.clone(), builder.tracker);
-                )+
-                builder
-            }
-        }
-        impl<A, $($M),+> DirectHandler<A> for ($($M,)+)
-            where $( $M: DirectHandler<A> ),+
-        {}
-
-        impl<A, $($M),+> EventSubscription<A> for ($($M,)+)
-        where
-            $($M: EventSubscription<A>),+
-        {
-            fn subscribe_into(addr: Addr<A>, tracker: &impl LifecycleTracker) {
-                $(
-                    $M::subscribe_into(addr.clone(), tracker);
-                )+
-            }
-        }
-
-    };
-}
-
-impl_batch_for_tuple!(M1, M2);
-impl_batch_for_tuple!(M1, M2, M3);
-impl_batch_for_tuple!(M1, M2, M3, M4);
-impl_batch_for_tuple!(M1, M2, M3, M4, M5);

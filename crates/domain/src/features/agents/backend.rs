@@ -1,4 +1,4 @@
-use app_contracts::features::environments::AgentConnectionState;
+use app_contracts::features::agents::AgentConnectionState;
 use app_core::actor::traits::Message;
 
 pub trait AgentBackend: Send + Sync + 'static {

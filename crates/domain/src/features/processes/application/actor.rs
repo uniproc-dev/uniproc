@@ -66,6 +66,7 @@ impl<P: UiProcessesPort> ManagedActor for ProcessActor<P> {
             }
         },
     );
+    type Signals = bus!(ActiveStatus);
 }
 
 impl<P: UiProcessesPort> FeatureComponent for ProcessActor<P> {
@@ -73,15 +74,15 @@ impl<P: UiProcessesPort> FeatureComponent for ProcessActor<P> {
         &mut self.ctx
     }
 
-    fn on_activated(&mut self, uri: &AppUri, _: &Context<Self>) {
+    fn on_activated(&mut self, uri: &AppUri, ctx: &Context<Self>) {
         self.is_active = true;
-        EventBus::publish(ActiveStatus(true));
+        ctx.publish(ActiveStatus(true));
         self.active_context_key = uri.context_name.clone();
     }
 
-    fn on_deactivated(&mut self, _: &AppUri, _: &Context<Self>) {
+    fn on_deactivated(&mut self, _: &AppUri, ctx: &Context<Self>) {
         self.is_active = false;
-        EventBus::publish(ActiveStatus(false));
+        ctx.publish(ActiveStatus(false));
     }
 }
 
@@ -233,24 +234,18 @@ fn select_process<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: SelectPro
 }
 
 #[handler]
-fn terminate_selected_process<P: UiProcessesPort>(
-    this: &mut ProcessActor<P>,
-    _: Terminate,
-    ctx: &Context<ProcessActor<P>>,
-) {
+fn terminate_selected_process<P: UiProcessesPort>(this: &mut ProcessActor<P>, _: Terminate) {
     let pid = this.ui_port.get_selected_pid();
     let Some(pid) = (pid != -1).then_some(pid as u32) else {
         return;
     };
 
-    ctx.spawn_bg(async move {
-        let mut system = System::new();
-        system.refresh_processes(ProcessesToUpdate::Some(&[Pid::from_u32(pid)]), false);
-        if let Some(process) = system.process(Pid::from_u32(pid)) {
-            process.kill();
-        }
-        NoOp
-    });
+    // TODO: bullshit
+    let mut system = System::new();
+    system.refresh_processes(ProcessesToUpdate::Some(&[Pid::from_u32(pid)]), false);
+    if let Some(process) = system.process(Pid::from_u32(pid)) {
+        process.kill();
+    }
 
     this.table.clear_selection();
 }

@@ -9,7 +9,6 @@ use app_contracts::features::services::{
     UiServicesPort, PROPERTIES_DIALOG_KEY,
 };
 use app_contracts::features::windows_manager::OpenedWindow;
-use app_core::actor::event_bus::EventBus;
 use app_core::actor::Context;
 use app_core::actor::ManagedActor;
 use app_core::trace::current_or_new_correlation_uuid;
@@ -25,7 +24,7 @@ use std::sync::Arc;
 use uniproc_protocol::{ServiceCommand, WindowsRequest};
 use uuid::Uuid;
 
-#[actor_manifest(binder = ServicesBinde)]
+#[actor_manifest(binder = ServicesBinder)]
 impl<P: UiServicesPort> ManagedActor for ServiceActor<P> {
     type Bus = Events<bus!(ServiceSnapshot, WindowsActionResponse, OpenedWindow)>;
     type Handlers = handlers!(
@@ -50,6 +49,7 @@ impl<P: UiServicesPort> ManagedActor for ServiceActor<P> {
             OpenPropertiesWindow(ServiceEntryVm)
         },
     );
+    type Signals = bus!(ActiveStatus, OpenWindow, WindowsActionRequest);
 }
 
 pub struct ServiceActor<P: UiServicesPort> {
@@ -68,15 +68,16 @@ impl<P: UiServicesPort> FeatureComponent for ServiceActor<P> {
         &mut self.ctx_state
     }
 
-    fn on_activated(&mut self, uri: &AppUri, _: &Context<Self>) {
+    fn on_activated(&mut self, uri: &AppUri, ctx: &Context<Self>) {
         self.is_active = true;
-        EventBus::publish(ActiveStatus(true));
+
+        ctx.publish(ActiveStatus(true));
         self.active_context_key = uri.context_name.clone();
     }
 
-    fn on_deactivated(&mut self, _: &AppUri, _: &Context<Self>) {
+    fn on_deactivated(&mut self, _: &AppUri, ctx: &Context<Self>) {
         self.is_active = false;
-        EventBus::publish(ActiveStatus(false));
+        ctx.publish(ActiveStatus(false));
     }
 }
 
@@ -112,6 +113,7 @@ fn service_snapshot<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: ServiceS
 fn service_action<P: UiServicesPort>(
     this: &mut ServiceActor<P>,
     ServiceAction { name, kind }: ServiceAction,
+    ctx: &Context<ServiceActor<P>>,
 ) {
     let name = name.to_string();
     let id = current_or_new_correlation_uuid();
@@ -124,7 +126,7 @@ fn service_action<P: UiServicesPort>(
     };
 
     this.pending.insert(id);
-    EventBus::publish(WindowsActionRequest::new(
+    ctx.publish(WindowsActionRequest::new(
         id,
         WindowsRequest::ServiceCommand(cmd),
     ));
@@ -186,8 +188,12 @@ fn select_service<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: SelectServ
 }
 
 #[handler]
-fn open_properties<P: UiServicesPort>(_: &mut ServiceActor<P>, msg: OpenPropertiesWindow) {
-    EventBus::publish(OpenWindow {
+fn open_properties<P: UiServicesPort>(
+    _: &mut ServiceActor<P>,
+    msg: OpenPropertiesWindow,
+    ctx: &Context<ServiceActor<P>>,
+) {
+    ctx.publish(OpenWindow {
         key: msg.0.name.to_string(),
         template: PROPERTIES_DIALOG_KEY.to_string(),
         data: Arc::new(msg.0),

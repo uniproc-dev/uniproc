@@ -20,16 +20,6 @@ struct ParsedItem {
     kind: ManifestItem,
 }
 
-fn derive_bindings_path(binder_path: &Path) -> Path {
-    let mut bindings_path = binder_path.clone();
-    if let Some(last) = bindings_path.segments.last_mut() {
-        let ident_str = last.ident.to_string();
-        let base = ident_str.strip_suffix("Binder").unwrap_or(&ident_str);
-        last.ident = format_ident!("Ui{}Bindings", base);
-    }
-    bindings_path
-}
-
 impl ParsedItem {
     fn parse_with_context(input: ParseStream, force_new: bool) -> syn::Result<Self> {
         let attrs = input.call(Attribute::parse_outer)?;
@@ -423,63 +413,100 @@ pub fn actor_manifest_impl(attr: TokenStream, mut impl_block: ItemImpl) -> Token
         .replace(">", "_")
         .replace("::", "_");
 
-    let bus_marker_id = format_ident!("__Bus_{}", base_name);
-    let handlers_marker_id = format_ident!("__Handlers_{}", base_name);
+    let mut has_bus = false;
+    let mut has_signals = false;
 
     let mut all_structs = Vec::new();
+    let mut signals_logic = quote! {};
     let mut bus_logic = quote! {};
     let mut handlers_logic = quote! {};
     let mut bound_messages = Vec::new();
 
     for item in &mut impl_block.items {
         if let ImplItem::Type(ty_item) = item {
-            if let Some(res) = transform_manifest(
-                &mut ty_item.ty,
-                "bus",
-                false,
-                self_ty,
-                bus_marker_id.clone(),
-                true,
-                &mut bound_messages,
-            ) {
-                all_structs.extend(res.generated_structs);
-                let calls = res.logic_calls;
-                bus_logic = quote! {
-                    #[doc(hidden)] pub struct #bus_marker_id;
-                    impl #impl_generics app_core::actor::event_bus::builder::EventSubscription<#self_ty> for #bus_marker_id #where_clause {
-                        fn subscribe_into(addr: app_core::actor::Addr<#self_ty>, tracker: &impl app_core::lifecycle_tracker::LifecycleTracker) {
-                            #(#calls)*
+            if ty_item.ident == "Bus" {
+                has_bus = true;
+                let marker_id = format_ident!("__Bus_{}", base_name);
+                if let Some(res) = transform_manifest(
+                    &mut ty_item.ty,
+                    "bus",
+                    false,
+                    self_ty,
+                    marker_id.clone(),
+                    true,
+                    &mut Vec::new(),
+                ) {
+                    all_structs.extend(res.generated_structs);
+                    let calls = res.logic_calls;
+                    bus_logic = quote! {
+                        #[doc(hidden)] pub struct #marker_id;
+                        impl #impl_generics app_core::actor::event_bus::builder::EventSubscription<#self_ty> for #marker_id #where_clause {
+                            fn subscribe_into(addr: app_core::actor::Addr<#self_ty>, tracker: &impl app_core::lifecycle_tracker::LifecycleTracker) {
+                                #(#calls)*
+                            }
                         }
+                    };
+                }
+            }
+
+            if ty_item.ident == "Signals" {
+                has_signals = true;
+                let marker_id = format_ident!("__Signals_{}", base_name);
+
+                let msgs = extract_bus_types(&ty_item.ty);
+
+                ty_item.ty = syn::parse_quote!(#marker_id);
+
+                let sig_impls = msgs.iter().map(|msg_ty| {
+                    quote! {
+                        impl app_core::actor::traits::AllowedSignal<#msg_ty> for #marker_id {}
                     }
+                });
+
+                signals_logic = quote! {
+                    #[doc(hidden)]
+                    pub struct #marker_id;
+                    #(#sig_impls)*
                 };
             }
 
-            if let Some(res) = transform_manifest(
-                &mut ty_item.ty,
-                "handlers",
-                true,
-                self_ty,
-                handlers_marker_id.clone(),
-                false,
-                &mut bound_messages,
-            ) {
-                all_structs.extend(res.generated_structs);
-                let checks = res.logic_calls;
-                handlers_logic = quote! {
-                    #[doc(hidden)] pub struct #handlers_marker_id;
-                    impl #impl_generics app_core::actor::DirectHandler<#self_ty> for #handlers_marker_id #where_clause {}
-                    const _: () = {
-                        fn check_handlers #impl_generics () #where_clause {
-                            fn assert_handler<A, M>() where
-                                A: app_core::actor::Handler<M>,
-                                M: app_core::actor::Message,
-                            {}
-                            #(#checks)*
-                        }
+            if ty_item.ident == "Handlers" {
+                let marker_id = format_ident!("__Handlers_{}", base_name);
+                if let Some(res) = transform_manifest(
+                    &mut ty_item.ty,
+                    "handlers",
+                    true,
+                    self_ty,
+                    marker_id.clone(),
+                    false,
+                    &mut bound_messages,
+                ) {
+                    all_structs.extend(res.generated_structs);
+                    let checks = res.logic_calls;
+                    handlers_logic = quote! {
+                        #[doc(hidden)] pub struct #marker_id;
+                        impl #impl_generics app_core::actor::DirectHandler<#self_ty> for #marker_id #where_clause {}
+                        const _: () = {
+                            fn check_handlers #impl_generics () #where_clause {
+                                fn assert_handler<A, M>() where A: app_core::actor::Handler<M>, M: app_core::actor::Message {}
+                                #(#checks)*
+                            }
+                        };
                     };
-                };
+                }
             }
         }
+    }
+
+    if !has_bus {
+        impl_block.items.push(parse_quote!(
+            type Bus = ();
+        ));
+    }
+    if !has_signals {
+        impl_block.items.push(parse_quote!(
+            type Signals = ();
+        ));
     }
 
     let mut auto_bind_logic = quote! {};
@@ -669,9 +696,22 @@ pub fn actor_manifest_impl(attr: TokenStream, mut impl_block: ItemImpl) -> Token
     quote! {
         #(#all_structs)*
         #bus_logic
+        #signals_logic
         #handlers_logic
         #auto_bind_logic
         #impl_block
     }
     .into()
+}
+
+fn extract_bus_types(ty: &syn::Type) -> Vec<syn::Type> {
+    if let syn::Type::Macro(m) = ty {
+        if m.mac.path.is_ident("bus") {
+            let parser = syn::punctuated::Punctuated::<syn::Type, syn::Token![,]>::parse_terminated;
+            if let Ok(punctuated) = m.mac.parse_body_with(parser) {
+                return punctuated.into_iter().collect();
+            }
+        }
+    }
+    Vec::new()
 }

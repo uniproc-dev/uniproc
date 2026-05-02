@@ -1,5 +1,5 @@
 use crate::actor::event_bus::builder::EventSubscription;
-use crate::actor::{short_type_name, Context};
+use crate::actor::Context;
 
 pub trait Message: 'static {}
 
@@ -20,8 +20,11 @@ where
 pub trait ManagedActor: Sized + 'static {
     type Bus: EventSubscription<Self>;
     type Handlers: DirectHandler<Self>;
+    type Signals;
 }
 
+pub trait AllowedSignal<M: Message> {}
+impl<M: Message> AllowedSignal<M> for M {}
 
 #[derive(Debug, Clone)]
 pub struct NoOp;

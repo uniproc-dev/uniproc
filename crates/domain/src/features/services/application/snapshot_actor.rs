@@ -1,7 +1,7 @@
 use crate::features::services::{application::actor::ServiceActor, scanner};
 use app_contracts::features::agents::ScanTick;
 use app_contracts::features::services::{ServiceEntryDto, ServiceSnapshot, UiServicesPort};
-use app_core::actor::{Addr, Context, ManagedActor};
+use app_core::actor::{Addr, AsyncContext, ManagedActor};
 use app_core::actor::{Message, NoOp};
 use app_core::messages;
 use macros::{actor_manifest, handler};
@@ -31,23 +31,21 @@ pub struct ServiceSnapshotActor<P: UiServicesPort> {
 }
 
 #[handler]
-fn handle_scan_tick<P: UiServicesPort>(
-    this: &mut ServiceSnapshotActor<P>,
+async fn handle_scan_tick<P: UiServicesPort>(
+    ctx: AsyncContext<ServiceSnapshotActor<P>>,
     _: ScanTick,
-    ctx: &Context<ServiceSnapshotActor<P>>,
 ) {
-    if !this.is_active {
+    let is_active = ctx.apply(|this, _| this.is_active).await;
+    if !is_active {
         return;
     }
 
-    ctx.spawn_bg(async move {
-        #[cfg(target_os = "windows")]
-        if let Ok(d) = scanner::windows::scan_services() {
-            ServiceSnapshotResult::Snapshot(d)
-        } else {
-            ServiceSnapshotResult::NoOp(NoOp)
-        }
-    });
+    let result = scanner::windows::scan_services();
+
+    match result {
+        Ok(data) => ctx.send(ServiceSnapshotResult::Snapshot(data)),
+        Err(_) => ctx.send(ServiceSnapshotResult::NoOp(NoOp)),
+    }
 }
 
 #[handler]

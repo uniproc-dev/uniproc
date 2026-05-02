@@ -1,9 +1,8 @@
 use super::backend::AgentBackend;
 use crate::features::agents::connection::*;
-use app_contracts::features::agents::ScanTick;
-use app_contracts::features::environments::AgentConnectionState;
+use app_contracts::features::agents::{AgentConnectionState, ScanTick};
 use app_core::actor::event_bus::EventBus;
-use app_core::actor::{Context, Message, NoOp};
+use app_core::actor::{AsyncContext, Context, Message, NoOp};
 use app_core::messages;
 use framework::settings::ReactiveSetting;
 use macros::handler;
@@ -196,16 +195,13 @@ fn perform_scan_tick<B: AgentBackend>(
 }
 
 #[handler]
-fn schedule_retry<B: AgentBackend>(
-    _: &mut GenericAgentActor<B>,
+async fn schedule_retry<B: AgentBackend>(
+    ctx: AsyncContext<GenericAgentActor<B>>,
     msg: TryConnectWithDelay,
-    ctx: &Context<GenericAgentActor<B>>,
 ) {
     let secs = msg.0;
-    ctx.spawn_bg(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
-        RetryTimerElapsed
-    });
+    tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
+    ctx.send(RetryTimerElapsed);
 }
 
 #[handler]

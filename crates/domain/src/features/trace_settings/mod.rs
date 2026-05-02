@@ -10,7 +10,7 @@ use std::sync::Arc;
 pub struct TraceSettingsFeature;
 
 impl AppFeature for TraceSettingsFeature {
-    fn install(self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
         let settings = TraceSettings::new(ctx.shared)?;
         apply_trace_policy(&settings);
 
