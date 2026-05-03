@@ -1,3 +1,4 @@
+import { Icon } from "icons.slint";
 import { Theme } from "theme.slint";
 
 export component Button {
@@ -5,6 +6,7 @@ export component Button {
     in property <bool> primary: false;
     in property <bool> enabled: true;
     in property <image> icon;
+    in property <string> icon-key;
     in property <color> icon-color;
     in property <bool> has-icon-color;
     in property <length> icon-size;
@@ -114,9 +116,20 @@ export component Button {
             padding-right: root.prop-padding-right;
             spacing: Theme.spacingHorizontalS;
             alignment: center;
-            if (root.icon.width > 0): VerticalLayout {
+            if (root.icon-key != "" || root.icon.width > 0): VerticalLayout {
                 alignment: center;
-                Image {
+                if (root.icon-key != ""): Icon {
+                    name: root.icon-key;
+                    width: root.icon-size > 0 ? root.icon-size : Theme.icon_size_m;
+                    height: root.icon-size > 0 ? root.icon-size : Theme.icon_size_m;
+                    x: root.icon-offset-x;
+                    colorize: root.get-icon-color(
+                        root.enabled,
+                        root.has-icon-color,
+                        root.icon-color,
+                        root.get-foreground-color(root.enabled, root.primary, root.is-transparent));
+                }
+                if (root.icon-key == ""): Image {
                     source: root.icon;
                     width: root.icon-size > 0 ? root.icon-size : Theme.icon_size_m;
                     height: root.icon-size > 0 ? root.icon-size : Theme.icon_size_m;

@@ -110,6 +110,8 @@ ttl_cache = "0.5"
 walkdir = "2.5.0"
 derive_more = "2.1.1"
 smol_str = "0.3.6"
+sha2 = "0.10.9"
+ureq = "2.12.1"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
@@ -129,4 +131,3 @@ codegen-units = 256
 
 [profile.dev.package."*"]
 debug = 0
-

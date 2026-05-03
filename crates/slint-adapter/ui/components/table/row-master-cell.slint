@@ -1,8 +1,9 @@
-import { Icons } from "icons.slint";
+import { ArrowUpRegularIcon, Icon } from "icons.slint";
 
 export component GenericMasterCell inherits Rectangle {
     in property <string> text;
     in property <image> icon;
+    in property <string> icon-key;
     in property <color> icon-color;
     in property <bool> has-icon-color;
     in property <int> depth: 0;
@@ -19,8 +20,7 @@ export component GenericMasterCell inherits Rectangle {
 
         if (root.has-children): Rectangle {
             width: 12px;
-            Image {
-                source: Icons.arrow-up-regular;
+            ArrowUpRegularIcon {
                 width: 10px;
                 height: 10px;
                 colorize: root.text-color;
@@ -41,7 +41,13 @@ export component GenericMasterCell inherits Rectangle {
         VerticalLayout {
             alignment: center;
 
-            Image {
+            if (root.icon-key != ""): Icon {
+                name: root.icon-key;
+                colorize: root.has-icon-color ? root.icon-color : transparent;
+                width: 16px;
+                height: 16px;
+            }
+            if (root.icon-key == ""): Image {
                 source: root.icon;
                 colorize: root.has-icon-color ? root.icon-color : transparent;
                 width: 16px;

@@ -1,2 +1,7 @@
-// AUTO-GENERATED registry is included from OUT_DIR — do not edit manually
-include!(concat!(env!("OUT_DIR"), "/icons.rs"));
+pub use framework::icons::{IconFamily, IconKey, IconRef, IconVariant};
+
+mod generated {
+    include!(concat!(env!("OUT_DIR"), "/icons.rs"));
+}
+
+pub use generated::*;

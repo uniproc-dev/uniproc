@@ -1,6 +1,7 @@
 pub mod addr;
 pub mod app;
 pub mod feature;
+pub mod icons;
 pub mod lifecycle_tracker;
 pub mod native_windows;
 pub mod navigation;

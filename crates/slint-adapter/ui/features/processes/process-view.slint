@@ -1,7 +1,7 @@
 import { ListView } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { ProcessStatusBar } from "process-status-bar.slint";
-import { Icons } from "icons.slint";
+import { ProhibitedIcon } from "icons.slint";
 import {
     ProcessesFeatureGlobal,
     ProcessEntry,
@@ -156,8 +156,7 @@ export component ProcessViewHeader inherits Rectangle {
             clicked => {
                 ProcessesFeatureGlobal.terminate();
             }
-            Image {
-                source: Icons.prohibited;
+            ProhibitedIcon {
                 colorize: #FF6060;
             }
         }

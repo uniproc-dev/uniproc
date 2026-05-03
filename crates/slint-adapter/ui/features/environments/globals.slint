@@ -1,5 +1,3 @@
-
-import { Icons } from "icons.slint";
 export global EnvsLoading {
     in property <bool> wsl-distros-is-loading: true;
     in property <bool> wsl-is-loading: true;
@@ -10,17 +8,16 @@ export struct WslDistro {
     is_installed: bool,
     is_running: bool,
     icon: image,
+    icon-key: string,
     latency_ms: int,
 }
 
 export global EnvironmentsFeatureGlobal {
     in property <bool> has-wsl: true;
-    in property <[WslDistro]> wsl-distros: [{
-        name: "Ubuntu",
-        icon: Icons.ubuntu,
-    }];
+    in property <[WslDistro]> wsl-distros: [];
     in property <string> host-name: "Windows";
-    in property <image> host-icon: Icons.windows;
+    in property <image> host-icon;
+    in property <string> host-icon-key: "";
 
     in-out property <string> selected-env: host-name;
 

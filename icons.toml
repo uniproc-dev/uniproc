@@ -1,0 +1,156 @@
+[defaults]
+root = "crates/slint-adapter/ui/assets"
+
+[app]
+file = "app.svg"
+
+[apps-list]
+iconify = "fluent-color:apps-list-24"
+
+[arrow-up-filled]
+file = "arrow-up-filled.svg"
+
+[arrow-up-regular]
+file = "arrow-up-regular.svg"
+
+[coin]
+file = "coin.svg"
+
+[dashed-settings]
+file = "dashed-settings.svg"
+
+[data-area]
+file = "data-area.svg"
+
+[database]
+file = "database.svg"
+
+[dismiss]
+iconify = "fluent:dismiss-20-regular"
+
+[docker]
+file = "docker.svg"
+
+[download-regular]
+file = "download-regular.svg"
+
+[extension]
+file = "extension.svg"
+
+[folder]
+file = "folder.svg"
+
+[gears]
+iconify = "carbon:gears"
+
+[group-list]
+file = "group-list.svg"
+
+[group-list-filled]
+iconify = "fluent:tab-group-24-filled"
+
+[group-list-regular]
+iconify = "fluent:tab-group-24-regular"
+
+[image-search]
+iconify = "fluent:image-search-20-regular"
+
+[info]
+file = "info.svg"
+
+[layer-filled]
+file = "layer-filled.svg"
+
+[layer-regular]
+file = "layer-regular.svg"
+
+[linux]
+file = "linux.svg"
+
+[maximize]
+iconify = "fluent:maximize-16-regular"
+
+[minimize]
+file = "minimize.svg"
+
+[new-task]
+file = "new-task.svg"
+
+[open]
+iconify = "fluent:open-20-regular"
+
+[people]
+file = "people.svg"
+
+[play]
+iconify = "fluent:play-24-regular"
+
+[plus]
+iconify = "fluent:add-32-light"
+
+[proc-filled]
+file = "proc-filled.svg"
+
+[proc-regular]
+file = "proc-regular.svg"
+
+[prohibited]
+file = "prohibited.svg"
+
+[pulse-filled]
+file = "pulse-filled.svg"
+
+[pulse-regular]
+file = "pulse-regular.svg"
+
+[puzzle]
+file = "puzzle.svg"
+
+[refresh]
+iconify = "fluent:arrow-sync-24-regular"
+
+[restore]
+file = "restore.svg"
+
+[search]
+file = "search.svg"
+
+[settings]
+file = "settings.svg"
+
+[settings-filled]
+file = "settings-filled.svg"
+
+[settings-regular]
+file = "settings-regular.svg"
+
+[spinner]
+file = "spinner.svg"
+
+[statistics]
+file = "statistics.svg"
+
+[stop]
+iconify = "fluent:stop-24-regular"
+
+[terminate]
+file = "terminate.svg"
+
+[ubuntu]
+file = "ubuntu.svg"
+
+[uniproc-logo]
+file = "uniproc-logo.svg"
+
+[windows]
+file = "windows.svg"
+
+[windows-11]
+file = "windows-11.svg"
+
+[wsl]
+file = "wsl.svg"
+
+[sys.application.icon]
+file = "app.svg"
+windows-ico = "icon.ico"

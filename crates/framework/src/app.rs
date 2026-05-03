@@ -4,9 +4,9 @@ use crate::feature::{
 };
 use crate::lifecycle_tracker::FeatureLifecycle;
 use crate::reactor::Reactor;
-use app_core::SharedState;
 use app_core::actor::{UiDispatcher, UiThreadToken};
 use app_core::trace::in_named_scope;
+use app_core::SharedState;
 use slint::ComponentHandle;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -49,18 +49,21 @@ pub struct App<TWindow> {
 }
 
 impl<TWindow: Window> App<TWindow> {
-    pub fn new(ui: TWindow) -> Self {
+    pub fn new(ui: TWindow) -> anyhow::Result<Self> {
         Self::with_dispatcher(ui, SlintDispatcher)
     }
 
-    pub fn with_dispatcher(ui: TWindow, dispatcher: impl UiDispatcher + 'static) -> Self {
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+    pub fn with_dispatcher(
+        ui: TWindow,
+        dispatcher: impl UiDispatcher + 'static,
+    ) -> anyhow::Result<Self> {
+        let runtime = tokio::runtime::Runtime::new()?;
 
         let _guard = runtime.enter();
 
         dispatcher.init();
 
-        Self {
+        Ok(Self {
             ui,
             runtime,
             reactor: Reactor::new(),
@@ -69,7 +72,7 @@ impl<TWindow: Window> App<TWindow> {
             root_tracker: FeatureLifecycle::new(),
             app_features: Vec::new(),
             next_window_id: AtomicUsize::new(1),
-        }
+        })
     }
     pub fn app_feature<F: AppFeature + 'static>(mut self, mut feature: F) -> anyhow::Result<Self> {
         let _guard = self.runtime.enter();

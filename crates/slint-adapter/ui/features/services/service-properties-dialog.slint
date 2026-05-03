@@ -5,7 +5,7 @@ import {
     ContentDialog,
     ContentDialogButtonFooter,
 } from "content-dialog/index.slint";
-import { Icons } from "icons.slint";
+import { GearsIcon } from "icons.slint";
 import { L10n } from "localization.slint";
 import { ServicesFeatureGlobal, ServiceEntry } from "globals.slint";
 import { ComboBox, ComboBoxItem } from "combobox.slint";
@@ -133,11 +133,10 @@ export component ServicePropertiesDialogContent inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
 
-                        Image {
+                        GearsIcon {
                             width: 20px;
                             height: 20px;
                             colorize: @linear-gradient(135deg, #56BEFE 0%, #3686F5 60%, #7E5FEB 100%);
-                            source: Icons.gears;
                         }
                     }
 
@@ -159,7 +158,7 @@ export component ServicePropertiesDialogContent inherits Rectangle {
                             spacing: Theme.spacingHorizontalXS;
                             Button {
                                 is-transparent: true;
-                                icon: Icons.open;
+                                icon-key: "open";
                                 icon-color: Theme.colorNeutral;
                                 icon-size: 18px;
                                 prop-padding-left: Theme.spacingHorizontalXXS;
@@ -173,7 +172,7 @@ export component ServicePropertiesDialogContent inherits Rectangle {
 
                             Button {
                                 is-transparent: true;
-                                icon: Icons.dismiss;
+                                icon-key: "dismiss";
                                 icon-color: Theme.colorNeutral;
                                 icon-size: 18px;
                                 prop-padding-left: Theme.spacingHorizontalXXS;
@@ -295,7 +294,7 @@ export component ServicePropertiesDialogContent inherits Rectangle {
 
                             Button {
                                 is-transparent: true;
-                                icon: Icons.play;
+                                icon-key: "play";
                                 enabled: root.start-button-active;
                                 has-icon-color: true;
                                 icon-color: Theme.light-green;
@@ -309,7 +308,7 @@ export component ServicePropertiesDialogContent inherits Rectangle {
 
                             Button {
                                 is-transparent: true;
-                                icon: Icons.stop;
+                                icon-key: "stop";
                                 enabled: root.stop-button-active;
                                 has-icon-color: true;
                                 icon-color: Theme.soft-red;
@@ -323,7 +322,7 @@ export component ServicePropertiesDialogContent inherits Rectangle {
 
                             Button {
                                 is-transparent: true;
-                                icon: Icons.refresh;
+                                icon-key: "refresh";
                                 enabled: root.restart-button-active;
                                 has-icon-color: true;
                                 icon-color: Theme.light-blue;

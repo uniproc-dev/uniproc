@@ -22,6 +22,7 @@ tracing-subscriber.workspace = true
 framework.workspace = true
 
 [build-dependencies]
-winresource = "0.1.30"
+build-utils.workspace = true
+context.workspace = true
 
 

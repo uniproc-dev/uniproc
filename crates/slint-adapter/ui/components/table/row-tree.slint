@@ -1,4 +1,4 @@
-import { Icons } from "icons.slint";
+import { ArrowUpRegularIcon } from "icons.slint";
 
 export component GenericTreeCell inherits Rectangle {
     in property <int> depth: 0;
@@ -16,8 +16,7 @@ export component GenericTreeCell inherits Rectangle {
 
         if (root.has-children): Rectangle {
             width: 12px;
-            Image {
-                source: Icons.arrow-up-regular;
+            ArrowUpRegularIcon {
                 width: 12px;
                 height: 12px;
                 colorize: root.text-color;

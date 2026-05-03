@@ -39,7 +39,7 @@ pub fn run() -> anyhow::Result<()> {
 
     let ui = AppWindow::new()?;
 
-    let app = App::new(ui)
+    let app = App::new(ui)?
         .app_feature(SettingsFeature::default())?
         .app_feature(TraceSettingsFeature)?
         .app_feature(AgentsFeature)?

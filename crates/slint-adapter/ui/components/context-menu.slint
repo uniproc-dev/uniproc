@@ -1,9 +1,11 @@
+import { Icon } from "icons.slint";
 import { Theme } from "theme.slint";
 
 export struct ContextMenuItem {
     id: string,
     title: string,
     icon: image,
+    icon-key: string,
     is-danger: bool,
     has-separator: bool,
 }
@@ -57,9 +59,15 @@ export component ContextMenu inherits PopupWindow {
                         padding-right: 10px;
                         spacing: 12px;
 
-                        if (item.icon.width > 0): VerticalLayout {
+                        if (item.icon-key != "" || item.icon.width > 0): VerticalLayout {
                             alignment: center;
-                            Image {
+                            if (item.icon-key != ""): Icon {
+                                name: item.icon-key;
+                                width: 20px;
+                                height: 20px;
+                                colorize: item.is-danger ? #FF6060 : (item-touch.has-hover ? Theme.accent_2 : white);
+                            }
+                            if (item.icon-key == ""): Image {
                                 source: item.icon;
                                 width: 20px;
                                 height: 20px;

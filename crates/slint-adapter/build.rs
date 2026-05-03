@@ -4,20 +4,21 @@ use std::path::Path;
 use toml::{Table, Value};
 
 fn main() {
-    download_missing_assets();
-    generate_icons_slint();
     generate_slint_l10n();
     generate_capabilities_slint();
 
     slint_parser::generate_globals_export(Path::new("ui"));
 
+    let mut include_paths = build_utils::icons::shared_slint_include_paths();
+    include_paths.extend([
+        std::path::PathBuf::from("ui"),
+        std::path::PathBuf::from("ui/shared"),
+        std::path::PathBuf::from("ui/components"),
+    ]);
+
     let config = slint_build::CompilerConfiguration::new()
         .with_style("fluent".into())
-        .with_include_paths(vec![
-            std::path::PathBuf::from("ui"),
-            std::path::PathBuf::from("ui/shared"),
-            std::path::PathBuf::from("ui/components"),
-        ]);
+        .with_include_paths(include_paths);
 
     slint_build::compile_with_config("ui/app-window.slint", config).expect("Slint build failed");
 }
@@ -82,63 +83,3 @@ fn generate_slint_l10n() {
     write_if_changed(out_file, &generated);
 }
 
-fn download_missing_assets() {
-    let urls_file = Path::new("ui/assets/download.txt");
-    let assets_dir = Path::new("ui/assets");
-    println!("cargo:rerun-if-changed=ui/assets/download.txt");
-
-    let Ok(content) = fs::read_to_string(urls_file) else {
-        return;
-    };
-
-    for line in content
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-    {
-        let Some(colon_pos) = line.find(':') else {
-            continue;
-        };
-        let name = line[..colon_pos].trim();
-        let url = line[colon_pos + 1..].trim();
-        let dest = assets_dir.join(format!("{name}.svg"));
-
-        if dest.exists() {
-            continue;
-        }
-
-        let _ = std::process::Command::new("curl")
-            .args(["-fsSL", "-o", dest.to_str().unwrap(), url])
-            .output();
-    }
-}
-
-fn generate_icons_slint() {
-    let assets_dir = Path::new("ui/assets");
-    let out_file = Path::new("ui/shared/icons.slint");
-    println!("cargo:rerun-if-changed=ui/assets");
-
-    let mut entries: Vec<String> = fs::read_dir(assets_dir)
-        .expect("ui/assets not found")
-        .filter_map(|e| e.ok())
-        .map(|e| e.file_name().to_string_lossy().to_string())
-        .filter(|n| n.ends_with(".svg"))
-        .collect();
-    entries.sort();
-
-    let properties = entries
-        .iter()
-        .map(|filename| {
-            format!(
-                "    out property <image> {}: @image-url(\"../assets/{filename}\");",
-                filename.trim_end_matches(".svg").replace(['.', '_'], "-")
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let generated = format!(
-        "// AUTO-GENERATED — do not edit manually\nexport global Icons {{\n{properties}\n}}\n"
-    );
-    write_if_changed(out_file, &generated);
-}

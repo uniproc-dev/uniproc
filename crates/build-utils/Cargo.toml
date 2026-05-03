@@ -8,8 +8,13 @@ i-slint-compiler.workspace = true
 quote.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 syn.workspace = true
+toml.workspace = true
+ureq.workspace = true
 walkdir.workspace = true
+pathdiff = "0.2.3"
+winresource = "0.1.30"
 proc-macro2 = "1.0.106"
 strsim = "0.11"
 

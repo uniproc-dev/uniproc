@@ -18,7 +18,7 @@ impl UiTabsPort for UiTabsAdapter {
                         path: p.path.into(),
                         route_segment: p.route_segment.into(),
                         text: p.text.into(),
-                        icon: Icons::get(&p.icon_key),
+                        icon: Icons::resolve(p.icon_key.as_str()),
                         status: p.status.into(),
                         error_msg: p.error_msg.into(),
                     })
@@ -28,7 +28,7 @@ impl UiTabsPort for UiTabsAdapter {
                     id: 0,
                     context_key: tab.context_key.0.to_string().into(),
                     title: tab.title.into(),
-                    icon: Icons::get(&tab.icon_key),
+                    icon: Icons::resolve(tab.icon_key.as_str()),
                     pages: ModelRc::new(VecModel::from(pages)),
                     status: tab.status.into(),
                     error_msg: tab.error_msg.into(),
@@ -55,7 +55,7 @@ impl UiTabsPort for UiTabsAdapter {
             .map(|context| crate::AvailableContextData {
                 context_key: context.context_key.0.to_string().into(),
                 title: context.title.into(),
-                icon: Icons::get(&context.icon_key),
+                icon: Icons::resolve(context.icon_key.as_str()),
                 status: context.status.into(),
             })
             .collect();

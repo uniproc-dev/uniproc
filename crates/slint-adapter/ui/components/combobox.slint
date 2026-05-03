@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { Icons } from "icons.slint";
+import { ArrowUpRegularIcon } from "icons.slint";
 
 export struct ComboBoxItem {
     id: string,
@@ -202,8 +202,7 @@ export component ComboBox inherits Rectangle {
                 background: Colors.transparent;
                 clip: false;
 
-                Image {
-                    source: Icons.arrow-up-regular;
+                ArrowUpRegularIcon {
                     width: 10px;
                     height: 10px;
                     transform-rotation: 270deg;

@@ -1,7 +1,7 @@
 import { Theme } from "theme.slint";
 import { Tabs } from "globals.slint";
 import { BrowserTabItem } from "components/tab-item.slint";
-import { Icons } from "icons.slint";
+import { ArrowUpRegularIcon, Icon } from "icons.slint";
 import { Divider } from "divider.slint";
 import { ContextMenu } from "context-menu.slint";
 
@@ -9,6 +9,7 @@ component AvailableContextItem inherits Rectangle {
     in property <string> title;
     in property <string> context-key;
     in property <image> icon;
+    in property <string> icon-key;
     callback selected(string);
 
     height: 32px;
@@ -27,7 +28,12 @@ component AvailableContextItem inherits Rectangle {
         padding-right: 10px;
         spacing: 8px;
 
-        Image {
+        if (root.icon-key != ""): Icon {
+            name: root.icon-key;
+            width: 16px;
+            height: 16px;
+        }
+        if (root.icon-key == ""): Image {
             source: root.icon;
             width: 16px;
             height: 16px;
@@ -52,6 +58,7 @@ export component TabBar inherits Rectangle {
             BrowserTabItem {
                 title: tab.title;
                 icon: tab.icon;
+                icon-key: "";
                 active: Tabs.active_tab_index == i;
                 is-first: i == 0;
                 is-closable: tab.is_closable;
@@ -73,8 +80,7 @@ export component TabBar inherits Rectangle {
                 padding-left: Theme.spacingHorizontalL;
                 spacing: Theme.spacingHorizontalS;
 
-                relative-this := Image {
-                    source: Icons.arrow-up-regular;
+                relative-this := ArrowUpRegularIcon {
                     colorize: Tabs.available-contexts.length > 0 ? white : Theme.colorNeutralForegroundDisabled;
                     width: 12px;
                     height: 12px;

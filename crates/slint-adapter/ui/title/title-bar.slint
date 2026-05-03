@@ -3,7 +3,7 @@ import { ProcessesFeatureGlobal } from "../features/processes/globals.slint";
 import { TabBar } from "../features/tabs/index.slint";
 import { WindowControls } from "controls.slint";
 import { Theme } from "theme.slint";
-import { Icons } from "icons.slint";
+import { UniprocLogoIcon } from "icons.slint";
 
 export global WindowClickHandler {
     callback window-clicked();
@@ -37,8 +37,7 @@ export component TitleBar {
             padding-left: Theme.spacingHorizontalL;
             VerticalLayout {
                 alignment: center;
-                Image {
-                    source: Icons.uniproc-logo;
+                UniprocLogoIcon {
                     width: 24px;
                     height: 16px;
                     image-fit: contain;

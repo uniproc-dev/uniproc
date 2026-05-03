@@ -2,7 +2,7 @@ import { TableColDef } from "types.slint";
 import { SortArrow } from "sort-arrow.slint";
 import { MetricSplitBar } from "row-cell.slint";
 import { Theme } from "theme.slint";
-import { Icons } from "icons.slint";
+import { GroupListFilledIcon, GroupListRegularIcon } from "icons.slint";
 export component TableHeaderCell inherits Rectangle {
     in property <TableColDef> def;
     in property <bool> is-sorted;
@@ -42,10 +42,13 @@ export component TableHeaderCell inherits Rectangle {
             width: 16px;
             height: 16px;
 
-            Image {
-                source: root.is-grouped ? Icons.group-list-filled : Icons.group-list-regular;
-                colorize: root.is-grouped ? Theme.accent_2 : Theme.text_secondary;
-
+            if (root.is-grouped): GroupListFilledIcon {
+                colorize: Theme.accent_2;
+                width: 100%;
+                height: 100%;
+            }
+            if (!root.is-grouped): GroupListRegularIcon {
+                colorize: Theme.text_secondary;
                 width: 100%;
                 height: 100%;
             }

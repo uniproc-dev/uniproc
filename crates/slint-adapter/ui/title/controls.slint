@@ -1,7 +1,7 @@
-import { Icons } from "icons.slint";
+import { Icon } from "icons.slint";
 import { Theme } from "theme.slint";
 component ControlBtn inherits Rectangle {
-    in property <image> icon;
+    in property <string> icon-key;
     in property <bool> is-close: false;
     in property <length> image-size: 16px;
     callback clicked();
@@ -16,8 +16,8 @@ component ControlBtn inherits Rectangle {
         }
     }
 
-    Image {
-        source: root.icon;
+    Icon {
+        name: root.icon-key;
         width: root.image-size;
         height: root.image-size;
         colorize: (is-close && touch.has-hover) ? Theme.title_icon_active : Theme.title_icon;
@@ -36,14 +36,14 @@ export component WindowControls inherits HorizontalLayout {
     callback close();
 
     if (minimizable): ControlBtn {
-        icon: Icons.minimize;
+        icon-key: "minimize";
         clicked => {
             root.minimize()
         }
     }
 
     if (maximizable): ControlBtn {
-        icon: root.is-maximized ? Icons.restore : Icons.maximize;
+        icon-key: root.is-maximized ? "restore" : "maximize";
         image-size: 14px;
         clicked => {
             root.maximize()
@@ -51,7 +51,7 @@ export component WindowControls inherits HorizontalLayout {
     }
 
     ControlBtn {
-        icon: Icons.dismiss;
+        icon-key: "dismiss";
         is-close: true;
         clicked => {
             root.close()

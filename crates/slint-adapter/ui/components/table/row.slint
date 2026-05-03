@@ -14,6 +14,7 @@ export component GenericTableRow inherits Rectangle {
 
     in property <string> master-text;
     in property <image> master-icon;
+    in property <string> master-icon-key;
     in property <color> master-icon-color;
     in property <bool> has-master-icon-color;
     in property <int> depth: 0;
@@ -92,6 +93,7 @@ export component GenericTableRow inherits Rectangle {
             if (idx == 0) : GenericMasterCell {
                 text: root.master-text;
                 icon: root.master-icon;
+                icon-key: root.master-icon-key;
                 has-icon-color: root.has-master-icon-color;
                 icon-color: root.master-icon-color;
                 depth: root.depth;

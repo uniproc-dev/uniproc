@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { Icons } from "icons.slint";
+import { DownloadRegularIcon } from "icons.slint";
 
 export component DistroItem inherits Rectangle {
     in-out property <string> name;
@@ -57,8 +57,7 @@ export component DistroItem inherits Rectangle {
             border-radius: Theme.border_radius_s;
             background: install-touch.has-hover ? Theme.fill_subtle_hover : transparent;
 
-            Image {
-                source: Icons.download-regular;
+            DownloadRegularIcon {
                 width: 16px;
                 height: 16px;
                 colorize: install-touch.has-hover ? Theme.accent_2 : Theme.text_secondary;

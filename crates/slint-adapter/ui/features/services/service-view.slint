@@ -2,7 +2,6 @@ import { ListView } from "std-widgets.slint";
 import { Button } from "button/index.slint";
 import { Theme } from "theme.slint";
 import { L10n } from "localization.slint";
-import { Icons } from "icons.slint";
 import { ServicesFeatureGlobal, ServiceEntry } from "globals.slint";
 import {
     ServicePropertiesDialogContent,
@@ -28,7 +27,7 @@ component ServiceItem inherits GenericTableRow {
     column-widths: ServicesFeatureGlobal.column-widths;
     column-metadatas: ServicesFeatureGlobal.column-metadatas;
 
-    master-icon: Icons.gears;
+    master-icon-key: "gears";
     has-master-icon-color: true;
     master-icon-color: white;
     master-text: entry.name;
@@ -38,10 +37,10 @@ component ServiceItem inherits GenericTableRow {
     cells: entry.cells;
 
     context-menu-items: [
-        { id: "1", title: "Start", icon: Icons.play },
-        { id: "2", title: "Stop", icon: Icons.stop },
-        { id: "3", title: "Restart", icon: Icons.refresh, has-separator: true },
-        { id: "4", title: "Properties", icon: Icons.info }
+        { id: "1", title: "Start", icon-key: "play" },
+        { id: "2", title: "Stop", icon-key: "stop" },
+        { id: "3", title: "Restart", icon-key: "refresh", has-separator: true },
+        { id: "4", title: "Properties", icon-key: "info" }
     ];
     clicked => {
         ServicesFeatureGlobal.select-service(entry.name, idx);
@@ -90,7 +89,7 @@ export component ServiceViewHeader inherits Rectangle {
 
             Button {
                 is-transparent: true;
-                icon: Icons.play;
+                icon-key: "play";
                 enabled: ServicesFeatureGlobal.start-button-active;
                 has-icon-color: true;
                 icon-color: Theme.light-green;
@@ -103,7 +102,7 @@ export component ServiceViewHeader inherits Rectangle {
 
             Button {
                 is-transparent: true;
-                icon: Icons.stop;
+                icon-key: "stop";
                 enabled: ServicesFeatureGlobal.stop-button-active;
                 has-icon-color: true;
                 icon-color: Theme.soft-red;
@@ -116,7 +115,7 @@ export component ServiceViewHeader inherits Rectangle {
 
             Button {
                 is-transparent: true;
-                icon: Icons.refresh;
+                icon-key: "refresh";
                 enabled: ServicesFeatureGlobal.restart-button-active;
                 text: L10n.services-restart;
                 has-icon-color: true;

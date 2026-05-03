@@ -1,12 +1,13 @@
 import { ScrollView } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { EnvsLoading, EnvironmentsFeatureGlobal } from "../globals.slint";
-import { Icons } from "icons.slint";
+import { Icon, ArrowUpRegularIcon, LayerFilledIcon } from "icons.slint";
 import { L10n } from "localization.slint";
 
 component DropdownItem inherits Rectangle {
     in property <string> text;
     in property <image> icon;
+    in property <string> icon-key;
     in property <int> latency-ms: -1;
     in property <bool> show-latency: false;
     in property <bool> is-running;
@@ -21,13 +22,24 @@ component DropdownItem inherits Rectangle {
 
         VerticalLayout {
             alignment: center;
-            if (text == EnvironmentsFeatureGlobal.host-name): Image {
+            if (text == EnvironmentsFeatureGlobal.host-name && root.icon-key != ""): Icon {
+                name: root.icon-key;
+                width: 16px;
+                height: 16px;
+            }
+            if (text == EnvironmentsFeatureGlobal.host-name && root.icon-key == ""): Image {
                 source: root.icon;
                 width: 16px;
                 height: 16px;
                 image-fit: contain;
             }
-            if (text != EnvironmentsFeatureGlobal.host-name): Image {
+            if (text != EnvironmentsFeatureGlobal.host-name && root.icon-key != ""): Icon {
+                name: root.icon-key;
+                width: 16px;
+                height: 16px;
+                colorize: is-running ? Theme.accent_2 : Theme.text_secondary;
+            }
+            if (text != EnvironmentsFeatureGlobal.host-name && root.icon-key == ""): Image {
                 source: root.icon;
                 width: 16px;
                 height: 16px;
@@ -74,8 +86,7 @@ export component Environments inherits Rectangle {
 
         VerticalLayout {
             alignment: center;
-            Image {
-                source: Icons.layer-filled;
+            LayerFilledIcon {
                 width: 20px;
                 height: 20px;
             }
@@ -99,8 +110,7 @@ export component Environments inherits Rectangle {
         VerticalLayout {
             alignment: center;
 
-            Image {
-                source: Icons.arrow-up-regular;
+            ArrowUpRegularIcon {
                 image-fit: contain;
                 width: 12px;
                 height: 12px;
@@ -137,6 +147,7 @@ export component Environments inherits Rectangle {
                 DropdownItem {
                     text: EnvironmentsFeatureGlobal.host-name;
                     icon: EnvironmentsFeatureGlobal.host-icon;
+                    icon-key: EnvironmentsFeatureGlobal.host-icon-key;
                 }
 
                 if (EnvironmentsFeatureGlobal.has-wsl): ScrollView {
@@ -148,6 +159,7 @@ export component Environments inherits Rectangle {
                         for distro in EnvironmentsFeatureGlobal.wsl-distros: DropdownItem {
                             text: distro.name;
                             icon: distro.icon;
+                            icon-key: distro.icon-key;
                             latency-ms: distro.latency-ms;
                             is-running: distro.is_running;
                             show-latency: true;

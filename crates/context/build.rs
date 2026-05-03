@@ -74,52 +74,11 @@ pub const BUILTIN_DISABLE_TARGETS: &[&str] = &{builtin_disable_targets};
 }
 
 fn generate_icons_registry() {
-    let assets_dir = Path::new("../slint-adapter/ui/assets");
     let out = out_dir_file("icons.rs");
-
-    println!("cargo:rerun-if-changed=../slint-adapter/ui/assets");
-
-    let mut entries: Vec<String> = fs::read_dir(assets_dir)
-        .expect("../slint-adapter/ui/assets not found")
-        .filter_map(|entry| entry.ok())
-        .map(|entry| entry.file_name().to_string_lossy().to_string())
-        .filter(|name| name.ends_with(".svg"))
-        .collect();
-    entries.sort();
-
-    let arms = entries
-        .iter()
-        .map(|filename| {
-            let name = filename.trim_end_matches(".svg");
-            let asset_path = assets_dir
-                .join(filename)
-                .canonicalize()
-                .expect("icon asset should be canonicalizable");
-            let asset_path = asset_path.to_string_lossy().replace('\\', "\\\\");
-            format!("            \"{name}\" => include_bytes!(\"{asset_path}\"),")
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let generated = format!(
-        r#"// AUTO-GENERATED from ../slint-adapter/ui/assets
-use slint::Image;
-
-pub struct Icons;
-
-impl Icons {{
-    pub fn get(name: &str) -> Image {{
-        let bytes: &[u8] = match name {{
-{arms}
-            _ => return Image::default(),
-        }};
-        Image::load_from_svg_data(bytes).unwrap_or_default()
-    }}
-}}
-"#
-    );
-
-    write_if_changed(&out, &generated);
+    build_utils::icons::IconBuild::auto()
+        .emit_shared_bundle()
+        .emit_rust_registry(out)
+        .run();
 }
 
 #[derive(Clone)]
