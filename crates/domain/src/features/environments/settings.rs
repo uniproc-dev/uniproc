@@ -1,7 +1,7 @@
-use macros::feature_settings;
+use rpstate::rpstate;
 
-#[feature_settings(prefix = "environments")]
+#[rpstate(prefix = "environments")]
 pub struct EnvironmentsSettings {
-    #[setting(default = 5000u64)]
+    #[state(default = 5000u64)]
     scan_interval_ms: u64,
 }

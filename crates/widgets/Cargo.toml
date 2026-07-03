@@ -10,3 +10,5 @@ framework.workspace = true
 dashmap.workspace = true
 slint.workspace = true
 tracing.workspace = true
+amethystate.workspace = true
+

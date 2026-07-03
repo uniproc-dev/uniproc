@@ -14,6 +14,8 @@ context.workspace = true
 macros.workspace = true
 tracing.workspace = true
 framework.workspace = true
+amethystate.workspace = true
+serde.workspace = true
 
 [features]
 test-utils = ["app-core/test-utils"]

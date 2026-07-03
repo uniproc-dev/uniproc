@@ -1,8 +1,8 @@
 use crate::feature::{
-    AppFeature, AppFeatureDeinitContext, AppFeatureInitContext, WindowFeature,
-    WindowFeatureDeinitContext, WindowFeatureInitContext,
+    AppFeature, AppFeatureDeinitContext, AppFeatureInitContext, IntoAppFeature, IntoWindowFeature,
+    WindowFeature, WindowFeatureDeinitContext, WindowFeatureInitContext,
 };
-use crate::lifecycle_tracker::FeatureLifecycle;
+use crate::lifecycle_tracker::{AppLifecycle, WindowLifecycle};
 use crate::reactor::Reactor;
 use app_core::actor::{UiDispatcher, UiThreadToken};
 use app_core::trace::in_named_scope;
@@ -30,7 +30,7 @@ pub trait UiContext {
 
 impl<TWindow: ComponentHandle + 'static> UiContext for TWindow {
     fn new_token(&self) -> UiThreadToken {
-        unsafe { UiThreadToken::new() }
+        UiThreadToken::dangerously_create_token_unchecked()
     }
 }
 
@@ -39,13 +39,19 @@ impl<TWindow: ComponentHandle + UiContext + 'static> Window for TWindow {}
 
 pub struct App<TWindow> {
     ui: TWindow,
-    reactor: Reactor,
     shared: SharedState,
     runtime: tokio::runtime::Runtime,
-    window_factories: Vec<Box<dyn Fn() -> Box<dyn WindowFeature<TWindow>> + 'static>>,
+    next_window_id: Rc<AtomicUsize>,
+    inner: Rc<RefCell<AppInner<TWindow>>>,
+}
+
+type BoxedWindowFeature<TWindow> = Box<dyn Fn() -> Box<dyn WindowFeature<TWindow>> + 'static>;
+
+struct AppInner<TWindow> {
+    reactor: Reactor,
+    window_factories: Vec<BoxedWindowFeature<TWindow>>,
     app_features: Vec<Box<dyn AppFeature>>,
-    next_window_id: AtomicUsize,
-    root_tracker: FeatureLifecycle,
+    root_tracker: AppLifecycle,
 }
 
 impl<TWindow: Window> App<TWindow> {
@@ -58,27 +64,33 @@ impl<TWindow: Window> App<TWindow> {
         dispatcher: impl UiDispatcher + 'static,
     ) -> anyhow::Result<Self> {
         let runtime = tokio::runtime::Runtime::new()?;
-
         let _guard = runtime.enter();
 
         dispatcher.init();
 
+        let shared = SharedState::new();
+
         Ok(Self {
             ui,
+            shared,
             runtime,
-            reactor: Reactor::new(),
-            shared: SharedState::new(),
-            window_factories: Vec::new(),
-            root_tracker: FeatureLifecycle::new(),
-            app_features: Vec::new(),
-            next_window_id: AtomicUsize::new(1),
+            next_window_id: Rc::new(AtomicUsize::new(1)),
+            inner: Rc::new(RefCell::new(AppInner {
+                reactor: Reactor::new(),
+                window_factories: Vec::new(),
+                app_features: Vec::new(),
+                root_tracker: AppLifecycle::new(),
+            })),
         })
     }
-    pub fn app_feature<F: AppFeature + 'static>(mut self, mut feature: F) -> anyhow::Result<Self> {
+
+    pub fn app_feature<I: IntoAppFeature + 'static>(
+        self,
+        mut into_feature: I,
+    ) -> anyhow::Result<Self> {
         let _guard = self.runtime.enter();
 
-        let full_name = std::any::type_name::<F>();
-
+        let full_name = std::any::type_name::<I>();
         let clean_name = full_name
             .split('<')
             .next()
@@ -91,69 +103,101 @@ impl<TWindow: Window> App<TWindow> {
             "core.app.feature_install",
             Some("feature,status,level"),
             Some(format!("{}|ok|app", clean_name)),
-            || match feature.install(&mut AppFeatureInitContext {
-                token: self.ui.new_token(),
-                reactor: &mut self.reactor,
-                shared: &self.shared,
-                tracker: &self.root_tracker,
-            }) {
-                Ok(_) => {
-                    tracing::info!(
-                        feature = clean_name,
-                        status = "ok",
-                        level = "app",
-                        "feature.install"
-                    );
-                    self.app_features.push(Box::new(feature));
-                    Ok(self)
-                }
-                Err(e) => {
-                    tracing::error!(feature = clean_name, status = "error", level = "app", error = %e, "feature.install");
-                    Err(e)
+            || {
+                let mut inner = self.inner.borrow_mut();
+                let mut init_ctx = AppFeatureInitContext {
+                    token: self.ui.new_token(),
+                    reactor: &inner.reactor,
+                    shared: &self.shared,
+                    tracker: &inner.root_tracker,
+                };
+
+                let mut feature = into_feature.into_feature();
+
+                match feature.install(&mut init_ctx) {
+                    Ok(_) => {
+                        tracing::info!(
+                            feature = clean_name,
+                            status = "ok",
+                            level = "app",
+                            "feature.install"
+                        );
+                        inner.app_features.push(Box::new(feature));
+                        drop(inner);
+                        Ok(self)
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            feature = clean_name,
+                            status = "error",
+                            level = "app",
+                            error = %e,
+                            "feature.install"
+                        );
+                        Err(e)
+                    }
                 }
             },
         )
     }
 
-    pub fn window_feature<F, Builder>(mut self, builder: Builder) -> Self
+    pub fn window_feature<I>(self, into_feature: I) -> Self
     where
-        Builder: Fn() -> F + 'static,
-        F: WindowFeature<TWindow> + 'static,
+        I: IntoWindowFeature<TWindow> + Clone + 'static,
     {
-        self.window_factories
-            .push(Box::new(move || Box::new(builder())));
+        self.inner
+            .borrow_mut()
+            .window_factories
+            .push(Box::new(move || {
+                Box::new(into_feature.clone().into_feature())
+            }));
         self
     }
 
-    pub fn spawn_window(&mut self, ui: TWindow) -> anyhow::Result<()> {
+    pub fn spawn_window(&self, ui: TWindow) -> anyhow::Result<()> {
         let _guard = self.runtime.enter();
         let window_id = self.next_window_id.fetch_add(1, Ordering::Relaxed);
+        let token = ui.new_token();
+        let window_tracker = WindowLifecycle::new();
         let mut active_features = Vec::new();
 
-        for factory in &self.window_factories {
-            let mut feature = factory();
+        let inner = self.inner.borrow();
 
-            feature.install(&mut WindowFeatureInitContext {
+        for factory in &inner.window_factories {
+            let mut feature = factory();
+            let mut init_ctx = WindowFeatureInitContext {
                 window_id,
                 ui: &ui,
                 shared: &self.shared,
-                reactor: &mut self.reactor,
-            })?;
+                reactor: &inner.reactor,
+                tracker: &window_tracker,
+                token: token.clone(),
+            };
+            feature.install(&mut init_ctx)?;
             active_features.push(feature);
         }
 
         let features_storage = Rc::new(RefCell::new(active_features));
+        let tracker = window_tracker;
+        let token_for_close = token;
         let ui_clone = ui.clone_strong();
 
-        ui.window().on_close_requested(move || {
-            let features = std::mem::take(&mut *features_storage.borrow_mut());
+        let inner_clone = Rc::clone(&self.inner);
+        let shared_clone = self.shared.clone();
 
-            for feature in features {
-                if let Err(e) = feature.uninstall(&mut WindowFeatureDeinitContext { ui: &ui_clone })
-                {
-                    tracing::error!("Error uninstalling feature: {}", e);
-                }
-            }
+        ui.window().on_close_requested(move || {
+            let inner_borrow = inner_clone.borrow();
+
+            let mut deinit_ctx = WindowFeatureDeinitContext {
+                ui: &ui_clone,
+                token: token_for_close.clone(),
+                reactor: &inner_borrow.reactor,
+                shared: &shared_clone,
+            };
+
+            tracker.clone().shutdown(&token_for_close, &mut deinit_ctx);
+
+            let _ = std::mem::take(&mut *features_storage.borrow_mut());
 
             slint::CloseRequestResponse::HideWindow
         });
@@ -169,26 +213,27 @@ impl<TWindow: Window> App<TWindow> {
         &self.shared
     }
 
-    pub fn run(mut self) -> anyhow::Result<()> {
+    pub fn run(self) -> anyhow::Result<()> {
         let _guard = self.runtime.enter();
 
         self.spawn_window(self.ui.clone_strong())?;
 
         let result = self.ui.run();
 
-        tracing::info!("Application shutting down, uninstalling app features...");
+        tracing::info!("Application shutting down, executing app feature cleanups...");
 
+        let inner = self.inner.borrow();
         let token = self.ui.new_token();
-        for feature in std::mem::take(&mut self.app_features) {
-            let mut deinit_ctx = AppFeatureDeinitContext {
-                token: token.clone(),
-                reactor: &mut self.reactor,
-                shared: &self.shared,
-            };
-            if let Err(e) = feature.uninstall(&mut deinit_ctx) {
-                tracing::error!("Error during app feature uninstall: {}", e);
-            }
-        }
+
+        let mut deinit_ctx = AppFeatureDeinitContext {
+            token: token.clone(),
+            reactor: &inner.reactor,
+            shared: &self.shared,
+        };
+
+        inner.root_tracker.clone().shutdown(&token, &mut deinit_ctx);
+
+        drop(inner);
 
         result.map_err(|e| anyhow::anyhow!("UI execution error: {}", e))
     }

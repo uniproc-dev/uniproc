@@ -36,7 +36,7 @@ pub fn set_ui_dispatcher(dispatcher: impl UiDispatcher + 'static) {
 pub struct UiThreadToken(std::marker::PhantomData<*const ()>);
 
 impl UiThreadToken {
-    pub unsafe fn new() -> Self {
+    pub fn dangerously_create_token_unchecked() -> Self {
         Self(std::marker::PhantomData)
     }
 }

@@ -1,70 +1,69 @@
 mod settings;
 
 use self::settings::TraceSettings;
+use app_core::signal::SignalSubscription;
 use app_core::trace::TracePolicy;
-use framework::feature::{AppFeature, AppFeatureInitContext};
-use framework::settings::reactive::ReactiveSettingSubscription;
+use framework::feature::{AppFeature, AppFeatureInitContext, ContextStoreExt};
+use macros::app_feature;
 use std::sync::Arc;
 
-#[derive(Default)]
-pub struct TraceSettingsFeature;
+#[app_feature]
+pub fn trace_settings_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    let store = ctx.store();
 
-impl AppFeature for TraceSettingsFeature {
-    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
-        let settings = TraceSettings::new(ctx.shared)?;
-        apply_trace_policy(&settings);
+    let settings = TraceSettings::new(&store)?;
+    apply_trace_policy(&settings);
 
-        let mut subs = Vec::new();
+    let mut subs = Vec::new();
 
-        {
-            let settings = settings.clone();
-            subs.push(
-                settings
-                    .enable_scopes()
-                    .subscribe(move |_| apply_trace_policy(&settings)),
-            );
-        }
-        {
-            let settings = settings.clone();
-            subs.push(
-                settings
-                    .disable_scopes()
-                    .subscribe(move |_| apply_trace_policy(&settings)),
-            );
-        }
-        {
-            let settings = settings.clone();
-            subs.push(
-                settings
-                    .disable_messages()
-                    .subscribe(move |_| apply_trace_policy(&settings)),
-            );
-        }
-        {
-            let settings = settings.clone();
-            subs.push(
-                settings
-                    .disable_targets()
-                    .subscribe(move |_| apply_trace_policy(&settings)),
-            );
-        }
-        {
-            let settings = settings.clone();
-            subs.push(
-                settings
-                    .dump_capacity()
-                    .subscribe(move |_| apply_trace_policy(&settings)),
-            );
-        }
-
-        ctx.shared
-            .insert_arc(Arc::new(TraceSettingsRuntime { _subs: subs }));
-        Ok(())
+    {
+        let settings = settings.clone();
+        subs.push(
+            settings
+                .enable_scopes()
+                .subscribe(move |_| apply_trace_policy(&settings)),
+        );
     }
+    {
+        let settings = settings.clone();
+        subs.push(
+            settings
+                .disable_scopes()
+                .subscribe(move |_| apply_trace_policy(&settings)),
+        );
+    }
+    {
+        let settings = settings.clone();
+        subs.push(
+            settings
+                .disable_messages()
+                .subscribe(move |_| apply_trace_policy(&settings)),
+        );
+    }
+    {
+        let settings = settings.clone();
+        subs.push(
+            settings
+                .disable_targets()
+                .subscribe(move |_| apply_trace_policy(&settings)),
+        );
+    }
+    {
+        let settings = settings.clone();
+        subs.push(
+            settings
+                .dump_capacity()
+                .subscribe(move |_| apply_trace_policy(&settings)),
+        );
+    }
+
+    ctx.shared
+        .insert_arc(Arc::new(TraceSettingsRuntime { _subs: subs }));
+    Ok(())
 }
 
 struct TraceSettingsRuntime {
-    _subs: Vec<ReactiveSettingSubscription>,
+    _subs: Vec<SignalSubscription>,
 }
 
 fn apply_trace_policy(settings: &TraceSettings) {

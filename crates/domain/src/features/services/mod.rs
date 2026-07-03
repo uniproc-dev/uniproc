@@ -7,11 +7,12 @@ use app_contracts::features::agents::ScanTick;
 use app_contracts::features::services::{
     ServicesBinder, ServicesWindowRegister, UiServicesBindings, UiServicesPort,
 };
-use app_core::actor::addr::Addr;
 use context::page_status::RouteStatusRegistry;
-use framework::addr::AddrBuilder;
 use framework::app::Window;
-use framework::feature::{FeatureContextState, WindowFeature, WindowFeatureInitContext};
+use framework::feature::{
+    ContextActorExt, ContextReactorExt, ContextStoreExt, FeatureContextState, WindowFeature,
+    WindowFeatureInitContext,
+};
 use framework::native_windows::slint_factory::SlintWindowRegistry;
 use macros::window_feature;
 use std::borrow::Cow;
@@ -24,61 +25,42 @@ mod settings;
 mod view;
 
 #[window_feature]
-pub struct ServicesFeature;
-
-#[window_feature]
-impl<TWindow, F, P> WindowFeature<TWindow> for ServicesFeature<F>
+pub fn services_feature<TWindow, P>(
+    ctx: &mut WindowFeatureInitContext<TWindow>,
+    ui_port: P,
+) -> anyhow::Result<()>
 where
     TWindow: Window,
-    F: Fn(&TWindow) -> P + 'static + Clone,
     P: UiServicesPort + UiServicesBindings + ServicesWindowRegister + Clone + 'static,
 {
-    fn install(&mut self, ctx: &mut WindowFeatureInitContext<TWindow>) -> anyhow::Result<()> {
-        let settings = ServiceSettings::new(ctx.shared)?;
-        let ui_port = (self.make_port)(ctx.ui);
-        let token = ctx.ui.new_token();
+    let store = ctx.store();
+    let settings = ServiceSettings::new(&store)?;
 
-        let reg = ctx.shared.get::<SlintWindowRegistry>().unwrap();
+    let reg = ctx.shared.get::<SlintWindowRegistry>().unwrap();
 
-        let service_actor = ServiceActor {
-            registry: reg.clone(),
-            table: ServiceTable::new(settings.clone())?,
-            ui_port: ui_port.clone(),
-            route_status: ctx.shared.get::<RouteStatusRegistry>().unwrap(),
-            is_active: true,
-            active_context_key: Cow::Borrowed("host"),
-            pending: HashSet::new(),
-            ctx_state: FeatureContextState::new(ctx.window_id, capabilities::SERVICES),
-        };
+    let service_actor = ServiceActor {
+        registry: reg.clone(),
+        table: ServiceTable::new(settings.clone())?,
+        ui_port: ui_port.clone(),
+        route_status: ctx.shared.get::<RouteStatusRegistry>().unwrap(),
+        is_active: true,
+        active_context_key: Cow::Borrowed("host"),
+        pending: HashSet::new(),
+        ctx_state: FeatureContextState::new(ctx.window_id, capabilities::SERVICES),
+    };
 
-        let addr = AddrBuilder::new(token.clone(), &self.tracker)
-            .managed(service_actor)
-            .ui_bind(&ui_port);
+    let addr = ctx.actor_builder(service_actor).ui_bind(&ui_port);
 
-        let snapshot_actor = ServiceSnapshotActor {
-            target: addr.clone(),
-            is_active: true,
-        };
-        let snapshot_addr = Addr::new_managed(snapshot_actor, token, &self.tracker);
+    let snapshot_actor = ServiceSnapshotActor {
+        target: addr.clone(),
+        is_active: true,
+    };
 
-        #[cfg(feature = "test-utils")]
-        if let Some(registry) = ctx.shared.get::<app_core::actor::registry::ActorRegistry>() {
-            registry.register(snapshot_addr.clone());
-            registry.register(addr.clone());
-        }
+    let snapshot_addr = ctx.spawn(snapshot_actor);
 
-        let s_addr = snapshot_addr.clone();
+    ctx.spawn_heartbeat(&snapshot_addr, settings.scan_interval_ms(), || ScanTick);
 
-        let loop_handle = ctx
-            .reactor
-            .add_dynamic_loop(settings.scan_interval_ms().as_signal(), move || {
-                s_addr.send(ScanTick)
-            });
+    ui_port.register(&reg);
 
-        self.tracker.track_loop(loop_handle);
-
-        ui_port.register(&reg);
-
-        Ok(())
-    }
+    Ok(())
 }

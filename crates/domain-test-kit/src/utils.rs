@@ -8,7 +8,6 @@ use framework::feature::{
     AppFeature, AppFeatureInitContext, WindowFeature, WindowFeatureInitContext,
 };
 use framework::reactor::Reactor;
-use framework::settings::SettingsStore;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex, Once};
@@ -66,11 +65,11 @@ impl FeatureHarness {
         i_slint_backend_testing::init_no_event_loop();
         let ui = DomainTestWindow::new().expect("failed to create window");
 
-        let app = App::with_dispatcher(ui, TestUiDispatcher { settings_path });
+        let app = App::with_dispatcher(ui, TestUiDispatcher { settings_path }).unwrap();
         Self(Some(app))
     }
 
-    pub fn app_feature<F: AppFeature>(mut self, feature: F) -> anyhow::Result<Self> {
+    pub fn app_feature<F: AppFeature + 'static>(mut self, feature: F) -> anyhow::Result<Self> {
         let app = self.0.take().expect("App is missing");
         self.0 = Some(app.app_feature(feature)?);
 

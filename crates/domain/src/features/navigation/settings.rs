@@ -1,7 +1,7 @@
-use macros::feature_settings;
+use rpstate::rpstate;
 
-#[feature_settings(prefix = "navigation")]
+#[rpstate(prefix = "navigation")]
 pub struct NavigationSettings {
-    #[setting(default = "processes".to_string())]
+    #[state(default = "processes".to_string())]
     pub default_route_segment: String,
 }

@@ -1,13 +1,11 @@
 use context::page_status::RouteStatusRegistry;
 use framework::feature::{AppFeature, AppFeatureInitContext};
+use macros::app_feature;
 use std::sync::Arc;
 
-pub struct PageStatusFeature;
-
-impl AppFeature for PageStatusFeature {
-    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
-        let registry = Arc::new(RouteStatusRegistry::new());
-        ctx.shared.insert_arc(registry);
-        Ok(())
-    }
+#[app_feature]
+pub fn page_status_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    let registry = Arc::new(RouteStatusRegistry::new());
+    ctx.shared.insert_arc(registry);
+    Ok(())
 }

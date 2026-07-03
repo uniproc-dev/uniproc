@@ -1,38 +1,32 @@
 use app_contracts::features::cosmetics::UiCosmeticsPort;
 use framework::app::Window;
-use framework::feature::{WindowFeature, WindowFeatureInitContext};
+use framework::feature::{FromWindow, IntoWindowFeature, WindowFeature, WindowFeatureInitContext};
 use macros::window_feature;
 
 #[derive(Clone, Copy, Debug)]
 pub struct AccentState(pub framework::native_windows::platform_types::AccentPalette);
 
 #[window_feature]
-pub struct CosmeticsFeature;
-
-#[window_feature]
-impl<TWindow, F, P> WindowFeature<TWindow> for CosmeticsFeature<F>
+pub fn cosmetics_feature<TWindow, P>(
+    ctx: &mut WindowFeatureInitContext<TWindow>,
+    port: P,
+) -> anyhow::Result<()>
 where
     TWindow: Window,
-    F: Fn(&TWindow) -> P + 'static + Clone,
-    P: UiCosmeticsPort,
+    P: UiCosmeticsPort + Clone + 'static,
 {
-    fn install(&mut self, ctx: &mut WindowFeatureInitContext<TWindow>) -> anyhow::Result<()> {
-        let port = (self.make_port)(ctx.ui);
-
-        if let Ok(accent_palette) = framework::native_windows::platform::get_system_accent_palette()
-        {
-            port.set_accent_palette(app_contracts::features::cosmetics::AccentPalette {
-                accent: accent_palette.accent.into(),
-                accent_light_1: accent_palette.accent_light_1.into(),
-                accent_light_2: accent_palette.accent_light_2.into(),
-                accent_light_3: accent_palette.accent_light_3.into(),
-                accent_dark_1: accent_palette.accent_dark_1.into(),
-                accent_dark_2: accent_palette.accent_dark_2.into(),
-                accent_dark_3: accent_palette.accent_dark_3.into(),
-            });
-            ctx.shared.insert(AccentState(accent_palette));
-        }
-        port.apply_main_window_effects();
-        Ok(())
+    if let Ok(accent_palette) = framework::native_windows::platform::get_system_accent_palette() {
+        port.set_accent_palette(app_contracts::features::cosmetics::AccentPalette {
+            accent: accent_palette.accent.into(),
+            accent_light_1: accent_palette.accent_light_1.into(),
+            accent_light_2: accent_palette.accent_light_2.into(),
+            accent_light_3: accent_palette.accent_light_3.into(),
+            accent_dark_1: accent_palette.accent_dark_1.into(),
+            accent_dark_2: accent_palette.accent_dark_2.into(),
+            accent_dark_3: accent_palette.accent_dark_3.into(),
+        });
+        ctx.shared.insert(AccentState(accent_palette));
     }
+    port.apply_main_window_effects();
+    Ok(())
 }

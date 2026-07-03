@@ -28,6 +28,8 @@ export component AppWindow inherits Window {
     
     callback start_resize(int);
 
+
+    //TODO: remove to rust
     changed width => {
         WindowAdapter.window-width = root.width;
         if (root.width < 600px) {

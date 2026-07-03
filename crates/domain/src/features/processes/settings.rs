@@ -1,48 +1,46 @@
-use dashmap::DashMap;
-use macros::feature_settings;
+use rpstate::{rpstate, ReactiveMap, RpType};
 use serde::{Deserialize, Serialize};
 
-#[feature_settings(prefix = "process")]
+#[rpstate(prefix = "process")]
 pub struct ProcessSettings {
-    #[setting(default = 1500u64)]
+    #[state(default = 1500u64)]
     scan_interval_ms: u64,
 
-    #[setting(default = 5000u64)]
+    #[state(default = 5000u64)]
     terminate_timeout_ms: u64,
 
-    #[setting(nested)]
+    #[state(nested)]
     columns: ColumnsSettings,
 }
 
-#[feature_settings]
+#[rpstate]
 pub struct ColumnsSettings {
-    #[setting(default = 70u64)]
+    #[state(default = 70u64)]
     default_width_px: u64,
 
-    #[setting(default = serde_json::json!({
+    #[state(default = {
         "name": 200u64,
         "cpu": 90u64,
         "memory": 120u64,
-    }))]
-    widths_px: DashMap<String, u64>,
+    })]
+    widths_px: ReactiveMap<String, u64>,
 
-    #[setting(default = serde_json::json!({
-        "name": { "is-text": true },
-        "cpu": { "is-metric": true },
-        "memory": { "is-metric": true },
-    }))]
-    column_metadata: DashMap<String, ColumnMetadata>,
+    #[setting(default = {
+        "name": ColumnMetadata { is_text: true, ..Default::default() },
+        "cpu": ColumnMetadata { is_metric: true, ..Default::default() },
+        "memory": ColumnMetadata { is_metric: true, ..Default::default() },
+    })]
+    column_metadata: ReactiveMap<String, ColumnMetadata>,
 
-    #[setting(default = serde_json::json!({
+    #[setting(default = {
         "name": 120u64,
         "cpu": 90u64,
         "memory": 120u64,
-    }))]
-    min_widths_px: DashMap<String, u64>,
+    })]
+    min_widths_px: ReactiveMap<String, u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, RpType)]
 pub struct ColumnMetadata {
     #[serde(default)]
     pub is_text: bool,

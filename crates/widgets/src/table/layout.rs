@@ -1,19 +1,19 @@
 use app_core::signal::Signal;
-use dashmap::DashMap;
-use framework::settings::reactive::ReactiveSettingSubscription;
+use rpstate::reactive::SignalSubscription;
+use rpstate::ReactiveMap;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
 
 pub trait TableSettingsProvider {
     fn default_width(&self) -> anyhow::Result<u64>;
-    fn initial_widths(&self) -> anyhow::Result<DashMap<String, u64>>;
-    fn min_widths(&self) -> anyhow::Result<DashMap<String, u64>>;
-    fn subscribe_widths<F>(&self, callback: F) -> ReactiveSettingSubscription
+    fn initial_widths(&self) -> anyhow::Result<ReactiveMap<String, u64>>;
+    fn min_widths(&self) -> anyhow::Result<ReactiveMap<String, u64>>;
+    fn subscribe_widths<F>(&self, callback: F) -> SignalSubscription
     where
-        F: Fn(DashMap<String, u64>) + Send + Sync + 'static;
+        F: Fn(ReactiveMap<String, u64>) + Send + Sync + 'static;
 
-    fn setup<ID>(self, layout: &mut TableLayout<ID>) -> anyhow::Result<ReactiveSettingSubscription>
+    fn setup<ID>(self, layout: &mut TableLayout<ID>) -> anyhow::Result<SignalSubscription>
     where
         ID: From<String> + Eq + Hash + Clone + Send + Sync + 'static,
         Self: Sized,
@@ -79,7 +79,7 @@ where
 pub fn setup_table_layout<ID>(
     layout: &mut TableLayout<ID>,
     provider: &impl TableSettingsProvider,
-) -> anyhow::Result<ReactiveSettingSubscription>
+) -> anyhow::Result<SignalSubscription>
 where
     ID: From<String> + Eq + Hash + Clone + Send + Sync + 'static,
 {
@@ -87,19 +87,19 @@ where
     let initial_widths = provider.initial_widths()?;
     let min_widths = provider.min_widths()?;
 
-    initial_widths.iter().for_each(|pair| {
-        let (id, &w) = pair.pair();
-        let min_w = min_widths.get(id).map(|a| *a.value()).unwrap_or(def_width);
+    for (id, w) in initial_widths.entries()? {
+        let min_w = min_widths.get(&id)?.unwrap_or(def_width);
         layout.add_column(ID::from(id.clone()), Arc::new(Signal::new(w.max(min_w))));
-    });
+    }
 
     let signal_map = layout.widths.clone();
 
-    Ok(provider.subscribe_widths(move |new_map| {
-        for (id, w) in new_map {
-            if let Some(sig) = signal_map.get(&ID::from(id)) {
-                sig.set(w);
-            }
-        }
-    }))
+    // Ok(provider.subscribe_widths(move |new_map| {
+    //     for (id, w) in new_map {
+    //         if let Some(sig) = signal_map.get(&ID::from(id)) {
+    //             sig.set(w);
+    //         }
+    //     }
+    // }))
+    todo!()
 }

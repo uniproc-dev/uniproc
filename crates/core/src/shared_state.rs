@@ -4,15 +4,15 @@ use std::sync::{Arc, RwLock};
 
 type Service = Arc<dyn Any + Send + Sync>;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct SharedState {
-    inner: RwLock<HashMap<TypeId, Service>>,
+    inner: Arc<RwLock<HashMap<TypeId, Service>>>,
 }
 
 impl SharedState {
     pub fn new() -> Self {
         Self {
-            inner: RwLock::new(HashMap::new()),
+            inner: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -70,6 +70,19 @@ impl SharedState {
 mod tests {
     use super::SharedState;
     use std::sync::Arc;
+
+    #[test]
+    fn test_shared_state_clone() {
+        let shared = SharedState::new();
+        let clone = shared.clone();
+
+        shared.insert("hello".to_string());
+
+        assert_eq!(
+            clone.get::<String>().as_ref().map(|s| s.as_str()),
+            Some("hello")
+        );
+    }
 
     #[test]
     fn insert_get_remove_roundtrip() {

@@ -1,19 +1,16 @@
-use macros::feature_settings;
+use rpstate::rpstate;
 
-#[feature_settings(prefix = "trace")]
+#[rpstate(prefix = "trace")]
 pub struct TraceSettings {
-    #[setting(default_json = serde_json::json!([]))]
+    #[state(default = [])]
     pub enable_scopes: Vec<String>,
-
-    #[setting(default_json = serde_json::json!([]))]
+    #[state(default = [])]
     pub disable_scopes: Vec<String>,
-
-    #[setting(default_json = serde_json::json!([]))]
+    #[state(default = [])]
     pub disable_messages: Vec<String>,
-
-    #[setting(default_json = serde_json::json!([]))]
+    #[state(default = [])]
     pub disable_targets: Vec<String>,
 
-    #[setting(default = 64u64)]
+    #[state(default = 64u64)]
     pub dump_capacity: u64,
 }

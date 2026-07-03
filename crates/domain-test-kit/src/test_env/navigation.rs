@@ -3,9 +3,10 @@ use app_core::actor::addr::Addr;
 use app_core::actor::{Context, ManagedActor};
 use framework::app::UiContext;
 use framework::feature::{
-    Events, FeatureComponent, FeatureContextState, WindowFeature, WindowFeatureInitContext,
+    Events, FeatureComponent, FeatureContextState, WindowFeature, WindowFeatureDeinitContext,
+    WindowFeatureInitContext,
 };
-use framework::lifecycle_tracker::FeatureLifecycle;
+
 use framework::uri::AppUri;
 use macros::actor_manifest;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -72,8 +73,11 @@ impl WindowFeature<DomainTestWindow> for MockWindowFeature {
         Ok(())
     }
 
-    fn uninstall(self: Box<Self>, ui: &DomainTestWindow) -> anyhow::Result<()> {
-        self.tracker.shutdown(&ui.new_token());
+    fn uninstall(
+        self: Box<Self>,
+        ctx: &mut WindowFeatureDeinitContext<DomainTestWindow>,
+    ) -> anyhow::Result<()> {
+        self.tracker.shutdown(&ctx.ui.new_token());
         Ok(())
     }
 }

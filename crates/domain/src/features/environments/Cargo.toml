@@ -16,3 +16,5 @@ sysinfo.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 framework.workspace = true
+amethystate.workspace = true
+serde.workspace = true

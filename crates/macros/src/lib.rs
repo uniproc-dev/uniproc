@@ -3,15 +3,14 @@
 
 use build_utils::collector::with_recompile_trigger;
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, DeriveInput, ItemFn, ItemImpl, ItemTrait, Meta};
+use syn::{parse_macro_input, ItemFn, ItemImpl, ItemTrait};
 
 mod actor_manifest;
 mod binder_gen;
-mod feature_settings;
+mod features;
 mod handler;
 mod schema;
 mod slint_macros;
-mod window_feature;
 
 #[proc_macro_attribute]
 pub fn actor_manifest(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -23,9 +22,14 @@ pub fn actor_manifest(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn capability(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
+
 #[proc_macro_attribute]
 pub fn window_feature(args: TokenStream, input: TokenStream) -> TokenStream {
-    window_feature::window_feature_impl(args, input)
+    features::window_feature_impl(args, input)
+}
+#[proc_macro_attribute]
+pub fn app_feature(args: TokenStream, input: TokenStream) -> TokenStream {
+    features::app_feature_impl(args, input)
 }
 
 #[proc_macro_attribute]
@@ -76,11 +80,4 @@ pub fn slint_bindings_adapter(attr: TokenStream, item: TokenStream) -> TokenStre
     let impl_block = parse_macro_input!(item as ItemImpl);
     with_recompile_trigger(slint_macros::slint_bindings_adapter_impl(attr, impl_block).into())
         .into()
-}
-
-#[proc_macro_attribute]
-pub fn feature_settings(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args with syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated);
-    let input = parse_macro_input!(input as DeriveInput);
-    feature_settings::feature_settings_impl(args, input)
 }

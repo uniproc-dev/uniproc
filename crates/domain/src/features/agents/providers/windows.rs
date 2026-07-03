@@ -8,9 +8,11 @@ use app_core::{
     actor::{event_bus::EventBus, Addr},
     ratelimit,
 };
-use framework::feature::{AppFeature, AppFeatureInitContext};
+use framework::feature::{AppFeature, AppFeatureInitContext, ContextReactorExt, ContextStoreExt};
+use macros::app_feature;
 use ogurpchik::discovery::Scope;
 use ogurpchik::transport::stream::adapters::uds::UdsTransport;
+use rpstate::DefaultStore;
 use std::ops::Deref;
 use std::time::Instant;
 use tracing::{error, instrument, warn};
@@ -70,29 +72,21 @@ impl AgentBackend for WindowsBackend {
     }
 }
 
-pub struct WindowsAgentFeature;
-impl AppFeature for WindowsAgentFeature {
-    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
-        let settings = AgentSettings::new(ctx.shared)?;
+#[app_feature]
+pub fn windows_agent_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    let store = ctx.store();
+    let settings = AgentSettings::new(&store)?;
 
-        let addr = Addr::new(
-            GenericAgentActor::<WindowsBackend>::new(settings.connect_timeout_secs()),
-            ctx.token.clone(),
-            ctx.tracker,
-        );
+    let addr = Addr::new(
+        GenericAgentActor::<WindowsBackend>::new(settings.connect_timeout_secs()),
+        ctx.token.clone(),
+        ctx.tracker,
+    );
 
-        let a = addr.clone();
-        ctx.reactor
-            .add_dynamic_loop(settings.ping_interval_ms().as_signal(), move || {
-                a.send(Ping)
-            });
+    ctx.spawn_heartbeat(&addr, settings.ping_interval_ms().as_signal(), || Ping);
 
-        let _ = EventBus::subscribe::<GenericAgentActor<WindowsBackend>, ScanTick>(
-            addr.clone(),
-            ctx.tracker,
-        );
+    EventBus::subscribe::<GenericAgentActor<WindowsBackend>, ScanTick>(addr.clone(), ctx.tracker);
+    addr.send(Init);
 
-        addr.send(Init);
-        Ok(())
-    }
+    Ok(())
 }

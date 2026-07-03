@@ -45,6 +45,7 @@ framework = { path = "crates/framework" }
 ogurpchik = { git = "https://github.com/Tam1SH/oguRPChik", branch = "master", features = ["rkyv-codec", "vsock", "uds"] }
 uniproc-protocol = { git = "https://github.com/Tam1SH/uniproc-protocol", branch = "master" }
 
+
 # --- UI Stack (Slint & Windowing) ---
 slint = { version = "=1.14.1", features = ["renderer-skia"] }
 slint-build = "=1.14.1"
@@ -71,6 +72,7 @@ serde_json = "1.0.149"
 toml = "0.9.8"
 rkyv = { version = "0.8.14", features = ["bytecheck", "std"] }
 uuid = { version = "1.23.0", features = ["v4"] }
+amethystate = "0.9.1"
 
 # --- Logging & Diagnostics ---
 tracing = { version = "0.1.44", features = ["release_max_level_warn"] }

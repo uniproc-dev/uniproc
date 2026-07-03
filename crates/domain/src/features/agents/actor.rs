@@ -4,8 +4,8 @@ use app_contracts::features::agents::{AgentConnectionState, ScanTick};
 use app_core::actor::event_bus::EventBus;
 use app_core::actor::{AsyncContext, Context, Message, NoOp};
 use app_core::messages;
-use framework::settings::ReactiveSetting;
 use macros::handler;
+use rpstate::{DefaultStore, Field, WritableMode};
 use std::fmt::Debug;
 use tracing::{info, warn};
 
@@ -26,11 +26,11 @@ pub struct GenericAgentActor<B: AgentBackend> {
     client: Option<B::Client>,
     connection: ConnectionMachine,
     ping_in_flight: bool,
-    connect_timeout_secs: ReactiveSetting<u64>,
+    connect_timeout_secs: Field<u64, DefaultStore, WritableMode>,
 }
 
 impl<B: AgentBackend> GenericAgentActor<B> {
-    pub fn new(connect_timeout_secs: ReactiveSetting<u64>) -> Self {
+    pub fn new(connect_timeout_secs: Field<u64, DefaultStore, WritableMode>) -> Self {
         Self {
             client: None,
             connection: ConnectionMachine::new(),

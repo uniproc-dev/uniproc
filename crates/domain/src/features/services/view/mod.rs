@@ -1,8 +1,7 @@
 use crate::features::services::settings::ServiceSettings;
 use app_contracts::features::services::{ServiceEntryDto, ServiceEntryVm};
 use context::caches::strings::StringsProvider;
-use dashmap::DashMap;
-use framework::settings::reactive::ReactiveSettingSubscription;
+use rpstate::{ReactiveMap, SignalSubscription};
 use slint::SharedString;
 use std::collections::HashSet;
 use widgets::table::flow::{SortState, TableDataBuilder, TableNode};
@@ -16,17 +15,17 @@ impl TableSettingsProvider for ServiceTableSettingsAdapter {
     fn default_width(&self) -> anyhow::Result<u64> {
         Ok(self.0.columns().default_width_px().get())
     }
-    fn initial_widths(&self) -> anyhow::Result<DashMap<String, u64>> {
-        Ok(self.0.columns().widths_px().get())
+    fn initial_widths(&self) -> anyhow::Result<ReactiveMap<String, u64>> {
+        todo!()
     }
-    fn min_widths(&self) -> anyhow::Result<DashMap<String, u64>> {
-        Ok(self.0.columns().min_widths_px().get())
+    fn min_widths(&self) -> anyhow::Result<ReactiveMap<String, u64>> {
+        todo!()
     }
-    fn subscribe_widths<F>(&self, callback: F) -> ReactiveSettingSubscription
+    fn subscribe_widths<F>(&self, callback: F) -> SignalSubscription
     where
-        F: Fn(DashMap<String, u64>) + Send + Sync + 'static,
+        F: Fn(ReactiveMap<String, u64>) + Send + Sync + 'static,
     {
-        self.0.columns().widths_px().subscribe(callback)
+        todo!()
     }
 }
 
@@ -40,7 +39,7 @@ pub struct ServiceTable {
         SharedString,
     >,
     settings: ServiceSettings,
-    _sub: ReactiveSettingSubscription,
+    _sub: SignalSubscription,
 }
 
 impl ServiceTable {
@@ -91,21 +90,22 @@ impl ServiceTable {
     }
 
     pub fn resize_column(&mut self, id: String, new_width: u64) -> anyhow::Result<()> {
-        let def_width = self.settings.columns().default_width_px().get();
-        let min_w = self
-            .settings
-            .columns()
-            .min_widths_px()
-            .get()
-            .get(&id)
-            .map(|r| *r.value())
-            .unwrap_or(def_width);
-
-        self.settings.columns().patch_widths_px(|widths| {
-            widths.insert(id, new_width.max(min_w));
-        })?;
-
-        Ok(())
+        todo!()
+        // let def_width = self.settings.columns().default_width_px().get();
+        // let min_w = self
+        //     .settings
+        //     .columns()
+        //     .min_widths_px()
+        //     .get()
+        //     .get(&id)
+        //     .map(|r| *r.value())
+        //     .unwrap_or(def_width);
+        //
+        // self.settings.columns().patch_widths_px(|widths| {
+        //     widths.insert(id, new_width.max(min_w));
+        // })?;
+        //
+        // Ok(())
     }
 
     pub fn column_widths(&self) -> Vec<(SharedString, u64)> {

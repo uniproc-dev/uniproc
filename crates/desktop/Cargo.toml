@@ -26,3 +26,9 @@ build-utils.workspace = true
 context.workspace = true
 
 
+[package.metadata.packager]
+before-packaging-command = "cargo bdev"
+product-name = "Slint example"
+identifier = "com.slint.example"
+resources = ["Cargo.toml", "slint-adapter/ui/assets", "icon.ico"]
+icons = ["icon.ico"]

@@ -123,7 +123,12 @@ impl IconBuild {
 
     pub fn run(self) {
         let manifest = load_icon_manifest(&self.manifest_path);
-        let materialized = if self.slint_global_out.is_some() || self.rust_registry_out.is_some() {
+
+        let needs_materialization = self.emit_shared_bundle
+            || self.slint_global_out.is_some()
+            || self.rust_registry_out.is_some();
+
+        let materialized = if needs_materialization {
             Some(materialize_icons(&manifest, &self.materialized_root))
         } else {
             None
@@ -131,25 +136,26 @@ impl IconBuild {
 
         if self.emit_shared_bundle {
             let shared_slint_out = shared_output_root().join("shared").join("icons.slint");
-            if let Some(materialized) = materialized.as_deref() {
-                generate_slint_icon_global_from_materialized(&shared_slint_out, materialized);
-            } else {
-                let materialized = materialize_icons(&manifest, &self.materialized_root);
-                generate_slint_icon_global_from_materialized(&shared_slint_out, &materialized);
-            }
+            let icons = materialized
+                .as_ref()
+                .expect("Materialized icons must exist if emit_shared_bundle is true");
+
+            generate_slint_icon_global_from_materialized(&shared_slint_out, icons);
             emit_shared_windows_artifacts(&manifest);
         }
 
         if let Some(out_file) = &self.slint_global_out {
-            generate_slint_icon_global_from_materialized(out_file, materialized.as_deref().unwrap());
+            let icons = materialized
+                .as_ref()
+                .expect("Materialized icons missing for slint_global_out");
+            generate_slint_icon_global_from_materialized(out_file, icons);
         }
 
         if let Some(out_file) = &self.rust_registry_out {
-            generate_rust_icon_registry_from_materialized(
-                &self.manifest_path,
-                out_file,
-                materialized.as_deref().unwrap(),
-            );
+            let icons = materialized
+                .as_ref()
+                .expect("Materialized icons missing for rust_registry_out");
+            generate_rust_icon_registry_from_materialized(&self.manifest_path, out_file, icons);
         }
     }
 }
@@ -178,8 +184,12 @@ pub fn load_icon_manifest(manifest_path: &Path) -> IconManifest {
         .parse()
         .unwrap_or_else(|e| panic!("Failed to parse {}: {e}", manifest_path.display()));
 
-    let workspace_root = find_workspace_root(manifest_path)
-        .unwrap_or_else(|| panic!("Could not find workspace root for {}", manifest_path.display()));
+    let workspace_root = find_workspace_root(manifest_path).unwrap_or_else(|| {
+        panic!(
+            "Could not find workspace root for {}",
+            manifest_path.display()
+        )
+    });
     let defaults = parse_defaults(&table, &workspace_root);
 
     let mut entries = Vec::new();
@@ -191,12 +201,6 @@ pub fn load_icon_manifest(manifest_path: &Path) -> IconManifest {
         workspace_root,
         entries,
     }
-}
-
-pub fn generate_slint_icon_global(manifest_path: &Path, out_file: &Path, build_out_dir: &Path) {
-    let manifest = load_icon_manifest(manifest_path);
-    let icons = materialize_icons(&manifest, build_out_dir);
-    generate_slint_icon_global_from_materialized(out_file, &icons);
 }
 
 fn generate_slint_icon_global_from_materialized(out_file: &Path, icons: &[MaterializedIcon]) {
@@ -359,19 +363,16 @@ fn generate_rust_icon_registry_from_materialized(
 
     let arms = icons
         .iter()
-        .map(|icon| {
-            match &icon.backend {
-                MaterializedIconBackend::Image { path } => {
-                    let asset_path = path.to_string_lossy().replace('\\', "\\\\");
-                    format!(
-                        "        keys::{} => Some(include_bytes!(\"{asset_path}\") as &'static [u8]),",
-                        rust_const_name(&icon.key)
-                    )
-                }
-                MaterializedIconBackend::Glyph { .. } => format!(
-                    "        keys::{} => None,",
+        .map(|icon| match &icon.backend {
+            MaterializedIconBackend::Image { path } => {
+                let asset_path = path.to_string_lossy().replace('\\', "\\\\");
+                format!(
+                    "        keys::{} => Some(include_bytes!(\"{asset_path}\") as &'static [u8]),",
                     rust_const_name(&icon.key)
-                ),
+                )
+            }
+            MaterializedIconBackend::Glyph { .. } => {
+                format!("        keys::{} => None,", rust_const_name(&icon.key))
             }
         })
         .collect::<Vec<_>>()
@@ -523,19 +524,14 @@ fn collect_entries(
     defaults: &IconManifestDefaults,
     acc: &mut Vec<IconEntry>,
 ) {
-    let is_entry = table
-        .keys()
-        .any(|key| {
-            SOURCE_KEYS.contains(&key.as_str())
-                || PLATFORM_KEYS.contains(&key.as_str())
-                || ENTRY_OVERRIDE_KEYS.contains(&key.as_str())
-        });
+    let is_entry = table.keys().any(|key| {
+        SOURCE_KEYS.contains(&key.as_str())
+            || PLATFORM_KEYS.contains(&key.as_str())
+            || ENTRY_OVERRIDE_KEYS.contains(&key.as_str())
+    });
 
     if is_entry {
-        if table
-            .values()
-            .any(|value| matches!(value, Value::Table(_)))
-        {
+        if table.values().any(|value| matches!(value, Value::Table(_))) {
             panic!(
                 "Icon manifest entry {:?} may not contain nested tables once source fields are present",
                 path
@@ -568,7 +564,8 @@ fn parse_entry(
     defaults: &IconManifestDefaults,
 ) -> IconEntry {
     let key = path.join(".");
-    let root_override = string_field(table, "root").map(|value| resolve_workspace_path(workspace_root, value));
+    let root_override =
+        string_field(table, "root").map(|value| resolve_workspace_path(workspace_root, value));
     let effective_root = root_override
         .as_deref()
         .or(defaults.root.as_deref())
@@ -584,9 +581,7 @@ fn parse_entry(
         + usize::from(url.is_some())
         + usize::from(glyph.is_some());
     if source_count != 1 {
-        panic!(
-            "Icon manifest entry `{key}` must define exactly one of file/iconify/url/glyph"
-        );
+        panic!("Icon manifest entry `{key}` must define exactly one of file/iconify/url/glyph");
     }
 
     let source = if let Some(path) = file {
@@ -636,7 +631,8 @@ fn parse_defaults(table: &Table, workspace_root: &Path) -> IconManifestDefaults 
     }
 
     IconManifestDefaults {
-        root: string_field(defaults, "root").map(|value| resolve_workspace_path(workspace_root, value)),
+        root: string_field(defaults, "root")
+            .map(|value| resolve_workspace_path(workspace_root, value)),
     }
 }
 
@@ -843,9 +839,7 @@ fn download_or_cache(url: &str) -> PathBuf {
     }
 
     if env::var_os(ICON_MANIFEST_ENV).is_some() {
-        panic!(
-            "Icon `{url}` is missing from cache and {ICON_MANIFEST_ENV}=1 forbids downloads"
-        );
+        panic!("Icon `{url}` is missing from cache and {ICON_MANIFEST_ENV}=1 forbids downloads");
     }
 
     let response = ureq::get(url)
@@ -898,7 +892,10 @@ pub fn shared_output_root() -> PathBuf {
         }
     }
 
-    panic!("Could not derive shared icon output root from {}", out_dir.display());
+    panic!(
+        "Could not derive shared icon output root from {}",
+        out_dir.display()
+    );
 }
 
 pub fn shared_slint_include_paths() -> Vec<PathBuf> {
@@ -936,7 +933,12 @@ fn out_dir() -> PathBuf {
 
 fn workspace_manifest_path() -> PathBuf {
     find_workspace_root_from_cwd()
-        .unwrap_or_else(|| panic!("Could not find workspace root from {}", current_dir().display()))
+        .unwrap_or_else(|| {
+            panic!(
+                "Could not find workspace root from {}",
+                current_dir().display()
+            )
+        })
         .join("icons.toml")
 }
 

@@ -5,28 +5,22 @@ pub mod domain;
 pub use actor::{Init, InstallAgent, WslEnvActor};
 
 use app_contracts::features::environments::{UiEnvironmentsBindings, UiEnvironmentsPort};
-use framework::addr::AddrBuilder;
-use framework::feature::{WindowFeature, WindowFeatureInitContext};
+use framework::feature::{ContextActorExt, WindowFeature, WindowFeatureInitContext};
 use macros::window_feature;
 
 #[window_feature]
-pub struct WslFeature;
-
-#[window_feature]
-impl<TWindow, F, P> WindowFeature<TWindow> for WslFeature<F>
+pub fn wsl_feature<TWindow, P>(
+    ctx: &mut WindowFeatureInitContext<TWindow>,
+    ui_port: P,
+) -> anyhow::Result<()>
 where
     TWindow: Window,
-    F: Fn(&TWindow) -> P + 'static + Clone,
     P: UiEnvironmentsPort + UiEnvironmentsBindings + Clone + 'static,
 {
-    fn install(&mut self, ctx: &mut WindowFeatureInitContext<TWindow>) -> anyhow::Result<()> {
-        let ui_port = (self.make_port)(ctx.ui);
+    let addr = ctx
+        .actor_builder(WslEnvActor::new(ui_port.clone()))
+        .ui_bind(&ui_port);
 
-        let addr = AddrBuilder::new(ctx.token(), &self.tracker)
-            .managed(WslEnvActor::new(ui_port.clone()))
-            .ui_bind(&ui_port);
-
-        addr.send(Init);
-        Ok(())
-    }
+    addr.send(Init);
+    Ok(())
 }

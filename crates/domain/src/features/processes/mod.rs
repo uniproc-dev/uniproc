@@ -12,9 +12,13 @@ use app_contracts::features::agents::ScanTick;
 use app_contracts::features::processes::{UiProcessesBindings, UiProcessesPort};
 use app_core::actor::addr::Addr;
 use app_core::actor::event_bus::EventBus;
+use app_core::actor::NoOp;
 use context::page_status::RouteStatusRegistry;
 use framework::addr::AddrBuilder;
-use framework::feature::{FeatureContextState, WindowFeature, WindowFeatureInitContext};
+use framework::feature::{
+    ContextActorExt, ContextReactorExt, ContextStoreExt, FeatureContextState, WindowFeature,
+    WindowFeatureInitContext,
+};
 use macros::window_feature;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -26,63 +30,58 @@ mod services;
 mod settings;
 
 #[window_feature]
-pub struct ProcessFeature;
-
-#[window_feature]
-impl<TWindow, F, P> WindowFeature<TWindow> for ProcessFeature<F>
+pub fn process_feature<TWindow, P>(
+    ctx: &mut WindowFeatureInitContext<TWindow>,
+    ui_port: P,
+) -> anyhow::Result<()>
 where
     TWindow: Window,
-    F: Fn(&TWindow) -> P + 'static + Clone,
     P: UiProcessesPort + UiProcessesBindings + Clone + 'static,
 {
-    fn install(&mut self, ctx: &mut WindowFeatureInitContext<TWindow>) -> anyhow::Result<()> {
-        let settings = ProcessSettings::new(ctx.shared)?;
-        let ui_port = (self.make_port)(ctx.ui);
-        let token = ctx.ui.new_token();
-        let scan_interval_ms = settings.scan_interval_ms();
+    let store = ctx.store();
 
-        let process_actor = ProcessActor {
-            table: ProcessTable::new(settings.clone())?,
-            metadata: ProcessMetadataService,
-            route_status: ctx.shared.get::<RouteStatusRegistry>().unwrap(),
-            is_active: true,
-            active_context_key: Cow::Borrowed("host"),
-            is_grouped: false,
-            ui_port: ui_port.clone(),
-            has_snapshot_data: false,
-            ctx: FeatureContextState::new(ctx.window_id, "processes.list"),
-        };
+    let settings = ProcessSettings::new(&store)?;
 
-        let addr = AddrBuilder::new(token.clone(), &self.tracker)
-            .managed(process_actor)
-            .ui_bind(&ui_port);
+    let scan_interval_ms = settings.scan_interval_ms();
 
-        let snapshot_actor = ProcessSnapshotActor {
-            snapshots: HashMap::new(),
-            contexts: HashMap::new(),
-            target: addr.clone(),
-            is_active: true,
-            scratch_processes: Arc::new(Mutex::new(Vec::new())),
-            scratch_seen: Default::default(),
-        };
+    let process_actor = ProcessActor {
+        table: ProcessTable::new(settings.clone())?,
+        metadata: ProcessMetadataService,
+        route_status: ctx.shared.get::<RouteStatusRegistry>().unwrap(),
+        is_active: true,
+        active_context_key: Cow::Borrowed("host"),
+        is_grouped: false,
+        ui_port: ui_port.clone(),
+        has_snapshot_data: false,
+        ctx: FeatureContextState::new(ctx.window_id, "processes.list"),
+    };
 
-        let _ = Addr::new_managed(snapshot_actor, token, &self.tracker);
+    let addr = ctx.actor_builder(process_actor).ui_bind(&ui_port);
 
-        // TODO: absurd, must be: loop -> send(SelfTick) -> handler<SelfTick> -> ScanTick
-        let loop_handle = ctx
-            .reactor
-            .add_dynamic_loop(scan_interval_ms.as_signal(), || EventBus::publish(ScanTick));
+    let snapshot_actor = ProcessSnapshotActor {
+        snapshots: HashMap::new(),
+        contexts: HashMap::new(),
+        target: addr.clone(),
+        is_active: true,
+        scratch_processes: Arc::new(Mutex::new(Vec::new())),
+        scratch_seen: Default::default(),
+    };
 
-        self.tracker.track_loop(loop_handle);
+    let snapshot_addr = ctx.spawn(snapshot_actor);
 
-        //TODO: it broken + need translate
-        ui_port.set_empty_state_visible(true);
-        ui_port.set_empty_state_title("Waiting For Process Data".into());
-        ui_port.set_empty_state_message(
-            "The process list will appear after the agent connects and sends its first snapshot."
-                .into(),
-        );
+    // TODO: absurd, must be: loop -> send(SelfTick) -> handler<SelfTick> -> ScanTick
+    ctx.spawn_heartbeat(&snapshot_addr, scan_interval_ms, || {
+        EventBus::publish(ScanTick);
+        NoOp
+    });
 
-        Ok(())
-    }
+    //TODO: it broken + need translate
+    ui_port.set_empty_state_visible(true);
+    ui_port.set_empty_state_title("Waiting For Process Data".into());
+    ui_port.set_empty_state_message(
+        "The process list will appear after the agent connects and sends its first snapshot."
+            .into(),
+    );
+
+    Ok(())
 }

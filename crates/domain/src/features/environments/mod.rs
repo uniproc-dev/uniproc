@@ -3,60 +3,53 @@ use crate::environments_impl::discovery::wsl::WslDiscoveryActor;
 use crate::environments_impl::registry::EnvironmentRegistryActor;
 use crate::environments_impl::settings::EnvironmentsSettings;
 use app_contracts::features::environments::{UiEnvironmentsBindings, UiEnvironmentsPort};
-use app_core::actor::Addr;
 use framework::app::Window;
 use framework::feature::{
-    AppFeature, AppFeatureInitContext, WindowFeature, WindowFeatureInitContext,
+    AppFeature, AppFeatureInitContext, ContextActorExt, ContextReactorExt, ContextStoreExt,
+    WindowFeature, WindowFeatureInitContext,
 };
-use macros::window_feature;
+use macros::{app_feature, window_feature};
 
 pub mod discovery;
 mod registry;
 mod settings;
 pub mod wsl;
 
-pub struct EnvironmentsRegistryFeature;
+#[app_feature]
+pub fn environments_registry_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    let store = ctx.store();
 
-impl AppFeature for EnvironmentsRegistryFeature {
-    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
-        let actor = EnvironmentRegistryActor::new();
-        let settings = EnvironmentsSettings::new(ctx.shared)?;
+    let actor = EnvironmentRegistryActor::new();
+    let settings = EnvironmentsSettings::new(&store)?;
 
-        Addr::new_managed(actor, ctx.token.clone(), ctx.tracker);
+    ctx.spawn(actor);
 
-        let host_addr = Addr::new_managed(HostProviderActor, ctx.token.clone(), ctx.tracker);
-        host_addr.send(discovery::host::Init);
+    let host_addr = ctx.spawn(HostProviderActor);
+    host_addr.send(discovery::host::Init);
 
-        #[cfg(windows)]
-        {
-            let wsl_addr = Addr::new_managed(WslDiscoveryActor, ctx.token.clone(), ctx.tracker);
-            wsl_addr.send(discovery::wsl::Init);
-            let h = ctx
-                .reactor
-                .add_dynamic_loop(settings.scan_interval_ms().as_signal(), move || {
-                    wsl_addr.send(discovery::wsl::Refresh)
-                });
+    #[cfg(windows)]
+    {
+        let wsl_addr = ctx.spawn(WslDiscoveryActor);
+        wsl_addr.send(discovery::wsl::Init);
 
-            ctx.tracker.track_loop(h);
-        }
-        Ok(())
+        ctx.spawn_heartbeat(&wsl_addr, settings.scan_interval_ms().as_signal(), || {
+            discovery::wsl::Refresh
+        });
     }
+    Ok(())
 }
 
 #[window_feature]
-pub struct EnvironmentsFeature;
-
-#[window_feature]
-impl<TWindow, F, P> WindowFeature<TWindow> for EnvironmentsFeature<F>
+pub fn environments_feature<TWindow, P>(
+    ctx: &mut WindowFeatureInitContext<TWindow>,
+    ui_port: P,
+) -> anyhow::Result<()>
 where
     TWindow: Window,
-    F: Fn(&TWindow) -> P + Clone + 'static,
     P: UiEnvironmentsPort + UiEnvironmentsBindings + Clone + 'static,
 {
-    fn install(&mut self, ctx: &mut WindowFeatureInitContext<TWindow>) -> anyhow::Result<()> {
-        wsl::WslFeature::new(self.make_port.clone()).install(ctx)?;
-        Ok(())
-    }
+    wsl::wsl_feature(ctx, ui_port.clone())?;
+    Ok(())
 }
 
 pub fn get_icon_for_env(name: &str) -> &'static str {

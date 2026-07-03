@@ -1,12 +1,10 @@
 use app_core::actor::registry::ActorRegistry;
 use framework::feature::{AppFeature, AppFeatureInitContext};
+use macros::app_feature;
 
-#[derive(Clone)]
-pub struct TestDiscoveryFeature;
-
-impl AppFeature for TestDiscoveryFeature {
-    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
-        ctx.shared.insert(ActorRegistry::default());
-        Ok(())
-    }
+//TODO: move to framework layer
+#[app_feature]
+pub fn test_discovery_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    ctx.shared.insert(ActorRegistry::default());
+    Ok(())
 }

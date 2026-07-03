@@ -10,7 +10,7 @@ Architecture guide for AI agents. Read this before touching any code.
 - Features communicate via **`EventBus`** (Pub/Sub) or **`AsyncBus`** (RPC) — never call each other directly
 - UI knows nothing about `domain` — only about `contract` (Port + Bindings traits)
 - **Wiring**: Use generated **Binders** to connect UI callbacks to actor messages. Manual closures in `install()` are
-  forbidden.
+  forbidden.ca
 - **Actor Manifest**: Use `#[actor_manifest]` to declare bus subscriptions and handlers. Manual `EventBus::subscribe` in
   `install()` is forbidden.
 - Navigation is **URI-based** (e.g., `host://processes`) and driven by the framework Route Registry
@@ -162,7 +162,7 @@ EventBus::publish(MyMessage { ... });
 ```rust
 #[actor_manifest]
 impl ManagedActor for MyActor {
-    type Bus = bus!(LocalMsg, @ExternalMessage); // @ = EventBus
+    type Bus = bus!(LocalMsg, @ExternalMessage); // @ = type already exist
     type Handlers = handlers!(LocalMsg, @ExternalMessage, DoWork);
 }
 ```
@@ -636,7 +636,7 @@ pub struct WindowsActionResponse {
 }  // agent → domain
 ```
 
----
+---notepad $PROFILE
 
 ## desktop
 

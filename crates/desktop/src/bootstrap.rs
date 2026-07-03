@@ -13,7 +13,6 @@ use domain_environments::features::environments::EnvironmentsFeature;
 use domain_navigation::features::navigation::{NavigationFeature, NavigationRegistryFeature};
 use domain_processes::processes_impl::ProcessFeature;
 use framework::app::App;
-use framework::settings::SettingsStore;
 use slint::ComponentHandle;
 use slint_adapter::features::cosmetics::UiCosmeticsAdapter;
 use slint_adapter::features::environments::UiEnvironmentsAdapter;
@@ -64,6 +63,7 @@ struct TracingRuntime {
 }
 
 fn init_tracing() -> anyhow::Result<TracingRuntime> {
+    //TODO: tracing to framework
     let settings_path = SettingsStore::default_settings_path()?;
     let logs_dir = settings_path
         .parent()

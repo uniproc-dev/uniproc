@@ -1,22 +1,19 @@
 use crate::features::windows_manager::actor::WindowManagerActor;
-use app_core::actor::addr::Addr;
-use framework::feature::{AppFeature, AppFeatureInitContext};
+use framework::feature::{AppFeature, AppFeatureInitContext, ContextActorExt};
 use framework::native_windows::slint_factory::SlintWindowRegistry;
+use macros::app_feature;
 
 mod actor;
 
-pub struct WindowManagerFeature;
+#[app_feature]
+pub fn window_manager_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    let reg = SlintWindowRegistry::new();
 
-impl AppFeature for WindowManagerFeature {
-    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
-        let reg = SlintWindowRegistry::new();
+    ctx.shared.insert(reg);
+    let reg = ctx.shared.get::<SlintWindowRegistry>().unwrap();
 
-        ctx.shared.insert(reg);
-        let reg = ctx.shared.get::<SlintWindowRegistry>().unwrap();
+    let actor = WindowManagerActor::new(reg);
+    ctx.spawn(actor);
 
-        let actor = WindowManagerActor::new(reg);
-        let _ = Addr::new_managed(actor, ctx.token.clone(), ctx.tracker);
-
-        Ok(())
-    }
+    Ok(())
 }

@@ -1,5 +1,7 @@
 use crate::features::sidebar::settings::SidebarSettings;
-use app_contracts::features::sidebar::{RequestTransition, SidebarBinder, UiSidebarBindings, SidebarPartialBinder, UiSidebarPort};
+use app_contracts::features::sidebar::{
+    RequestTransition, SidebarBinder, SidebarPartialBinder, UiSidebarBindings, UiSidebarPort,
+};
 use app_core::actor::ManagedActor;
 use app_core::trace::{current_meta, install_current_meta};
 use macros::{actor_manifest, handler};
@@ -101,5 +103,5 @@ fn handle_transition<P: UiSidebarPort + Clone>(this: &mut SidebarActor<P>, msg: 
 
 #[handler]
 fn handle_width_change<P: UiSidebarPort>(this: &mut SidebarActor<P>, msg: SideBarWidthChanged) {
-    this.settings.set_width(msg.0).ok();
+    this.settings.width().set(msg.0).ok();
 }

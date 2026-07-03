@@ -5,8 +5,7 @@ use crate::processes_impl::settings::ProcessSettings;
 use app_contracts::features::processes::{
     FieldDefDto, FieldMetadata, ProcessEntryVm, ProcessNodeDto,
 };
-use dashmap::DashMap;
-use framework::settings::reactive::ReactiveSettingSubscription;
+use rpstate::{ReactiveMap, SignalSubscription};
 use slint::SharedString;
 use widgets::table::flow::{SortState, TableNode};
 use widgets::table::layout::TableSettingsProvider;
@@ -20,19 +19,19 @@ impl TableSettingsProvider for ProcessTableSettingsAdapter {
         Ok(self.0.columns().default_width_px().get())
     }
 
-    fn initial_widths(&self) -> anyhow::Result<DashMap<String, u64>> {
-        Ok(self.0.columns().widths_px().get())
+    fn initial_widths(&self) -> anyhow::Result<ReactiveMap<String, u64>> {
+        todo!()
     }
 
-    fn min_widths(&self) -> anyhow::Result<DashMap<String, u64>> {
-        Ok(self.0.columns().min_widths_px().get())
+    fn min_widths(&self) -> anyhow::Result<ReactiveMap<String, u64>> {
+        todo!()
     }
 
-    fn subscribe_widths<F>(&self, callback: F) -> ReactiveSettingSubscription
+    fn subscribe_widths<F>(&self, callback: F) -> SignalSubscription
     where
-        F: Fn(DashMap<String, u64>) + Send + Sync + 'static,
+        F: Fn(ReactiveMap<String, u64>) + Send + Sync + 'static,
     {
-        self.0.columns().widths_px().subscribe(callback)
+        todo!()
     }
 }
 
@@ -40,7 +39,7 @@ pub struct ProcessTable {
     view: TableView<ProcessNodeDto, ProcessEntryVm, u32, SharedString, SharedString, SharedString>,
     settings: ProcessSettings,
     grouping_scratchpad: Vec<(SharedString, usize)>,
-    _sub: ReactiveSettingSubscription,
+    _sub: SignalSubscription,
     header_columns: Vec<FieldDefDto>,
 }
 
@@ -136,36 +135,38 @@ impl ProcessTable {
     }
 
     pub fn resize_column(&mut self, id: String, new_width: u64) -> anyhow::Result<()> {
-        let def_width = self.settings.columns().default_width_px().get();
-        let min_w = self
-            .settings
-            .columns()
-            .min_widths_px()
-            .get()
-            .get(&id)
-            .map(|r| *r.value())
-            .unwrap_or(def_width);
-
-        self.settings.columns().patch_widths_px(|widths| {
-            widths.insert(id, new_width.max(min_w));
-        })?;
-
-        Ok(())
+        todo!()
+        // let def_width = self.settings.columns().default_width_px().get();
+        // let min_w = self
+        //     .settings
+        //     .columns()
+        //     .min_widths_px()
+        //     .get()
+        //     .get(&id)
+        //     .map(|r| *r.value())
+        //     .unwrap_or(def_width);
+        //
+        // self.settings.columns().patch_widths_px(|widths| {
+        //     widths.insert(id, new_width.max(min_w));
+        // })?;
+        //
+        // Ok(())
     }
 
     pub fn column_metadata(&self) -> Vec<FieldMetadata> {
-        self.settings
-            .columns()
-            .column_metadata()
-            .get()
-            .clone()
-            .into_iter()
-            .map(|(k, v)| FieldMetadata {
-                is_text: v.is_text,
-                is_metric: v.is_metric,
-                id: k.into(),
-            })
-            .collect()
+        todo!()
+        // self.settings
+        //     .columns()
+        //     .column_metadata()
+        //     .get()
+        //     .clone()
+        //     .into_iter()
+        //     .map(|(k, v)| FieldMetadata {
+        //         is_text: v.is_text,
+        //         is_metric: v.is_metric,
+        //         id: k.into(),
+        //     })
+        //     .collect()
     }
     pub fn column_widths(&self) -> Vec<(SharedString, u64)> {
         self.view

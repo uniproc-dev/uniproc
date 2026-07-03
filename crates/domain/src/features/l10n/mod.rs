@@ -6,18 +6,14 @@ use framework::feature::{WindowFeature, WindowFeatureInitContext};
 use macros::window_feature;
 
 #[window_feature]
-pub struct L10nFeature;
-
-#[window_feature]
-impl<TWindow, F, P> WindowFeature<TWindow> for L10nFeature<F>
+pub fn l10n_feature<TWindow, P>(
+    ctx: &mut WindowFeatureInitContext<TWindow>,
+    port: P,
+) -> anyhow::Result<()>
 where
     TWindow: Window,
-    F: Fn(&TWindow) -> P + 'static + Clone,
-    P: L10nPort,
+    P: L10nPort + Clone + 'static,
 {
-    fn install(&mut self, ctx: &mut WindowFeatureInitContext<TWindow>) -> anyhow::Result<()> {
-        let port = (self.make_port)(ctx.ui);
-        apply::apply(&port);
-        Ok(())
-    }
+    apply::apply(&port);
+    Ok(())
 }

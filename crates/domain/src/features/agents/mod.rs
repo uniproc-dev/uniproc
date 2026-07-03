@@ -6,22 +6,20 @@ pub mod settings;
 
 use crate::agents_impl::providers::{windows, wsl};
 use framework::feature::{AppFeature, AppFeatureDeinitContext, AppFeatureInitContext};
+use macros::app_feature;
 use tracing::info;
 
-pub struct AgentsFeature;
-
-impl AppFeature for AgentsFeature {
-    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
-        info!("Agents feature installed");
-        cfg_if::cfg_if! {
-            if #[cfg(target_os = "windows")] {
-                wsl::WslAgentFeature.install(ctx)?;
-                windows::WindowsAgentFeature.install(ctx)?;
-            } else {
-                linux::LinuxAgentFeature.install(reactor, ui, shared)?;
-            }
+#[app_feature]
+pub fn agents_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    info!("Agents feature installed");
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "windows")] {
+            wsl::wsl_agent_feature(ctx)?;
+            windows::windows_agent_feature(ctx)?;
+        } else {
+            linux::linux_agent_feature(ctx)?;
         }
-
-        Ok(())
     }
+
+    Ok(())
 }

@@ -6,11 +6,14 @@ use app_contracts::features::agents::{
 };
 use app_core::actor::event_bus::EventBus;
 use app_core::{actor::addr::Addr, ratelimit};
-use framework::feature::{AppFeature, AppFeatureInitContext};
-use framework::lifecycle_tracker::FeatureLifecycle;
+use framework::feature::{
+    AppFeature, AppFeatureInitContext, ContextActorExt, ContextReactorExt, ContextStoreExt,
+};
+use macros::app_feature;
 use ogurpchik::discovery::register_vm_default;
 use ogurpchik::high::node::Node;
 use ogurpchik::transport::stream::adapters::vsock::{VsockAddr, VsockTransport};
+use rpstate::DefaultStore;
 use std::ops::Deref;
 use std::time::Instant;
 use tracing::{error, instrument, warn};
@@ -77,25 +80,21 @@ impl AgentBackend for WslBackend {
     }
 }
 
-pub struct WslAgentFeature;
-impl AppFeature for WslAgentFeature {
-    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
-        let settings = AgentSettings::new(ctx.shared)?;
+#[app_feature]
+pub fn wsl_agent_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    let store = ctx.store();
+    let settings = AgentSettings::new(&store)?;
 
-        let addr = Addr::new(
-            GenericAgentActor::<WslBackend>::new(settings.connect_timeout_secs()),
-            ctx.token.clone(),
-            ctx.tracker,
-        );
+    let addr = Addr::new(
+        GenericAgentActor::<WslBackend>::new(settings.connect_timeout_secs()),
+        ctx.token.clone(),
+        ctx.tracker,
+    );
 
-        let a = addr.clone();
-        ctx.reactor
-            .add_dynamic_loop(settings.ping_interval_ms().as_signal(), move || {
-                a.send(Ping)
-            });
+    ctx.spawn_heartbeat(&addr, settings.ping_interval_ms().as_signal(), || Ping);
 
-        EventBus::subscribe::<GenericAgentActor<WslBackend>, ScanTick>(addr.clone(), ctx.tracker);
-        addr.send(Init);
-        Ok(())
-    }
+    EventBus::subscribe::<GenericAgentActor<WslBackend>, ScanTick>(addr.clone(), ctx.tracker);
+    addr.send(Init);
+
+    Ok(())
 }

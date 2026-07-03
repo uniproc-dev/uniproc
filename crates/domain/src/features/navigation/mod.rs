@@ -4,75 +4,61 @@ mod settings;
 mod state;
 
 use crate::features::navigation::actor::{NavigationActor, Push};
-use crate::features::navigation::settings::NavigationSettings;
-use app_contracts::features::navigation::PAGE_ROUTES;
+use crate::navigation_impl::settings::NavigationSettings;
 use app_contracts::features::navigation::UiNavigationBindings;
-use framework::addr::AddrBuilder;
+use app_contracts::features::navigation::PAGE_ROUTES;
 use framework::app::Window;
 use framework::feature::{
-    AppFeature, AppFeatureInitContext, WindowFeature, WindowFeatureInitContext,
+    AppFeature, AppFeatureInitContext, ContextActorExt, ContextStoreExt, WindowFeature,
+    WindowFeatureInitContext,
 };
 use framework::navigation::{Route, RouteRegistry};
 use framework::uri::ContextlessAppUri;
-use macros::window_feature;
+use macros::{app_feature, window_feature};
 use std::borrow::Cow;
 use std::sync::Arc;
 
-pub struct NavigationRegistryFeature;
-
-impl AppFeature for NavigationRegistryFeature {
-    fn install(&mut self, ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
-        let registry = Arc::new(RouteRegistry::new());
-        registry.replace_routes(
-            PAGE_ROUTES
-                .iter()
-                .map(|route| Route {
-                    uri: ContextlessAppUri::new(
-                        Cow::from(route.segment),
-                        route
-                            .features
-                            .iter()
-                            .map(|&s| Cow::from(s))
-                            .collect::<Vec<_>>(),
-                    ),
-                })
-                .collect(),
-        );
-        ctx.shared.insert_arc(registry);
-        Ok(())
-    }
+#[app_feature]
+pub fn navigation_registry_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
+    let registry = Arc::new(RouteRegistry::new());
+    registry.replace_routes(
+        PAGE_ROUTES
+            .iter()
+            .map(|route| Route {
+                uri: ContextlessAppUri::new(
+                    Cow::from(route.segment),
+                    route
+                        .features
+                        .iter()
+                        .map(|&s| Cow::from(s))
+                        .collect::<Vec<_>>(),
+                ),
+            })
+            .collect(),
+    );
+    ctx.shared.insert_arc(registry);
+    Ok(())
 }
 
 #[window_feature]
-pub struct NavigationFeature;
-
-#[window_feature]
-impl<TWindow, F, P> WindowFeature<TWindow> for NavigationFeature<F>
+pub fn navigation_feature<TWindow, P>(
+    ctx: &mut WindowFeatureInitContext<TWindow>,
+    ui_port: P,
+) -> anyhow::Result<()>
 where
     TWindow: Window,
-    F: Fn(&TWindow) -> P + 'static + Clone,
     P: UiNavigationBindings + Clone + 'static,
 {
-    fn install(&mut self, ctx: &mut WindowFeatureInitContext<TWindow>) -> anyhow::Result<()> {
-        let settings = NavigationSettings::new(ctx.shared)?;
-        let ui_port = (self.make_port)(ctx.ui);
-        let token = ctx.ui.new_token();
+    let store = ctx.store();
+    let settings = NavigationSettings::new(&store)?;
 
-        let registry = ctx.shared.get::<RouteRegistry>().unwrap();
-        let actor = NavigationActor::new(registry.clone(), ctx.window_id);
+    let registry = ctx.shared.get::<RouteRegistry>().unwrap();
+    let actor = NavigationActor::new(registry.clone(), ctx.window_id);
 
-        let addr = AddrBuilder::new(token, &self.tracker)
-            .managed(actor)
-            .ui_bind(&ui_port);
+    let addr = ctx.actor_builder(actor).ui_bind(&ui_port);
 
-        let initial_path = settings.default_route_segment().get();
-        addr.send(Push(initial_path));
+    let initial_path = settings.default_route_segment().get();
+    addr.send(Push(initial_path));
 
-        #[cfg(feature = "test-utils")]
-        if let Some(registry) = ctx.shared.get::<app_core::actor::registry::ActorRegistry>() {
-            registry.register(addr.clone());
-        }
-
-        Ok(())
-    }
+    Ok(())
 }
