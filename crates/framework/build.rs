@@ -2,8 +2,12 @@ use build_utils::trace_scopes::{ScopeRoot, generate_trace_scopes};
 use std::path::{Path, PathBuf};
 
 fn main() {
+    // Lives at the workspace root (../../ from crates/framework), not inside
+    // this crate: it mixes framework's own scopes with app-specific policy,
+    // and sorting that out per-crate isn't worth the trouble - one shared
+    // file, wherever framework physically ends up living.
     generate_trace_scopes(
-        Path::new("./trace-scopes.toml"),
+        Path::new("../../trace-scopes.toml"),
         &out_dir_file("trace_scopes.rs"),
         &[
             ScopeRoot::new("ui", "Ui"),
