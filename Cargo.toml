@@ -44,6 +44,7 @@ widgets = { path = "crates/widgets" }
 forsl-trace = { path = "../forsl/crates/forsl-trace" }
 forsl-core = { path = "../forsl/crates/forsl-core" }
 forsl = { path = "../forsl/crates/forsl" }
+forsl-test-kit = { path = "../forsl/crates/forsl-test-kit" }
 
 # --- Custom & Git Dependencies ---
 ogurpchik = { git = "https://github.com/Tam1SH/oguRPChik", branch = "master", features = ["rkyv-codec", "vsock", "uds"] }

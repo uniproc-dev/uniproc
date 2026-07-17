@@ -1893,7 +1893,7 @@ dependencies = [
  "domain-navigation",
  "forsl",
  "forsl-core",
- "i-slint-backend-testing",
+ "forsl-test-kit",
  "i-slint-core",
  "macros",
  "proc-macro2",
@@ -1904,8 +1904,6 @@ dependencies = [
  "syn",
  "tokio",
  "tracing",
- "tracing-appender",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -2377,6 +2375,19 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "forsl-test-kit"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "forsl",
+ "forsl-core",
+ "i-slint-backend-testing",
+ "i-slint-core",
+ "slint",
+ "tracing-subscriber",
 ]
 
 [[package]]
