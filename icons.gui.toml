@@ -1,50 +1,50 @@
 [defaults]
 root = "crates/slint-adapter/ui/assets"
 
+[link]
+includes = ["icons.vendor.gui.toml"]
+
 [app]
-file = "app.svg"
+iconify = "fluent-color:apps-24"
 
 [apps-list]
 iconify = "fluent-color:apps-list-24"
 
 [arrow-up-filled]
-file = "arrow-up-filled.svg"
+iconify = "fluent:arrow-up-24-filled"
 
 [arrow-up-regular]
 file = "arrow-up-regular.svg"
 
 [coin]
-file = "coin.svg"
+iconify = "fluent-color:coin-multiple-24"
 
 [dashed-settings]
 file = "dashed-settings.svg"
 
 [data-area]
-file = "data-area.svg"
+iconify = "fluent-color:data-area-20"
 
 [database]
-file = "database.svg"
+iconify = "fluent-color:database-24"
 
 [dismiss]
 iconify = "fluent:dismiss-20-regular"
 
-[docker]
-file = "docker.svg"
-
 [download-regular]
-file = "download-regular.svg"
+iconify = "fluent:arrow-download-24-regular"
 
 [extension]
 file = "extension.svg"
 
 [folder]
-file = "folder.svg"
+iconify = "fluent:folder-24-regular"
 
 [gears]
 iconify = "carbon:gears"
 
 [group-list]
-file = "group-list.svg"
+iconify = "fluent:tab-group-24-filled"
 
 [group-list-filled]
 iconify = "fluent:tab-group-24-filled"
@@ -62,16 +62,13 @@ file = "info.svg"
 file = "layer-filled.svg"
 
 [layer-regular]
-file = "layer-regular.svg"
-
-[linux]
-file = "linux.svg"
+iconify = "fluent:layer-24-regular"
 
 [maximize]
 iconify = "fluent:maximize-16-regular"
 
 [minimize]
-file = "minimize.svg"
+iconify = "fluent:subtract-24-regular"
 
 [new-task]
 file = "new-task.svg"
@@ -80,7 +77,7 @@ file = "new-task.svg"
 iconify = "fluent:open-20-regular"
 
 [people]
-file = "people.svg"
+iconify = "fluent-color:people-24"
 
 [play]
 iconify = "fluent:play-24-regular"
@@ -95,7 +92,7 @@ file = "proc-filled.svg"
 file = "proc-regular.svg"
 
 [prohibited]
-file = "prohibited.svg"
+iconify = "fluent:prohibited-24-regular"
 
 [pulse-filled]
 file = "pulse-filled.svg"
@@ -104,7 +101,7 @@ file = "pulse-filled.svg"
 file = "pulse-regular.svg"
 
 [puzzle]
-file = "puzzle.svg"
+iconify = "fluent-color:puzzle-piece-24"
 
 [refresh]
 iconify = "fluent:arrow-sync-24-regular"
@@ -113,43 +110,31 @@ iconify = "fluent:arrow-sync-24-regular"
 file = "restore.svg"
 
 [search]
-file = "search.svg"
+iconify = "fluent:search-24-regular"
 
 [settings]
-file = "settings.svg"
+iconify = "fluent-color:settings-24"
 
 [settings-filled]
-file = "settings-filled.svg"
+iconify = "fluent:settings-24-filled"
 
 [settings-regular]
-file = "settings-regular.svg"
+iconify = "fluent:settings-24-regular"
 
 [spinner]
-file = "spinner.svg"
+iconify = "fluent:spinner-ios-20-regular"
 
 [statistics]
-file = "statistics.svg"
+iconify = "fluent-color:data-trending-24"
 
 [stop]
 iconify = "fluent:stop-24-regular"
 
 [terminate]
-file = "terminate.svg"
-
-[ubuntu]
-file = "ubuntu.svg"
+iconify = "fluent:dismiss-circle-24-regular"
 
 [uniproc-logo]
 file = "uniproc-logo.svg"
-
-[windows]
-file = "windows.svg"
-
-[windows-11]
-file = "windows-11.svg"
-
-[wsl]
-file = "wsl.svg"
 
 [sys.application.icon]
 file = "app.svg"

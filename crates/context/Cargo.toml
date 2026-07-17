@@ -2,11 +2,13 @@
 name = "context"
 version.workspace = true
 edition.workspace = true
+links = "context-icons"
 
 [dependencies]
 anyhow.workspace = true
 app-core.workspace = true
 bon.workspace = true
+guicons.workspace = true
 i-slint-backend-winit.workspace = true
 macros.workspace = true
 rust-i18n.workspace = true
@@ -27,4 +29,4 @@ windows.workspace = true
 uuid.workspace = true
 
 [build-dependencies]
-build-utils.workspace = true
+guicons-build.workspace = true

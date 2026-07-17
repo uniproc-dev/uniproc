@@ -9,7 +9,7 @@ fn main() {
 
     slint_parser::generate_globals_export(Path::new("ui"));
 
-    let mut include_paths = build_utils::icons::shared_slint_include_paths();
+    let mut include_paths = vec![std::path::PathBuf::from(context_icons_dir())];
     include_paths.extend([
         std::path::PathBuf::from("ui"),
         std::path::PathBuf::from("ui/shared"),
@@ -21,6 +21,11 @@ fn main() {
         .with_include_paths(include_paths);
 
     slint_build::compile_with_config("ui/app-window.slint", config).expect("Slint build failed");
+}
+
+fn context_icons_dir() -> String {
+    std::env::var("DEP_CONTEXT_ICONS_ICONS_DIR")
+        .expect("context's build script should publish DEP_CONTEXT_ICONS_ICONS_DIR via `links`")
 }
 
 fn generate_capabilities_slint() {

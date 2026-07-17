@@ -1,7 +1,6 @@
 #![cfg_attr(coverage, feature(coverage_attribute))]
 #![cfg_attr(coverage, coverage(off))]
 pub mod collector;
-pub mod icons;
 
 pub mod slint_parser;
 pub mod trace_scopes;

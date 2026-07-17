@@ -192,7 +192,7 @@ dependencies = [
  "etcetera",
  "inventory",
  "parking_lot",
- "petgraph",
+ "petgraph 0.8.3",
  "redb",
  "rmp-serde",
  "serde",
@@ -835,18 +835,14 @@ name = "build-utils"
 version = "0.1.0"
 dependencies = [
  "i-slint-compiler",
- "pathdiff",
  "proc-macro2",
  "quote",
  "serde",
  "serde_json",
- "sha2",
  "strsim",
  "syn",
  "toml 0.9.11+spec-1.1.0",
- "ureq",
  "walkdir",
- "winresource",
 ]
 
 [[package]]
@@ -1310,8 +1306,9 @@ dependencies = [
  "anyhow",
  "app-core",
  "bon",
- "build-utils",
  "framework",
+ "guicons",
+ "guicons-build",
  "i-slint-backend-winit",
  "macros",
  "raw-window-handle",
@@ -1711,7 +1708,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "app-core",
- "build-utils",
  "context",
  "dhat",
  "domain",
@@ -1720,12 +1716,14 @@ dependencies = [
  "domain-navigation",
  "domain-processes",
  "framework",
+ "guicons-core",
  "slint",
  "slint-adapter",
  "tokio",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "winresource",
 ]
 
 [[package]]
@@ -2218,6 +2216,12 @@ name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
+
+[[package]]
+name = "fixedbitset"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 
 [[package]]
 name = "fixedbitset"
@@ -2728,6 +2732,65 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c4ee00b289aba7a9e5306d57c2d05499b2e5dc427f84ac708bd2c090212cf3e"
 dependencies = [
  "gl_generator",
+]
+
+[[package]]
+name = "guicons"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0359678247b859930b3f885f3eeaf2eb7bde3fc1200af2baaa5eadd0d3d72a5f"
+dependencies = [
+ "guicons-macros",
+]
+
+[[package]]
+name = "guicons-build"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "393023cf134c160c2fe9f0c26d561e40b81a6377c99106fb5c9ac49bdef30fb3"
+dependencies = [
+ "guicons-core",
+ "guicons-net",
+ "pathdiff",
+]
+
+[[package]]
+name = "guicons-core"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ec0d7b48c8bbcb0c9fa8ed06642bc8370fb74dca3a01d8c867c5196375bae51"
+dependencies = [
+ "petgraph 0.6.5",
+ "syn",
+ "toml-span",
+ "walkdir",
+ "winnow 0.7.14",
+]
+
+[[package]]
+name = "guicons-macros"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87b9a0c69a08fd619d161b497b0a3fa61f9bc6da19efe051041c2ee017a838c4"
+dependencies = [
+ "guicons-core",
+ "guicons-net",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "guicons-net"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd3f801d9d121618907303ff8ac086b706ced60f27e5a26de76f2b3afaaa27b5"
+dependencies = [
+ "guicons-core",
+ "hex",
+ "serde_json",
+ "sha2",
+ "ureq",
 ]
 
 [[package]]
@@ -4604,11 +4667,21 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "petgraph"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
+dependencies = [
+ "fixedbitset 0.4.2",
+ "indexmap",
+]
+
+[[package]]
+name = "petgraph"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8701b58ea97060d5e5b155d383a69952a60943f0e6dfe30b04c287beb0b27455"
 dependencies = [
- "fixedbitset",
+ "fixedbitset 0.5.7",
  "hashbrown 0.15.5",
  "indexmap",
  "serde",
@@ -6379,6 +6452,15 @@ dependencies = [
  "toml_parser",
  "toml_writer",
  "winnow 0.7.14",
+]
+
+[[package]]
+name = "toml-span"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f22ba417d437b5fa5dcba6c27dbd6c14f38845315b724d89fed73b7a426451b7"
+dependencies = [
+ "smallvec",
 ]
 
 [[package]]

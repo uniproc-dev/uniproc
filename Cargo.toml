@@ -38,6 +38,9 @@ domain-environments = { path = "crates/domain/src/features/environments" }
 domain-navigation = { path = "crates/domain/src/features/navigation" }
 domain-processes = { path = "crates/domain/src/features/processes" }
 forsl-trace = { path = "crates/forsl-trace" }
+guicons = "0.1.0"
+guicons-build = "0.1.0"
+guicons-core = "0.1.0"
 macros = { path = "crates/macros" }
 slint-adapter = { path = "crates/slint-adapter" }
 widgets = { path = "crates/widgets" }
@@ -114,8 +117,6 @@ ttl_cache = "0.5"
 walkdir = "2.5.0"
 derive_more = "2.1.1"
 smol_str = "0.3.6"
-sha2 = "0.10.9"
-ureq = "2.12.1"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

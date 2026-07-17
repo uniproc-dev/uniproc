@@ -1,0 +1,20 @@
+[defaults]
+root = "crates/slint-adapter/ui/assets"
+
+[docker]
+iconify = "mdi:docker"
+
+[linux]
+file = "linux.svg"
+
+[ubuntu]
+file = "ubuntu.svg"
+
+[windows]
+file = "windows.svg"
+
+[windows-11]
+file = "windows-11.svg"
+
+[wsl]
+file = "wsl.svg"

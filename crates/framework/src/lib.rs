@@ -1,7 +1,6 @@
 pub mod addr;
 pub mod app;
 pub mod feature;
-pub mod icons;
 pub mod into_signal;
 pub mod lifecycle_tracker;
 pub mod native_windows;

@@ -22,8 +22,8 @@ tracing-subscriber.workspace = true
 framework.workspace = true
 
 [build-dependencies]
-build-utils.workspace = true
-context.workspace = true
+guicons-core.workspace = true
+winresource = "0.1.30"
 
 
 [package.metadata.packager]
