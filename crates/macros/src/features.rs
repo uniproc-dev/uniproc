@@ -1,7 +1,7 @@
 use heck::ToUpperCamelCase;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, FnArg, ItemFn, Pat};
+use syn::{FnArg, ItemFn, Pat, parse_macro_input};
 
 pub fn window_feature_impl(_args: TokenStream, input: TokenStream) -> TokenStream {
     let input_fn = parse_macro_input!(input as ItemFn);

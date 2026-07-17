@@ -1,7 +1,7 @@
 use crate::features::environments::UiEnvironmentsAdapter;
 use crate::{EnvironmentsFeatureGlobal, WslDistro};
 use app_contracts::features::environments::{UiEnvironmentsPort, WslDistroDto};
-use context::icons::{keys, Icons};
+use context::icons::{Icons, keys};
 use macros::slint_port_adapter;
 use slint::{ComponentHandle, ModelRc, VecModel};
 

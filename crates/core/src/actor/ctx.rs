@@ -1,9 +1,9 @@
 use crate::actor::addr::{Addr, REGISTRY};
-use crate::actor::event_bus::subscribe::Event;
 use crate::actor::event_bus::EventBus;
+use crate::actor::event_bus::subscribe::Event;
 use crate::actor::traits::{Handler, Message};
-use crate::actor::{invoke_on_ui, short_type_name, AllowedSignal, ManagedActor};
-use crate::trace::{current_meta, install_current_meta, DispatchMeta};
+use crate::actor::{AllowedSignal, ManagedActor, invoke_on_ui, short_type_name};
+use crate::trace::{DispatchMeta, current_meta, install_current_meta};
 use std::marker::PhantomData;
 use tokio::sync::oneshot;
 

@@ -82,4 +82,3 @@ fn generate_slint_l10n() {
 
     write_if_changed(out_file, &generated);
 }
-

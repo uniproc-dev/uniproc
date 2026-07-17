@@ -1,7 +1,9 @@
 use crate::features::tabs::UiTabsAdapter;
-use app_contracts::features::tabs::{AvailableContextDescriptor, TabContextKey, TabDescriptor, UiTabsPort};
-use context::page_status::PageStatus;
+use app_contracts::features::tabs::{
+    AvailableContextDescriptor, TabContextKey, TabDescriptor, UiTabsPort,
+};
 use context::icons::Icons;
+use context::page_status::PageStatus;
 use macros::slint_port_adapter;
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 

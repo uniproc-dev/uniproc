@@ -5,8 +5,8 @@ mod state;
 
 use crate::features::navigation::actor::{NavigationActor, Push};
 use crate::navigation_impl::settings::NavigationSettings;
-use app_contracts::features::navigation::UiNavigationBindings;
 use app_contracts::features::navigation::PAGE_ROUTES;
+use app_contracts::features::navigation::UiNavigationBindings;
 use framework::app::Window;
 use framework::feature::{
     AppFeature, AppFeatureInitContext, ContextActorExt, ContextStoreExt, WindowFeature,

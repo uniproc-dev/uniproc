@@ -1,4 +1,4 @@
-use crate::icons::{keys, Icons};
+use crate::icons::{Icons, keys};
 use bon::Builder;
 use slint::Image;
 use std::cell::RefCell;

@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
-    spanned::Spanned, Error, FnArg, GenericArgument, ItemFn, PatType, PathArguments, Result, Type,
+    Error, FnArg, GenericArgument, ItemFn, PatType, PathArguments, Result, Type, spanned::Spanned,
 };
 
 pub fn generate_standalone_handler(item: ItemFn) -> TokenStream {

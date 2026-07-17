@@ -1,12 +1,12 @@
-use crate::features::services::application::snapshot_actor::ActiveStatus;
-use crate::features::services::view::ServiceTable;
 use crate::features::services::ServicesBinder;
 use crate::features::services::UiServicesBindings;
+use crate::features::services::application::snapshot_actor::ActiveStatus;
+use crate::features::services::view::ServiceTable;
 use app_contracts::features::agents::{WindowsActionRequest, WindowsActionResponse};
 use app_contracts::features::services::ServicesPartialBinder;
 use app_contracts::features::services::{
-    ServiceActionKind, ServiceEntryVm, ServiceSnapshot, UiServiceDetailsPort,
-    UiServicesPort, PROPERTIES_DIALOG_KEY,
+    PROPERTIES_DIALOG_KEY, ServiceActionKind, ServiceEntryVm, ServiceSnapshot,
+    UiServiceDetailsPort, UiServicesPort,
 };
 use app_contracts::features::windows_manager::OpenedWindow;
 use app_core::actor::Context;

@@ -1,12 +1,12 @@
 use build_utils::load_schema;
 use heck::ToUpperCamelCase;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use syn::parse::{Parse, ParseStream, Parser};
 use syn::punctuated::Punctuated;
 use syn::{
-    parse_quote, Attribute, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ItemImpl, ItemStruct,
-    Meta, Path, Token, Type, Visibility,
+    Attribute, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ItemImpl, ItemStruct, Meta,
+    Path, Token, Type, Visibility, parse_quote,
 };
 
 enum ManifestItem {

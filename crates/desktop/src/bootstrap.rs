@@ -2,7 +2,6 @@ use domain::features::cosmetics::CosmeticsFeature;
 use domain::features::l10n::L10nFeature;
 use domain::features::page_status::PageStatusFeature;
 use domain::features::services::ServicesFeature;
-use domain::features::settings::SettingsFeature;
 use domain::features::sidebar::SidebarFeature;
 use domain::features::tabs::TabsFeature;
 use domain::features::trace_settings::TraceSettingsFeature;
@@ -13,7 +12,9 @@ use domain_environments::features::environments::EnvironmentsFeature;
 use domain_navigation::features::navigation::{NavigationFeature, NavigationRegistryFeature};
 use domain_processes::processes_impl::ProcessFeature;
 use framework::app::App;
+use framework::settings::SettingsFeature;
 use slint::ComponentHandle;
+use slint_adapter::AppWindow;
 use slint_adapter::features::cosmetics::UiCosmeticsAdapter;
 use slint_adapter::features::environments::UiEnvironmentsAdapter;
 use slint_adapter::features::l10n::SlintL10nPort;
@@ -23,7 +24,6 @@ use slint_adapter::features::services::UiServicesAdapter;
 use slint_adapter::features::sidebar::UiSidebarAdapter;
 use slint_adapter::features::tabs::UiTabsAdapter;
 use slint_adapter::features::window_actions::UiWindowActionsAdapter;
-use slint_adapter::AppWindow;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::writer::{BoxMakeWriter, MakeWriterExt};
 
@@ -64,7 +64,7 @@ struct TracingRuntime {
 
 fn init_tracing() -> anyhow::Result<TracingRuntime> {
     //TODO: tracing to framework
-    let settings_path = SettingsStore::default_settings_path()?;
+    let settings_path = framework::settings::default_settings_path()?;
     let logs_dir = settings_path
         .parent()
         .map(|parent| parent.join("logs"))

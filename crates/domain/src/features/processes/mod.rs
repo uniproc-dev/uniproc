@@ -10,9 +10,9 @@ use crate::processes_impl::settings::ProcessSettings;
 
 use app_contracts::features::agents::ScanTick;
 use app_contracts::features::processes::{UiProcessesBindings, UiProcessesPort};
+use app_core::actor::NoOp;
 use app_core::actor::addr::Addr;
 use app_core::actor::event_bus::EventBus;
-use app_core::actor::NoOp;
 use context::page_status::RouteStatusRegistry;
 use framework::addr::AddrBuilder;
 use framework::feature::{

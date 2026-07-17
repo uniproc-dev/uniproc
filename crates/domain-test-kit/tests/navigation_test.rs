@@ -4,8 +4,9 @@ use domain::features::windows_manager::WindowManagerFeature;
 use domain_navigation::features::navigation::{NavigationFeature, NavigationRegistryFeature};
 use domain_test_kit::generated::*;
 use domain_test_kit::test_env::navigation::{MockWindowFeature, TestFeatureState};
-use domain_test_kit::utils::{temp_settings_path, DomainTestWindow, FeatureHarness};
+use domain_test_kit::utils::{DomainTestWindow, FeatureHarness, temp_settings_path};
 use framework::navigation::{Route, RouteRegistry};
+use framework::settings::SettingsFeature;
 use framework::uri::ContextlessAppUri;
 use i_slint_core::api::ComponentHandle;
 use rstest::{fixture, rstest};
@@ -18,9 +19,7 @@ fn h() -> FeatureHarness {
     let temp_path = temp_settings_path();
 
     FeatureHarness::new(temp_path.clone())
-        .app_feature(domain::features::settings::SettingsFeature::with_path(
-            temp_path,
-        ))
+        .app_feature(SettingsFeature::with_path(temp_path))
         .unwrap()
         .app_feature(TestDiscoveryFeature)
         .unwrap()

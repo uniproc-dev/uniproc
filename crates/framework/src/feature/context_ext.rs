@@ -4,11 +4,11 @@ use crate::feature::{AppFeatureInitContext, WindowFeatureInitContext};
 use crate::into_signal::IntoSignal;
 use crate::lifecycle_tracker::{AppLifecycle, WindowLifecycle};
 use crate::reactor::{LoopHandle, Reactor};
+use amethystate::DefaultStore;
+use app_core::SharedState;
 use app_core::actor::{Addr, Handler, ManagedActor, Message, UiThreadToken};
 use app_core::lifecycle_tracker::LifecycleTracker;
 use app_core::signal::Signal;
-use app_core::SharedState;
-use rpstate::DefaultStore;
 use std::sync::Arc;
 
 pub trait FeatureContext {

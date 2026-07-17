@@ -9,8 +9,8 @@ use framework::feature::{
 
 use framework::uri::AppUri;
 use macros::actor_manifest;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Clone, Default)]
 pub struct TestFeatureState {

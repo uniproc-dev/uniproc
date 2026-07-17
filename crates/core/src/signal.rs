@@ -1,2 +1,2 @@
-pub type Signal<T> = rpstate::Signal<T>;
-pub type SignalSubscription = rpstate::SignalSubscription;
+pub type Signal<T> = amethystate::Signal<T>;
+pub type SignalSubscription = amethystate::SignalSubscription;

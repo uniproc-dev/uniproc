@@ -1,9 +1,9 @@
 use crate::app::Window;
 use crate::feature::{AppFeatureDeinitContext, WindowFeatureDeinitContext};
-use app_core::actor::addr::Addr;
-use app_core::actor::event_bus::subscribe::SubscriptionId;
-use app_core::actor::event_bus::EventBus;
 use app_core::actor::UiThreadToken;
+use app_core::actor::addr::Addr;
+use app_core::actor::event_bus::EventBus;
+use app_core::actor::event_bus::subscribe::SubscriptionId;
 use app_core::lifecycle_tracker::LifecycleTracker;
 use std::any::Any;
 use std::cell::RefCell;
@@ -194,10 +194,10 @@ mod tests {
     use super::*;
     use crate::feature::AppFeatureDeinitContext;
     use crate::reactor::Reactor;
-    use app_core::actor::UiThreadToken;
     use app_core::SharedState;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use app_core::actor::UiThreadToken;
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct DropCheck(Arc<AtomicUsize>);
     impl Drop for DropCheck {

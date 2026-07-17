@@ -8,8 +8,8 @@ use app_contracts::features::agents::RemoteScanResult;
 use app_contracts::features::processes::{
     FieldDefDto, ProcessFieldDto, ProcessNodeDto, UiProcessesPort,
 };
-use app_core::actor::addr::Addr;
 use app_core::actor::ManagedActor;
+use app_core::actor::addr::Addr;
 use app_core::{messages, ratelimit};
 use macros::{actor_manifest, handler};
 use slint::SharedString;

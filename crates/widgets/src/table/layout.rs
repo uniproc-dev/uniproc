@@ -1,6 +1,6 @@
 use app_core::signal::Signal;
-use rpstate::reactive::SignalSubscription;
 use rpstate::ReactiveMap;
+use rpstate::reactive::SignalSubscription;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;

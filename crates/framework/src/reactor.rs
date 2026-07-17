@@ -130,11 +130,11 @@ mod tests {
         tick(101);
         assert_eq!(counter.load(Ordering::SeqCst), 0);
 
-        active.set(true);
+        active.set(true, None);
         tick(101);
         assert_eq!(counter.load(Ordering::SeqCst), 1);
 
-        active.set(false);
+        active.set(false, None);
         tick(101);
         assert_eq!(counter.load(Ordering::SeqCst), 1);
     }
@@ -154,7 +154,7 @@ mod tests {
         tick(1001);
         assert_eq!(counter.load(Ordering::SeqCst), 1);
 
-        interval.set(200);
+        interval.set(200, None);
 
         tick(201);
         assert_eq!(counter.load(Ordering::SeqCst), 2);

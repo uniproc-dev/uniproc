@@ -1,4 +1,4 @@
-use rpstate::{rpstate, ReactiveMap, RpType};
+use rpstate::{ReactiveMap, RpType, rpstate};
 use serde::{Deserialize, Serialize};
 
 #[rpstate(prefix = "services")]

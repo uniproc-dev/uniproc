@@ -5,7 +5,7 @@ use app_contracts::features::agents::{
     AgentClient, AgentConnectionState, ScanTick, WindowsAgentRuntimeEvent, WindowsReportMessage,
 };
 use app_core::{
-    actor::{event_bus::EventBus, Addr},
+    actor::{Addr, event_bus::EventBus},
     ratelimit,
 };
 use framework::feature::{AppFeature, AppFeatureInitContext, ContextReactorExt, ContextStoreExt};
@@ -16,7 +16,7 @@ use rpstate::DefaultStore;
 use std::ops::Deref;
 use std::time::Instant;
 use tracing::{error, instrument, warn};
-use uniproc_protocol::{services, WindowsCodec, WindowsRequest, WindowsResponse};
+use uniproc_protocol::{WindowsCodec, WindowsRequest, WindowsResponse, services};
 
 pub struct WindowsBackend;
 

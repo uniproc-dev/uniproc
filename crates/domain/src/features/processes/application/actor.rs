@@ -10,8 +10,8 @@ use app_contracts::features::agents::{AgentConnectionState, WslAgentRuntimeEvent
 use app_contracts::features::processes::ProcessesPartialBinder;
 use app_contracts::features::processes::UiProcessesPort;
 use app_contracts::features::processes::{ProcessesBinder, UiProcessesBindings};
-use app_core::actor::event_bus::EventBus;
 use app_core::actor::ManagedActor;
+use app_core::actor::event_bus::EventBus;
 use app_core::actor::{Context, Handler, Message, NoOp};
 use context::page_status::{PageStatus, RouteStatusChanged, RouteStatusRegistry};
 use framework::feature::{Events, FeatureComponent, FeatureContextState};

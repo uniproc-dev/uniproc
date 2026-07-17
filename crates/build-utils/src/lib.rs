@@ -6,8 +6,8 @@ pub mod icons;
 pub mod slint_parser;
 
 pub use collector::{
-    load_schema, ArgDef, BindingDef, BindingMethodDef, CapabilityDef, DtoDef, DtoField, MethodDef,
-    PortDef, Schema,
+    ArgDef, BindingDef, BindingMethodDef, CapabilityDef, DtoDef, DtoField, MethodDef, PortDef,
+    Schema, load_schema,
 };
 
 use std::{fs, path::Path};

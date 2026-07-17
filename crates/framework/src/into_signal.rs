@@ -1,5 +1,5 @@
+use amethystate::{AccessMode, Field, Store};
 use app_core::signal::Signal;
-use rpstate::{AccessMode, Field, Store};
 
 pub trait IntoSignal<T> {
     fn into_signal(self) -> Signal<T>;

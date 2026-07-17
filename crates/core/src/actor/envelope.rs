@@ -1,6 +1,6 @@
-use crate::actor::{short_type_name, Context};
 use crate::actor::traits::{Handler, Message};
-use crate::trace::{install_current_meta, is_message_enabled, is_scope_enabled, DispatchMeta};
+use crate::actor::{Context, short_type_name};
+use crate::trace::{DispatchMeta, install_current_meta, is_message_enabled, is_scope_enabled};
 use std::marker::PhantomData;
 
 pub trait Envelope<A> {

@@ -1,10 +1,10 @@
 use crate::actor::envelope::{Envelope, FnEnvelope, MessageEnvelope};
 use crate::actor::event_bus::builder::EventSubscription;
 use crate::actor::traits::{Handler, Message};
-use crate::actor::{short_type_name, ManagedActor};
 use crate::actor::{Context, UiThreadToken};
+use crate::actor::{ManagedActor, short_type_name};
 use crate::lifecycle_tracker::LifecycleTracker;
-use crate::trace::{current_meta, is_message_enabled, is_scope_enabled, DispatchMeta};
+use crate::trace::{DispatchMeta, current_meta, is_message_enabled, is_scope_enabled};
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};

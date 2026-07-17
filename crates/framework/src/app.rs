@@ -4,9 +4,9 @@ use crate::feature::{
 };
 use crate::lifecycle_tracker::{AppLifecycle, WindowLifecycle};
 use crate::reactor::Reactor;
+use app_core::SharedState;
 use app_core::actor::{UiDispatcher, UiThreadToken};
 use app_core::trace::in_named_scope;
-use app_core::SharedState;
 use slint::ComponentHandle;
 use std::cell::RefCell;
 use std::rc::Rc;

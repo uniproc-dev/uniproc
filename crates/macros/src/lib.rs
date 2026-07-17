@@ -3,7 +3,7 @@
 
 use build_utils::collector::with_recompile_trigger;
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, ItemFn, ItemImpl, ItemTrait};
+use syn::{ItemFn, ItemImpl, ItemTrait, parse_macro_input};
 
 mod actor_manifest;
 mod binder_gen;

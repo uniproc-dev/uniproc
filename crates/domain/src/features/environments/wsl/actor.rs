@@ -1,8 +1,8 @@
 use crate::environments_impl::UiEnvironmentsBindings;
-use app_contracts::features::environments::EnvironmentsPartialBinder;
 use crate::features::environments::wsl::domain::{
     check_wsl_availability_async, fetch_distros_data, inject_agent_async,
 };
+use app_contracts::features::environments::EnvironmentsPartialBinder;
 use app_contracts::features::environments::{EnvironmentsBinder, UiEnvironmentsPort, WslDistroDto};
 use app_core::actor::{Context, ManagedActor};
 

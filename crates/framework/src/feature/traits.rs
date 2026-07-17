@@ -4,14 +4,14 @@ use crate::lifecycle_tracker::{AppLifecycle, WindowLifecycle};
 use crate::navigation::{RouteActivated, RouteDeactivated};
 use crate::reactor::Reactor;
 use crate::uri::AppUri;
-use app_core::actor::event_bus::builder::EventSubscription;
-use app_core::actor::event_bus::EventBus;
+use app_core::SharedState;
 use app_core::actor::Addr;
 use app_core::actor::Context;
 use app_core::actor::UiThreadToken;
+use app_core::actor::event_bus::EventBus;
+use app_core::actor::event_bus::builder::EventSubscription;
 use app_core::lifecycle_tracker::LifecycleTracker;
 use app_core::trace::in_named_scope;
-use app_core::SharedState;
 use std::marker::PhantomData;
 
 pub struct WindowFeatureInitContext<'a, TWindow: Window> {

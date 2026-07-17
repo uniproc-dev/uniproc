@@ -1,8 +1,8 @@
 use anyhow::Context as _;
-use app_core::actor::event_bus::EventBus;
-use app_core::actor::UiDispatcher;
-use app_core::test_kit::Stabilizer;
 use app_core::SharedState;
+use app_core::actor::UiDispatcher;
+use app_core::actor::event_bus::EventBus;
+use app_core::test_kit::Stabilizer;
 use framework::app::{App, UiContext, Window};
 use framework::feature::{
     AppFeature, AppFeatureInitContext, WindowFeature, WindowFeatureInitContext,

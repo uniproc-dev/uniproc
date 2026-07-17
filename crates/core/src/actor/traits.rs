@@ -1,5 +1,5 @@
-use crate::actor::event_bus::builder::EventSubscription;
 use crate::actor::Context;
+use crate::actor::event_bus::builder::EventSubscription;
 
 pub trait Message: 'static {}
 
