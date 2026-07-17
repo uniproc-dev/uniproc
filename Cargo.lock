@@ -314,6 +314,7 @@ dependencies = [
  "amethystate",
  "anyhow",
  "arc-swap",
+ "forsl-trace",
  "once_cell",
  "parking_lot",
  "tokio",
@@ -1318,7 +1319,6 @@ dependencies = [
  "serde",
  "serde_json",
  "slint",
- "toml 0.9.11+spec-1.1.0",
  "tracing",
  "tracing-subscriber",
  "ttl_cache",
@@ -2356,13 +2356,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "forsl-trace"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "once_cell",
+ "parking_lot",
+ "serde_json",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "framework"
 version = "0.1.0"
 dependencies = [
  "amethystate",
  "anyhow",
  "app-core",
+ "build-utils",
  "derive_more",
+ "forsl-trace",
  "i-slint-backend-testing",
  "i-slint-backend-winit",
  "i-slint-core",
@@ -2372,7 +2387,9 @@ dependencies = [
  "slint",
  "tempfile",
  "tokio",
+ "toml 0.9.11+spec-1.1.0",
  "tracing",
+ "tracing-subscriber",
  "uuid",
  "window-vibrancy",
  "windows 0.61.3",

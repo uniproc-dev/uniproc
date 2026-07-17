@@ -22,6 +22,7 @@ members = [
     "crates/desktop",
     "crates/build-utils",
     "crates/framework",
+    "crates/forsl-trace",
 ]
 
 [workspace.dependencies]
@@ -36,6 +37,7 @@ domain-agents = { path = "crates/domain/src/features/agents" }
 domain-environments = { path = "crates/domain/src/features/environments" }
 domain-navigation = { path = "crates/domain/src/features/navigation" }
 domain-processes = { path = "crates/domain/src/features/processes" }
+forsl-trace = { path = "crates/forsl-trace" }
 macros = { path = "crates/macros" }
 slint-adapter = { path = "crates/slint-adapter" }
 widgets = { path = "crates/widgets" }
