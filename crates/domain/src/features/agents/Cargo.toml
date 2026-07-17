@@ -9,7 +9,7 @@ path = "lib.rs"
 [dependencies]
 anyhow.workspace = true
 app-contracts.workspace = true
-app-core.workspace = true
+forsl-core.workspace = true
 async-trait.workspace = true
 cfg-if.workspace = true
 context.workspace = true
@@ -22,5 +22,5 @@ tokio.workspace = true
 tracing.workspace = true
 uniproc-protocol.workspace = true
 uuid.workspace = true
-framework.workspace = true
+forsl.workspace = true
 amethystate.workspace = true

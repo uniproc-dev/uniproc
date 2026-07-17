@@ -6,7 +6,7 @@ links = "context-icons"
 
 [dependencies]
 anyhow.workspace = true
-app-core.workspace = true
+forsl-core.workspace = true
 bon.workspace = true
 guicons.workspace = true
 i-slint-backend-winit.workspace = true
@@ -18,7 +18,7 @@ slint.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 ttl_cache.workspace = true
-framework.workspace = true
+forsl.workspace = true
 
 raw-window-handle.workspace = true
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -29,4 +29,5 @@ windows.workspace = true
 uuid.workspace = true
 
 [build-dependencies]
+build-utils.workspace = true
 guicons-build.workspace = true

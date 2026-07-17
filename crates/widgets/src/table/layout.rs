@@ -1,4 +1,4 @@
-use app_core::signal::Signal;
+use forsl_core::signal::Signal;
 use rpstate::ReactiveMap;
 use rpstate::reactive::SignalSubscription;
 use std::collections::HashMap;

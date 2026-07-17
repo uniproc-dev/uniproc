@@ -8,7 +8,7 @@ use app_contracts::features::tabs::{
     AvailableContextDescriptor, TabContextKey, TabContextSnapshot, TabDescriptor,
 };
 use context::page_status::PageStatus;
-use framework::navigation::RouteRegistry;
+use forsl::navigation::RouteRegistry;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 

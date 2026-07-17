@@ -3,8 +3,8 @@ use crate::environments_impl::discovery::wsl::WslDiscoveryActor;
 use crate::environments_impl::registry::EnvironmentRegistryActor;
 use crate::environments_impl::settings::EnvironmentsSettings;
 use app_contracts::features::environments::{UiEnvironmentsBindings, UiEnvironmentsPort};
-use framework::app::Window;
-use framework::feature::{
+use forsl::app::Window;
+use forsl::feature::{
     AppFeature, AppFeatureInitContext, ContextActorExt, ContextReactorExt, ContextStoreExt,
     WindowFeature, WindowFeatureInitContext,
 };

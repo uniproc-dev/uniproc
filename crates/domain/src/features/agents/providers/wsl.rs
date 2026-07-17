@@ -4,9 +4,9 @@ use crate::features::agents::settings::AgentSettings;
 use app_contracts::features::agents::{
     AgentConnectionState, RemoteScanResult, ScanTick, WslAgentRuntimeEvent, WslClient,
 };
-use app_core::actor::event_bus::EventBus;
-use app_core::{actor::addr::Addr, ratelimit};
-use framework::feature::{
+use forsl_core::actor::event_bus::EventBus;
+use forsl_core::{actor::addr::Addr, ratelimit};
+use forsl::feature::{
     AppFeature, AppFeatureInitContext, ContextActorExt, ContextReactorExt, ContextStoreExt,
 };
 use macros::app_feature;

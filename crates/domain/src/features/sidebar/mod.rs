@@ -4,8 +4,8 @@ pub mod settings;
 use crate::features::sidebar::actor::SidebarActor;
 use crate::features::sidebar::settings::SidebarSettings;
 use app_contracts::features::sidebar::{UiSidebarBindings, UiSidebarPort};
-use framework::app::Window;
-use framework::feature::{
+use forsl::app::Window;
+use forsl::feature::{
     ContextActorExt, ContextStoreExt, WindowFeature, WindowFeatureInitContext,
 };
 use macros::window_feature;

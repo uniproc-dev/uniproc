@@ -2,8 +2,8 @@ use crate::features::sidebar::settings::SidebarSettings;
 use app_contracts::features::sidebar::{
     RequestTransition, SidebarBinder, SidebarPartialBinder, UiSidebarBindings, UiSidebarPort,
 };
-use app_core::actor::ManagedActor;
-use app_core::trace::{current_meta, install_current_meta};
+use forsl_core::actor::ManagedActor;
+use forsl_core::trace::{current_meta, install_current_meta};
 use macros::{actor_manifest, handler};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};

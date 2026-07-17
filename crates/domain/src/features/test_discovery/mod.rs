@@ -1,5 +1,5 @@
-use app_core::actor::registry::ActorRegistry;
-use framework::feature::{AppFeature, AppFeatureInitContext};
+use forsl_core::actor::registry::ActorRegistry;
+use forsl::feature::{AppFeature, AppFeatureInitContext};
 use macros::app_feature;
 
 //TODO: move to framework layer

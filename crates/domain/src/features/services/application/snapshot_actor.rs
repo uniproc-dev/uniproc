@@ -1,9 +1,9 @@
 use crate::features::services::{application::actor::ServiceActor, scanner};
 use app_contracts::features::agents::ScanTick;
 use app_contracts::features::services::{ServiceEntryDto, ServiceSnapshot, UiServicesPort};
-use app_core::actor::{Addr, AsyncContext, ManagedActor};
-use app_core::actor::{Message, NoOp};
-use app_core::messages;
+use forsl_core::actor::{Addr, AsyncContext, ManagedActor};
+use forsl_core::actor::{Message, NoOp};
+use forsl_core::messages;
 use macros::{actor_manifest, handler};
 
 messages! {

@@ -1,4 +1,4 @@
-use app_core::actor::traits::Message;
+use forsl_core::actor::traits::Message;
 use slint::SharedString;
 use std::fmt::Debug;
 

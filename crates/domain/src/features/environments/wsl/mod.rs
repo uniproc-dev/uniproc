@@ -1,11 +1,11 @@
-use framework::app::Window;
+use forsl::app::Window;
 mod actor;
 pub mod domain;
 
 pub use actor::{Init, InstallAgent, WslEnvActor};
 
 use app_contracts::features::environments::{UiEnvironmentsBindings, UiEnvironmentsPort};
-use framework::feature::{ContextActorExt, WindowFeature, WindowFeatureInitContext};
+use forsl::feature::{ContextActorExt, WindowFeature, WindowFeatureInitContext};
 use macros::window_feature;
 
 #[window_feature]

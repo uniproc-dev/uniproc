@@ -4,7 +4,7 @@ use crate::features::environments::wsl::domain::{
 };
 use app_contracts::features::environments::EnvironmentsPartialBinder;
 use app_contracts::features::environments::{EnvironmentsBinder, UiEnvironmentsPort, WslDistroDto};
-use app_core::actor::{Context, ManagedActor};
+use forsl_core::actor::{Context, ManagedActor};
 
 use app_contracts::features::agents::{WslAgentRuntimeEvent, WslConnectionState};
 use macros::{actor_manifest, handler};

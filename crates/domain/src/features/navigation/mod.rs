@@ -7,13 +7,13 @@ use crate::features::navigation::actor::{NavigationActor, Push};
 use crate::navigation_impl::settings::NavigationSettings;
 use app_contracts::features::navigation::PAGE_ROUTES;
 use app_contracts::features::navigation::UiNavigationBindings;
-use framework::app::Window;
-use framework::feature::{
+use forsl::app::Window;
+use forsl::feature::{
     AppFeature, AppFeatureInitContext, ContextActorExt, ContextStoreExt, WindowFeature,
     WindowFeatureInitContext,
 };
-use framework::navigation::{Route, RouteRegistry};
-use framework::uri::ContextlessAppUri;
+use forsl::navigation::{Route, RouteRegistry};
+use forsl::uri::ContextlessAppUri;
 use macros::{app_feature, window_feature};
 use std::borrow::Cow;
 use std::sync::Arc;

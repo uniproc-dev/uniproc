@@ -4,11 +4,11 @@ use crate::features::agents::settings::AgentSettings;
 use app_contracts::features::agents::{
     AgentClient, AgentConnectionState, ScanTick, WindowsAgentRuntimeEvent, WindowsReportMessage,
 };
-use app_core::{
+use forsl_core::{
     actor::{Addr, event_bus::EventBus},
     ratelimit,
 };
-use framework::feature::{AppFeature, AppFeatureInitContext, ContextReactorExt, ContextStoreExt};
+use forsl::feature::{AppFeature, AppFeatureInitContext, ContextReactorExt, ContextStoreExt};
 use macros::app_feature;
 use ogurpchik::discovery::Scope;
 use ogurpchik::transport::stream::adapters::uds::UdsTransport;

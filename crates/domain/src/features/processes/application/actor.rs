@@ -10,12 +10,12 @@ use app_contracts::features::agents::{AgentConnectionState, WslAgentRuntimeEvent
 use app_contracts::features::processes::ProcessesPartialBinder;
 use app_contracts::features::processes::UiProcessesPort;
 use app_contracts::features::processes::{ProcessesBinder, UiProcessesBindings};
-use app_core::actor::ManagedActor;
-use app_core::actor::event_bus::EventBus;
-use app_core::actor::{Context, Handler, Message, NoOp};
+use forsl_core::actor::ManagedActor;
+use forsl_core::actor::event_bus::EventBus;
+use forsl_core::actor::{Context, Handler, Message, NoOp};
 use context::page_status::{PageStatus, RouteStatusChanged, RouteStatusRegistry};
-use framework::feature::{Events, FeatureComponent, FeatureContextState};
-use framework::uri::AppUri;
+use forsl::feature::{Events, FeatureComponent, FeatureContextState};
+use forsl::uri::AppUri;
 use macros::{actor_manifest, handler};
 use slint::SharedString;
 use std::borrow::Cow;

@@ -1,6 +1,6 @@
 use crate::features::windows_manager::actor::WindowManagerActor;
-use framework::feature::{AppFeature, AppFeatureInitContext, ContextActorExt};
-use framework::native_windows::slint_factory::SlintWindowRegistry;
+use forsl::feature::{AppFeature, AppFeatureInitContext, ContextActorExt};
+use forsl::native_windows::slint_factory::SlintWindowRegistry;
 use macros::app_feature;
 
 mod actor;

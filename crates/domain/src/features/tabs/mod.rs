@@ -5,9 +5,9 @@ mod state;
 use crate::features::tabs::actor::TabsActor;
 use crate::features::tabs::model::bootstrap_contexts;
 use app_contracts::features::tabs::{UiTabsBindings, UiTabsPort};
-use framework::app::Window;
-use framework::feature::{ContextActorExt, WindowFeature, WindowFeatureInitContext};
-use framework::navigation::RouteRegistry;
+use forsl::app::Window;
+use forsl::feature::{ContextActorExt, WindowFeature, WindowFeatureInitContext};
+use forsl::navigation::RouteRegistry;
 use macros::window_feature;
 
 #[window_feature]

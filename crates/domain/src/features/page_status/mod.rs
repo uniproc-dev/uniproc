@@ -1,5 +1,5 @@
 use context::page_status::RouteStatusRegistry;
-use framework::feature::{AppFeature, AppFeatureInitContext};
+use forsl::feature::{AppFeature, AppFeatureInitContext};
 use macros::app_feature;
 use std::sync::Arc;
 

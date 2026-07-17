@@ -10,10 +10,10 @@ use app_contracts::features::tabs::{
     AvailableContextDescriptor, TabContextKey, TabContextSnapshot, TabDescriptor, TabsBinder,
     TabsPartialBinder, UiTabsBindings, UiTabsPort,
 };
-use app_core::actor::event_bus::EventBus;
-use app_core::actor::{Context, ManagedActor};
+use forsl_core::actor::event_bus::EventBus;
+use forsl_core::actor::{Context, ManagedActor};
 use context::page_status::{PageStatus, RouteStatusChanged};
-use framework::navigation::{RouteActivated, RouteRegistry};
+use forsl::navigation::{RouteActivated, RouteRegistry};
 use macros::{actor_manifest, handler};
 use std::sync::Arc;
 use tracing::{instrument, warn};

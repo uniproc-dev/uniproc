@@ -292,7 +292,7 @@ fn build_binding_tracing_wrapper(
             let handler = {
                 let handler = #handler_ident;
                 move || {
-                    app_core::trace::in_ui_action_scope(#scope, #target_fields, None, || handler())
+                    forsl_core::trace::in_ui_action_scope(#scope, #target_fields, None, || handler())
                 }
             };
         },
@@ -300,8 +300,8 @@ fn build_binding_tracing_wrapper(
             let handler = {
                 let handler = #handler_ident;
                 move |__ui_arg0| {
-                    let __ui_target = app_core::trace::format_ui_target_1(&__ui_arg0);
-                    app_core::trace::in_ui_action_scope(
+                    let __ui_target = forsl_core::trace::format_ui_target_1(&__ui_arg0);
+                    forsl_core::trace::in_ui_action_scope(
                         #scope,
                         #target_fields,
                         __ui_target,
@@ -314,8 +314,8 @@ fn build_binding_tracing_wrapper(
             let handler = {
                 let handler = #handler_ident;
                 move |__ui_arg0, __ui_arg1| {
-                    let __ui_target = app_core::trace::format_ui_target_2(&__ui_arg0, &__ui_arg1);
-                    app_core::trace::in_ui_action_scope(
+                    let __ui_target = forsl_core::trace::format_ui_target_2(&__ui_arg0, &__ui_arg1);
+                    forsl_core::trace::in_ui_action_scope(
                         #scope,
                         #target_fields,
                         __ui_target,
@@ -343,7 +343,7 @@ fn build_ui_port_wrapper(self_ty: &syn::Type, method: &ImplItemFn) -> proc_macro
     let adapter_name = quote! { stringify!(#self_ty) };
 
     quote! {
-        if app_core::trace::is_scope_enabled("ui.adapter.call") {
+        if forsl_core::trace::is_scope_enabled("ui.adapter.call") {
             let __ui_port_target_value = format!("{}::{}", #adapter_name, #method_name);
             let __ui_port_scope_target = Some(__ui_port_target_value.clone());
             let __ui_port_call = || {
@@ -353,8 +353,8 @@ fn build_ui_port_wrapper(self_ty: &syn::Type, method: &ImplItemFn) -> proc_macro
                     "ui.adapter.call"
                 );
             };
-            if app_core::trace::is_target_enabled(&__ui_port_target_value) {
-                app_core::trace::in_named_scope(
+            if forsl_core::trace::is_target_enabled(&__ui_port_target_value) {
+                forsl_core::trace::in_named_scope(
                     "ui.adapter.call",
                     Some("adapter,method"),
                     __ui_port_scope_target,
@@ -373,10 +373,10 @@ fn build_ui_upgrade_failure(self_ty: &syn::Type, method: &ImplItemFn) -> proc_ma
         let __ui_port_target_value = format!("{}::{}", #adapter_name, #method_name);
         let __ui_port_scope_target = Some(__ui_port_target_value.clone());
 
-        if app_core::trace::is_scope_enabled("ui.adapter.call")
-            && app_core::trace::is_target_enabled(&__ui_port_target_value)
+        if forsl_core::trace::is_scope_enabled("ui.adapter.call")
+            && forsl_core::trace::is_target_enabled(&__ui_port_target_value)
         {
-            app_core::trace::in_named_scope(
+            forsl_core::trace::in_named_scope(
                 "ui.adapter.call",
                 Some("adapter,method"),
                 __ui_port_scope_target,

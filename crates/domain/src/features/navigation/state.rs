@@ -1,6 +1,6 @@
 use crate::features::navigation::model::ActiveRoute;
-use framework::navigation::{Route, RouteRegistry};
-use framework::uri::{AppUri, SegmentName};
+use forsl::navigation::{Route, RouteRegistry};
+use forsl::uri::{AppUri, SegmentName};
 use std::borrow::Cow;
 use std::sync::Arc;
 

@@ -9,12 +9,12 @@ path = "lib.rs"
 [dependencies]
 anyhow.workspace = true
 app-contracts.workspace = true
-app-core.workspace = true
+forsl-core.workspace = true
 macros.workspace = true
 slint.workspace = true
 sysinfo.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-framework.workspace = true
+forsl.workspace = true
 amethystate.workspace = true
 serde.workspace = true

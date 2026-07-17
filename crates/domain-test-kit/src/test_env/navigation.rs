@@ -1,13 +1,13 @@
 use crate::utils::DomainTestWindow;
-use app_core::actor::addr::Addr;
-use app_core::actor::{Context, ManagedActor};
-use framework::app::UiContext;
-use framework::feature::{
+use forsl_core::actor::addr::Addr;
+use forsl_core::actor::{Context, ManagedActor};
+use forsl::app::UiContext;
+use forsl::feature::{
     Events, FeatureComponent, FeatureContextState, WindowFeature, WindowFeatureDeinitContext,
     WindowFeatureInitContext,
 };
 
-use framework::uri::AppUri;
+use forsl::uri::AppUri;
 use macros::actor_manifest;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

@@ -1,9 +1,9 @@
-use framework::app::Window;
+use forsl::app::Window;
 mod actor;
 
 use crate::features::window_actions::actor::WindowActor;
 use app_contracts::features::window_actions::{UiWindowActionsBindings, UiWindowActionsPort};
-use framework::feature::{ContextActorExt, WindowFeature, WindowFeatureInitContext};
+use forsl::feature::{ContextActorExt, WindowFeature, WindowFeatureInitContext};
 use macros::window_feature;
 
 #[window_feature]

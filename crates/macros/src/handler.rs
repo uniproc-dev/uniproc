@@ -65,8 +65,8 @@ fn expand_handler(item: ItemFn) -> Result<TokenStream> {
     Ok(TokenStream::from(quote! {
         #item
 
-        impl #impl_generics app_core::actor::Handler<#msg_ty> for #actor_ty #where_clause {
-            fn handle(&mut self, msg: #msg_ty, ctx: &app_core::actor::Context<Self>) {
+        impl #impl_generics forsl_core::actor::Handler<#msg_ty> for #actor_ty #where_clause {
+            fn handle(&mut self, msg: #msg_ty, ctx: &forsl_core::actor::Context<Self>) {
                 #handler_body
             }
         }

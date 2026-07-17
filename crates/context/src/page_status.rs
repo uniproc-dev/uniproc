@@ -1,6 +1,6 @@
-use app_core::actor::event_bus::EventBus;
-use app_core::actor::traits::Message;
-use app_core::trace::in_named_scope;
+use forsl_core::actor::event_bus::EventBus;
+use forsl_core::actor::traits::Message;
+use forsl_core::trace::in_named_scope;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::RwLock;

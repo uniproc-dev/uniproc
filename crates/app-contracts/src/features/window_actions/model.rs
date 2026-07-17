@@ -1,4 +1,4 @@
-use app_core::actor::traits::Message;
+use forsl_core::actor::traits::Message;
 use macros::slint_dto;
 use serde::{Deserialize, Serialize};
 

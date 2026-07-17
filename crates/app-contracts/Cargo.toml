@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-app-core.workspace = true
+forsl-core.workspace = true
 cfg-if.workspace = true
 context.workspace = true
 macros.workspace = true
@@ -14,7 +14,7 @@ serde.workspace = true
 slint.workspace = true
 uniproc-protocol.workspace = true
 uuid.workspace = true
-framework.workspace = true
+forsl.workspace = true
 
 [build-dependencies]
 build-utils.workspace = true

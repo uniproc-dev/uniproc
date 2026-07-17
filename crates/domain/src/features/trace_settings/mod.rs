@@ -1,9 +1,9 @@
 mod settings;
 
 use self::settings::TraceSettings;
-use app_core::signal::SignalSubscription;
-use app_core::trace::TracePolicy;
-use framework::feature::{AppFeature, AppFeatureInitContext, ContextStoreExt};
+use forsl_core::signal::SignalSubscription;
+use forsl_core::trace::TracePolicy;
+use forsl::feature::{AppFeature, AppFeatureInitContext, ContextStoreExt};
 use macros::app_feature;
 use std::sync::Arc;
 
@@ -85,7 +85,7 @@ fn apply_trace_policy(settings: &TraceSettings) {
         dump_capacity: settings.dump_capacity().get() as usize,
     });
 
-    app_core::trace::install_policy(policy);
+    forsl_core::trace::install_policy(policy);
 }
 
 fn merge_trace_values(mut builtin: Vec<String>, user: Vec<String>) -> Vec<String> {

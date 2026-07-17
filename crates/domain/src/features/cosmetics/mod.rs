@@ -1,10 +1,10 @@
 use app_contracts::features::cosmetics::UiCosmeticsPort;
-use framework::app::Window;
-use framework::feature::{FromWindow, IntoWindowFeature, WindowFeature, WindowFeatureInitContext};
+use forsl::app::Window;
+use forsl::feature::{FromWindow, IntoWindowFeature, WindowFeature, WindowFeatureInitContext};
 use macros::window_feature;
 
 #[derive(Clone, Copy, Debug)]
-pub struct AccentState(pub framework::native_windows::platform_types::AccentPalette);
+pub struct AccentState(pub forsl::native_windows::platform_types::AccentPalette);
 
 #[window_feature]
 pub fn cosmetics_feature<TWindow, P>(
@@ -15,7 +15,7 @@ where
     TWindow: Window,
     P: UiCosmeticsPort + Clone + 'static,
 {
-    if let Ok(accent_palette) = framework::native_windows::platform::get_system_accent_palette() {
+    if let Ok(accent_palette) = forsl::native_windows::platform::get_system_accent_palette() {
         port.set_accent_palette(app_contracts::features::cosmetics::AccentPalette {
             accent: accent_palette.accent.into(),
             accent_light_1: accent_palette.accent_light_1.into(),

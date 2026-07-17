@@ -1,13 +1,13 @@
 use anyhow::Context as _;
-use app_core::SharedState;
-use app_core::actor::UiDispatcher;
-use app_core::actor::event_bus::EventBus;
-use app_core::test_kit::Stabilizer;
-use framework::app::{App, UiContext, Window};
-use framework::feature::{
+use forsl_core::SharedState;
+use forsl_core::actor::UiDispatcher;
+use forsl_core::actor::event_bus::EventBus;
+use forsl_core::test_kit::Stabilizer;
+use forsl::app::{App, UiContext, Window};
+use forsl::feature::{
     AppFeature, AppFeatureInitContext, WindowFeature, WindowFeatureInitContext,
 };
-use framework::reactor::Reactor;
+use forsl::reactor::Reactor;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex, Once};
@@ -129,10 +129,10 @@ impl UiDispatcher for TestUiDispatcher {
     fn init(&self) {
         init_tracing(self.settings_path.clone()).unwrap();
 
-        app_core::actor::set_ui_dispatcher(self.clone());
+        forsl_core::actor::set_ui_dispatcher(self.clone());
     }
 
-    fn dispatch(&self, task: app_core::actor::UiTask) {
+    fn dispatch(&self, task: forsl_core::actor::UiTask) {
         let _ = slint::invoke_from_event_loop(task);
     }
 }

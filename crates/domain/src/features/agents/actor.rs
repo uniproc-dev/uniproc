@@ -1,9 +1,9 @@
 use super::backend::AgentBackend;
 use crate::features::agents::connection::*;
 use app_contracts::features::agents::{AgentConnectionState, ScanTick};
-use app_core::actor::event_bus::EventBus;
-use app_core::actor::{AsyncContext, Context, Message, NoOp};
-use app_core::messages;
+use forsl_core::actor::event_bus::EventBus;
+use forsl_core::actor::{AsyncContext, Context, Message, NoOp};
+use forsl_core::messages;
 use macros::handler;
 use rpstate::{DefaultStore, Field, WritableMode};
 use std::fmt::Debug;

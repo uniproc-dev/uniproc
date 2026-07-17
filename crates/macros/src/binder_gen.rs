@@ -79,8 +79,8 @@ pub fn generate_binder(trait_item: &ItemTrait) -> TokenStream {
             {
                 pub fn #method_ident<M>(self) -> #binder_name<'p, A, P, #(#state_after),*>
                 where
-                    M: app_core::actor::Message + Clone + std::convert::From<#from_tuple>,
-                    A: app_core::actor::Handler<M>
+                    M: forsl_core::actor::Message + Clone + std::convert::From<#from_tuple>,
+                    A: forsl_core::actor::Handler<M>
                 {
                     #binder_name {
                         inner: self.inner.#inner_call(|p, f| p.#method_ident(f), #inner_args),
@@ -95,8 +95,8 @@ pub fn generate_binder(trait_item: &ItemTrait) -> TokenStream {
             {
                 pub fn #method_ident<M>(mut self) -> Self
                 where
-                    M: app_core::actor::Message + Clone + std::convert::From<#from_tuple>,
-                    A: app_core::actor::Handler<M>
+                    M: forsl_core::actor::Message + Clone + std::convert::From<#from_tuple>,
+                    A: forsl_core::actor::Handler<M>
                 {
                     self.inner = self.inner.#inner_call(|p, f| p.#method_ident(f), #inner_args);
                     self
@@ -110,15 +110,15 @@ pub fn generate_binder(trait_item: &ItemTrait) -> TokenStream {
 
         #[allow(non_camel_case_types)]
         pub struct #binder_name<'p, A: 'static, P, #(#state_params),*> {
-            inner: app_core::actor::binder::UiBinder<'p, A, P>,
+            inner: forsl_core::actor::binder::UiBinder<'p, A, P>,
             _states: std::marker::PhantomData<(#(#state_params),*)>,
         }
 
         #[allow(non_camel_case_types)]
         impl<'p, A: 'static, P: #trait_ident> #binder_name<'p, A, P, #(#all_empty),*> {
-            pub fn new(addr: &app_core::actor::Addr<A>, port: &'p P) -> Self {
+            pub fn new(addr: &forsl_core::actor::Addr<A>, port: &'p P) -> Self {
                 Self {
-                    inner: app_core::actor::binder::UiBinder::new(addr, port),
+                    inner: forsl_core::actor::binder::UiBinder::new(addr, port),
                     _states: std::marker::PhantomData,
                 }
             }
@@ -126,24 +126,24 @@ pub fn generate_binder(trait_item: &ItemTrait) -> TokenStream {
 
         #[allow(non_camel_case_types)]
         impl<'p, A: 'static, P: #trait_ident> #binder_name<'p, A, P, #(#all_done),*> {
-            pub fn build(self) -> app_core::actor::binder::UiBinder<'p, A, P> {
+            pub fn build(self) -> forsl_core::actor::binder::UiBinder<'p, A, P> {
                 self.inner
             }
         }
 
         pub struct #partial_binder_name<'p, A: 'static, P> {
-            inner: app_core::actor::binder::UiBinder<'p, A, P>,
+            inner: forsl_core::actor::binder::UiBinder<'p, A, P>,
         }
 
         #[allow(non_camel_case_types)]
         impl<'p, A: 'static, P: #trait_ident> #partial_binder_name<'p, A, P> {
-            pub fn new(addr: &app_core::actor::Addr<A>, port: &'p P) -> Self {
+            pub fn new(addr: &forsl_core::actor::Addr<A>, port: &'p P) -> Self {
                 Self {
-                    inner: app_core::actor::binder::UiBinder::new(addr, port),
+                    inner: forsl_core::actor::binder::UiBinder::new(addr, port),
                 }
             }
 
-            pub fn build(self) -> app_core::actor::binder::UiBinder<'p, A, P> {
+            pub fn build(self) -> forsl_core::actor::binder::UiBinder<'p, A, P> {
                 self.inner
             }
         }

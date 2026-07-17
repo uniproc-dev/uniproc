@@ -5,7 +5,7 @@ use app_contracts::features::tabs::{
     TabContextKind, TabContextSnapshot, TabDescriptor, TabPageDescriptor,
 };
 use context::page_status::PageStatus;
-use framework::navigation::RouteRegistry;
+use forsl::navigation::RouteRegistry;
 use std::borrow::Cow;
 use sysinfo::System;
 use uniproc_protocol::LinuxEnvironmentKind;

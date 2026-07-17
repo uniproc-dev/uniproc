@@ -5,9 +5,9 @@ use app_contracts::features::navigation::NavigationPartialBinder;
 use app_contracts::features::navigation::{
     KnownRouteDescriptor, NavigationBinder, NavigationProjectionChanged,
 };
-use app_core::actor::event_bus::EventBus;
-use app_core::actor::{Context, ManagedActor};
-use framework::navigation::{RouteActivated, RouteDeactivated, RouteRegistry};
+use forsl_core::actor::event_bus::EventBus;
+use forsl_core::actor::{Context, ManagedActor};
+use forsl::navigation::{RouteActivated, RouteDeactivated, RouteRegistry};
 use macros::{actor_manifest, handler};
 use std::borrow::Cow;
 use std::sync::Arc;

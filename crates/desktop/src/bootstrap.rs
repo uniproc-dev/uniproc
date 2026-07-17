@@ -11,8 +11,8 @@ use domain_agents::features::agents::AgentsFeature;
 use domain_environments::features::environments::EnvironmentsFeature;
 use domain_navigation::features::navigation::{NavigationFeature, NavigationRegistryFeature};
 use domain_processes::processes_impl::ProcessFeature;
-use framework::app::App;
-use framework::settings::SettingsFeature;
+use forsl::app::App;
+use forsl::settings::SettingsFeature;
 use slint::ComponentHandle;
 use slint_adapter::AppWindow;
 use slint_adapter::features::cosmetics::UiCosmeticsAdapter;
@@ -64,7 +64,7 @@ struct TracingRuntime {
 
 fn init_tracing() -> anyhow::Result<TracingRuntime> {
     //TODO: tracing to framework
-    let settings_path = framework::settings::default_settings_path()?;
+    let settings_path = forsl::settings::default_settings_path()?;
     let logs_dir = settings_path
         .parent()
         .map(|parent| parent.join("logs"))

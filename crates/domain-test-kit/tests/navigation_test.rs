@@ -5,9 +5,9 @@ use domain_navigation::features::navigation::{NavigationFeature, NavigationRegis
 use domain_test_kit::generated::*;
 use domain_test_kit::test_env::navigation::{MockWindowFeature, TestFeatureState};
 use domain_test_kit::utils::{DomainTestWindow, FeatureHarness, temp_settings_path};
-use framework::navigation::{Route, RouteRegistry};
-use framework::settings::SettingsFeature;
-use framework::uri::ContextlessAppUri;
+use forsl::navigation::{Route, RouteRegistry};
+use forsl::settings::SettingsFeature;
+use forsl::uri::ContextlessAppUri;
 use i_slint_core::api::ComponentHandle;
 use rstest::{fixture, rstest};
 use serial_test::serial;

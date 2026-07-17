@@ -1,4 +1,4 @@
-use app_core::actor::traits::Message;
+use forsl_core::actor::traits::Message;
 use std::any::Any;
 use std::sync::Arc;
 

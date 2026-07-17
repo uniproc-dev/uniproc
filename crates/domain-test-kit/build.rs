@@ -76,7 +76,7 @@ fn generate_feature_stub(feature: &str, traits: FeatureTraits) -> TokenStream {
     let mut stub_impl_methods = Vec::new();
     let mut trait_impls = Vec::new();
 
-    let interaction_path = quote! { app_core::test_kit::Interaction };
+    let interaction_path = quote! { forsl_core::test_kit::Interaction };
 
     for port in traits.ports {
         let mut port_methods_impl = Vec::new();

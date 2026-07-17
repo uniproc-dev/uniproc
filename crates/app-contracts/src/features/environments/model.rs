@@ -1,4 +1,4 @@
-use app_core::actor::Message;
+use forsl_core::actor::Message;
 use std::borrow::Cow;
 
 #[derive(Clone, Debug, Default, PartialEq)]

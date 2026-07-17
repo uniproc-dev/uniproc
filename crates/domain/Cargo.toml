@@ -6,7 +6,7 @@ edition.workspace = true
 [dependencies]
 anyhow.workspace = true
 app-contracts.workspace = true
-app-core.workspace = true
+forsl-core.workspace = true
 context.workspace = true
 dashmap.workspace = true
 macros.workspace = true
@@ -20,7 +20,7 @@ tracing.workspace = true
 uniproc-protocol.workspace = true
 uuid.workspace = true
 widgets.workspace = true
-framework.workspace = true
+forsl.workspace = true
 amethystate.workspace = true
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -30,4 +30,4 @@ windows.workspace = true
 toml.workspace = true
 
 [features]
-test-utils = ["app-core/test-utils"]
+test-utils = ["forsl-core/test-utils"]

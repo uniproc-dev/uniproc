@@ -2,7 +2,7 @@ use crate::features::environments::wsl::domain::fetch_distros_data;
 use app_contracts::features::environments::{
     DiscoveryReport, EnvironmentDescriptor, EnvironmentKind, EnvironmentStatus,
 };
-use app_core::actor::{AsyncContext, Context, ManagedActor};
+use forsl_core::actor::{AsyncContext, Context, ManagedActor};
 use macros::{actor_manifest, handler};
 
 #[actor_manifest]

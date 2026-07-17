@@ -2,7 +2,7 @@ use app_contracts::features::window_actions::{
     ResizeEdge, UiWindowActionsBindings, UiWindowActionsPort, WindowActionsBinder,
     WindowActionsPartialBinder, WindowBreakpoint, WindowConfigChanged,
 };
-use app_core::actor::{Context, ManagedActor};
+use forsl_core::actor::{Context, ManagedActor};
 use macros::{actor_manifest, handler};
 
 #[actor_manifest(binder = WindowActionsBinder)]

@@ -9,13 +9,13 @@ use app_contracts::features::services::{
     UiServiceDetailsPort, UiServicesPort,
 };
 use app_contracts::features::windows_manager::OpenedWindow;
-use app_core::actor::Context;
-use app_core::actor::ManagedActor;
-use app_core::trace::current_or_new_correlation_uuid;
+use forsl_core::actor::Context;
+use forsl_core::actor::ManagedActor;
+use forsl_core::trace::current_or_new_correlation_uuid;
 use context::page_status::{PageStatus, RouteStatusChanged, RouteStatusRegistry};
-use framework::feature::{Events, FeatureComponent, FeatureContextState};
-use framework::native_windows::slint_factory::{OpenWindow, SlintWindowRegistry, WindowRegistry};
-use framework::uri::AppUri;
+use forsl::feature::{Events, FeatureComponent, FeatureContextState};
+use forsl::native_windows::slint_factory::{OpenWindow, SlintWindowRegistry, WindowRegistry};
+use forsl::uri::AppUri;
 use macros::{actor_manifest, handler};
 use slint::SharedString;
 use std::borrow::Cow;

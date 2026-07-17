@@ -208,7 +208,7 @@ fn process_manifest_items(
 
                 generated_structs.push(quote! {
                     #(#attrs)* #[derive(Debug, Clone)] #s
-                    #(#attrs)* impl app_core::actor::Message for #id {}
+                    #(#attrs)* impl forsl_core::actor::Message for #id {}
                 });
 
                 if is_bind && !is_manual {
@@ -271,7 +271,7 @@ fn process_manifest_items(
                 if is_bus {
                     logic_calls.push(quote! {
                         #(#attrs)*
-                        <#item_ty as app_core::actor::event_bus::builder::EventSubscription<#self_ty>>::subscribe_into(addr.clone(), tracker);
+                        <#item_ty as forsl_core::actor::event_bus::builder::EventSubscription<#self_ty>>::subscribe_into(addr.clone(), tracker);
                     });
                 } else {
                     logic_calls.push(quote! {
@@ -285,7 +285,7 @@ fn process_manifest_items(
                 if is_bus {
                     logic_calls.push(quote! {
                         #(#attrs)*
-                        <#item_ty as app_core::actor::event_bus::builder::EventSubscription<#self_ty>>::subscribe_into(addr.clone(), tracker);
+                        <#item_ty as forsl_core::actor::event_bus::builder::EventSubscription<#self_ty>>::subscribe_into(addr.clone(), tracker);
                     });
                 } else {
                     logic_calls.push(quote! {
@@ -440,8 +440,8 @@ pub fn actor_manifest_impl(attr: TokenStream, mut impl_block: ItemImpl) -> Token
                     let calls = res.logic_calls;
                     bus_logic = quote! {
                         #[doc(hidden)] pub struct #marker_id;
-                        impl #impl_generics app_core::actor::event_bus::builder::EventSubscription<#self_ty> for #marker_id #where_clause {
-                            fn subscribe_into(addr: app_core::actor::Addr<#self_ty>, tracker: &impl app_core::lifecycle_tracker::LifecycleTracker) {
+                        impl #impl_generics forsl_core::actor::event_bus::builder::EventSubscription<#self_ty> for #marker_id #where_clause {
+                            fn subscribe_into(addr: forsl_core::actor::Addr<#self_ty>, tracker: &impl forsl_core::lifecycle_tracker::LifecycleTracker) {
                                 #(#calls)*
                             }
                         }
@@ -459,7 +459,7 @@ pub fn actor_manifest_impl(attr: TokenStream, mut impl_block: ItemImpl) -> Token
 
                 let sig_impls = msgs.iter().map(|msg_ty| {
                     quote! {
-                        impl app_core::actor::traits::AllowedSignal<#msg_ty> for #marker_id {}
+                        impl forsl_core::actor::traits::AllowedSignal<#msg_ty> for #marker_id {}
                     }
                 });
 
@@ -485,10 +485,10 @@ pub fn actor_manifest_impl(attr: TokenStream, mut impl_block: ItemImpl) -> Token
                     let checks = res.logic_calls;
                     handlers_logic = quote! {
                         #[doc(hidden)] pub struct #marker_id;
-                        impl #impl_generics app_core::actor::DirectHandler<#self_ty> for #marker_id #where_clause {}
+                        impl #impl_generics forsl_core::actor::DirectHandler<#self_ty> for #marker_id #where_clause {}
                         const _: () = {
                             fn check_handlers #impl_generics () #where_clause {
-                                fn assert_handler<A, M>() where A: app_core::actor::Handler<M>, M: app_core::actor::Message {}
+                                fn assert_handler<A, M>() where A: forsl_core::actor::Handler<M>, M: forsl_core::actor::Message {}
                                 #(#checks)*
                             }
                         };
@@ -664,16 +664,16 @@ pub fn actor_manifest_impl(attr: TokenStream, mut impl_block: ItemImpl) -> Token
 
         auto_bind_logic = quote! {
 
-            impl #impl_extended framework::addr::UiAutoWire<B_PORT> for #self_ty #where_clause {
+            impl #impl_extended forsl::addr::UiAutoWire<B_PORT> for #self_ty #where_clause {
                 const IS_COMPLETE: bool = #is_complete;
 
                 #(#summary_attrs)*
-                fn wire_full(addr: &app_core::actor::Addr<Self>, port: &B_PORT) {
+                fn wire_full(addr: &forsl_core::actor::Addr<Self>, port: &B_PORT) {
                     #wire_full_call
                 }
 
                 #(#summary_attrs)*
-                fn wire_partial(addr: &app_core::actor::Addr<Self>, port: &B_PORT) {
+                fn wire_partial(addr: &forsl_core::actor::Addr<Self>, port: &B_PORT) {
                     #partial_binder_path::new(addr, port)
                         #(#bind_calls)*
                         .build();

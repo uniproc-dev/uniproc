@@ -8,12 +8,12 @@ use app_contracts::features::services::{
     ServicesBinder, ServicesWindowRegister, UiServicesBindings, UiServicesPort,
 };
 use context::page_status::RouteStatusRegistry;
-use framework::app::Window;
-use framework::feature::{
+use forsl::app::Window;
+use forsl::feature::{
     ContextActorExt, ContextReactorExt, ContextStoreExt, FeatureContextState, WindowFeature,
     WindowFeatureInitContext,
 };
-use framework::native_windows::slint_factory::SlintWindowRegistry;
+use forsl::native_windows::slint_factory::SlintWindowRegistry;
 use macros::window_feature;
 use std::borrow::Cow;
 use std::collections::HashSet;

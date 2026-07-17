@@ -5,8 +5,8 @@ use app_contracts::features::agents::{RemoteScanResult, ScanTick};
 use app_contracts::features::environments::{
     AgentClient, AgentConnectionState, WslAgentRuntimeEvent,
 };
-use app_core::app::Window;
-use app_core::{
+use forsl_core::app::Window;
+use forsl_core::{
     SharedState,
     actor::{addr::Addr, event_bus::EVENT_BUS},
     app::Feature,
