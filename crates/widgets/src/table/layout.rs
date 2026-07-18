@@ -1,6 +1,6 @@
+use amethystate::ReactiveMap;
+use amethystate::SignalSubscription;
 use forsl_core::signal::Signal;
-use rpstate::ReactiveMap;
-use rpstate::reactive::SignalSubscription;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -48,7 +48,7 @@ where
     pub fn snapshot(&self) -> Vec<(ID, u64)> {
         self.widths
             .iter()
-            .map(|(id, sig)| (id.clone(), *sig.get_arc()))
+            .map(|(id, sig)| (id.clone(), sig.get()))
             .collect()
     }
 
@@ -57,18 +57,18 @@ where
     }
 
     pub fn get_width(&self, id: &ID) -> u64 {
-        self.widths.get(id).map(|s| *s.get_arc()).unwrap_or(0)
+        self.widths.get(id).map(|s| s.get()).unwrap_or(0)
     }
 
     pub fn set_width(&self, id: &ID, new_width: u64) {
         if let Some(sig) = self.widths.get(id) {
-            sig.set(new_width);
+            sig.set(new_width, None);
         }
     }
 
     pub fn apply_to_vms<VM>(&self, vms: &mut [VM], mut patch_fn: impl FnMut(&mut VM, &ID, u64)) {
         for (id, sig) in &self.widths {
-            let w = *sig.get_arc();
+            let w = sig.get();
             for vm in vms.iter_mut() {
                 patch_fn(vm, id, w);
             }

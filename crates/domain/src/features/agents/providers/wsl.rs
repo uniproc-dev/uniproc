@@ -1,23 +1,23 @@
 use crate::agents_impl::actor::{GenericAgentActor, Init, Ping};
 use crate::agents_impl::backend::AgentBackend;
 use crate::features::agents::settings::AgentSettings;
+use amethystate::DefaultStore;
 use app_contracts::features::agents::{
     AgentConnectionState, RemoteScanResult, ScanTick, WslAgentRuntimeEvent, WslClient,
 };
-use forsl_core::actor::event_bus::EventBus;
-use forsl_core::{actor::addr::Addr, ratelimit};
 use forsl::feature::{
     AppFeature, AppFeatureInitContext, ContextActorExt, ContextReactorExt, ContextStoreExt,
 };
+use forsl_core::actor::event_bus::EventBus;
+use forsl_core::{actor::addr::Addr, ratelimit};
 use macros::app_feature;
 use ogurpchik::discovery::register_vm_default;
 use ogurpchik::high::node::Node;
 use ogurpchik::transport::stream::adapters::vsock::{VsockAddr, VsockTransport};
-use rpstate::DefaultStore;
 use std::ops::Deref;
 use std::time::Instant;
 use tracing::{error, instrument, warn};
-use uniproc_protocol::{LinuxCodec, LinuxRequest, LinuxResponse, services};
+use uniproc_protocol::{services, LinuxCodec, LinuxRequest, LinuxResponse};
 
 pub struct WslBackend;
 
@@ -83,7 +83,7 @@ impl AgentBackend for WslBackend {
 #[app_feature]
 pub fn wsl_agent_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
     let store = ctx.store();
-    let settings = AgentSettings::new(&store)?;
+    let settings = AgentSettings::new_with(&store)?;
 
     let addr = Addr::new(
         GenericAgentActor::<WslBackend>::new(settings.connect_timeout_secs()),

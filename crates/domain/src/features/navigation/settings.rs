@@ -1,7 +1,7 @@
-use rpstate::rpstate;
+use amethystate::amethystate;
 
-#[rpstate(prefix = "navigation")]
+#[amethystate(prefix = "navigation")]
 pub struct NavigationSettings {
-    #[state(default = "processes".to_string())]
+    #[amestate(default = "processes".to_string())]
     pub default_route_segment: String,
 }

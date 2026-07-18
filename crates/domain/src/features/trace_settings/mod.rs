@@ -11,7 +11,7 @@ use std::sync::Arc;
 pub fn trace_settings_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
     let store = ctx.store();
 
-    let settings = TraceSettings::new(&store)?;
+    let settings = TraceSettings::new_with(&store)?;
     apply_trace_policy(&settings);
 
     let mut subs = Vec::new();

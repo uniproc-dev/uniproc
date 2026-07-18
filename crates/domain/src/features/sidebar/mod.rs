@@ -21,7 +21,7 @@ where
 {
     let store = ctx.store();
 
-    let settings = SidebarSettings::new(&store)?;
+    let settings = SidebarSettings::new_with(&store)?;
     ui_port.set_side_bar_width(settings.width().get());
 
     let actor = SidebarActor::new(ui_port.clone(), settings);

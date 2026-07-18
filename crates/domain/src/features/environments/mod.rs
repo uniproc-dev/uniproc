@@ -20,7 +20,7 @@ pub fn environments_registry_feature(ctx: &mut AppFeatureInitContext) -> anyhow:
     let store = ctx.store();
 
     let actor = EnvironmentRegistryActor::new();
-    let settings = EnvironmentsSettings::new(&store)?;
+    let settings = EnvironmentsSettings::new_with(&store)?;
 
     ctx.spawn(actor);
 

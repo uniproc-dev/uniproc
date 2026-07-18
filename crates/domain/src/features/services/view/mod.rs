@@ -1,7 +1,7 @@
 use crate::features::services::settings::ServiceSettings;
 use app_contracts::features::services::{ServiceEntryDto, ServiceEntryVm};
 use context::caches::strings::StringsProvider;
-use rpstate::{ReactiveMap, SignalSubscription};
+use amethystate::{ReactiveMap, SignalSubscription};
 use slint::SharedString;
 use std::collections::HashSet;
 use widgets::table::flow::{SortState, TableDataBuilder, TableNode};

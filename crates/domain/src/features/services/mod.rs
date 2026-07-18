@@ -34,7 +34,7 @@ where
     P: UiServicesPort + UiServicesBindings + ServicesWindowRegister + Clone + 'static,
 {
     let store = ctx.store();
-    let settings = ServiceSettings::new(&store)?;
+    let settings = ServiceSettings::new_with(&store)?;
 
     let reg = ctx.shared.get::<SlintWindowRegistry>().unwrap();
 

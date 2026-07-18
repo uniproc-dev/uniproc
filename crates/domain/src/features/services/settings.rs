@@ -1,21 +1,21 @@
-use rpstate::{ReactiveMap, RpType, rpstate};
+use amethystate::{AmeType, ReactiveMap, amethystate};
 use serde::{Deserialize, Serialize};
 
-#[rpstate(prefix = "services")]
+#[amethystate(prefix = "services")]
 pub struct ServiceSettings {
-    #[state(default = 2000u64)]
+    #[amestate(default = 2000u64)]
     scan_interval_ms: u64,
 
-    #[state(nested)]
+    #[amestate(nested)]
     columns: ServiceColumnsSettings,
 }
 
-#[rpstate]
+#[amethystate]
 pub struct ServiceColumnsSettings {
-    #[state(default = 70u64)]
+    #[amestate(default = 70u64)]
     default_width_px: u64,
 
-    #[state(default = {
+    #[amestate(default = {
         "name": 150u64,
         "pid": 80u64,
         "status": 100u64,
@@ -24,7 +24,7 @@ pub struct ServiceColumnsSettings {
     })]
     widths_px: ReactiveMap<String, u64>,
 
-    #[state(default = {
+    #[amestate(default = {
         "name": 20u64,
         "pid": 20u64,
         "status": 20u64,
@@ -33,7 +33,7 @@ pub struct ServiceColumnsSettings {
     })]
     min_widths_px: ReactiveMap<String, u64>,
 
-    #[state(default = {
+    #[amestate(default = {
         "display_name": ServiceColumnMetadata { is_text: true },
         "status": ServiceColumnMetadata { is_text: true },
         "description": ServiceColumnMetadata { is_text: true },
@@ -43,7 +43,7 @@ pub struct ServiceColumnsSettings {
     column_metadata: ReactiveMap<String, ServiceColumnMetadata>,
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, RpType)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, AmeType)]
 pub struct ServiceColumnMetadata {
     #[serde(default)]
     pub is_text: bool,

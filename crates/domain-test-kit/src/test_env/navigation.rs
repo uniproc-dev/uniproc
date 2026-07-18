@@ -3,8 +3,7 @@ use forsl_core::actor::addr::Addr;
 use forsl_core::actor::{Context, ManagedActor};
 use forsl::app::UiContext;
 use forsl::feature::{
-    Events, FeatureComponent, FeatureContextState, WindowFeature, WindowFeatureDeinitContext,
-    WindowFeatureInitContext,
+    Events, FeatureComponent, FeatureContextState, WindowFeature, WindowFeatureInitContext,
 };
 
 use forsl::uri::AppUri;
@@ -45,16 +44,11 @@ impl FeatureComponent for MockFeatureActor {
 pub struct MockWindowFeature {
     capability: &'static str,
     state: TestFeatureState,
-    tracker: FeatureLifecycle,
 }
 
 impl MockWindowFeature {
     pub fn new(capability: &'static str, state: TestFeatureState) -> Self {
-        Self {
-            capability,
-            state,
-            tracker: FeatureLifecycle::new(),
-        }
+        Self { capability, state }
     }
 }
 
@@ -68,16 +62,8 @@ impl WindowFeature<DomainTestWindow> for MockWindowFeature {
             ctx_state: FeatureContextState::new(ctx.window_id, self.capability),
         };
 
-        let addr = Addr::new_managed(actor, ctx.ui.new_token(), &self.tracker);
+        let addr = Addr::new_managed(actor, ctx.token(), ctx.tracker);
 
-        Ok(())
-    }
-
-    fn uninstall(
-        self: Box<Self>,
-        ctx: &mut WindowFeatureDeinitContext<DomainTestWindow>,
-    ) -> anyhow::Result<()> {
-        self.tracker.shutdown(&ctx.ui.new_token());
         Ok(())
     }
 }

@@ -5,7 +5,7 @@ use crate::processes_impl::settings::ProcessSettings;
 use app_contracts::features::processes::{
     FieldDefDto, FieldMetadata, ProcessEntryVm, ProcessNodeDto,
 };
-use rpstate::{ReactiveMap, SignalSubscription};
+use amethystate::{ReactiveMap, SignalSubscription};
 use slint::SharedString;
 use widgets::table::flow::{SortState, TableNode};
 use widgets::table::layout::TableSettingsProvider;

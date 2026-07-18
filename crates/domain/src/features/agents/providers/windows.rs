@@ -12,7 +12,7 @@ use forsl::feature::{AppFeature, AppFeatureInitContext, ContextReactorExt, Conte
 use macros::app_feature;
 use ogurpchik::discovery::Scope;
 use ogurpchik::transport::stream::adapters::uds::UdsTransport;
-use rpstate::DefaultStore;
+use amethystate::DefaultStore;
 use std::ops::Deref;
 use std::time::Instant;
 use tracing::{error, instrument, warn};
@@ -75,7 +75,7 @@ impl AgentBackend for WindowsBackend {
 #[app_feature]
 pub fn windows_agent_feature(ctx: &mut AppFeatureInitContext) -> anyhow::Result<()> {
     let store = ctx.store();
-    let settings = AgentSettings::new(&store)?;
+    let settings = AgentSettings::new_with(&store)?;
 
     let addr = Addr::new(
         GenericAgentActor::<WindowsBackend>::new(settings.connect_timeout_secs()),

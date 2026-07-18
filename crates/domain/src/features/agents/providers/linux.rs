@@ -83,7 +83,7 @@ impl AgentBackend for LinuxBackend {
 pub struct LinuxAgentFeature;
 impl<T: Window> Feature<T> for LinuxAgentFeature {
     fn install(self, reactor: &mut Reactor, ui: &T, shared: &SharedState) -> anyhow::Result<()> {
-        let settings = AgentSettings::new(shared)?;
+        let settings = AgentSettings::new_with(shared)?;
         let addr = Addr::new(
             GenericAgentActor::<LinuxBackend>::new(settings.connect_timeout_secs()?),
             ui.as_weak(),

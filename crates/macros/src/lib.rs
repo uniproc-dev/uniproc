@@ -10,7 +10,6 @@ mod binder_gen;
 mod features;
 mod handler;
 mod schema;
-mod slint_macros;
 
 #[proc_macro_attribute]
 pub fn actor_manifest(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -18,6 +17,7 @@ pub fn actor_manifest(attr: TokenStream, item: TokenStream) -> TokenStream {
     actor_manifest::actor_manifest_impl(attr.into(), impl_block).into()
 }
 
+mod slint_macros;
 #[proc_macro_attribute]
 pub fn capability(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item

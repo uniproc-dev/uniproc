@@ -1,7 +1,7 @@
-use rpstate::rpstate;
+use amethystate::amethystate;
 
-#[rpstate(prefix = "environments")]
+#[amethystate(prefix = "environments")]
 pub struct EnvironmentsSettings {
-    #[state(default = 5000u64)]
+    #[amestate(default = 5000u64)]
     scan_interval_ms: u64,
 }

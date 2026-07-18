@@ -2,7 +2,6 @@ pub mod cosmetics;
 pub mod l10n;
 pub mod page_status;
 pub mod services;
-pub mod settings;
 pub mod sidebar;
 pub mod tabs;
 #[cfg(feature = "test-utils")]

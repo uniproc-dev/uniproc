@@ -40,7 +40,7 @@ where
 {
     let store = ctx.store();
 
-    let settings = ProcessSettings::new(&store)?;
+    let settings = ProcessSettings::new_with(&store)?;
 
     let scan_interval_ms = settings.scan_interval_ms();
 

@@ -1,6 +1,7 @@
 import { Button, LineEdit, ComboBox, Palette } from "std-widgets.slint";
 import { WindowControls } from "../../title/controls.slint";
 import { Theme } from "theme.slint";
+import { NewTaskIcon, AppIcon, SettingsFilledIcon, LayerFilledIcon } from "icons.slint";
 
 export struct RunEnv {
     name: string,
@@ -33,8 +34,7 @@ component TitleBar {
                 spacing: 16px;
                 padding-left: 8px;
                 alignment: start;
-                Image {
-                    source: @image-url("assets/new-task.svg");
+                NewTaskIcon {
                     width: 16px;
                     colorize: Theme.accent_2;
                     height: 16px;
@@ -44,8 +44,7 @@ component TitleBar {
                 HorizontalLayout {
                     spacing: 8px;
                     alignment: start;
-                    Image {
-                        source: @image-url("assets/app.svg");
+                    AppIcon {
                         colorize: white;
                         width: 16px;
                         height: 16px;
@@ -131,8 +130,7 @@ export component RunTaskDialog inherits Window {
                     HorizontalLayout {
                         alignment: start;
                         spacing: 8px;
-                        Image {
-                            source: @image-url("assets/settings-filled.svg");
+                        SettingsFilledIcon {
                             width: 20px;
                             height: 20px;
                             colorize: Theme.accent_2;
@@ -144,8 +142,7 @@ export component RunTaskDialog inherits Window {
                             background: white.with-alpha(0.6);
                         }
 
-                        Image {
-                            source: @image-url("assets/layer-filled.svg");
+                        LayerFilledIcon {
                             width: 20px;
                             height: 20px;
                             colorize: Theme.accent_2;

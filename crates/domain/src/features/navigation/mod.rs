@@ -50,7 +50,7 @@ where
     P: UiNavigationBindings + Clone + 'static,
 {
     let store = ctx.store();
-    let settings = NavigationSettings::new(&store)?;
+    let settings = NavigationSettings::new_with(&store)?;
 
     let registry = ctx.shared.get::<RouteRegistry>().unwrap();
     let actor = NavigationActor::new(registry.clone(), ctx.window_id);
