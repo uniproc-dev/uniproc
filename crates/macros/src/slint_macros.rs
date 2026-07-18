@@ -49,52 +49,53 @@ pub fn slint_port_adapter_impl(attr: TokenStream, mut impl_block: ItemImpl) -> T
     let trait_name = get_trait_name(&impl_block);
     let schema = load_schema();
 
-    let port_def = schema
-        .ports
-        .iter()
-        .find(|p| p.name == trait_name)
-        .unwrap_or_else(|| panic!("Trait {} not found in schema", trait_name));
+    // A trait not present in the schema (e.g. one no longer annotated with
+    // `#[slint_port]` because every method is hand-written now) simply has
+    // nothing to auto-generate - not an error.
+    let port_def = schema.ports.iter().find(|p| p.name == trait_name);
 
     let existing = get_existing_methods(&impl_block);
 
-    for method in port_def
-        .methods
-        .iter()
-        .filter(|m| !m.is_manual && !existing.contains(&m.name))
-    {
-        let fn_name = format_ident!("{}", method.name);
-        let slint_fn_name =
-            format_ident!("{}", method.slint_name.as_deref().unwrap_or(&method.name));
-        let global_name = format_ident!(
-            "{}",
-            method.global_override.as_ref().unwrap_or(&port_def.global)
-        );
-
-        let sig_args: Vec<_> = method
-            .args
+    if let Some(port_def) = port_def {
+        for method in port_def
+            .methods
             .iter()
-            .map(|a| {
-                let name = format_ident!("{}", a.name);
-                let ty: syn::Type = syn::parse_str(&qualify_known_type_str(&a.ty)).unwrap();
-                quote!(#name: #ty)
-            })
-            .collect();
+            .filter(|m| !m.is_manual && !existing.contains(&m.name))
+        {
+            let fn_name = format_ident!("{}", method.name);
+            let slint_fn_name =
+                format_ident!("{}", method.slint_name.as_deref().unwrap_or(&method.name));
+            let global_name = format_ident!(
+                "{}",
+                method.global_override.as_ref().unwrap_or(&port_def.global)
+            );
 
-        let call_args: Vec<_> = method
-            .args
-            .iter()
-            .map(|a| {
-                let name = format_ident!("{}", a.name);
-                convert_expr_to_slint(&name, &a.ty)
-            })
-            .collect();
+            let sig_args: Vec<_> = method
+                .args
+                .iter()
+                .map(|a| {
+                    let name = format_ident!("{}", a.name);
+                    let ty: syn::Type = syn::parse_str(&qualify_known_type_str(&a.ty)).unwrap();
+                    quote!(#name: #ty)
+                })
+                .collect();
 
-        impl_block.items.push(syn::ImplItem::Fn(syn::parse_quote! {
-            fn #fn_name(&self, ui: &#window_type, #(#sig_args),*) {
-                use slint::ComponentHandle;
-                ui.global::<crate::#global_name>().#slint_fn_name(#(#call_args),*);
-            }
-        }));
+            let call_args: Vec<_> = method
+                .args
+                .iter()
+                .map(|a| {
+                    let name = format_ident!("{}", a.name);
+                    convert_expr_to_slint(&name, &a.ty)
+                })
+                .collect();
+
+            impl_block.items.push(syn::ImplItem::Fn(syn::parse_quote! {
+                fn #fn_name(&self, ui: &#window_type, #(#sig_args),*) {
+                    use slint::ComponentHandle;
+                    ui.global::<crate::#global_name>().#slint_fn_name(#(#call_args),*);
+                }
+            }));
+        }
     }
 
     apply_adapter_transform(&mut impl_block, None);

@@ -1,6 +1,6 @@
 use crate::AppWindow;
 use app_contracts::features::processes::{
-    FieldDefDto, FieldMetadata, ProcessEntryVm, UiProcessesPort,
+    FieldDefDto, ProcessEntryVm, UiProcessesPort, UiProcessesPortMsg,
 };
 use macros::slint_port_adapter;
 use slint::{ComponentHandle, Model, SharedString, VecModel};
@@ -54,104 +54,127 @@ impl UiProcessesAdapter {
 
 #[slint_port_adapter(window = AppWindow)]
 impl UiProcessesPort for UiProcessesAdapter {
-    fn set_column_widths(&self, ui: &AppWindow, widths: Vec<(SharedString, u64)>) {
-        let global = ui.global::<crate::ProcessesFeatureGlobal>();
-        let defs = global.get_column_defs();
-        let width_map: HashMap<SharedString, u64> = widths.into_iter().collect();
+    fn send(&self, ui: &AppWindow, msg: UiProcessesPortMsg) {
+        match msg {
+            UiProcessesPortMsg::SetColumnWidths(widths) => {
+                let global = ui.global::<crate::ProcessesFeatureGlobal>();
+                let defs = global.get_column_defs();
+                let width_map: HashMap<SharedString, u64> = widths.into_iter().collect();
 
-        let next_widths: Vec<crate::TableColWidth> = defs
-            .iter()
-            .map(|def| {
-                let w = width_map.get(&def.id).cloned().unwrap_or(100);
-                crate::TableColWidth {
-                    id: def.id.clone(),
-                    width_px: w as i32,
+                let next_widths: Vec<crate::TableColWidth> = defs
+                    .iter()
+                    .map(|def| {
+                        let w = width_map.get(&def.id).cloned().unwrap_or(100);
+                        crate::TableColWidth {
+                            id: def.id.clone(),
+                            width_px: w as i32,
+                        }
+                    })
+                    .collect();
+
+                let mut last = self.models.last_widths.borrow_mut();
+                if *last == next_widths {
+                    return;
                 }
-            })
-            .collect();
+                *last = next_widths.clone();
+                patch_model(&self.models.widths_model, next_widths);
+            }
+            UiProcessesPortMsg::SetColumnMetadata(data) => {
+                let global = ui.global::<crate::ProcessesFeatureGlobal>();
+                let defs = global.get_column_defs();
+                let data_map: HashMap<SharedString, _> =
+                    data.into_iter().map(|m| (m.id.clone(), m)).collect();
 
-        let mut last = self.models.last_widths.borrow_mut();
-        if *last == next_widths {
-            return;
-        }
-        *last = next_widths.clone();
-        patch_model(&self.models.widths_model, next_widths);
-    }
+                let next_metadata: Vec<crate::TableColMetadata> = defs
+                    .iter()
+                    .map(|def| {
+                        if let Some(m) = data_map.get(&def.id) {
+                            crate::TableColMetadata {
+                                id: m.id.clone(),
+                                is_text: m.is_text,
+                                is_metric: m.is_metric,
+                            }
+                        } else {
+                            crate::TableColMetadata {
+                                id: def.id.clone(),
+                                is_text: false,
+                                is_metric: false,
+                            }
+                        }
+                    })
+                    .collect();
 
-    fn set_column_metadata(&self, ui: &AppWindow, data: Vec<FieldMetadata>) {
-        let global = ui.global::<crate::ProcessesFeatureGlobal>();
-        let defs = global.get_column_defs();
-        let data_map: HashMap<SharedString, FieldMetadata> =
-            data.into_iter().map(|m| (m.id.clone(), m)).collect();
+                let mut last = self.models.last_metadata.borrow_mut();
+                if *last == next_metadata {
+                    return;
+                }
+                *last = next_metadata.clone();
+                patch_model(&self.models.metadata_model, next_metadata);
+            }
+            UiProcessesPortMsg::SetProcessRowsWindow { total_rows, start, rows } => {
+                let mut cache = self.cache.borrow_mut();
 
-        let next_metadata: Vec<crate::TableColMetadata> = defs
-            .iter()
-            .map(|def| {
-                if let Some(m) = data_map.get(&def.id) {
-                    crate::TableColMetadata {
-                        id: m.id.clone(),
-                        is_text: m.is_text,
-                        is_metric: m.is_metric,
-                    }
-                } else {
-                    crate::TableColMetadata {
-                        id: def.id.clone(),
-                        is_text: false,
-                        is_metric: false,
+                if self.models.rows.row_count() != total_rows {
+                    self.models
+                        .rows
+                        .set_vec(vec![crate::ProcessEntry::default(); total_rows]);
+                    cache.clear();
+                }
+
+                for (offset, row_dto) in rows.iter().enumerate() {
+                    let idx = start + offset;
+                    if idx < total_rows {
+                        let entry = cache.get_row(idx, row_dto);
+                        self.models.rows.set_row_data(idx, entry);
                     }
                 }
-            })
-            .collect();
-
-        let mut last = self.models.last_metadata.borrow_mut();
-        if *last == next_metadata {
-            return;
-        }
-        *last = next_metadata.clone();
-        patch_model(&self.models.metadata_model, next_metadata);
-    }
-
-    fn set_process_rows_window(&self, total_rows: usize, start: usize, rows: &[ProcessEntryVm]) {
-        let mut cache = self.cache.borrow_mut();
-
-        if self.models.rows.row_count() != total_rows {
-            self.models
-                .rows
-                .set_vec(vec![crate::ProcessEntry::default(); total_rows]);
-            cache.clear();
-        }
-
-        for (offset, row_dto) in rows.iter().enumerate() {
-            let idx = start + offset;
-            if idx < total_rows {
-                let entry = cache.get_row(idx, row_dto);
-                self.models.rows.set_row_data(idx, entry);
+            }
+            UiProcessesPortMsg::SetColumnDefs(defs) => {
+                let defs = defs
+                    .into_iter()
+                    .map(crate::TableColDef::from)
+                    .collect::<Vec<_>>();
+                self.models.columns.set_vec(defs);
+            }
+            UiProcessesPortMsg::SetSortState { field, descending } => {
+                let bridge = ui.global::<crate::ProcessesFeatureGlobal>();
+                bridge.set_current_sort(field);
+                bridge.set_current_sort_descending(descending);
+            }
+            UiProcessesPortMsg::SetTotalProcessesCount(count) => {
+                ui.global::<crate::ProcessesFeatureGlobal>()
+                    .set_total_processes_count(count as i32);
+            }
+            UiProcessesPortMsg::SetEmptyStateVisible(visible) => {
+                ui.global::<crate::ProcessesFeatureGlobal>()
+                    .set_empty_state_visible(visible);
+            }
+            UiProcessesPortMsg::SetEmptyStateTitle(title) => {
+                ui.global::<crate::ProcessesFeatureGlobal>()
+                    .set_empty_state_title(title);
+            }
+            UiProcessesPortMsg::SetEmptyStateMessage(message) => {
+                ui.global::<crate::ProcessesFeatureGlobal>()
+                    .set_empty_state_message(message);
+            }
+            UiProcessesPortMsg::SetIsGrouped(is_grouped) => {
+                ui.global::<crate::ProcessesFeatureGlobal>()
+                    .set_is_grouped(is_grouped);
+            }
+            UiProcessesPortMsg::SetSelectedPid(pid) => {
+                ui.global::<crate::ProcessesFeatureGlobal>()
+                    .set_selected_pid(pid);
+            }
+            UiProcessesPortMsg::SetSelectedName(name) => {
+                ui.global::<crate::ProcessesFeatureGlobal>()
+                    .set_selected_name(name);
             }
         }
-    }
-
-    fn set_column_defs(&self, defs: Vec<FieldDefDto>) {
-        let defs = defs
-            .into_iter()
-            .map(crate::TableColDef::from)
-            .collect::<Vec<_>>();
-        self.models.columns.set_vec(defs);
     }
 
     fn get_selected_pid(&self, ui: &AppWindow) -> i32 {
         ui.global::<crate::ProcessesFeatureGlobal>()
             .get_selected_pid()
-    }
-
-    fn set_sort_state(&self, ui: &AppWindow, field: SharedString, descending: bool) {
-        let bridge = ui.global::<crate::ProcessesFeatureGlobal>();
-        bridge.set_current_sort(field);
-        bridge.set_current_sort_descending(descending);
-    }
-
-    fn set_total_processes_count(&self, ui: &AppWindow, count: usize) {
-        ui.global::<crate::ProcessesFeatureGlobal>()
-            .set_total_processes_count(count as i32);
     }
 }
 

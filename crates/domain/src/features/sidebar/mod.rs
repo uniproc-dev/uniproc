@@ -3,7 +3,7 @@ pub mod settings;
 
 use crate::features::sidebar::actor::SidebarActor;
 use crate::features::sidebar::settings::SidebarSettings;
-use app_contracts::features::sidebar::{UiSidebarBindings, UiSidebarPort};
+use app_contracts::features::sidebar::{UiSidebarBindings, UiSidebarPort, UiSidebarPortMsg};
 use forsl::app::Window;
 use forsl::feature::{
     ContextActorExt, ContextStoreExt, WindowFeature, WindowFeatureInitContext,
@@ -22,7 +22,7 @@ where
     let store = ctx.store();
 
     let settings = SidebarSettings::new_with(&store)?;
-    ui_port.set_side_bar_width(settings.width().get());
+    ui_port.send(UiSidebarPortMsg::SetSideBarWidth(settings.width().get()));
 
     let actor = SidebarActor::new(ui_port.clone(), settings);
 

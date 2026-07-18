@@ -8,7 +8,7 @@ use crate::processes_impl::domain::snapshot::BridgeSnapshot;
 use app_contracts::features::agents::WindowsAgentRuntimeEvent;
 use app_contracts::features::agents::{AgentConnectionState, WslAgentRuntimeEvent};
 use app_contracts::features::processes::ProcessesPartialBinder;
-use app_contracts::features::processes::UiProcessesPort;
+use app_contracts::features::processes::{UiProcessesPort, UiProcessesPortMsg};
 use app_contracts::features::processes::{ProcessesBinder, UiProcessesBindings};
 use forsl_core::actor::ManagedActor;
 use forsl_core::actor::event_bus::EventBus;
@@ -89,14 +89,20 @@ impl<P: UiProcessesPort> FeatureComponent for ProcessActor<P> {
 impl<P: UiProcessesPort> ProcessActor<P> {
     fn push_batch(&self) {
         let batch = self.table.batch();
-        self.ui_port
-            .set_process_rows_window(batch.total_rows, batch.start, batch.rows);
+        self.ui_port.send(UiProcessesPortMsg::SetProcessRowsWindow {
+            total_rows: batch.total_rows,
+            start: batch.start,
+            rows: batch.rows.to_vec(),
+        });
     }
 
     fn set_empty_state(&self, visible: bool, title: &str, message: &str) {
-        self.ui_port.set_empty_state_visible(visible);
-        self.ui_port.set_empty_state_title(title.into());
-        self.ui_port.set_empty_state_message(message.into());
+        self.ui_port
+            .send(UiProcessesPortMsg::SetEmptyStateVisible(visible));
+        self.ui_port
+            .send(UiProcessesPortMsg::SetEmptyStateTitle(title.into()));
+        self.ui_port
+            .send(UiProcessesPortMsg::SetEmptyStateMessage(message.into()));
     }
 
     fn set_agent_waiting_state(&self) {
@@ -124,11 +130,13 @@ fn process_snapshot_ready<P: UiProcessesPort>(
     let _ = this.table.handle_snapshot(snapshot, &mut this.metadata);
 
     this.ui_port
-        .set_column_defs(this.table.get_header_columns());
-    this.ui_port.set_column_widths(this.table.column_widths());
+        .send(UiProcessesPortMsg::SetColumnDefs(this.table.get_header_columns()));
     this.ui_port
-        .set_column_metadata(this.table.column_metadata());
-    this.ui_port.set_total_processes_count(msg.total_count);
+        .send(UiProcessesPortMsg::SetColumnWidths(this.table.column_widths()));
+    this.ui_port
+        .send(UiProcessesPortMsg::SetColumnMetadata(this.table.column_metadata()));
+    this.ui_port
+        .send(UiProcessesPortMsg::SetTotalProcessesCount(msg.total_count));
 
     if msg.total_count == 0 {
         this.set_empty_state(
@@ -205,7 +213,10 @@ fn sync_windows_agent_status<P: UiProcessesPort>(
 fn sort_table<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: SortBy) {
     this.table.toggle_sort(msg.0.clone());
     let sort = this.table.sort_state();
-    this.ui_port.set_sort_state(msg.0, sort.descending);
+    this.ui_port.send(UiProcessesPortMsg::SetSortState {
+        field: msg.0,
+        descending: sort.descending,
+    });
     this.table.refresh(&mut this.metadata).ok();
     this.push_batch();
 }
@@ -227,9 +238,9 @@ fn change_viewport<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: RowsView
 #[handler]
 fn select_process<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: SelectProcess) {
     this.table.select(msg.pid as u32, msg.idx as usize);
-    this.ui_port.set_selected_pid(msg.pid);
+    this.ui_port.send(UiProcessesPortMsg::SetSelectedPid(msg.pid));
     if let Some(name) = this.table.selected_name_for_pid(msg.pid as u32) {
-        this.ui_port.set_selected_name(name);
+        this.ui_port.send(UiProcessesPortMsg::SetSelectedName(name));
     }
 }
 
@@ -259,12 +270,14 @@ fn resize_process_column<P: UiProcessesPort>(this: &mut ProcessActor<P>, msg: Co
         tracing::warn!("resize_column failed: {e}");
         return;
     }
-    this.ui_port.set_column_widths(this.table.column_widths());
+    this.ui_port
+        .send(UiProcessesPortMsg::SetColumnWidths(this.table.column_widths()));
 }
 
 #[handler]
 fn toggle_grouping<P: UiProcessesPort>(this: &mut ProcessActor<P>, _msg: GroupClicked) {
     info!("clicked");
     this.is_grouped = !this.is_grouped;
-    this.ui_port.set_is_grouped(this.is_grouped);
+    this.ui_port
+        .send(UiProcessesPortMsg::SetIsGrouped(this.is_grouped));
 }

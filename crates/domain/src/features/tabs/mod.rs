@@ -4,7 +4,7 @@ mod state;
 
 use crate::features::tabs::actor::TabsActor;
 use crate::features::tabs::model::bootstrap_contexts;
-use app_contracts::features::tabs::{UiTabsBindings, UiTabsPort};
+use app_contracts::features::tabs::{UiTabsBindings, UiTabsPort, UiTabsPortMsg};
 use forsl::app::Window;
 use forsl::feature::{ContextActorExt, WindowFeature, WindowFeatureInitContext};
 use forsl::navigation::RouteRegistry;
@@ -33,10 +33,10 @@ where
 
     ctx.actor_builder(actor).ui_bind(&ui_port);
 
-    ui_port.set_tabs(tabs);
-    ui_port.set_available_contexts(available_contexts);
+    ui_port.send(UiTabsPortMsg::SetTabs(tabs));
+    ui_port.send(UiTabsPortMsg::SetAvailableContexts(available_contexts));
     if let Some(active_context_key) = active_context_key {
-        ui_port.set_active_context(active_context_key);
+        ui_port.send(UiTabsPortMsg::SetActiveContext(active_context_key));
     }
 
     Ok(())

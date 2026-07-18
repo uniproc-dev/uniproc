@@ -9,7 +9,7 @@ use crate::processes_impl::application::process_snapshot_actor::ProcessSnapshotA
 use crate::processes_impl::settings::ProcessSettings;
 
 use app_contracts::features::agents::ScanTick;
-use app_contracts::features::processes::{UiProcessesBindings, UiProcessesPort};
+use app_contracts::features::processes::{UiProcessesBindings, UiProcessesPort, UiProcessesPortMsg};
 use forsl_core::actor::NoOp;
 use forsl_core::actor::addr::Addr;
 use forsl_core::actor::event_bus::EventBus;
@@ -76,12 +76,14 @@ where
     });
 
     //TODO: it broken + need translate
-    ui_port.set_empty_state_visible(true);
-    ui_port.set_empty_state_title("Waiting For Process Data".into());
-    ui_port.set_empty_state_message(
+    ui_port.send(UiProcessesPortMsg::SetEmptyStateVisible(true));
+    ui_port.send(UiProcessesPortMsg::SetEmptyStateTitle(
+        "Waiting For Process Data".into(),
+    ));
+    ui_port.send(UiProcessesPortMsg::SetEmptyStateMessage(
         "The process list will appear after the agent connects and sends its first snapshot."
             .into(),
-    );
+    ));
 
     Ok(())
 }

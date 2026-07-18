@@ -6,7 +6,7 @@ use app_contracts::features::agents::{WindowsActionRequest, WindowsActionRespons
 use app_contracts::features::services::ServicesPartialBinder;
 use app_contracts::features::services::{
     PROPERTIES_DIALOG_KEY, ServiceActionKind, ServiceEntryVm, ServiceSnapshot,
-    UiServiceDetailsPort, UiServicesPort,
+    UiServiceDetailsPort, UiServiceDetailsPortMsg, UiServicesPort, UiServicesPortMsg,
 };
 use app_contracts::features::windows_manager::OpenedWindow;
 use forsl_core::actor::Context;
@@ -84,8 +84,14 @@ impl<P: UiServicesPort> FeatureComponent for ServiceActor<P> {
 impl<P: UiServicesPort> ServiceActor<P> {
     fn push_batch(&self) {
         let b = self.table.batch();
-        self.ui_port
-            .set_service_rows_window(b.total_rows, b.start, b.rows);
+        UiServicesPort::send(
+            &self.ui_port,
+            UiServicesPortMsg::SetServiceRowsWindow {
+                total_rows: b.total_rows,
+                start: b.start,
+                rows: b.rows.to_vec(),
+            },
+        );
     }
 }
 
@@ -95,9 +101,15 @@ fn service_snapshot<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: ServiceS
         return;
     }
 
-    this.ui_port.set_total_services_count(msg.services.len());
+    UiServicesPort::send(
+        &this.ui_port,
+        UiServicesPortMsg::SetTotalServicesCount(msg.services.len()),
+    );
     this.table.update_data(msg.services);
-    this.ui_port.set_column_widths(this.table.column_widths());
+    UiServicesPort::send(
+        &this.ui_port,
+        UiServicesPortMsg::SetColumnWidths(this.table.column_widths()),
+    );
 
     this.route_status.report_route(RouteStatusChanged {
         context_key: this.active_context_key.to_string(),
@@ -142,7 +154,10 @@ fn resize_service_column<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: Col
     let _ = this
         .table
         .resize_column(msg.id.to_string(), msg.width as u64);
-    this.ui_port.set_column_widths(this.table.column_widths());
+    UiServicesPort::send(
+        &this.ui_port,
+        UiServicesPortMsg::SetColumnWidths(this.table.column_widths()),
+    );
 }
 
 #[handler]
@@ -155,8 +170,11 @@ fn sort_services<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: SortBy) {
         s.descending = false;
     }
 
-    this.ui_port.set_current_sort_descending(s.descending);
-    this.ui_port.set_current_sort(msg.0);
+    UiServicesPort::send(
+        &this.ui_port,
+        UiServicesPortMsg::SetCurrentSortDescending(s.descending),
+    );
+    UiServicesPort::send(&this.ui_port, UiServicesPortMsg::SetCurrentSort(msg.0));
 
     this.table.refresh();
     this.push_batch();
@@ -174,14 +192,28 @@ fn change_viewport<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: RowsViewp
 #[handler]
 fn select_service<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: SelectService) {
     if let Some(dto) = this.table.get_by_name(msg.0.as_str()) {
-        match dto.status.as_str() {
-            "Running" => this.ui_port.set_active_buttons(false, true, true),
-            "Stopped" => this.ui_port.set_active_buttons(true, false, false),
-            _ => {}
+        let active_buttons = match dto.status.as_str() {
+            "Running" => Some((false, true, true)),
+            "Stopped" => Some((true, false, false)),
+            _ => None,
+        };
+        if let Some((start_button_active, stop_button_active, restart_button_active)) =
+            active_buttons
+        {
+            UiServiceDetailsPort::send(
+                &this.ui_port,
+                UiServiceDetailsPortMsg::SetActiveButtons {
+                    start_button_active,
+                    stop_button_active,
+                    restart_button_active,
+                },
+            );
         }
 
-        this.ui_port
-            .set_selected_service_details(dto.clone().into());
+        UiServiceDetailsPort::send(
+            &this.ui_port,
+            UiServiceDetailsPortMsg::SetSelectedServiceDetails(dto.clone().into()),
+        );
     }
 
     this.table.select(msg.0.clone(), msg.1 as usize);
@@ -214,11 +246,22 @@ fn on_window_opened<P: UiServicesPort>(this: &mut ServiceActor<P>, msg: OpenedWi
         .downcast::<ServiceEntryVm>()
         .expect("ServiceEntryVm is of wrong type");
 
-    match dto.status.as_str() {
-        "Running" => ui_port.set_active_buttons(false, true, true),
-        "Stopped" => ui_port.set_active_buttons(true, false, false),
-        _ => {}
+    let active_buttons = match dto.status.as_str() {
+        "Running" => Some((false, true, true)),
+        "Stopped" => Some((true, false, false)),
+        _ => None,
+    };
+    if let Some((start_button_active, stop_button_active, restart_button_active)) =
+        active_buttons
+    {
+        ui_port.send(UiServiceDetailsPortMsg::SetActiveButtons {
+            start_button_active,
+            stop_button_active,
+            restart_button_active,
+        });
     }
 
-    ui_port.set_selected_service_details(dto.as_ref().clone().into());
+    ui_port.send(UiServiceDetailsPortMsg::SetSelectedServiceDetails(
+        dto.as_ref().clone().into(),
+    ));
 }

@@ -1840,12 +1840,15 @@ dependencies = [
 name = "domain-test-kit"
 version = "0.1.0"
 dependencies = [
+ "amethystate",
  "anyhow",
  "app-contracts",
  "build-utils",
  "context",
  "domain",
+ "domain-environments",
  "domain-navigation",
+ "domain-processes",
  "forsl",
  "forsl-core",
  "forsl-test-kit",

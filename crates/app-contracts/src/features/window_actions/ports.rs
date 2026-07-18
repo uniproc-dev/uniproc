@@ -1,17 +1,14 @@
-use macros::slint_port;
-
 use super::model::ResizeEdge;
 
-#[slint_port(global = "TitleBarActions")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UiWindowActionsPortMsg {
+    Drag,
+    Close,
+    Minimize,
+    ToggleMaximize,
+    Resize(ResizeEdge),
+}
+
 pub trait UiWindowActionsPort: Clone + 'static {
-    #[manual]
-    fn drag_window(&self);
-    #[manual]
-    fn close_window(&self);
-    #[manual]
-    fn minimize_window(&self);
-    #[manual]
-    fn toggle_maximize_window(&self);
-    #[manual]
-    fn resize_window(&self, edge: ResizeEdge);
+    fn send(&self, msg: UiWindowActionsPortMsg);
 }

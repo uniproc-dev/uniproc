@@ -1,105 +1,108 @@
 use crate::features::services::{ServicesPropertiesWindowUiAdapter, UiServicesAdapter};
 use crate::{ServiceEntry, ServicesFeatureGlobal, TableCellData, TableColWidth};
-use app_contracts::features::services::{ServiceEntryVm, UiServiceDetailsPort, UiServicesPort};
+use app_contracts::features::services::{
+    ServiceEntryVm, UiServiceDetailsPort, UiServiceDetailsPortMsg, UiServicesPort,
+    UiServicesPortMsg,
+};
 use macros::slint_port_adapter;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::collections::HashMap;
 use std::rc::Rc;
 use widgets::table::ui_cache::SlintTableRowAdapter;
 
+fn apply_service_details_msg(g: &ServicesFeatureGlobal, msg: UiServiceDetailsPortMsg) {
+    match msg {
+        UiServiceDetailsPortMsg::SetSelectedServiceDetails(entry) => {
+            g.set_selected_entry(entry.into());
+        }
+        UiServiceDetailsPortMsg::SetActiveButtons {
+            start_button_active,
+            stop_button_active,
+            restart_button_active,
+        } => {
+            g.set_stop_button_active(stop_button_active);
+            g.set_start_button_active(start_button_active);
+            g.set_restart_button_active(restart_button_active);
+        }
+    }
+}
+
 #[slint_port_adapter(window = ServicePropertiesDialogWindow)]
 impl UiServiceDetailsPort for ServicesPropertiesWindowUiAdapter {
-    fn set_selected_service_details(
-        &self,
-        ui: &ServicePropertiesDialogWindow,
-        entry: ServiceEntryVm,
-    ) {
-        let g = ui.global::<ServicesFeatureGlobal>();
-        g.set_selected_entry(entry.into());
-    }
-    fn set_active_buttons(
-        &self,
-        ui: &ServicePropertiesDialogWindow,
-        start_button_active: bool,
-        stop_button_active: bool,
-        restart_button_active: bool,
-    ) {
-        let global = ui.global::<ServicesFeatureGlobal>();
-        global.set_stop_button_active(stop_button_active);
-        global.set_start_button_active(start_button_active);
-        global.set_restart_button_active(restart_button_active);
+    fn send(&self, ui: &ServicePropertiesDialogWindow, msg: UiServiceDetailsPortMsg) {
+        apply_service_details_msg(&ui.global::<ServicesFeatureGlobal>(), msg);
     }
 }
 
 #[slint_port_adapter(window = AppWindow)]
 impl UiServiceDetailsPort for UiServicesAdapter {
-    fn set_selected_service_details(&self, ui: &AppWindow, entry: ServiceEntryVm) {
-        let g = ui.global::<ServicesFeatureGlobal>();
-        g.set_selected_entry(entry.into());
-    }
-
-    fn set_active_buttons(
-        &self,
-        ui: &AppWindow,
-        start_button_active: bool,
-        stop_button_active: bool,
-        restart_button_active: bool,
-    ) {
-        let global = ui.global::<ServicesFeatureGlobal>();
-        global.set_stop_button_active(stop_button_active);
-        global.set_start_button_active(start_button_active);
-        global.set_restart_button_active(restart_button_active);
+    fn send(&self, ui: &AppWindow, msg: UiServiceDetailsPortMsg) {
+        apply_service_details_msg(&ui.global::<ServicesFeatureGlobal>(), msg);
     }
 }
 
 #[slint_port_adapter(window = AppWindow)]
 impl UiServicesPort for UiServicesAdapter {
-    fn set_column_widths(&self, ui: &AppWindow, widths: Vec<(SharedString, u64)>) {
-        let global = ui.global::<ServicesFeatureGlobal>();
-        let defs = global.get_column_defs();
-        let width_map: HashMap<SharedString, u64> = widths.into_iter().collect();
+    fn send(&self, ui: &AppWindow, msg: UiServicesPortMsg) {
+        match msg {
+            UiServicesPortMsg::SetColumnWidths(widths) => {
+                let global = ui.global::<ServicesFeatureGlobal>();
+                let defs = global.get_column_defs();
+                let width_map: HashMap<SharedString, u64> = widths.into_iter().collect();
 
-        let next_widths: Vec<TableColWidth> = defs
-            .iter()
-            .map(|def| {
-                let w = width_map.get(&def.id).cloned().unwrap_or(100);
-                TableColWidth {
-                    id: def.id.clone(),
-                    width_px: w as i32,
+                let next_widths: Vec<TableColWidth> = defs
+                    .iter()
+                    .map(|def| {
+                        let w = width_map.get(&def.id).cloned().unwrap_or(100);
+                        TableColWidth {
+                            id: def.id.clone(),
+                            width_px: w as i32,
+                        }
+                    })
+                    .collect();
+
+                let mut last = self.models.last_widths.borrow_mut();
+                if *last == next_widths {
+                    return;
                 }
-            })
-            .collect();
+                *last = next_widths.clone();
 
-        let mut last = self.models.last_widths.borrow_mut();
-        if *last == next_widths {
-            return;
-        }
-        *last = next_widths.clone();
-
-        if self.models.widths_model.row_count() != next_widths.len() {
-            self.models.widths_model.set_vec(next_widths);
-        } else {
-            for (i, item) in next_widths.into_iter().enumerate() {
-                self.models.widths_model.set_row_data(i, item);
+                if self.models.widths_model.row_count() != next_widths.len() {
+                    self.models.widths_model.set_vec(next_widths);
+                } else {
+                    for (i, item) in next_widths.into_iter().enumerate() {
+                        self.models.widths_model.set_row_data(i, item);
+                    }
+                }
             }
-        }
-    }
+            UiServicesPortMsg::SetServiceRowsWindow { total_rows, start, rows } => {
+                let mut cache = self.cache.borrow_mut();
 
-    fn set_service_rows_window(&self, total_rows: usize, start: usize, rows: &[ServiceEntryVm]) {
-        let mut cache = self.cache.borrow_mut();
+                if self.models.rows.row_count() != total_rows {
+                    self.models
+                        .rows
+                        .set_vec(vec![ServiceEntry::default(); total_rows]);
+                    cache.clear();
+                }
 
-        if self.models.rows.row_count() != total_rows {
-            self.models
-                .rows
-                .set_vec(vec![ServiceEntry::default(); total_rows]);
-            cache.clear();
-        }
-
-        for (offset, row_dto) in rows.iter().enumerate() {
-            let idx = start + offset;
-            if idx < total_rows {
-                let entry = cache.get_row(idx, row_dto);
-                self.models.rows.set_row_data(idx, entry);
+                for (offset, row_dto) in rows.iter().enumerate() {
+                    let idx = start + offset;
+                    if idx < total_rows {
+                        let entry = cache.get_row(idx, row_dto);
+                        self.models.rows.set_row_data(idx, entry);
+                    }
+                }
+            }
+            UiServicesPortMsg::SetCurrentSort(field) => {
+                ui.global::<ServicesFeatureGlobal>().set_current_sort(field);
+            }
+            UiServicesPortMsg::SetCurrentSortDescending(descending) => {
+                ui.global::<ServicesFeatureGlobal>()
+                    .set_current_sort_descending(descending);
+            }
+            UiServicesPortMsg::SetTotalServicesCount(count) => {
+                ui.global::<ServicesFeatureGlobal>()
+                    .set_total_services_count(count as i32);
             }
         }
     }

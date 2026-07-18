@@ -1,5 +1,4 @@
 use forsl::native_windows::slint_factory::SlintWindowRegistry;
-use macros::slint_port;
 use slint::SharedString;
 use std::fmt::Debug;
 
@@ -9,24 +8,29 @@ pub trait ServicesWindowRegister {
     fn register(&self, registry: &SlintWindowRegistry);
 }
 
-#[slint_port(global = "ServicesFeatureGlobal")]
-pub trait UiServiceDetailsPort {
-    fn set_selected_service_details(&self, entry: ServiceEntryVm);
-    fn set_active_buttons(
-        &self,
+#[derive(Clone, Debug)]
+pub enum UiServiceDetailsPortMsg {
+    SetSelectedServiceDetails(ServiceEntryVm),
+    SetActiveButtons {
         start_button_active: bool,
         stop_button_active: bool,
         restart_button_active: bool,
-    );
+    },
 }
 
-#[slint_port(global = "ServicesFeatureGlobal")]
+pub trait UiServiceDetailsPort {
+    fn send(&self, msg: UiServiceDetailsPortMsg);
+}
+
+#[derive(Clone, Debug)]
+pub enum UiServicesPortMsg {
+    SetColumnWidths(Vec<(SharedString, u64)>),
+    SetServiceRowsWindow { total_rows: usize, start: usize, rows: Vec<ServiceEntryVm> },
+    SetCurrentSort(SharedString),
+    SetCurrentSortDescending(bool),
+    SetTotalServicesCount(usize),
+}
+
 pub trait UiServicesPort: Debug + UiServiceDetailsPort + 'static {
-    #[manual]
-    fn set_column_widths(&self, widths: Vec<(SharedString, u64)>);
-    #[manual]
-    fn set_service_rows_window(&self, total_rows: usize, start: usize, rows: &[ServiceEntryVm]);
-    fn set_current_sort(&self, field: SharedString);
-    fn set_current_sort_descending(&self, descending: bool);
-    fn set_total_services_count(&self, total_services_count: usize);
+    fn send(&self, msg: UiServicesPortMsg);
 }

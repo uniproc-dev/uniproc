@@ -81,12 +81,17 @@ fn generate_feature_stub(feature: &str, traits: FeatureTraits) -> TokenStream {
     for port in traits.ports {
         let mut port_methods_impl = Vec::new();
         let source_file = &port.source_file;
+        // Ports sharing a feature (e.g. a supertrait pair like UiServicesPort:
+        // UiServiceDetailsPort) can declare methods with the same name (both
+        // migrated to a single `send`) - namespace state/accessor idents by
+        // trait to avoid field/method collisions on the shared stub struct.
+        let port_prefix = snake_case(&port.name);
 
         for method in port.methods {
             let m_name = format_ident!("{}", method.name);
-            let on_m_name = format_ident!("on_{}", method.name);
-            let count_field = format_ident!("{}_call_count", method.name);
-            let handler_field = format_ident!("{}_handler", method.name);
+            let on_m_name = format_ident!("on_{}_{}", port_prefix, method.name);
+            let count_field = format_ident!("{}_{}_call_count", port_prefix, method.name);
+            let handler_field = format_ident!("{}_{}_handler", port_prefix, method.name);
 
             state_fields.push(quote! { #count_field: RefCell<usize>, });
 
@@ -343,6 +348,21 @@ fn feature_name_from(source_file: &str) -> String {
         .position(|s| s == "features")
         .expect("path must contain 'features'");
     segments[pos + 1].replace('-', "_")
+}
+
+fn snake_case(name: &str) -> String {
+    let mut out = String::new();
+    for (i, ch) in name.chars().enumerate() {
+        if ch.is_uppercase() {
+            if i > 0 {
+                out.push('_');
+            }
+            out.extend(ch.to_lowercase());
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 fn pascal_case(name: &str) -> String {

@@ -3,7 +3,9 @@ use crate::features::environments::wsl::domain::{
     check_wsl_availability_async, fetch_distros_data, inject_agent_async,
 };
 use app_contracts::features::environments::EnvironmentsPartialBinder;
-use app_contracts::features::environments::{EnvironmentsBinder, UiEnvironmentsPort, WslDistroDto};
+use app_contracts::features::environments::{
+    EnvironmentsBinder, UiEnvironmentsPort, UiEnvironmentsPortMsg, WslDistroDto,
+};
 use forsl_core::actor::{Context, ManagedActor};
 
 use app_contracts::features::agents::{WslAgentRuntimeEvent, WslConnectionState};
@@ -39,7 +41,8 @@ impl<P: UiEnvironmentsPort> WslEnvActor<P> {
     }
 
     fn sync_to_ui(&self) {
-        self.ui_port.set_wsl_distros(self.distros.clone());
+        self.ui_port
+            .send(UiEnvironmentsPortMsg::SetWslDistros(self.distros.clone()));
     }
 
     fn set_distros(&mut self, updated: Vec<WslDistroDto>) {
@@ -90,7 +93,7 @@ fn check_status<P: UiEnvironmentsPort>(
     _: CheckStatus,
     ctx: &Context<WslEnvActor<P>>,
 ) {
-    this.ui_port.set_wsl_is_loading(true);
+    this.ui_port.send(UiEnvironmentsPortMsg::SetWslIsLoading(true));
     ctx.spawn_bg(async move { SetStatus(check_wsl_availability_async().await.unwrap_or(false)) });
 }
 
@@ -100,8 +103,8 @@ fn set_status<P: UiEnvironmentsPort>(
     msg: SetStatus,
     ctx: &Context<WslEnvActor<P>>,
 ) {
-    this.ui_port.set_wsl_is_loading(false);
-    this.ui_port.set_has_wsl(msg.0);
+    this.ui_port.send(UiEnvironmentsPortMsg::SetWslIsLoading(false));
+    this.ui_port.send(UiEnvironmentsPortMsg::SetHasWsl(msg.0));
     if msg.0 {
         ctx.addr().send(RefreshDistros);
     }
@@ -113,7 +116,8 @@ fn refresh_distros<P: UiEnvironmentsPort>(
     _: RefreshDistros,
     ctx: &Context<WslEnvActor<P>>,
 ) {
-    this.ui_port.set_wsl_distros_is_loading(true);
+    this.ui_port
+        .send(UiEnvironmentsPortMsg::SetWslDistrosIsLoading(true));
     ctx.spawn_bg(async move {
         let distros = fetch_distros_data()
             .await
@@ -131,7 +135,8 @@ fn refresh_distros<P: UiEnvironmentsPort>(
 
 #[handler]
 fn update_distros<P: UiEnvironmentsPort>(this: &mut WslEnvActor<P>, msg: UpdateDistros) {
-    this.ui_port.set_wsl_distros_is_loading(false);
+    this.ui_port
+        .send(UiEnvironmentsPortMsg::SetWslDistrosIsLoading(false));
     this.set_distros(msg.0);
 }
 

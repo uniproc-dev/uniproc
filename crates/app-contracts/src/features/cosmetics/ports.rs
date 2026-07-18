@@ -1,11 +1,11 @@
-use macros::slint_port;
-
 use super::model::AccentPalette;
 
-#[slint_port(global = "Theme")]
+#[derive(Clone, Copy, Debug)]
+pub enum UiCosmeticsPortMsg {
+    ApplyMainWindowEffects,
+    SetAccentPalette(AccentPalette),
+}
+
 pub trait UiCosmeticsPort: Clone + 'static {
-    #[manual]
-    fn apply_main_window_effects(&self);
-    #[manual]
-    fn set_accent_palette(&self, palette: AccentPalette);
+    fn send(&self, msg: UiCosmeticsPortMsg);
 }

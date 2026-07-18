@@ -1,6 +1,6 @@
 use app_contracts::features::window_actions::{
-    ResizeEdge, UiWindowActionsBindings, UiWindowActionsPort, WindowActionsBinder,
-    WindowActionsPartialBinder, WindowBreakpoint, WindowConfigChanged,
+    ResizeEdge, UiWindowActionsBindings, UiWindowActionsPort, UiWindowActionsPortMsg,
+    WindowActionsBinder, WindowActionsPartialBinder, WindowBreakpoint, WindowConfigChanged,
 };
 use forsl_core::actor::{Context, ManagedActor};
 use macros::{actor_manifest, handler};
@@ -27,27 +27,27 @@ pub struct WindowActor<P> {
 
 #[handler]
 fn drag_window<P: UiWindowActionsPort>(this: &mut WindowActor<P>, _: Drag) {
-    this.port.drag_window();
+    this.port.send(UiWindowActionsPortMsg::Drag);
 }
 
 #[handler]
 fn close_window<P: UiWindowActionsPort>(this: &mut WindowActor<P>, _: Close) {
-    this.port.close_window();
+    this.port.send(UiWindowActionsPortMsg::Close);
 }
 
 #[handler]
 fn minimize_window<P: UiWindowActionsPort>(this: &mut WindowActor<P>, _: Minimize) {
-    this.port.minimize_window();
+    this.port.send(UiWindowActionsPortMsg::Minimize);
 }
 
 #[handler]
 fn maximize_window<P: UiWindowActionsPort>(this: &mut WindowActor<P>, _: Maximize) {
-    this.port.toggle_maximize_window();
+    this.port.send(UiWindowActionsPortMsg::ToggleMaximize);
 }
 
 #[handler]
 fn resize_window<P: UiWindowActionsPort>(this: &mut WindowActor<P>, msg: StartResize) {
-    this.port.resize_window(msg.0);
+    this.port.send(UiWindowActionsPortMsg::Resize(msg.0));
 }
 
 #[handler]

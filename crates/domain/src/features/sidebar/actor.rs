@@ -1,6 +1,7 @@
 use crate::features::sidebar::settings::SidebarSettings;
 use app_contracts::features::sidebar::{
     RequestTransition, SidebarBinder, SidebarPartialBinder, UiSidebarBindings, UiSidebarPort,
+    UiSidebarPortMsg,
 };
 use forsl_core::actor::ManagedActor;
 use forsl_core::trace::{current_meta, install_current_meta};
@@ -59,12 +60,12 @@ impl<P: UiSidebarPort + Clone> SidebarActor<P> {
                 1.0 - f32::powi(-2.0 * t + 2.0, 4) / 2.0
             };
 
-            ui.set_switch_progress(eased);
+            ui.send(UiSidebarPortMsg::SetSwitchProgress(eased));
 
             if t < 1.0 {
                 Self::run_animation_step(ui, token_ref, target_token, start, duration);
             } else {
-                ui.set_switch_progress(1.0);
+                ui.send(UiSidebarPortMsg::SetSwitchProgress(1.0));
             }
         });
     }
@@ -74,8 +75,12 @@ impl<P: UiSidebarPort + Clone> SidebarActor<P> {
 fn handle_transition<P: UiSidebarPort + Clone>(this: &mut SidebarActor<P>, msg: RequestTransition) {
     let ui = this.ui_port.clone();
 
-    ui.set_switch_transition(msg.from_index, msg.to_index, 0.0);
-    ui.set_content_visible(false);
+    ui.send(UiSidebarPortMsg::SetSwitchTransition {
+        from_index: msg.from_index,
+        to_index: msg.to_index,
+        progress: 0.0,
+    });
+    ui.send(UiSidebarPortMsg::SetContentVisible(false));
 
     let next_token = this.anim_token.fetch_add(1, Ordering::SeqCst) + 1;
     let duration = Duration::from_millis(600);
@@ -96,7 +101,7 @@ fn handle_transition<P: UiSidebarPort + Clone>(this: &mut SidebarActor<P>, msg: 
         let _meta_guard = meta.clone().map(install_current_meta);
         let ui_inner = ui.clone();
         slint::Timer::single_shot(s_delay, move || {
-            ui_inner.set_content_visible(true);
+            ui_inner.send(UiSidebarPortMsg::SetContentVisible(true));
         });
     });
 }

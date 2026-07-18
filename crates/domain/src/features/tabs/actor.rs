@@ -8,7 +8,7 @@ use app_contracts::features::navigation::NavigationProjectionChanged;
 use app_contracts::features::sidebar::RequestTransition;
 use app_contracts::features::tabs::{
     AvailableContextDescriptor, TabContextKey, TabContextSnapshot, TabDescriptor, TabsBinder,
-    TabsPartialBinder, UiTabsBindings, UiTabsPort,
+    TabsPartialBinder, UiTabsBindings, UiTabsPort, UiTabsPortMsg,
 };
 use forsl_core::actor::event_bus::EventBus;
 use forsl_core::actor::{Context, ManagedActor};
@@ -71,16 +71,20 @@ impl<P: UiTabsPort + Clone> TabsActor<P> {
     }
 
     pub fn sync_ui_to_state(&self) {
-        self.ui_port.set_tabs(self.state.tabs().to_vec());
         self.ui_port
-            .set_available_contexts(self.state.available_contexts().to_vec());
+            .send(UiTabsPortMsg::SetTabs(self.state.tabs().to_vec()));
+        self.ui_port.send(UiTabsPortMsg::SetAvailableContexts(
+            self.state.available_contexts().to_vec(),
+        ));
         if let Some(active_context_key) = self.state.active_context_key() {
-            self.ui_port.set_active_context(active_context_key.clone());
+            self.ui_port.send(UiTabsPortMsg::SetActiveContext(
+                active_context_key.clone(),
+            ));
             if let Some(active_page) = self.state.active_page_for_context(active_context_key) {
-                self.ui_port.set_active_page(
-                    active_context_key.clone(),
-                    active_page.route_segment.clone(),
-                );
+                self.ui_port.send(UiTabsPortMsg::SetActivePage {
+                    context_key: active_context_key.clone(),
+                    route_segment: active_page.route_segment.clone(),
+                });
             }
         }
     }
@@ -185,11 +189,17 @@ fn sync_active_route<P: UiTabsPort + Clone>(
 #[handler]
 fn sync_route_status<P: UiTabsPort + Clone>(this: &mut TabsActor<P>, msg: RouteStatusChanged) {
     let context_key = TabContextKey(std::borrow::Cow::Owned(msg.context_key.clone()));
-    this.ui_port
-        .set_route_status(context_key.clone(), msg.route_segment.clone(), msg.status);
+    this.ui_port.send(UiTabsPortMsg::SetRouteStatus {
+        context_key: context_key.clone(),
+        route_segment: msg.route_segment.clone(),
+        status: msg.status,
+    });
     if let Some(err) = msg.error {
-        this.ui_port
-            .set_route_error(context_key, msg.route_segment, err);
+        this.ui_port.send(UiTabsPortMsg::SetRouteError {
+            context_key,
+            route_segment: msg.route_segment,
+            msg: err,
+        });
     }
 }
 
