@@ -1,0 +1,11 @@
+// AUTO-GENERATED from crates/app-contracts/src/features/services/bindings.rs - do not edit manually
+import { ServiceEntry } from "./globals.slint";
+
+export global ServicesBindings {
+    callback service_action(string, string);
+    callback sort_by(string);
+    callback select_service(string, int);
+    callback rows_viewport_changed(int, int);
+    callback column_resized(string, float);
+    callback open_properties_window(ServiceEntry);
+}

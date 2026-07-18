@@ -6,6 +6,7 @@ use toml::{Table, Value};
 fn main() {
     generate_slint_l10n();
     generate_capabilities_slint();
+    generate_bindings_slint();
 
     slint_parser::generate_globals_export(Path::new("ui"));
 
@@ -31,6 +32,30 @@ fn context_icons_dir() -> String {
 fn generate_capabilities_slint() {
     let schema = build_utils::load_schema();
     build_utils::generate_capabilities_slint(&schema, Path::new("ui/shared/capabilities.slint"));
+}
+
+/// Bindings traits that dropped their `#[slint_bindings(global = "...")]`
+/// pin get a companion global generated straight from the Rust trait -
+/// no hand-authored `.slint` needed for their callbacks.
+fn generate_bindings_slint() {
+    let schema = build_utils::load_schema();
+    for binding in schema.bindings.iter().filter(|b| b.global.is_none()) {
+        let feature = feature_name_from(&binding.source_file);
+        let out_file = format!("ui/features/{feature}/bindings.slint");
+        build_utils::generate_binding_global_slint(binding, Path::new(&out_file));
+    }
+}
+
+fn feature_name_from(source_file: &str) -> String {
+    let segments: Vec<_> = Path::new(source_file)
+        .iter()
+        .map(|s| s.to_string_lossy().into_owned())
+        .collect();
+    let pos = segments
+        .iter()
+        .position(|s| s == "features")
+        .expect("path must contain 'features'");
+    segments[pos + 1].replace('-', "_")
 }
 
 fn collect_string_entries(prefix: &str, table: &Table, acc: &mut Vec<(String, String)>) {

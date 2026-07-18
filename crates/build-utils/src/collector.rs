@@ -24,7 +24,11 @@ pub struct PortDef {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct BindingDef {
     pub name: String,
-    pub global: String,
+    /// `None` means the trait didn't pin a hand-written Slint global via
+    /// `#[slint_bindings(global = "...")]` - its callbacks get their own
+    /// generated global instead (see `generate::generate_binding_global_slint`),
+    /// named by convention from the trait name.
+    pub global: Option<String>,
     pub source_file: String,
     pub methods: Vec<BindingMethodDef>,
 }
@@ -47,6 +51,25 @@ pub struct BindingMethodDef {
     pub tracing_target: Option<String>,
     pub slint_name: Option<String>,
     pub handler_args: Vec<ArgDef>,
+    /// Comma-separated Slint types (e.g. `#[slint(arg_types = "length")]`),
+    /// positionally overriding the default Rust->Slint type mapping used
+    /// when generating a `callback ...(...)` declaration for this method.
+    /// Only consulted by `generate::generate_binding_global_slint` - not
+    /// used when the trait still hand-declares its own global.
+    pub slint_arg_types: Option<Vec<String>>,
+    /// `#[slint(global = "...")]` - this method's callback actually lives on
+    /// a different (pre-existing, hand-written) global than the one
+    /// generated for the rest of the trait; `generate_binding_global_slint`
+    /// excludes it.
+    pub global_override: Option<String>,
+    /// `#[slint(skip)]` - exclude this method from `generate_binding_global_slint`
+    /// even though it has no `global_override` (e.g. it's wired to a root
+    /// window callback, not any global at all).
+    pub slint_skip: bool,
+    /// `#[slint(import = "import { X } from \"./foo.slint\";")]` - a raw
+    /// import line `generate_binding_global_slint` should prepend (deduped)
+    /// when this method's arg type needs a type defined elsewhere.
+    pub slint_import: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -210,9 +233,8 @@ fn parse_file(file_path: &Path, workspace_dir: &Path, schema: &mut Schema) {
                         source_file: relative_path.clone(),
                         methods: parse_port_methods(&item_trait),
                     });
-                } else if let Some(global) =
-                    extract_attribute_arg(&item_trait.attrs, "slint_bindings", "global")
-                {
+                } else if has_attribute(&item_trait.attrs, "slint_bindings") {
+                    let global = extract_attribute_arg(&item_trait.attrs, "slint_bindings", "global");
                     schema.bindings.push(BindingDef {
                         name: trait_name.clone(),
                         global,
@@ -304,6 +326,11 @@ fn parse_binding_methods(item_trait: &syn::ItemTrait) -> Vec<BindingMethodDef> {
                 && has_attribute_flag(&method.attrs, "tracing", "skip");
             let tracing_target = extract_attribute_arg(&method.attrs, "tracing", "target");
             let slint_name = extract_attribute_arg(&method.attrs, "slint", "name");
+            let slint_arg_types = extract_attribute_arg(&method.attrs, "slint", "arg_types")
+                .map(|s| s.split(',').map(|t| t.trim().to_string()).collect());
+            let global_override = extract_attribute_arg(&method.attrs, "slint", "global");
+            let slint_skip = has_attribute_flag(&method.attrs, "slint", "skip");
+            let slint_import = extract_attribute_arg(&method.attrs, "slint", "import");
 
             methods.push(BindingMethodDef {
                 name: method.sig.ident.to_string(),
@@ -312,6 +339,10 @@ fn parse_binding_methods(item_trait: &syn::ItemTrait) -> Vec<BindingMethodDef> {
                 tracing_target,
                 slint_name,
                 handler_args: extract_handler_args(method),
+                slint_arg_types,
+                global_override,
+                slint_skip,
+                slint_import,
             });
         }
     }

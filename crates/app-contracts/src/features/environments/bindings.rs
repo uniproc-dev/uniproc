@@ -1,6 +1,6 @@
 use macros::slint_bindings;
 
-#[slint_bindings(global = "EnvironmentsFeatureGlobal")]
+#[slint_bindings]
 pub trait UiEnvironmentsBindings: 'static {
     #[tracing(target = "agent")]
     fn on_install_agent<F>(&self, handler: F)

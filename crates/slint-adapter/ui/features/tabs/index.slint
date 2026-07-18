@@ -1,5 +1,6 @@
 import { Theme } from "theme.slint";
 import { Tabs } from "globals.slint";
+import { TabsBindings } from "bindings.slint";
 import { BrowserTabItem } from "components/tab-item.slint";
 import { ArrowUpRegularIcon, Icon } from "icons.slint";
 import { Divider } from "divider.slint";
@@ -64,10 +65,10 @@ export component TabBar inherits Rectangle {
                 is-closable: tab.is_closable;
                 status: tab.status;
                 clicked => {
-                    Tabs.request_tab_switch(tab.context_key);
+                    TabsBindings.request_tab_switch(tab.context_key);
                 }
                 close_clicked => {
-                    Tabs.request_tab_close(tab.context_key);
+                    TabsBindings.request_tab_close(tab.context_key);
                 }
             }
         }

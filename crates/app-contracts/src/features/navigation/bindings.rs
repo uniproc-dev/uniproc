@@ -1,6 +1,6 @@
 use macros::slint_bindings;
 
-#[slint_bindings(global = "Navigation")]
+#[slint_bindings]
 pub trait UiNavigationBindings: 'static {
     #[manual]
     #[tracing(target = "path")]

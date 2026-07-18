@@ -9,7 +9,7 @@ impl UiNavigationBindings for UiNavigationAdapter {
     where
         F: Fn(String) + 'static,
     {
-        ui.global::<crate::Navigation>()
+        ui.global::<crate::NavigationBindings>()
             .on_push(move |path| handler(path.to_string()));
     }
 }

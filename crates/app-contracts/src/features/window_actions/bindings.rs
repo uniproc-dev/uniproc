@@ -2,9 +2,10 @@ use macros::slint_bindings;
 
 use super::model::{ResizeEdge, WindowBreakpoint};
 
-#[slint_bindings(global = "TitleBarActions")]
+#[slint_bindings]
 pub trait UiWindowActionsBindings: 'static {
     #[manual]
+    #[slint(skip)]
     #[tracing(target = "edge")]
     fn on_start_resize<F>(&self, handler: F)
     where

@@ -6,6 +6,7 @@ import {
     ProcessesFeatureGlobal,
     ProcessEntry,
 } from "globals.slint";
+import { ProcessesBindings } from "bindings.slint";
 
 import {
     GenericTableRow,
@@ -38,10 +39,10 @@ component ProcessItem inherits GenericTableRow {
     cells: entry.cells;
 
     clicked => {
-        ProcessesFeatureGlobal.select-process(entry.pid, idx);
+        ProcessesBindings.select-process(entry.pid, idx);
     }
     toggle-expand => {
-        ProcessesFeatureGlobal.toggle-expand-group(entry.name);
+        ProcessesBindings.toggle-expand-group(entry.name);
     }
 }
 
@@ -50,7 +51,7 @@ export component ProcessViewBody inherits Rectangle {
     in property <length> row-height: 32px;
 
     function emit-viewport() {
-        ProcessesFeatureGlobal.rows-viewport-changed(
+        ProcessesBindings.rows-viewport-changed(
             TableUtils.viewport-first(list.viewport-y, root.row-height),
             TableUtils.viewport-visible(list.visible-height, root.row-height),
         );
@@ -65,13 +66,13 @@ export component ProcessViewBody inherits Rectangle {
             current-sort-descending: ProcessesFeatureGlobal.current-sort-descending;
             is-grouped: ProcessesFeatureGlobal.is-grouped;
             group-clicked => {
-                ProcessesFeatureGlobal.group-clicked();
+                ProcessesBindings.group-clicked();
             }
             resized(id, width) => {
-                ProcessesFeatureGlobal.column-resized(id, width);
+                ProcessesBindings.column-resized(id, width);
             }
             sort-by(id) => {
-                ProcessesFeatureGlobal.sort-by(id);
+                ProcessesBindings.sort-by(id);
             }
         }
 
@@ -154,7 +155,7 @@ export component ProcessViewHeader inherits Rectangle {
         if (root.has-selection): TouchArea {
             width: 24px;
             clicked => {
-                ProcessesFeatureGlobal.terminate();
+                ProcessesBindings.terminate();
             }
             ProhibitedIcon {
                 colorize: #FF6060;

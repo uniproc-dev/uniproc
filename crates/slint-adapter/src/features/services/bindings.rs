@@ -1,4 +1,4 @@
-use crate::ServicesFeatureGlobal;
+use crate::ServicesBindings;
 use crate::features::services::UiServicesAdapter;
 use app_contracts::features::services::{ServiceActionKind, ServiceEntryVm, UiServicesBindings};
 use macros::slint_bindings_adapter;
@@ -10,7 +10,7 @@ impl UiServicesBindings for UiServicesAdapter {
     where
         F: Fn(SharedString, ServiceActionKind) + 'static,
     {
-        ui.global::<ServicesFeatureGlobal>()
+        ui.global::<ServicesBindings>()
             .on_service_action(move |name, action| {
                 let kind = match action.as_str() {
                     "Start" => ServiceActionKind::Start,

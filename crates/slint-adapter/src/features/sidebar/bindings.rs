@@ -9,7 +9,7 @@ impl UiSidebarBindings for UiSidebarAdapter {
     where
         F: Fn(u64) + 'static,
     {
-        ui.global::<crate::Sidebar>()
+        ui.global::<crate::SidebarBindings>()
             .on_side_bar_width_changed(move |w| handler(w as u64));
     }
 }

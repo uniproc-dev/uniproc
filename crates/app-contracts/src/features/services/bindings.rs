@@ -3,9 +3,10 @@ use slint::SharedString;
 
 use super::model::{ServiceActionKind, ServiceEntryVm};
 
-#[slint_bindings(global = "ServicesFeatureGlobal")]
+#[slint_bindings]
 pub trait UiServicesBindings: 'static {
     #[manual]
+    #[slint(arg_types = "string, string")]
     #[tracing(target = "name,kind")]
     fn on_service_action<F>(&self, handler: F)
     where
@@ -22,6 +23,8 @@ pub trait UiServicesBindings: 'static {
     fn on_column_resized<F>(&self, handler: F)
     where
         F: Fn(SharedString, f32) + 'static;
+    #[slint(arg_types = "ServiceEntry")]
+    #[slint(import = "import { ServiceEntry } from \"./globals.slint\";")]
     fn on_open_properties_window<F>(&self, handler: F)
     where
         F: Fn(ServiceEntryVm) + 'static;

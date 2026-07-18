@@ -3,6 +3,7 @@ import { Button } from "button/index.slint";
 import { Theme } from "theme.slint";
 import { L10n } from "localization.slint";
 import { ServicesFeatureGlobal, ServiceEntry } from "globals.slint";
+import { ServicesBindings } from "bindings.slint";
 import {
     ServicePropertiesDialogContent,
 } from "service-properties-dialog.slint";
@@ -43,17 +44,17 @@ component ServiceItem inherits GenericTableRow {
         { id: "4", title: "Properties", icon-key: "info" }
     ];
     clicked => {
-        ServicesFeatureGlobal.select-service(entry.name, idx);
+        ServicesBindings.select-service(entry.name, idx);
     }
     context-menu-action(action) => {
-        ServicesFeatureGlobal.select-service(entry.name, idx);
+        ServicesBindings.select-service(entry.name, idx);
 
         if (action == "1") {
-            ServicesFeatureGlobal.service-action(entry.name, "Start");
+            ServicesBindings.service-action(entry.name, "Start");
         } else if (action == "2") {
-            ServicesFeatureGlobal.service-action(entry.name, "Stop");
+            ServicesBindings.service-action(entry.name, "Stop");
         } else if (action == "3") {
-            ServicesFeatureGlobal.service-action(entry.name, "Restart");
+            ServicesBindings.service-action(entry.name, "Restart");
         } else if (action == "4") {
             root.properties-requested(idx);
         }
@@ -96,7 +97,7 @@ export component ServiceViewHeader inherits Rectangle {
                 icon-size: 18px;
                 text: L10n.services-start;
                 clicked => {
-                    ServicesFeatureGlobal.service-action(ServicesFeatureGlobal.selected-entry.name, "Start");
+                    ServicesBindings.service-action(ServicesFeatureGlobal.selected-entry.name, "Start");
                 }
             }
 
@@ -109,7 +110,7 @@ export component ServiceViewHeader inherits Rectangle {
                 icon-size: 18px;
                 text: L10n.services-stop;
                 clicked => {
-                    ServicesFeatureGlobal.service-action(ServicesFeatureGlobal.selected-entry.name, "Stop");
+                    ServicesBindings.service-action(ServicesFeatureGlobal.selected-entry.name, "Stop");
                 }
             }
 
@@ -122,7 +123,7 @@ export component ServiceViewHeader inherits Rectangle {
                 icon-color: Theme.light-blue;
                 icon-size: 18px;
                 clicked => {
-                    ServicesFeatureGlobal.service-action(ServicesFeatureGlobal.selected-entry.name, "Restart");
+                    ServicesBindings.service-action(ServicesFeatureGlobal.selected-entry.name, "Restart");
                 }
             }
         }
@@ -142,13 +143,13 @@ export component ServicePropertiesInlineOverlay inherits Rectangle {
             selected-entry: ServicesFeatureGlobal.selected-entry;
 
             open-in-window(entry) => {
-                ServicesFeatureGlobal.open-properties-window(entry);
+                ServicesBindings.open-properties-window(entry);
             }
             close-requested => {
                 ServicesFeatureGlobal.properties-inline-open = false;
             }
             service-action(name, action) => {
-                ServicesFeatureGlobal.service-action(name, action);
+                ServicesBindings.service-action(name, action);
             }
         }
     }
@@ -159,7 +160,7 @@ export component ServiceViewBody inherits Rectangle {
     in property <ContentDialogMode> properties-dialog-mode: ContentDialogMode.inline;
 
     function emit-viewport() {
-        ServicesFeatureGlobal.rows-viewport-changed(
+        ServicesBindings.rows-viewport-changed(
             TableUtils.viewport-first(list.viewport-y, root.row-height),
             TableUtils.viewport-visible(list.visible-height, root.row-height),
         );
@@ -174,10 +175,10 @@ export component ServiceViewBody inherits Rectangle {
             current-sort-descending: ServicesFeatureGlobal.current-sort-descending;
             is-grouped: false;
             resized(id, width) => {
-                ServicesFeatureGlobal.column-resized(id, width);
+                ServicesBindings.column-resized(id, width);
             }
             sort-by(id) => {
-                ServicesFeatureGlobal.sort-by(id);
+                ServicesBindings.sort-by(id);
             }
         }
 
@@ -199,11 +200,11 @@ export component ServiceViewBody inherits Rectangle {
                 entry: entry;
                 idx: idx;
                 properties-requested(item_idx) => {
-                    ServicesFeatureGlobal.select-service(entry.name, item_idx);
+                    ServicesBindings.select-service(entry.name, item_idx);
                     if (root.properties-dialog-mode == ContentDialogMode.inline) {
                         ServicesFeatureGlobal.properties-inline-open = true;
                     } else {
-                        ServicesFeatureGlobal.open-properties-window(entry);
+                        ServicesBindings.open-properties-window(entry);
                     }
                 }
             }

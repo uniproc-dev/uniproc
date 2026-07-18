@@ -123,7 +123,13 @@ pub fn slint_bindings_adapter_impl(attr: TokenStream, mut impl_block: ItemImpl) 
         let fn_name = format_ident!("{}", method.name);
         let slint_fn_name =
             format_ident!("{}", method.slint_name.as_deref().unwrap_or(&method.name));
-        let global_name = format_ident!("{}", binding_def.global);
+        let global_name = format_ident!(
+            "{}",
+            method.global_override.clone().unwrap_or_else(|| binding_def
+                .global
+                .clone()
+                .unwrap_or_else(|| build_utils::binding_default_global_name(&binding_def.name)))
+        );
 
         let arg_idents: Vec<_> = (0..method.handler_args.len())
             .map(|i| format_ident!("arg{}", i + 1))

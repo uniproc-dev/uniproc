@@ -1,23 +1,17 @@
 
-import { ProcessesFeatureGlobal } from "../features/processes/globals.slint";
+import { ProcessesBindings } from "../features/processes/bindings.slint";
 import { TabBar } from "../features/tabs/index.slint";
 import { WindowControls } from "controls.slint";
 import { Theme } from "theme.slint";
 import { UniprocLogoIcon } from "icons.slint";
+import { WindowActionsBindings } from "../features/window_actions/bindings.slint";
 
 export global WindowClickHandler {
     callback window-clicked();
 
     window-clicked => {
-        ProcessesFeatureGlobal.select_process(-1, -1);
+        ProcessesBindings.select_process(-1, -1);
     }
-}
-
-export global TitleBarActions {
-    callback drag();
-    callback close();
-    callback minimize();
-    callback maximize();
 }
 
 export component TitleBar {
@@ -45,7 +39,7 @@ export component TitleBar {
 
                 TouchArea {
                     moved => {
-                        TitleBarActions.drag();
+                        WindowActionsBindings.drag();
                     }
                 }
             }
@@ -59,20 +53,20 @@ export component TitleBar {
 
                 TouchArea {
                     moved => {
-                        TitleBarActions.drag();
+                        WindowActionsBindings.drag();
                     }
                 }
             }
 
             WindowControls {
                 minimize => {
-                    TitleBarActions.minimize();
+                    WindowActionsBindings.minimize();
                 }
                 maximize => {
-                    TitleBarActions.maximize();
+                    WindowActionsBindings.maximize();
                 }
                 close => {
-                    TitleBarActions.close();
+                    WindowActionsBindings.close();
                 }
             }
         }

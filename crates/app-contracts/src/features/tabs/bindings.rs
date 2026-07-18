@@ -1,6 +1,6 @@
 use macros::slint_bindings;
 
-#[slint_bindings(global = "Tabs")]
+#[slint_bindings]
 pub trait UiTabsBindings: 'static {
     #[manual]
     #[tracing(target = "context_key")]

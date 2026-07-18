@@ -62,11 +62,5 @@ export global ServicesFeatureGlobal {
     in property <bool> restart-button-active: true;
     in property <bool> properties-inline-open: false;
 
-    callback sort-by(string);
-    callback select-service(string, int);
-    callback rows-viewport-changed(int, int);
-    callback column-resized(string, float);
-    callback service-action(string, string);
     callback open-system-services();
-    callback open-properties-window(ServiceEntry);
 }

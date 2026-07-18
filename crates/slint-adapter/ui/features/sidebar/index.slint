@@ -1,8 +1,9 @@
 import { Environments } from "../environments/views/environments.slint";
 import { ScrollView } from "std-widgets.slint";
-import { Navigation } from "navigation.slint";
+import { NavigationBindings } from "../navigation/bindings.slint";
 import { Tabs } from "../tabs/globals.slint";
 import { Sidebar } from "../sidebar/globals.slint";
+import { SidebarBindings } from "../sidebar/bindings.slint";
 import { WindowClickHandler } from "title/title-bar.slint";
 import { NavItem } from "components/nav-item.slint";
 import { PageData } from "content/globals.slint";
@@ -101,7 +102,7 @@ export component SideBar inherits Rectangle {
                             indicator-height: root.indicator-transition-active ? (idx == Sidebar.switch_from_index ? root.from-indicator-height : (idx == Sidebar.switch_to_index ? root.to-indicator-height : Theme.selection_indicator_height)) : Theme.selection_indicator_height;
                             indicator-offset-y: root.indicator-transition-active ? (idx == Sidebar.switch_from_index ? root.from-indicator-y : (idx == Sidebar.switch_to_index ? root.to-indicator-y : root.indicator-center-y)) : root.indicator-center-y;
                             clicked => {
-                                Navigation.push(page.path);
+                                NavigationBindings.push(page.path);
                             }
                         }
                     }
@@ -121,7 +122,7 @@ export component SideBar inherits Rectangle {
             colorize: false;
             text-visible: !root.is-collapsed;
             clicked => {
-                Navigation.push("/settings");
+                NavigationBindings.push("/settings");
             }
         }
     }
@@ -143,7 +144,7 @@ export component SideBar inherits Rectangle {
             } else {
                 Sidebar.side_bar_width = potential-width;
             }
-            Sidebar.side_bar_width_changed(Sidebar.side_bar_width);
+            SidebarBindings.side_bar_width_changed(Sidebar.side_bar_width);
         }
     }
 }

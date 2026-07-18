@@ -9,7 +9,7 @@ impl UiTabsBindings for UiTabsAdapter {
     where
         F: Fn(String) + 'static,
     {
-        ui.global::<crate::Tabs>()
+        ui.global::<crate::TabsBindings>()
             .on_request_tab_switch(move |context_key| handler(context_key.to_string()));
     }
 
@@ -17,7 +17,7 @@ impl UiTabsBindings for UiTabsAdapter {
     where
         F: Fn(String) + 'static,
     {
-        ui.global::<crate::Tabs>()
+        ui.global::<crate::TabsBindings>()
             .on_request_tab_close(move |context_key| handler(context_key.to_string()));
     }
 
@@ -25,7 +25,7 @@ impl UiTabsBindings for UiTabsAdapter {
     where
         F: Fn(String) + 'static,
     {
-        ui.global::<crate::Tabs>()
+        ui.global::<crate::TabsBindings>()
             .on_request_tab_add(move |context_key| handler(context_key.to_string()));
     }
 }
