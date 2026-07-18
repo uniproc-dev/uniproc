@@ -1,7 +1,7 @@
 use crate::features::environments::UiEnvironmentsAdapter;
 use crate::{EnvironmentsFeatureGlobal, WslDistro};
 use app_contracts::features::environments::{UiEnvironmentsPort, WslDistroDto};
-use context::icons::{Icons, keys};
+use context::icons::{keys, resolve_image};
 use macros::slint_port_adapter;
 use slint::{ComponentHandle, ModelRc, VecModel};
 
@@ -9,7 +9,7 @@ use slint::{ComponentHandle, ModelRc, VecModel};
 impl UiEnvironmentsPort for UiEnvironmentsAdapter {
     fn set_host_icon_by_key(&self, ui: &AppWindow, icon_key: &str) {
         let global = ui.global::<EnvironmentsFeatureGlobal>();
-        global.set_host_icon(Icons::resolve(icon_key));
+        global.set_host_icon(resolve_image(icon_key));
         global.set_host_icon_key(icon_key.into());
     }
 
@@ -20,7 +20,7 @@ impl UiEnvironmentsPort for UiEnvironmentsAdapter {
                 name: distro.name.clone().into(),
                 is_installed: distro.is_installed,
                 is_running: distro.is_running,
-                icon: Icons::get_key(match () {
+                icon: resolve_image(match () {
                     _ if distro.name.to_lowercase().contains("ubuntu") => keys::UBUNTU,
                     _ if distro.name.to_lowercase().contains("docker") => keys::DOCKER,
                     _ => keys::LINUX,

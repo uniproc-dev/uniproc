@@ -2,7 +2,7 @@ use crate::features::tabs::UiTabsAdapter;
 use app_contracts::features::tabs::{
     AvailableContextDescriptor, TabContextKey, TabDescriptor, UiTabsPort,
 };
-use context::icons::Icons;
+use context::icons::resolve_image;
 use context::page_status::PageStatus;
 use macros::slint_port_adapter;
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
@@ -20,7 +20,7 @@ impl UiTabsPort for UiTabsAdapter {
                         path: p.path.into(),
                         route_segment: p.route_segment.into(),
                         text: p.text.into(),
-                        icon: Icons::resolve(p.icon_key.as_str()),
+                        icon: resolve_image(p.icon_key.as_str()),
                         status: p.status.into(),
                         error_msg: p.error_msg.into(),
                     })
@@ -30,7 +30,7 @@ impl UiTabsPort for UiTabsAdapter {
                     id: 0,
                     context_key: tab.context_key.0.to_string().into(),
                     title: tab.title.into(),
-                    icon: Icons::resolve(tab.icon_key.as_str()),
+                    icon: resolve_image(tab.icon_key.as_str()),
                     pages: ModelRc::new(VecModel::from(pages)),
                     status: tab.status.into(),
                     error_msg: tab.error_msg.into(),
@@ -57,7 +57,7 @@ impl UiTabsPort for UiTabsAdapter {
             .map(|context| crate::AvailableContextData {
                 context_key: context.context_key.0.to_string().into(),
                 title: context.title.into(),
-                icon: Icons::resolve(context.icon_key.as_str()),
+                icon: resolve_image(context.icon_key.as_str()),
                 status: context.status.into(),
             })
             .collect();

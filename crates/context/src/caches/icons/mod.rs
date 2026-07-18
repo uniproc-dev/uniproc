@@ -1,4 +1,4 @@
-use crate::icons::{Icons, keys};
+use crate::icons::{keys, resolve_image};
 use bon::Builder;
 use slint::Image;
 use std::cell::RefCell;
@@ -34,7 +34,7 @@ impl IconProvider {
     fn new(ttl: Duration) -> Self {
         Self {
             cache: RefCell::new(TtlCache::new(512)),
-            default_icon: Icons::get_key(keys::APP),
+            default_icon: resolve_image(keys::APP),
             ttl,
         }
     }

@@ -1,4 +1,4 @@
-use build_utils::trace_scopes::{ScopeRoot, generate_trace_scopes};
+use forsl_trace_codegen::{ScopeRoot, generate_trace_scopes};
 use guicons_build::{Emit, IconBuild};
 use std::env;
 use std::path::{Path, PathBuf};
@@ -15,6 +15,7 @@ fn generate_icons_registry() {
     IconBuild::new(Path::new("../../icons.gui.toml"))
         .emit(Emit::Rust)
         .emit(Emit::Slint)
+        .with_slint_image_resolver()
         .build();
 
     // Published to dependents (slint-adapter) via the `links` mechanism so

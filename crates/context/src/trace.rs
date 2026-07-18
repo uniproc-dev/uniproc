@@ -5,7 +5,10 @@ pub use forsl_core::trace::{
     is_message_enabled, is_scope_enabled, is_target_enabled, normalize_policy, register_scopes,
 };
 
-use forsl_core::trace::TracePolicy;
+use forsl_core::trace::{
+    GeneratedScopes, TracePolicy, builtin_policy_from, init_traced_subscriber,
+    init_traced_test_subscriber,
+};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tracing::Level;
@@ -14,44 +17,22 @@ use tracing_subscriber::fmt::writer::MakeWriter;
 
 include!(concat!(env!("OUT_DIR"), "/trace_scopes.rs"));
 
-pub fn install_defaults() {
-    register_scopes(ALL_SCOPES);
-}
+const SCOPES: GeneratedScopes = GeneratedScopes {
+    all: ALL_SCOPES,
+    builtin_enable: BUILTIN_ENABLE_SCOPES,
+    builtin_disable_messages: BUILTIN_DISABLE_MESSAGES,
+    builtin_disable_targets: BUILTIN_DISABLE_TARGETS,
+};
 
 pub fn builtin_policy() -> TracePolicy {
-    normalize_policy(TracePolicy {
-        enabled_prefixes: BUILTIN_ENABLE_SCOPES
-            .iter()
-            .map(|value| (*value).to_string())
-            .collect(),
-        disabled_prefixes: Vec::new(),
-        disabled_message_prefixes: BUILTIN_DISABLE_MESSAGES
-            .iter()
-            .map(|value| (*value).to_string())
-            .collect(),
-        disabled_target_prefixes: BUILTIN_DISABLE_TARGETS
-            .iter()
-            .map(|value| (*value).to_string())
-            .collect(),
-        dump_capacity: TracePolicy::default().dump_capacity,
-    })
-}
-
-pub fn load_policy(path: &Path) -> TracePolicy {
-    forsl_core::trace::load_policy(path, builtin_policy())
+    builtin_policy_from(&SCOPES)
 }
 
 pub fn init_subscriber<W>(settings_path: &Path, writer: W) -> anyhow::Result<()>
 where
     W: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
 {
-    install_defaults();
-
-    let trace_policy = load_policy(settings_path);
-    let dump_capacity = trace_policy.dump_capacity;
-    install_policy(trace_policy);
-
-    forsl_core::trace::init_subscriber(writer, dump_capacity, default_targets())
+    init_traced_subscriber(settings_path, writer, &SCOPES, default_targets())
 }
 
 pub fn init_test_subscriber<W>(
@@ -61,9 +42,7 @@ pub fn init_test_subscriber<W>(
 where
     W: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
 {
-    install_defaults();
-
-    forsl_core::trace::init_test_subscriber(writer, 64, default_targets(), test_storage)
+    init_traced_test_subscriber(writer, test_storage, &SCOPES, default_targets())
 }
 
 fn default_targets() -> Targets {

@@ -3,7 +3,6 @@
 pub mod collector;
 
 pub mod slint_parser;
-pub mod trace_scopes;
 
 pub use collector::{
     ArgDef, BindingDef, BindingMethodDef, CapabilityDef, DtoDef, DtoField, MethodDef, PortDef,

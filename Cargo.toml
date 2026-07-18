@@ -33,8 +33,8 @@ domain-agents = { path = "crates/domain/src/features/agents" }
 domain-environments = { path = "crates/domain/src/features/environments" }
 domain-navigation = { path = "crates/domain/src/features/navigation" }
 domain-processes = { path = "crates/domain/src/features/processes" }
-guicons = "0.1.0"
-guicons-build = "0.1.0"
+guicons = { version = "0.1.0", features = ["slint"] }
+guicons-build = "0.1.3"
 guicons-core = "0.1.0"
 macros = { path = "crates/macros" }
 slint-adapter = { path = "crates/slint-adapter" }
@@ -42,6 +42,7 @@ widgets = { path = "crates/widgets" }
 
 # --- forsl (split into its own repo, path dep to a sibling checkout) ---
 forsl-trace = { path = "../forsl/crates/forsl-trace" }
+forsl-trace-codegen = { path = "../forsl/crates/forsl-trace-codegen" }
 forsl-core = { path = "../forsl/crates/forsl-core" }
 forsl = { path = "../forsl/crates/forsl" }
 forsl-test-kit = { path = "../forsl/crates/forsl-test-kit" }
@@ -52,12 +53,12 @@ uniproc-protocol = { git = "https://github.com/Tam1SH/uniproc-protocol", branch 
 
 
 # --- UI Stack (Slint & Windowing) ---
-slint = { version = "=1.14.1", features = ["renderer-skia"] }
-slint-build = "=1.14.1"
-i-slint-backend-winit = "=1.14.1"
-i-slint-compiler = "=1.14.1"
-i-slint-core = "=1.14.1"
-i-slint-backend-testing = "=1.14.1"
+slint = { version = "=1.17.1", features = ["renderer-skia"] }
+slint-build = "=1.17.1"
+i-slint-backend-winit = "=1.17.1"
+i-slint-compiler = "=1.17.1"
+i-slint-core = "=1.17.1"
+i-slint-backend-testing = "=1.17.1"
 winit = "0.30.12"
 window-vibrancy = "0.7.1"
 raw-window-handle = "0.6.2"
@@ -87,7 +88,8 @@ dhat = "0.3"
 
 # --- System & Platform ---
 windows = { version = "0.61.3", features = [
-    "Win32_UI_Controls", "Win32_Graphics_Dwm", "Win32_UI_Shell",
+    "Win32_UI_Controls", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging", "Win32_System_Com",
     "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System_Performance",
     "Win32_NetworkManagement", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis",
     "Win32_Networking_WinSock", "Win32_System_Threading", "UI",

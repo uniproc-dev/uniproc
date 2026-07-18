@@ -30,4 +30,5 @@ uuid.workspace = true
 
 [build-dependencies]
 build-utils.workspace = true
+forsl-trace-codegen.workspace = true
 guicons-build.workspace = true
