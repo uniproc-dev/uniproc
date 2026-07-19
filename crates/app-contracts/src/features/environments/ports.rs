@@ -1,3 +1,5 @@
+use forsl_macros::port;
+
 use super::model::WslDistroDto;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -11,6 +13,7 @@ pub enum UiEnvironmentsPortMsg {
     SetWslDistrosIsLoading(bool),
 }
 
+#[port]
 pub trait UiEnvironmentsPort: 'static {
     fn send(&self, msg: UiEnvironmentsPortMsg);
 }

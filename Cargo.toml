@@ -42,10 +42,12 @@ widgets = { path = "crates/widgets" }
 
 # --- forsl (split into its own repo, path dep to a sibling checkout) ---
 forsl-trace = { path = "../forsl/crates/forsl-trace" }
-forsl-trace-codegen = { path = "../forsl/crates/forsl-trace-codegen" }
+forsl-codegen = { path = "../forsl/crates/forsl-codegen" }
 forsl-core = { path = "../forsl/crates/forsl-core" }
+forsl-macros = { path = "../forsl/crates/forsl-macros" }
 forsl = { path = "../forsl/crates/forsl" }
 forsl-test-kit = { path = "../forsl/crates/forsl-test-kit" }
+inventory = "0.3"
 
 # --- Custom & Git Dependencies ---
 ogurpchik = { git = "https://github.com/Tam1SH/oguRPChik", branch = "master", features = ["rkyv-codec", "vsock", "uds"] }
@@ -111,8 +113,11 @@ bon = "3.9.1"
 cfg-if = "1"
 dashmap = { version = "6.1.0", features = ["serde"] }
 fxhash = "0.2.1"
-lazy_static = "1.5.0"
+fluent-templates = "0.14.0"
+fluent-syntax = "0.12.0"
+unic-langid = "0.9.6"
 rust-i18n = "3"
+lazy_static = "1.5.0"
 smallvec = "1.15.1"
 static_assertions = "1.1.0"
 ttl_cache = "0.5"
@@ -138,3 +143,13 @@ codegen-units = 256
 
 [profile.dev.package."*"]
 debug = 0
+
+# app-contracts' #[port]/#[bindings] macros emit `inventory::submit!`
+# registrations scattered across many small files; with the default 256
+# codegen units the linker can drop object files nobody else references
+# (e.g. slint-adapter/domain-test-kit's build scripts only ever call
+# forsl_core::contracts::*, never app_contracts directly) - single-CGU
+# ensures the one anchor reference those build scripts make pulls in the
+# whole compiled crate, ctors included.
+[profile.dev.package.app-contracts]
+codegen-units = 1

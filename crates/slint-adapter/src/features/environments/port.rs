@@ -2,10 +2,10 @@ use crate::features::environments::UiEnvironmentsAdapter;
 use crate::{EnvironmentsFeatureGlobal, EnvsLoading, WslDistro};
 use app_contracts::features::environments::{UiEnvironmentsPort, UiEnvironmentsPortMsg};
 use context::icons::{keys, resolve_image};
-use macros::slint_port_adapter;
+use forsl_macros::port_adapter;
 use slint::{ComponentHandle, ModelRc, VecModel};
 
-#[slint_port_adapter(window = AppWindow)]
+#[port_adapter(backend = "slint", window = AppWindow)]
 impl UiEnvironmentsPort for UiEnvironmentsAdapter {
     fn send(&self, ui: &AppWindow, msg: UiEnvironmentsPortMsg) {
         match msg {

@@ -26,7 +26,9 @@ serial_test = "3.4.0"
 amethystate.workspace = true
 
 [build-dependencies]
+app-contracts.workspace = true
 build-utils.workspace = true
+forsl-core.workspace = true
 proc-macro2.workspace = true
 quote.workspace = true
 syn.workspace = true

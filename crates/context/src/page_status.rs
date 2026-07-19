@@ -23,14 +23,7 @@ impl Default for TabId {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Default)]
-pub enum PageStatus {
-    #[default]
-    Inactive,
-    Loading,
-    Ready,
-    Error,
-}
+pub use forsl_core::page_status::PageStatus;
 
 #[derive(Clone, Debug)]
 pub struct RouteStatusChanged {

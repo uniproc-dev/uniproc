@@ -1,4 +1,3 @@
-use build_utils::load_schema;
 use heck::ToUpperCamelCase;
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
@@ -519,16 +518,19 @@ pub fn actor_manifest_impl(attr: TokenStream, mut impl_block: ItemImpl) -> Token
         let mut bindings_path = binder_path.clone();
         bindings_path.segments.last_mut().unwrap().ident = format_ident!("{}", expected_trait_name);
 
-        let schema = load_schema();
-        let trait_def = schema
-            .bindings
-            .iter()
-            .find(|b| b.name == expected_trait_name)
-            .unwrap_or_else(|| panic!("Trait {} not found in schema", expected_trait_name));
+        // Forces `app-contracts`'s compiled object (and its `inventory`
+        // registrations) to actually be linked into this proc-macro's own
+        // dylib - see the identical comment on `slint-adapter/build.rs`'s
+        // `force_link_app_contracts` for the full explanation.
+        let _ = std::hint::black_box(app_contracts::__force_link_anchor as fn());
+
+        let trait_def = forsl_core::contracts::bindings()
+            .find(|b| b.trait_name == expected_trait_name)
+            .unwrap_or_else(|| panic!("Trait {} not found in registry", expected_trait_name));
 
         use heck::{ToSnakeCase, ToUpperCamelCase};
         let available_methods: Vec<&str> =
-            trait_def.methods.iter().map(|m| m.name.as_str()).collect();
+            trait_def.methods.iter().map(|m| m.name).collect();
 
         for msg_ident in &bound_messages {
             let msg_name = msg_ident.to_string();
@@ -572,11 +574,11 @@ pub fn actor_manifest_impl(attr: TokenStream, mut impl_block: ItemImpl) -> Token
         let mut bind_calls = Vec::new();
         let mut bind_summary = Vec::new();
 
-        for method in &trait_def.methods {
+        for method in trait_def.methods {
             let expected_msg = method
                 .name
                 .strip_prefix("on_")
-                .unwrap_or(&method.name)
+                .unwrap_or(method.name)
                 .to_upper_camel_case();
 
             if let Some(msg_id) = bound_messages
@@ -587,7 +589,7 @@ pub fn actor_manifest_impl(attr: TokenStream, mut impl_block: ItemImpl) -> Token
                 bind_calls.push(quote! { .#method_ident::<#msg_id>() });
                 bind_summary.push(format!("* [x] **{}** → `{}`", msg_id, method.name));
             } else {
-                missing_methods.push((method.name.clone(), expected_msg));
+                missing_methods.push((method.name, expected_msg));
                 bind_summary.push(format!("* [ ] (missing) → `{}`", method.name));
             }
         }

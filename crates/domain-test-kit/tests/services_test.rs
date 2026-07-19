@@ -1,9 +1,8 @@
 use domain::features::windows_manager::WindowManagerFeature;
 use domain::features::services::ServicesFeature;
-use domain_test_kit::test_env::services::ServicesPortStub;
+use domain_test_kit::generated::ServicesUiStub;
 use domain_test_kit::utils::{DomainTestWindow, FeatureHarness, temp_settings_path};
 use forsl::settings::SettingsFeature;
-use i_slint_core::api::ComponentHandle;
 use rstest::{fixture, rstest};
 use serial_test::serial;
 
@@ -24,7 +23,7 @@ fn h() -> FeatureHarness {
             todo!() (crates/domain/src/features/services/view/mod.rs) - unrelated \
             pre-existing bug, tracked separately; re-enable once that's fixed"]
 fn test_services_feature_installs_without_error(mut h: FeatureHarness) {
-    let stub = ServicesPortStub::new();
+    let stub = ServicesUiStub::new();
     let port = stub.clone();
 
     h = h.window_feature(move || {
@@ -32,9 +31,5 @@ fn test_services_feature_installs_without_error(mut h: FeatureHarness) {
         ServicesFeature::new(move |_: &DomainTestWindow| port.clone())
     });
 
-    let ui_handle = h.0.as_ref().unwrap().ui().clone_strong();
-    h.0.as_mut()
-        .unwrap()
-        .spawn_window(ui_handle)
-        .expect("Failed to spawn window");
+    h.spawn_window().expect("Failed to spawn window");
 }

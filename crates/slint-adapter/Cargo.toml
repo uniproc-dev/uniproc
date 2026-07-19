@@ -10,8 +10,8 @@ forsl-core.workspace = true
 cfg-if.workspace = true
 context.workspace = true
 forsl.workspace = true
+forsl-macros.workspace = true
 i-slint-backend-winit.workspace = true
-macros.workspace = true
 slint.workspace = true
 tracing.workspace = true
 widgets.workspace = true
@@ -29,7 +29,9 @@ windows = { workspace = true, features = [
 ] }
 
 [build-dependencies]
+app-contracts.workspace = true
 build-utils.workspace = true
 context.workspace = true
+forsl-core.workspace = true
 slint-build.workspace = true
 toml.workspace = true

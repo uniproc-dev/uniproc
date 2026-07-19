@@ -1,10 +1,9 @@
 use app_contracts::features::processes::UiProcessesPortMsg;
 use domain::features::page_status::PageStatusFeature;
 use domain_processes::features::processes::ProcessFeature;
-use domain_test_kit::test_env::processes::ProcessesPortStub;
+use domain_test_kit::generated::ProcessesUiStub;
 use domain_test_kit::utils::{DomainTestWindow, FeatureHarness, temp_settings_path};
 use forsl::settings::SettingsFeature;
-use i_slint_core::api::ComponentHandle;
 use rstest::{fixture, rstest};
 use serial_test::serial;
 
@@ -25,7 +24,7 @@ fn h() -> FeatureHarness {
             todo!() (crates/domain/src/features/processes/domain/table.rs) - unrelated \
             pre-existing bug, tracked separately; re-enable once that's fixed"]
 fn test_processes_feature_sends_waiting_empty_state_on_install(mut h: FeatureHarness) {
-    let stub = ProcessesPortStub::new();
+    let stub = ProcessesUiStub::new();
     let port = stub.clone();
 
     h = h.window_feature(move || {
@@ -33,14 +32,11 @@ fn test_processes_feature_sends_waiting_empty_state_on_install(mut h: FeatureHar
         ProcessFeature::new(move |_: &DomainTestWindow| port.clone())
     });
 
-    let ui_handle = h.0.as_ref().unwrap().ui().clone_strong();
-    h.0.as_mut()
-        .unwrap()
-        .spawn_window(ui_handle)
-        .expect("Failed to spawn window");
+    h.spawn_window().expect("Failed to spawn window");
 
     assert!(
-        stub.all()
+        stub.ui_processes_port_sent()
+            .stabilize(&mut h)
             .contains(&UiProcessesPortMsg::SetEmptyStateVisible(true)),
         "installing the feature MUST show the waiting-for-data empty state"
     );

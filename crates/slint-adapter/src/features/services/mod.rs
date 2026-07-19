@@ -2,10 +2,8 @@ use crate::{
     AppWindow, ServiceEntry, ServicePropertiesDialogWindow, ServicesFeatureGlobal, TableCellData,
     TableColWidth, Theme,
 };
-use app_contracts::features::services::{
-    PROPERTIES_DIALOG_KEY, ServicesWindowRegister, UiServiceDetailsPort,
-};
-use forsl::native_windows::slint_factory::{SlintWindowRegistry, WindowRegistry};
+use app_contracts::features::services::{PROPERTIES_DIALOG_KEY, UiServiceDetailsPort};
+use forsl::native_windows::slint_factory::{RegistersSlintWindow, SlintWindowRegistry, WindowRegistry};
 use forsl::native_windows::{NativeWindowConfig, NativeWindowManager, UiAdapter};
 use i_slint_backend_winit::WinitWindowAccessor;
 use slint::platform::WindowEvent;
@@ -53,7 +51,7 @@ impl UiServicesAdapter {
     }
 }
 
-impl ServicesWindowRegister for UiServicesAdapter {
+impl RegistersSlintWindow for UiServicesAdapter {
     fn register(&self, registry: &SlintWindowRegistry) {
         registry.register(PROPERTIES_DIALOG_KEY, || {
             let dialog = ServicePropertiesDialogWindow::new()

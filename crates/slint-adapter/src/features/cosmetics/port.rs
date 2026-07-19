@@ -2,10 +2,10 @@ use crate::features::cosmetics::UiCosmeticsAdapter;
 use app_contracts::features::cosmetics::{UiCosmeticsPort, UiCosmeticsPortMsg};
 
 use forsl::native_windows::{NativeWindowConfig, apply_to_component};
-use macros::slint_port_adapter;
+use forsl_macros::port_adapter;
 use slint::ComponentHandle;
 
-#[slint_port_adapter(window = AppWindow)]
+#[port_adapter(backend = "slint", window = AppWindow)]
 impl UiCosmeticsPort for UiCosmeticsAdapter {
     fn send(&self, ui: &AppWindow, msg: UiCosmeticsPortMsg) {
         match msg {

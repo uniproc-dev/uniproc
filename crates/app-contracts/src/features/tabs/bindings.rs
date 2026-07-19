@@ -1,6 +1,6 @@
-use macros::slint_bindings;
+use forsl_macros::bindings;
 
-#[slint_bindings]
+#[bindings]
 pub trait UiTabsBindings: 'static {
     #[manual]
     #[tracing(target = "context_key")]

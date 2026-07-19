@@ -1,11 +1,8 @@
 use crate::features::navigation::UiNavigationAdapter;
-use app_contracts::features::navigation::UiNavigationBindings;
-use macros::slint_bindings_adapter;
 use slint::ComponentHandle;
 
-#[slint_bindings_adapter(window = AppWindow)]
-impl UiNavigationBindings for UiNavigationAdapter {
-    fn on_push<F>(&self, ui: &AppWindow, handler: F)
+impl UiNavigationAdapter {
+    fn on_push_manual<F>(&self, ui: &crate::AppWindow, handler: F)
     where
         F: Fn(String) + 'static,
     {
@@ -13,3 +10,5 @@ impl UiNavigationBindings for UiNavigationAdapter {
             .on_push(move |path| handler(path.to_string()));
     }
 }
+
+include!(concat!(env!("OUT_DIR"), "/navigation_bindings_auto.rs"));

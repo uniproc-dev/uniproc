@@ -1,8 +1,5 @@
 // Based on context/locales/en.toml
 // AUTO-GENERATED — do not edit manually
-use macros::slint_port;
-
-#[slint_port(global = "L10n")]
 pub trait L10nPort: Clone + 'static {
     fn set_environments(&self, value: String);
     fn set_error_connection_lost(&self, value: String);

@@ -1,4 +1,4 @@
-use context::page_status::PageStatus;
+use forsl_core::page_status::PageStatus;
 use std::borrow::Cow;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]

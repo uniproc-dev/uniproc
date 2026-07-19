@@ -1,43 +1,30 @@
-use build_utils::collector::{BindingDef, PortDef, Schema};
-use build_utils::load_schema;
+use forsl_core::contracts::{BindingMethodMeta, BindingStubMeta, PortExtraMethod, PortStubMeta};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use syn::{GenericArgument, Ident, PathArguments, Type, parse_str};
 
 #[derive(Default)]
 struct FeatureTraits {
-    ports: Vec<PortDef>,
-    bindings: Vec<BindingDef>,
+    ports: Vec<&'static PortStubMeta>,
+    bindings: Vec<&'static BindingStubMeta>,
 }
 
 fn main() {
-    println!("cargo:rerun-if-changed=build.rs");
-    println!(
-        "cargo:rerun-if-changed={}",
-        build_utils::collector::get_schema_path().display()
-    );
+    force_link_app_contracts();
 
-    let schema: Schema = load_schema();
+    let mut features_map: BTreeMap<&'static str, FeatureTraits> = BTreeMap::new();
 
-    let mut features_map: BTreeMap<String, FeatureTraits> = BTreeMap::new();
-    let mut unique_feature_names = BTreeSet::new();
-
-    for port in schema.ports {
-        let f_name = feature_name_from(&port.source_file);
-        unique_feature_names.insert(f_name.clone());
-        features_map.entry(f_name).or_default().ports.push(port);
+    for port in forsl_core::contracts::ports() {
+        features_map.entry(port.feature).or_default().ports.push(port);
     }
-
-    for binding in schema.bindings {
-        let f_name = feature_name_from(&binding.source_file);
-        unique_feature_names.insert(f_name.clone());
+    for binding in forsl_core::contracts::bindings() {
         features_map
-            .entry(f_name)
+            .entry(binding.feature)
             .or_default()
             .bindings
             .push(binding);
@@ -51,7 +38,7 @@ fn main() {
         use context::page_status::*;
     };
 
-    for feature in &unique_feature_names {
+    for feature in features_map.keys() {
         let feature_ident = format_ident!("{}", feature);
         final_code.extend(quote! {
             use app_contracts::features::#feature_ident::*;
@@ -59,13 +46,20 @@ fn main() {
     }
 
     for (feature, traits) in features_map {
-        final_code.extend(generate_feature_stub(&feature, traits));
+        final_code.extend(generate_feature_stub(feature, traits));
     }
 
     let formatted_code = format_code(final_code.to_string());
 
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     fs::write(out_dir.join("generated_stubs.rs"), formatted_code).unwrap();
+}
+
+/// `app-contracts` is a build-dependency purely for its `inventory::submit!`-
+/// registered `forsl_core::contracts` entries; see the identical comment on
+/// `slint-adapter/build.rs`'s copy of this function for the full explanation.
+fn force_link_app_contracts() {
+    let _ = std::hint::black_box(app_contracts::__force_link_anchor as fn());
 }
 
 fn generate_feature_stub(feature: &str, traits: FeatureTraits) -> TokenStream {
@@ -79,67 +73,35 @@ fn generate_feature_stub(feature: &str, traits: FeatureTraits) -> TokenStream {
     let interaction_path = quote! { forsl_core::test_kit::Interaction };
 
     for port in traits.ports {
-        let mut port_methods_impl = Vec::new();
-        let source_file = &port.source_file;
-        // Ports sharing a feature (e.g. a supertrait pair like UiServicesPort:
-        // UiServiceDetailsPort) can declare methods with the same name (both
-        // migrated to a single `send`) - namespace state/accessor idents by
-        // trait to avoid field/method collisions on the shared stub struct.
-        let port_prefix = snake_case(&port.name);
+        let port_prefix = snake_case(port.trait_name);
+        let msg_ty = qualify_ty(feature, port.msg_type_name);
+        let sent_field = format_ident!("{}_sent", port_prefix);
 
-        for method in port.methods {
-            let m_name = format_ident!("{}", method.name);
-            let on_m_name = format_ident!("on_{}_{}", port_prefix, method.name);
-            let count_field = format_ident!("{}_{}_call_count", port_prefix, method.name);
-            let handler_field = format_ident!("{}_{}_handler", port_prefix, method.name);
-
-            state_fields.push(quote! { #count_field: RefCell<usize>, });
-
-            stub_impl_methods.push(quote! {
-                pub fn #count_field(&self) -> #interaction_path<usize> {
-                    #interaction_path::new(*self.inner.#count_field.borrow())
-                }
-            });
-
-            let arg_names: Vec<Ident> = method
-                .args
-                .iter()
-                .map(|a| format_ident!("{}", a.name))
-                .collect();
-            let arg_types: Vec<Type> = method
-                .args
-                .iter()
-                .map(|a| qualify_ty(source_file, &a.ty))
-                .collect();
-
-            if let Some(out_ty_str) = method.output_ty {
-                let out_ty = qualify_ty(source_file, &out_ty_str);
-                state_fields.push(quote! { #handler_field: RefCell<Option<Box<dyn Fn(#(#arg_types),*) -> #out_ty>>>, });
-
-                stub_impl_methods.push(quote! {
-                    pub fn #on_m_name<F>(&self, handler: F)
-                    where F: Fn(#(#arg_types),*) -> #out_ty + 'static
-                    { *self.inner.#handler_field.borrow_mut() = Some(Box::new(handler)); }
-                });
-
-                port_methods_impl.push(quote! {
-                    fn #m_name(&self, #(#arg_names: #arg_types),*) -> #out_ty {
-                        *self.inner.#count_field.borrow_mut() += 1;
-                        let handler = self.inner.#handler_field.borrow();
-                        let handler = handler.as_ref().expect(concat!(stringify!(#struct_name), "::", stringify!(#m_name), " requires a handler"));
-                        handler(#(#arg_names),*)
-                    }
-                });
-            } else {
-                port_methods_impl.push(quote! {
-                    fn #m_name(&self, #(#arg_names: #arg_types),*) {
-                        *self.inner.#count_field.borrow_mut() += 1;
-                    }
-                });
+        state_fields.push(quote! { #sent_field: RefCell<Vec<#msg_ty>>, });
+        stub_impl_methods.push(quote! {
+            pub fn #sent_field(&self) -> #interaction_path<Vec<#msg_ty>> {
+                #interaction_path::new(self.inner.#sent_field.borrow().clone())
             }
+        });
+
+        let mut port_methods_impl = vec![quote! {
+            fn send(&self, msg: #msg_ty) {
+                self.inner.#sent_field.borrow_mut().push(msg);
+            }
+        }];
+
+        for method in port.extra_methods {
+            port_methods_impl.push(generate_port_extra_method(
+                feature,
+                &struct_name,
+                &port_prefix,
+                method,
+                &mut state_fields,
+                &mut stub_impl_methods,
+            ));
         }
 
-        let trait_path = format_ident!("{}", port.name);
+        let trait_path = format_ident!("{}", port.trait_name);
         let feature_ident = format_ident!("{}", feature);
         trait_impls.push(quote! {
             impl app_contracts::features::#feature_ident::#trait_path for #struct_name {
@@ -150,16 +112,15 @@ fn generate_feature_stub(feature: &str, traits: FeatureTraits) -> TokenStream {
 
     for binding in traits.bindings {
         let mut binding_methods_impl = Vec::new();
-        let source_file = &binding.source_file;
 
         for method in binding.methods {
             let m_name = format_ident!("{}", method.name);
             let emit_m_name = format_ident!("emit_{}", method.name);
             let handler_field = format_ident!("{}_handler", method.name);
             let arg_types: Vec<Type> = method
-                .handler_args
+                .arg_types
                 .iter()
-                .map(|a| qualify_ty(source_file, &a.ty))
+                .map(|ty| qualify_ty(feature, ty))
                 .collect();
             let arg_indices: Vec<Ident> = (0..arg_types.len())
                 .map(|i| format_ident!("arg{}", i))
@@ -184,7 +145,7 @@ fn generate_feature_stub(feature: &str, traits: FeatureTraits) -> TokenStream {
             });
         }
 
-        let trait_path = format_ident!("{}", binding.name);
+        let trait_path = format_ident!("{}", binding.trait_name);
         let feature_ident = format_ident!("{}", feature);
         trait_impls.push(quote! {
             impl app_contracts::features::#feature_ident::#trait_path for #struct_name {
@@ -219,6 +180,66 @@ fn generate_feature_stub(feature: &str, traits: FeatureTraits) -> TokenStream {
     }
 }
 
+/// A port method other than `send` (e.g. `UiProcessesPort::get_selected_pid`)
+/// - modeled the same way binding handlers are: a settable closure the test
+/// installs, plus a call counter.
+fn generate_port_extra_method(
+    feature: &str,
+    struct_name: &proc_macro2::Ident,
+    port_prefix: &str,
+    method: &PortExtraMethod,
+    state_fields: &mut Vec<TokenStream>,
+    stub_impl_methods: &mut Vec<TokenStream>,
+) -> TokenStream {
+    let m_name = format_ident!("{}", method.name);
+    let on_m_name = format_ident!("on_{}_{}", port_prefix, method.name);
+    let count_field = format_ident!("{}_{}_call_count", port_prefix, method.name);
+    let handler_field = format_ident!("{}_{}_handler", port_prefix, method.name);
+
+    state_fields.push(quote! { #count_field: RefCell<usize>, });
+    stub_impl_methods.push(quote! {
+        pub fn #count_field(&self) -> forsl_core::test_kit::Interaction<usize> {
+            forsl_core::test_kit::Interaction::new(*self.inner.#count_field.borrow())
+        }
+    });
+
+    let arg_names: Vec<Ident> = method
+        .args
+        .iter()
+        .map(|(name, _)| format_ident!("{}", name))
+        .collect();
+    let arg_types: Vec<Type> = method
+        .args
+        .iter()
+        .map(|(_, ty)| qualify_ty(feature, ty))
+        .collect();
+
+    if let Some(out_ty_str) = method.output_ty {
+        let out_ty = qualify_ty(feature, out_ty_str);
+        state_fields.push(quote! { #handler_field: RefCell<Option<Box<dyn Fn(#(#arg_types),*) -> #out_ty>>>, });
+        stub_impl_methods.push(quote! {
+            pub fn #on_m_name<F>(&self, handler: F)
+            where F: Fn(#(#arg_types),*) -> #out_ty + 'static
+            { *self.inner.#handler_field.borrow_mut() = Some(Box::new(handler)); }
+        });
+
+        quote! {
+            fn #m_name(&self, #(#arg_names: #arg_types),*) -> #out_ty {
+                *self.inner.#count_field.borrow_mut() += 1;
+                let handler = self.inner.#handler_field.borrow();
+                let handler = handler.as_ref().expect(concat!(stringify!(#struct_name), "::", stringify!(#m_name), " requires a handler"));
+                handler(#(#arg_names),*)
+            }
+        }
+    } else {
+        quote! {
+            fn #m_name(&self, #(#arg_names: #arg_types),*) {
+                *self.inner.#count_field.borrow_mut() += 1;
+            }
+        }
+    }
+}
+
 fn format_code(code: String) -> String {
     let child = Command::new("rustfmt")
         .stdin(Stdio::piped())
@@ -246,12 +267,12 @@ fn format_code(code: String) -> String {
     }
 }
 
-fn qualify_ty(source_file: &str, ty_str: &str) -> Type {
+fn qualify_ty(feature: &str, ty_str: &str) -> Type {
     let ty: Type = parse_str(ty_str).unwrap_or_else(|_| panic!("failed to parse type: {}", ty_str));
-    rewrite_type(source_file, ty)
+    rewrite_type(feature, ty)
 }
 
-fn rewrite_type(source_file: &str, ty: Type) -> Type {
+fn rewrite_type(feature: &str, ty: Type) -> Type {
     match ty {
         Type::Path(mut path) if path.qself.is_none() => {
             let first_segment = &path.path.segments[0];
@@ -262,20 +283,20 @@ fn rewrite_type(source_file: &str, ty: Type) -> Type {
                 if let PathArguments::AngleBracketed(args) = &mut path.path.segments[0].arguments {
                     for arg in &mut args.args {
                         if let GenericArgument::Type(inner) = arg {
-                            *inner = rewrite_type(source_file, inner.clone());
+                            *inner = rewrite_type(feature, inner.clone());
                         }
                     }
                 }
                 return Type::Path(path);
             }
 
-            let mut new_path = resolved_path_for(source_file, &ident);
+            let mut new_path = resolved_path_for(feature, &ident);
             if let Some(last) = new_path.segments.last_mut() {
                 last.arguments = original_args;
                 if let PathArguments::AngleBracketed(args) = &mut last.arguments {
                     for arg in &mut args.args {
                         if let GenericArgument::Type(inner) = arg {
-                            *inner = rewrite_type(source_file, inner.clone());
+                            *inner = rewrite_type(feature, inner.clone());
                         }
                     }
                 }
@@ -286,11 +307,11 @@ fn rewrite_type(source_file: &str, ty: Type) -> Type {
             })
         }
         Type::Reference(mut r) => {
-            *r.elem = rewrite_type(source_file, *r.elem);
+            *r.elem = rewrite_type(feature, *r.elem);
             Type::Reference(r)
         }
         Type::Slice(mut s) => {
-            *s.elem = rewrite_type(source_file, *s.elem);
+            *s.elem = rewrite_type(feature, *s.elem);
             Type::Slice(s)
         }
         other => other,
@@ -324,7 +345,7 @@ fn is_std_type(ident: &str) -> bool {
     )
 }
 
-fn resolved_path_for(source_file: &str, ident: &str) -> syn::Path {
+fn resolved_path_for(feature: &str, ident: &str) -> syn::Path {
     if ident == "SharedString" {
         return parse_str("slint::SharedString").unwrap();
     }
@@ -334,20 +355,7 @@ fn resolved_path_for(source_file: &str, ident: &str) -> syn::Path {
     if matches!(ident, "PageId" | "TabId" | "PageStatus") {
         return parse_str(&format!("context::page_status::{}", ident)).unwrap();
     }
-    let feature = feature_name_from(source_file);
     parse_str(&format!("app_contracts::features::{}::{}", feature, ident)).unwrap()
-}
-
-fn feature_name_from(source_file: &str) -> String {
-    let segments: Vec<_> = Path::new(source_file)
-        .iter()
-        .map(|s| s.to_string_lossy().into_owned())
-        .collect();
-    let pos = segments
-        .iter()
-        .position(|s| s == "features")
-        .expect("path must contain 'features'");
-    segments[pos + 1].replace('-', "_")
 }
 
 fn snake_case(name: &str) -> String {

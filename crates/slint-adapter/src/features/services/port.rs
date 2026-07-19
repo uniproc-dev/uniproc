@@ -4,7 +4,7 @@ use app_contracts::features::services::{
     ServiceEntryVm, UiServiceDetailsPort, UiServiceDetailsPortMsg, UiServicesPort,
     UiServicesPortMsg,
 };
-use macros::slint_port_adapter;
+use forsl_macros::port_adapter;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -27,21 +27,21 @@ fn apply_service_details_msg(g: &ServicesFeatureGlobal, msg: UiServiceDetailsPor
     }
 }
 
-#[slint_port_adapter(window = ServicePropertiesDialogWindow)]
+#[port_adapter(backend = "slint", window = ServicePropertiesDialogWindow)]
 impl UiServiceDetailsPort for ServicesPropertiesWindowUiAdapter {
     fn send(&self, ui: &ServicePropertiesDialogWindow, msg: UiServiceDetailsPortMsg) {
         apply_service_details_msg(&ui.global::<ServicesFeatureGlobal>(), msg);
     }
 }
 
-#[slint_port_adapter(window = AppWindow)]
+#[port_adapter(backend = "slint", window = AppWindow)]
 impl UiServiceDetailsPort for UiServicesAdapter {
     fn send(&self, ui: &AppWindow, msg: UiServiceDetailsPortMsg) {
         apply_service_details_msg(&ui.global::<ServicesFeatureGlobal>(), msg);
     }
 }
 
-#[slint_port_adapter(window = AppWindow)]
+#[port_adapter(backend = "slint", window = AppWindow)]
 impl UiServicesPort for UiServicesAdapter {
     fn send(&self, ui: &AppWindow, msg: UiServicesPortMsg) {
         match msg {

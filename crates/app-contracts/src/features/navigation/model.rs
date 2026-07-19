@@ -1,6 +1,6 @@
 use crate::features::tabs::TabContextKey;
 use forsl_core::actor::traits::Message;
-use forsl::uri::ContextlessAppUri;
+use forsl_core::uri::ContextlessAppUri;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PageRouteDescriptor {

@@ -1,4 +1,4 @@
-use forsl_trace_codegen::{ScopeRoot, generate_trace_scopes};
+use forsl_codegen::trace::{ScopeRoot, generate_trace_scopes};
 use guicons_build::{Emit, IconBuild};
 use std::env;
 use std::path::{Path, PathBuf};

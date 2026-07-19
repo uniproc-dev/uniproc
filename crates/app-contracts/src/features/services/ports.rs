@@ -1,12 +1,8 @@
-use forsl::native_windows::slint_factory::SlintWindowRegistry;
+use forsl_macros::port;
 use slint::SharedString;
 use std::fmt::Debug;
 
 use super::model::ServiceEntryVm;
-
-pub trait ServicesWindowRegister {
-    fn register(&self, registry: &SlintWindowRegistry);
-}
 
 #[derive(Clone, Debug)]
 pub enum UiServiceDetailsPortMsg {
@@ -18,6 +14,7 @@ pub enum UiServiceDetailsPortMsg {
     },
 }
 
+#[port]
 pub trait UiServiceDetailsPort {
     fn send(&self, msg: UiServiceDetailsPortMsg);
 }
@@ -31,6 +28,7 @@ pub enum UiServicesPortMsg {
     SetTotalServicesCount(usize),
 }
 
+#[port]
 pub trait UiServicesPort: Debug + UiServiceDetailsPort + 'static {
     fn send(&self, msg: UiServicesPortMsg);
 }

@@ -1,3 +1,5 @@
+use forsl_macros::port;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum UiSidebarPortMsg {
     SetSwitchTransition { from_index: i32, to_index: i32, progress: f32 },
@@ -6,6 +8,7 @@ pub enum UiSidebarPortMsg {
     SetContentVisible(bool),
 }
 
+#[port]
 pub trait UiSidebarPort: 'static {
     fn send(&self, msg: UiSidebarPortMsg);
 }

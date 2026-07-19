@@ -2,10 +2,10 @@ use crate::features::tabs::UiTabsAdapter;
 use app_contracts::features::tabs::{UiTabsPort, UiTabsPortMsg};
 use context::icons::resolve_image;
 use context::page_status::PageStatus;
-use macros::slint_port_adapter;
+use forsl_macros::port_adapter;
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
-#[slint_port_adapter(window = AppWindow)]
+#[port_adapter(backend = "slint", window = AppWindow)]
 impl UiTabsPort for UiTabsAdapter {
     fn send(&self, ui: &AppWindow, msg: UiTabsPortMsg) {
         match msg {

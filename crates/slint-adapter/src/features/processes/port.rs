@@ -2,7 +2,7 @@ use crate::AppWindow;
 use app_contracts::features::processes::{
     FieldDefDto, ProcessEntryVm, UiProcessesPort, UiProcessesPortMsg,
 };
-use macros::slint_port_adapter;
+use forsl_macros::port_adapter;
 use slint::{ComponentHandle, Model, SharedString, VecModel};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -52,7 +52,7 @@ impl UiProcessesAdapter {
     }
 }
 
-#[slint_port_adapter(window = AppWindow)]
+#[port_adapter(backend = "slint", window = AppWindow)]
 impl UiProcessesPort for UiProcessesAdapter {
     fn send(&self, ui: &AppWindow, msg: UiProcessesPortMsg) {
         match msg {

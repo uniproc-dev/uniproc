@@ -1,14 +1,10 @@
 use crate::features::window_actions::UiWindowActionsAdapter;
 use crate::{WindowAdapter, WindowSize};
-use app_contracts::features::window_actions::{
-    ResizeEdge, UiWindowActionsBindings, WindowBreakpoint,
-};
-use macros::slint_bindings_adapter;
+use app_contracts::features::window_actions::{ResizeEdge, WindowBreakpoint};
 use slint::ComponentHandle;
 
-#[slint_bindings_adapter(window = AppWindow)]
-impl UiWindowActionsBindings for UiWindowActionsAdapter {
-    fn on_start_resize<F>(&self, ui: &AppWindow, handler: F)
+impl UiWindowActionsAdapter {
+    fn on_start_resize_manual<F>(&self, ui: &crate::AppWindow, handler: F)
     where
         F: Fn(ResizeEdge) + 'static,
     {
@@ -28,7 +24,7 @@ impl UiWindowActionsBindings for UiWindowActionsAdapter {
         });
     }
 
-    fn on_config_changed<F>(&self, ui: &AppWindow, handler: F)
+    fn on_config_changed_manual<F>(&self, ui: &crate::AppWindow, handler: F)
     where
         F: Fn(WindowBreakpoint, u64) + 'static,
     {
@@ -45,3 +41,5 @@ impl UiWindowActionsBindings for UiWindowActionsAdapter {
         });
     }
 }
+
+include!(concat!(env!("OUT_DIR"), "/window_actions_bindings_auto.rs"));

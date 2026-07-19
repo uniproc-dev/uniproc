@@ -2,18 +2,15 @@ use crate::features::services::application::actor::ServiceActor;
 use crate::features::services::application::snapshot_actor::ServiceSnapshotActor;
 use crate::features::services::settings::ServiceSettings;
 use crate::features::services::view::ServiceTable;
-use app_contracts::capabilities;
 use app_contracts::features::agents::ScanTick;
-use app_contracts::features::services::{
-    ServicesBinder, ServicesWindowRegister, UiServicesBindings, UiServicesPort,
-};
+use app_contracts::features::services::{SERVICES, ServicesBinder, UiServicesBindings, UiServicesPort};
 use context::page_status::RouteStatusRegistry;
 use forsl::app::Window;
 use forsl::feature::{
     ContextActorExt, ContextReactorExt, ContextStoreExt, FeatureContextState, WindowFeature,
     WindowFeatureInitContext,
 };
-use forsl::native_windows::slint_factory::SlintWindowRegistry;
+use forsl::native_windows::slint_factory::{RegistersSlintWindow, SlintWindowRegistry};
 use macros::window_feature;
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -31,7 +28,7 @@ pub fn services_feature<TWindow, P>(
 ) -> anyhow::Result<()>
 where
     TWindow: Window,
-    P: UiServicesPort + UiServicesBindings + ServicesWindowRegister + Clone + 'static,
+    P: UiServicesPort + UiServicesBindings + RegistersSlintWindow + Clone + 'static,
 {
     let store = ctx.store();
     let settings = ServiceSettings::new_with(&store)?;
@@ -46,7 +43,7 @@ where
         is_active: true,
         active_context_key: Cow::Borrowed("host"),
         pending: HashSet::new(),
-        ctx_state: FeatureContextState::new(ctx.window_id, capabilities::SERVICES),
+        ctx_state: FeatureContextState::new(ctx.window_id, SERVICES),
     };
 
     let addr = ctx.actor_builder(service_actor).ui_bind(&ui_port);

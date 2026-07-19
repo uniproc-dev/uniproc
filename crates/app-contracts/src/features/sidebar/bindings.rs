@@ -1,6 +1,6 @@
-use macros::slint_bindings;
+use forsl_macros::bindings;
 
-#[slint_bindings]
+#[bindings]
 pub trait UiSidebarBindings: 'static {
     #[slint(arg_types = "length")]
     fn on_side_bar_width_changed<F>(&self, handler: F)

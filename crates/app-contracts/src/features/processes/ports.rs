@@ -1,3 +1,4 @@
+use forsl_macros::port;
 use slint::SharedString;
 use std::fmt::Debug;
 
@@ -19,6 +20,7 @@ pub enum UiProcessesPortMsg {
     SetSelectedName(SharedString),
 }
 
+#[port]
 pub trait UiProcessesPort: Debug + 'static {
     fn send(&self, msg: UiProcessesPortMsg);
     fn get_selected_pid(&self) -> i32;

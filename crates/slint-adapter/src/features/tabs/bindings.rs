@@ -1,11 +1,8 @@
 use crate::features::tabs::UiTabsAdapter;
-use app_contracts::features::tabs::UiTabsBindings;
-use macros::slint_bindings_adapter;
 use slint::ComponentHandle;
 
-#[slint_bindings_adapter(window = AppWindow)]
-impl UiTabsBindings for UiTabsAdapter {
-    fn on_request_tab_switch<F>(&self, ui: &AppWindow, handler: F)
+impl UiTabsAdapter {
+    fn on_request_tab_switch_manual<F>(&self, ui: &crate::AppWindow, handler: F)
     where
         F: Fn(String) + 'static,
     {
@@ -13,7 +10,7 @@ impl UiTabsBindings for UiTabsAdapter {
             .on_request_tab_switch(move |context_key| handler(context_key.to_string()));
     }
 
-    fn on_request_tab_close<F>(&self, ui: &AppWindow, handler: F)
+    fn on_request_tab_close_manual<F>(&self, ui: &crate::AppWindow, handler: F)
     where
         F: Fn(String) + 'static,
     {
@@ -21,7 +18,7 @@ impl UiTabsBindings for UiTabsAdapter {
             .on_request_tab_close(move |context_key| handler(context_key.to_string()));
     }
 
-    fn on_request_tab_add<F>(&self, ui: &AppWindow, handler: F)
+    fn on_request_tab_add_manual<F>(&self, ui: &crate::AppWindow, handler: F)
     where
         F: Fn(String) + 'static,
     {
@@ -29,3 +26,5 @@ impl UiTabsBindings for UiTabsAdapter {
             .on_request_tab_add(move |context_key| handler(context_key.to_string()));
     }
 }
+
+include!(concat!(env!("OUT_DIR"), "/tabs_bindings_auto.rs"));

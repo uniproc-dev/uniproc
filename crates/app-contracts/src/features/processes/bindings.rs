@@ -1,7 +1,7 @@
-use macros::slint_bindings;
+use forsl_macros::bindings;
 use slint::SharedString;
 
-#[slint_bindings]
+#[bindings]
 pub trait UiProcessesBindings: 'static {
     #[tracing(target = "field")]
     fn on_sort_by<F>(&self, handler: F)

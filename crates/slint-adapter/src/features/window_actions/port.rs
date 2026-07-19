@@ -1,11 +1,11 @@
 use crate::features::window_actions::UiWindowActionsAdapter;
 use app_contracts::features::window_actions::{ResizeEdge, UiWindowActionsPort, UiWindowActionsPortMsg};
 use i_slint_backend_winit::WinitWindowAccessor;
-use macros::slint_port_adapter;
+use forsl_macros::port_adapter;
 use slint::ComponentHandle;
 use winit::window::ResizeDirection;
 
-#[slint_port_adapter(window = AppWindow)]
+#[port_adapter(backend = "slint", window = AppWindow)]
 impl UiWindowActionsPort for UiWindowActionsAdapter {
     fn send(&self, ui: &AppWindow, msg: UiWindowActionsPortMsg) {
         match msg {

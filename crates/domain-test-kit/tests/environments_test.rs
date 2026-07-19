@@ -1,10 +1,9 @@
 use app_contracts::features::environments::UiEnvironmentsPortMsg;
 use domain_environments::features::environments::EnvironmentsFeature;
-use domain_test_kit::test_env::environments::EnvironmentsPortStub;
+use domain_test_kit::generated::EnvironmentsUiStub;
 use domain_test_kit::utils::{DomainTestWindow, FeatureHarness, temp_settings_path};
 use forsl::settings::SettingsFeature;
 use forsl_core::test_kit::Stabilizer;
-use i_slint_core::api::ComponentHandle;
 use rstest::{fixture, rstest};
 use serial_test::serial;
 
@@ -26,7 +25,7 @@ fn test_environments_feature_starts_wsl_status_check_on_install(mut h: FeatureHa
     let rt = tokio::runtime::Runtime::new().unwrap();
     let _guard = rt.enter();
 
-    let stub = EnvironmentsPortStub::new();
+    let stub = EnvironmentsUiStub::new();
     let port = stub.clone();
 
     h = h.window_feature(move || {
@@ -34,16 +33,14 @@ fn test_environments_feature_starts_wsl_status_check_on_install(mut h: FeatureHa
         EnvironmentsFeature::new(move |_: &DomainTestWindow| port.clone())
     });
 
-    let ui_handle = h.0.as_ref().unwrap().ui().clone_strong();
-    h.0.as_mut()
-        .unwrap()
-        .spawn_window(ui_handle)
-        .expect("Failed to spawn window");
+    h.spawn_window().expect("Failed to spawn window");
 
     h.stabilize();
 
     assert!(
-        stub.all().contains(&UiEnvironmentsPortMsg::SetWslIsLoading(true)),
+        stub.ui_environments_port_sent()
+            .stabilize(&mut h)
+            .contains(&UiEnvironmentsPortMsg::SetWslIsLoading(true)),
         "installing the feature MUST kick off a WSL status check"
     );
 }

@@ -1,8 +1,8 @@
+use app_contracts::features::cosmetics::UiCosmeticsPortMsg;
 use domain::features::cosmetics::CosmeticsFeature;
-use domain_test_kit::test_env::cosmetics::CosmeticsPortStub;
+use domain_test_kit::generated::CosmeticsUiStub;
 use domain_test_kit::utils::{DomainTestWindow, FeatureHarness, temp_settings_path};
 use forsl::settings::SettingsFeature;
-use i_slint_core::api::ComponentHandle;
 use rstest::{fixture, rstest};
 use serial_test::serial;
 
@@ -18,7 +18,7 @@ fn h() -> FeatureHarness {
 #[rstest]
 #[serial]
 fn test_cosmetics_feature_applies_main_window_effects_on_install(mut h: FeatureHarness) {
-    let stub = CosmeticsPortStub::new();
+    let stub = CosmeticsUiStub::new();
     let port = stub.clone();
 
     h = h.window_feature(move || {
@@ -26,14 +26,13 @@ fn test_cosmetics_feature_applies_main_window_effects_on_install(mut h: FeatureH
         CosmeticsFeature::new(move |_: &DomainTestWindow| port.clone())
     });
 
-    let ui_handle = h.0.as_ref().unwrap().ui().clone_strong();
-    h.0.as_mut()
-        .unwrap()
-        .spawn_window(ui_handle)
-        .expect("Failed to spawn window");
+    h.spawn_window().expect("Failed to spawn window");
 
+    let messages = stub.ui_cosmetics_port_sent().stabilize(&mut h);
     assert!(
-        stub.apply_main_window_effects_called(),
+        messages
+            .iter()
+            .any(|msg| matches!(msg, UiCosmeticsPortMsg::ApplyMainWindowEffects)),
         "ApplyMainWindowEffects MUST be sent when the feature installs"
     );
 }

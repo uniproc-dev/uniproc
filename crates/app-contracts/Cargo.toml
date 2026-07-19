@@ -5,16 +5,15 @@ edition.workspace = true
 
 [dependencies]
 forsl-core.workspace = true
+forsl-macros.workspace = true
 cfg-if.workspace = true
-context.workspace = true
-macros.workspace = true
+inventory.workspace = true
 ogurpchik.workspace = true
 rkyv.workspace = true
 serde.workspace = true
 slint.workspace = true
 uniproc-protocol.workspace = true
 uuid.workspace = true
-forsl.workspace = true
 
 [build-dependencies]
 build-utils.workspace = true

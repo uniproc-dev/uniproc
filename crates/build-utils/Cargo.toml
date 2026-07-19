@@ -5,12 +5,7 @@ edition.workspace = true
 
 [dependencies]
 i-slint-compiler.workspace = true
-quote.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-syn.workspace = true
 walkdir.workspace = true
-proc-macro2 = "1.0.106"
 strsim = "0.11"
 
 

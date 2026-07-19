@@ -1,10 +1,10 @@
 use crate::features::sidebar::UiSidebarAdapter;
 use app_contracts::features::sidebar::{UiSidebarPort, UiSidebarPortMsg};
-use macros::slint_port_adapter;
+use forsl_macros::port_adapter;
 use slint::ComponentHandle;
 use slint::private_unstable_api::re_exports::Coord;
 
-#[slint_port_adapter(window = AppWindow)]
+#[port_adapter(backend = "slint", window = AppWindow)]
 impl UiSidebarPort for UiSidebarAdapter {
     fn send(&self, ui: &AppWindow, msg: UiSidebarPortMsg) {
         let sidebar = ui.global::<crate::Sidebar>();

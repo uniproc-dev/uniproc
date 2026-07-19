@@ -1,12 +1,10 @@
 use crate::ServicesBindings;
 use crate::features::services::UiServicesAdapter;
-use app_contracts::features::services::{ServiceActionKind, ServiceEntryVm, UiServicesBindings};
-use macros::slint_bindings_adapter;
+use app_contracts::features::services::{ServiceActionKind, ServiceEntryVm};
 use slint::{ComponentHandle, SharedString};
 
-#[slint_bindings_adapter(window = AppWindow)]
-impl UiServicesBindings for UiServicesAdapter {
-    fn on_service_action<F>(&self, ui: &AppWindow, handler: F)
+impl UiServicesAdapter {
+    fn on_service_action_manual<F>(&self, ui: &crate::AppWindow, handler: F)
     where
         F: Fn(SharedString, ServiceActionKind) + 'static,
     {
@@ -24,3 +22,5 @@ impl UiServicesBindings for UiServicesAdapter {
             });
     }
 }
+
+include!(concat!(env!("OUT_DIR"), "/services_bindings_auto.rs"));

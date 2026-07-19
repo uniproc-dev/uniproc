@@ -1,9 +1,9 @@
-use macros::slint_bindings;
+use forsl_macros::bindings;
 use slint::SharedString;
 
 use super::model::{ServiceActionKind, ServiceEntryVm};
 
-#[slint_bindings]
+#[bindings]
 pub trait UiServicesBindings: 'static {
     #[manual]
     #[slint(arg_types = "string, string")]

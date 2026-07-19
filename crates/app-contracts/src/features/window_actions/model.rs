@@ -1,5 +1,5 @@
 use forsl_core::actor::traits::Message;
-use macros::slint_dto;
+use forsl_macros::slint_dto;
 use serde::{Deserialize, Serialize};
 
 #[slint_dto]

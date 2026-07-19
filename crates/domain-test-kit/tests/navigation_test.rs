@@ -8,7 +8,6 @@ use domain_test_kit::utils::{DomainTestWindow, FeatureHarness, temp_settings_pat
 use forsl::navigation::{Route, RouteRegistry};
 use forsl::settings::SettingsFeature;
 use forsl::uri::ContextlessAppUri;
-use i_slint_core::api::ComponentHandle;
 use rstest::{fixture, rstest};
 use serial_test::serial;
 use std::borrow::Cow;
@@ -68,11 +67,7 @@ fn test_navigation_correctly_switches_feature_capabilities(mut h: FeatureHarness
         .window_feature(move || MockWindowFeature::new("cap_a", state_a_c.clone()))
         .window_feature(move || MockWindowFeature::new("cap_b", state_b_c.clone()));
 
-    let ui_handle = h.0.as_ref().unwrap().ui().clone_strong();
-    h.0.as_mut()
-        .unwrap()
-        .spawn_window(ui_handle)
-        .expect("Failed to spawn window");
+    h.spawn_window().expect("Failed to spawn window");
     nav_stub
         .emit_on_push("mock_route_a".into())
         .stabilize(&mut h);

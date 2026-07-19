@@ -1,8 +1,8 @@
-use macros::slint_bindings;
+use forsl_macros::bindings;
 
 use super::model::{ResizeEdge, WindowBreakpoint};
 
-#[slint_bindings]
+#[bindings]
 pub trait UiWindowActionsBindings: 'static {
     #[manual]
     #[slint(skip)]

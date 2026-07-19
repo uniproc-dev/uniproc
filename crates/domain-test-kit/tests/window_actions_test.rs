@@ -1,9 +1,8 @@
 use app_contracts::features::window_actions::{ResizeEdge, UiWindowActionsPortMsg};
 use domain::features::window_actions::WindowActionsFeature;
-use domain_test_kit::test_env::window_actions::WindowActionsPortStub;
+use domain_test_kit::generated::WindowActionsUiStub;
 use domain_test_kit::utils::{DomainTestWindow, FeatureHarness, temp_settings_path};
 use forsl::settings::SettingsFeature;
-use i_slint_core::api::ComponentHandle;
 use rstest::{fixture, rstest};
 use serial_test::serial;
 
@@ -19,7 +18,7 @@ fn h() -> FeatureHarness {
 #[rstest]
 #[serial]
 fn test_window_actions_feature_forwards_ui_events_to_port(mut h: FeatureHarness) {
-    let stub = WindowActionsPortStub::new();
+    let stub = WindowActionsUiStub::new();
     let port = stub.clone();
 
     h = h.window_feature(move || {
@@ -27,24 +26,23 @@ fn test_window_actions_feature_forwards_ui_events_to_port(mut h: FeatureHarness)
         WindowActionsFeature::new(move |_: &DomainTestWindow| port.clone())
     });
 
-    let ui_handle = h.0.as_ref().unwrap().ui().clone_strong();
-    h.0.as_mut()
-        .unwrap()
-        .spawn_window(ui_handle)
-        .expect("Failed to spawn window");
+    h.spawn_window().expect("Failed to spawn window");
 
-    stub.emit_drag().stabilize(&mut h);
-    assert_eq!(stub.all(), vec![UiWindowActionsPortMsg::Drag]);
-
-    stub.emit_close().stabilize(&mut h);
+    stub.emit_on_drag().stabilize(&mut h);
     assert_eq!(
-        stub.all(),
+        stub.ui_window_actions_port_sent().stabilize(&mut h),
+        vec![UiWindowActionsPortMsg::Drag]
+    );
+
+    stub.emit_on_close().stabilize(&mut h);
+    assert_eq!(
+        stub.ui_window_actions_port_sent().stabilize(&mut h),
         vec![UiWindowActionsPortMsg::Drag, UiWindowActionsPortMsg::Close]
     );
 
-    stub.emit_start_resize(ResizeEdge::East).stabilize(&mut h);
+    stub.emit_on_start_resize(ResizeEdge::East).stabilize(&mut h);
     assert_eq!(
-        stub.all().last(),
+        stub.ui_window_actions_port_sent().stabilize(&mut h).last(),
         Some(&UiWindowActionsPortMsg::Resize(ResizeEdge::East))
     );
 }

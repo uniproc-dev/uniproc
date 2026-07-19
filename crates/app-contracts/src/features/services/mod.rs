@@ -1,4 +1,4 @@
-use macros::capability;
+use forsl_macros::capability;
 
 mod bindings;
 mod model;

@@ -1,6 +1,6 @@
-use macros::slint_bindings;
+use forsl_macros::bindings;
 
-#[slint_bindings]
+#[bindings]
 pub trait UiEnvironmentsBindings: 'static {
     #[tracing(target = "agent")]
     fn on_install_agent<F>(&self, handler: F)
