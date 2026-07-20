@@ -23,5 +23,13 @@ pub enum UiProcessesPortMsg {
 #[port]
 pub trait UiProcessesPort: Debug + 'static {
     fn send(&self, msg: UiProcessesPortMsg);
+
+    // TODO: the only port method that isn't `send(msg)` - it exists purely
+    // as a synchronous UI->domain query and is the sole reason the
+    // `PortStubMeta::extra_methods` machinery (forsl_core::contracts,
+    // forsl-codegen's parse_port_extra_methods/generate_port_extra_method)
+    // exists at all. Rework selected-pid tracking to flow through a
+    // message/signal instead, then delete this method and that whole
+    // side-channel.
     fn get_selected_pid(&self) -> i32;
 }

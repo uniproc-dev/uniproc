@@ -19,13 +19,11 @@ members = [
     "crates/widgets",
     "crates/macros",
     "crates/desktop",
-    "crates/build-utils",
 ]
 
 [workspace.dependencies]
 # --- Internal Crates ---
 app-contracts = { path = "crates/app-contracts" }
-build-utils = { path = "crates/build-utils" }
 context = { path = "crates/context" }
 domain = { path = "crates/domain" }
 domain-test-kit = { path = "crates/domain-test-kit" }

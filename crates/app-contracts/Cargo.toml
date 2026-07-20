@@ -16,4 +16,4 @@ uniproc-protocol.workspace = true
 uuid.workspace = true
 
 [build-dependencies]
-build-utils.workspace = true
+forsl-codegen.workspace = true

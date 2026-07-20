@@ -29,7 +29,6 @@ amethystate.workspace = true
 windows.workspace = true
 
 [build-dependencies]
-build-utils.workspace = true
 toml.workspace = true
 
 [features]

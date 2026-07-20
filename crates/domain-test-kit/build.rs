@@ -1,12 +1,11 @@
-use forsl_core::contracts::{BindingMethodMeta, BindingStubMeta, PortExtraMethod, PortStubMeta};
-use proc_macro2::TokenStream;
+use forsl_codegen::stub_gen;
+use forsl_core::contracts::{BindingStubMeta, PortStubMeta};
 use quote::{format_ident, quote};
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
-use syn::{GenericArgument, Ident, PathArguments, Type, parse_str};
+
+const CONTRACTS_CRATE: &str = "app_contracts";
 
 #[derive(Default)]
 struct FeatureTraits {
@@ -46,10 +45,16 @@ fn main() {
     }
 
     for (feature, traits) in features_map {
-        final_code.extend(generate_feature_stub(feature, traits));
+        final_code.extend(stub_gen::generate_feature_stub(
+            feature,
+            &traits.ports,
+            &traits.bindings,
+            CONTRACTS_CRATE,
+            &resolve_type_override,
+        ));
     }
 
-    let formatted_code = format_code(final_code.to_string());
+    let formatted_code = stub_gen::format_code(final_code.to_string());
 
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     fs::write(out_dir.join("generated_stubs.rs"), formatted_code).unwrap();
@@ -62,325 +67,19 @@ fn force_link_app_contracts() {
     let _ = std::hint::black_box(app_contracts::__force_link_anchor as fn());
 }
 
-fn generate_feature_stub(feature: &str, traits: FeatureTraits) -> TokenStream {
-    let struct_name = format_ident!("{}UiStub", pascal_case(feature));
-    let state_name = format_ident!("{}State", struct_name);
-
-    let mut state_fields = Vec::new();
-    let mut stub_impl_methods = Vec::new();
-    let mut trait_impls = Vec::new();
-
-    let interaction_path = quote! { forsl_core::test_kit::Interaction };
-
-    for port in traits.ports {
-        let port_prefix = snake_case(port.trait_name);
-        let msg_ty = qualify_ty(feature, port.msg_type_name);
-        let sent_field = format_ident!("{}_sent", port_prefix);
-
-        state_fields.push(quote! { #sent_field: RefCell<Vec<#msg_ty>>, });
-        stub_impl_methods.push(quote! {
-            pub fn #sent_field(&self) -> #interaction_path<Vec<#msg_ty>> {
-                #interaction_path::new(self.inner.#sent_field.borrow().clone())
-            }
-        });
-
-        let mut port_methods_impl = vec![quote! {
-            fn send(&self, msg: #msg_ty) {
-                self.inner.#sent_field.borrow_mut().push(msg);
-            }
-        }];
-
-        for method in port.extra_methods {
-            port_methods_impl.push(generate_port_extra_method(
-                feature,
-                &struct_name,
-                &port_prefix,
-                method,
-                &mut state_fields,
-                &mut stub_impl_methods,
-            ));
-        }
-
-        let trait_path = format_ident!("{}", port.trait_name);
-        let feature_ident = format_ident!("{}", feature);
-        trait_impls.push(quote! {
-            impl app_contracts::features::#feature_ident::#trait_path for #struct_name {
-                #(#port_methods_impl)*
-            }
-        });
-    }
-
-    for binding in traits.bindings {
-        let mut binding_methods_impl = Vec::new();
-
-        for method in binding.methods {
-            let m_name = format_ident!("{}", method.name);
-            let emit_m_name = format_ident!("emit_{}", method.name);
-            let handler_field = format_ident!("{}_handler", method.name);
-            let arg_types: Vec<Type> = method
-                .arg_types
-                .iter()
-                .map(|ty| qualify_ty(feature, ty))
-                .collect();
-            let arg_indices: Vec<Ident> = (0..arg_types.len())
-                .map(|i| format_ident!("arg{}", i))
-                .collect();
-
-            state_fields
-                .push(quote! { #handler_field: RefCell<Option<Box<dyn Fn(#(#arg_types),*)>>>, });
-
-            stub_impl_methods.push(quote! {
-                pub fn #emit_m_name(&self, #(#arg_indices: #arg_types),*) -> #interaction_path<()> {
-                    let handler = self.inner.#handler_field.borrow();
-                    let handler = handler.as_ref().expect(concat!(stringify!(#struct_name), "::", stringify!(#m_name), " handler not registered"));
-                    handler(#(#arg_indices),*);
-                    #interaction_path::new(())
-                }
-            });
-
-            binding_methods_impl.push(quote! {
-                fn #m_name<F>(&self, handler: F) where F: Fn(#(#arg_types),*) + 'static {
-                    *self.inner.#handler_field.borrow_mut() = Some(Box::new(handler));
-                }
-            });
-        }
-
-        let trait_path = format_ident!("{}", binding.trait_name);
-        let feature_ident = format_ident!("{}", feature);
-        trait_impls.push(quote! {
-            impl app_contracts::features::#feature_ident::#trait_path for #struct_name {
-                #(#binding_methods_impl)*
-            }
-        });
-    }
-
-    quote! {
-        #[derive(Default)]
-        struct #state_name {
-            #(#state_fields)*
-        }
-
-        #[derive(Clone, Default)]
-        pub struct #struct_name {
-            inner: Rc<#state_name>,
-        }
-
-        impl std::fmt::Debug for #struct_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_struct(stringify!(#struct_name)).finish()
-            }
-        }
-
-        impl #struct_name {
-            pub fn new() -> Self { Self::default() }
-            #(#stub_impl_methods)*
-        }
-
-        #(#trait_impls)*
-    }
-}
-
-/// A port method other than `send` (e.g. `UiProcessesPort::get_selected_pid`)
-/// - modeled the same way binding handlers are: a settable closure the test
-/// installs, plus a call counter.
-fn generate_port_extra_method(
-    feature: &str,
-    struct_name: &proc_macro2::Ident,
-    port_prefix: &str,
-    method: &PortExtraMethod,
-    state_fields: &mut Vec<TokenStream>,
-    stub_impl_methods: &mut Vec<TokenStream>,
-) -> TokenStream {
-    let m_name = format_ident!("{}", method.name);
-    let on_m_name = format_ident!("on_{}_{}", port_prefix, method.name);
-    let count_field = format_ident!("{}_{}_call_count", port_prefix, method.name);
-    let handler_field = format_ident!("{}_{}_handler", port_prefix, method.name);
-
-    state_fields.push(quote! { #count_field: RefCell<usize>, });
-    stub_impl_methods.push(quote! {
-        pub fn #count_field(&self) -> forsl_core::test_kit::Interaction<usize> {
-            forsl_core::test_kit::Interaction::new(*self.inner.#count_field.borrow())
-        }
-    });
-
-    let arg_names: Vec<Ident> = method
-        .args
-        .iter()
-        .map(|(name, _)| format_ident!("{}", name))
-        .collect();
-    let arg_types: Vec<Type> = method
-        .args
-        .iter()
-        .map(|(_, ty)| qualify_ty(feature, ty))
-        .collect();
-
-    if let Some(out_ty_str) = method.output_ty {
-        let out_ty = qualify_ty(feature, out_ty_str);
-        state_fields.push(quote! { #handler_field: RefCell<Option<Box<dyn Fn(#(#arg_types),*) -> #out_ty>>>, });
-        stub_impl_methods.push(quote! {
-            pub fn #on_m_name<F>(&self, handler: F)
-            where F: Fn(#(#arg_types),*) -> #out_ty + 'static
-            { *self.inner.#handler_field.borrow_mut() = Some(Box::new(handler)); }
-        });
-
-        quote! {
-            fn #m_name(&self, #(#arg_names: #arg_types),*) -> #out_ty {
-                *self.inner.#count_field.borrow_mut() += 1;
-                let handler = self.inner.#handler_field.borrow();
-                let handler = handler.as_ref().expect(concat!(stringify!(#struct_name), "::", stringify!(#m_name), " requires a handler"));
-                handler(#(#arg_names),*)
-            }
-        }
-    } else {
-        quote! {
-            fn #m_name(&self, #(#arg_names: #arg_types),*) {
-                *self.inner.#count_field.borrow_mut() += 1;
-            }
-        }
-    }
-}
-
-fn format_code(code: String) -> String {
-    let child = Command::new("rustfmt")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|e| format!("failed to spawn rustfmt: {}", e));
-
-    match child {
-        Ok(mut child) => {
-            let mut stdin = child.stdin.take().expect("Failed to open stdin");
-            let _ = stdin.write_all(code.as_bytes());
-            drop(stdin);
-
-            let output = child
-                .wait_with_output()
-                .expect("Failed to read rustfmt output");
-            if output.status.success() {
-                String::from_utf8(output.stdout).expect("Invalid UTF-8 from rustfmt")
-            } else {
-                code
-            }
-        }
-        Err(_) => code,
-    }
-}
-
-fn qualify_ty(feature: &str, ty_str: &str) -> Type {
-    let ty: Type = parse_str(ty_str).unwrap_or_else(|_| panic!("failed to parse type: {}", ty_str));
-    rewrite_type(feature, ty)
-}
-
-fn rewrite_type(feature: &str, ty: Type) -> Type {
-    match ty {
-        Type::Path(mut path) if path.qself.is_none() => {
-            let first_segment = &path.path.segments[0];
-            let ident = first_segment.ident.to_string();
-            let original_args = first_segment.arguments.clone();
-
-            if is_std_type(&ident) {
-                if let PathArguments::AngleBracketed(args) = &mut path.path.segments[0].arguments {
-                    for arg in &mut args.args {
-                        if let GenericArgument::Type(inner) = arg {
-                            *inner = rewrite_type(feature, inner.clone());
-                        }
-                    }
-                }
-                return Type::Path(path);
-            }
-
-            let mut new_path = resolved_path_for(feature, &ident);
-            if let Some(last) = new_path.segments.last_mut() {
-                last.arguments = original_args;
-                if let PathArguments::AngleBracketed(args) = &mut last.arguments {
-                    for arg in &mut args.args {
-                        if let GenericArgument::Type(inner) = arg {
-                            *inner = rewrite_type(feature, inner.clone());
-                        }
-                    }
-                }
-            }
-            Type::Path(syn::TypePath {
-                qself: None,
-                path: new_path,
-            })
-        }
-        Type::Reference(mut r) => {
-            *r.elem = rewrite_type(feature, *r.elem);
-            Type::Reference(r)
-        }
-        Type::Slice(mut s) => {
-            *s.elem = rewrite_type(feature, *s.elem);
-            Type::Slice(s)
-        }
-        other => other,
-    }
-}
-
-fn is_std_type(ident: &str) -> bool {
-    matches!(
-        ident,
-        "bool"
-            | "u8"
-            | "u16"
-            | "u32"
-            | "u64"
-            | "u128"
-            | "usize"
-            | "i8"
-            | "i16"
-            | "i32"
-            | "i64"
-            | "i128"
-            | "isize"
-            | "f32"
-            | "f64"
-            | "String"
-            | "str"
-            | "Vec"
-            | "Option"
-            | "Box"
-            | "Result"
-    )
-}
-
-fn resolved_path_for(feature: &str, ident: &str) -> syn::Path {
-    if ident == "SharedString" {
-        return parse_str("slint::SharedString").unwrap();
-    }
+/// Type names the registry's string-based `arg_types`/`msg_type_name`
+/// entries don't resolve to via the default
+/// `app_contracts::features::<feature>::<Ident>` convention (see
+/// `forsl_codegen::stub_gen::generate_feature_stub`'s doc comment) -
+/// `TabContextKey` lives under the `tabs` feature regardless of which
+/// feature references it, and `PageId`/`TabId`/`PageStatus` live in
+/// `context::page_status`, not `app-contracts` at all.
+fn resolve_type_override(ident: &str) -> Option<syn::Path> {
     if ident == "TabContextKey" {
-        return parse_str("app_contracts::features::tabs::TabContextKey").unwrap();
+        return Some(syn::parse_str("app_contracts::features::tabs::TabContextKey").unwrap());
     }
     if matches!(ident, "PageId" | "TabId" | "PageStatus") {
-        return parse_str(&format!("context::page_status::{}", ident)).unwrap();
+        return Some(syn::parse_str(&format!("context::page_status::{ident}")).unwrap());
     }
-    parse_str(&format!("app_contracts::features::{}::{}", feature, ident)).unwrap()
-}
-
-fn snake_case(name: &str) -> String {
-    let mut out = String::new();
-    for (i, ch) in name.chars().enumerate() {
-        if ch.is_uppercase() {
-            if i > 0 {
-                out.push('_');
-            }
-            out.extend(ch.to_lowercase());
-        } else {
-            out.push(ch);
-        }
-    }
-    out
-}
-
-fn pascal_case(name: &str) -> String {
-    name.split('_')
-        .map(|s| {
-            let mut c = s.chars();
-            match c.next() {
-                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-                None => String::new(),
-            }
-        })
-        .collect()
+    None
 }

@@ -30,8 +30,8 @@ windows = { workspace = true, features = [
 
 [build-dependencies]
 app-contracts.workspace = true
-build-utils.workspace = true
 context.workspace = true
+forsl-codegen.workspace = true
 forsl-core.workspace = true
 slint-build.workspace = true
 toml.workspace = true

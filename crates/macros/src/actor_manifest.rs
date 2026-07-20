@@ -537,7 +537,7 @@ pub fn actor_manifest_impl(attr: TokenStream, mut impl_block: ItemImpl) -> Token
             let expected_method_name = format!("on_{}", msg_name.to_snake_case());
 
             if !available_methods.contains(&expected_method_name.as_str()) {
-                let suggestion = build_utils::suggest_closest(
+                let suggestion = forsl_codegen::suggest_closest(
                     &expected_method_name,
                     available_methods.iter().cloned(),
                 );

@@ -323,8 +323,8 @@ checksum = "33954243bd79057c2de7338850b85983a44588021f8a5fee574a8888c6de4344"
 name = "app-contracts"
 version = "0.1.0"
 dependencies = [
- "build-utils",
  "cfg-if",
+ "forsl-codegen",
  "forsl-core",
  "forsl-macros",
  "inventory",
@@ -832,15 +832,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "build-utils"
-version = "0.1.0"
-dependencies = [
- "i-slint-compiler",
- "strsim",
- "walkdir",
-]
-
-[[package]]
 name = "built"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1278,7 +1269,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bon",
- "build-utils",
  "forsl",
  "forsl-codegen",
  "forsl-core",
@@ -1731,7 +1721,6 @@ dependencies = [
  "amethystate",
  "anyhow",
  "app-contracts",
- "build-utils",
  "context",
  "dashmap",
  "fluent-templates",
@@ -1840,13 +1829,13 @@ dependencies = [
  "amethystate",
  "anyhow",
  "app-contracts",
- "build-utils",
  "context",
  "domain",
  "domain-environments",
  "domain-navigation",
  "domain-processes",
  "forsl",
+ "forsl-codegen",
  "forsl-core",
  "forsl-test-kit",
  "i-slint-core",
@@ -2402,10 +2391,14 @@ dependencies = [
 name = "forsl-codegen"
 version = "0.1.0"
 dependencies = [
+ "forsl-core",
+ "i-slint-compiler",
  "proc-macro2",
  "quote",
+ "strsim",
  "syn",
  "toml 0.9.11+spec-1.1.0",
+ "walkdir",
 ]
 
 [[package]]
@@ -4033,7 +4026,7 @@ name = "macros"
 version = "0.1.0"
 dependencies = [
  "app-contracts",
- "build-utils",
+ "forsl-codegen",
  "forsl-core",
  "heck",
  "proc-macro2",
@@ -6216,10 +6209,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "app-contracts",
- "build-utils",
  "cfg-if",
  "context",
  "forsl",
+ "forsl-codegen",
  "forsl-core",
  "forsl-macros",
  "i-slint-backend-winit",
