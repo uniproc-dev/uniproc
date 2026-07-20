@@ -13,6 +13,7 @@ fluent-templates.workspace = true
 unic-langid.workspace = true
 rust-i18n.workspace = true
 macros.workspace = true
+forsl-macros.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 slint.workspace = true

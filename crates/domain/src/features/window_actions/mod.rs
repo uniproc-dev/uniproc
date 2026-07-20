@@ -4,7 +4,7 @@ mod actor;
 use crate::features::window_actions::actor::WindowActor;
 use app_contracts::features::window_actions::{UiWindowActionsBindings, UiWindowActionsPort};
 use forsl::feature::{ContextActorExt, WindowFeature, WindowFeatureInitContext};
-use macros::window_feature;
+use forsl_macros::window_feature;
 
 #[window_feature]
 pub fn window_actions_feature<TWindow, P>(

@@ -10,7 +10,7 @@ use forsl::feature::{
 };
 use forsl_core::actor::event_bus::EventBus;
 use forsl_core::{actor::addr::Addr, ratelimit};
-use macros::app_feature;
+use forsl_macros::app_feature;
 use ogurpchik::discovery::register_vm_default;
 use ogurpchik::high::node::Node;
 use ogurpchik::transport::stream::adapters::vsock::{VsockAddr, VsockTransport};

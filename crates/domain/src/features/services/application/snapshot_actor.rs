@@ -4,7 +4,8 @@ use app_contracts::features::services::{ServiceEntryDto, ServiceSnapshot, UiServ
 use forsl_core::actor::{Addr, AsyncContext, ManagedActor};
 use forsl_core::actor::{Message, NoOp};
 use forsl_core::messages;
-use macros::{actor_manifest, handler};
+use forsl_macros::handler;
+use macros::actor_manifest;
 
 messages! {
     ServiceSnapshotReady(ServiceSnapshotResult)

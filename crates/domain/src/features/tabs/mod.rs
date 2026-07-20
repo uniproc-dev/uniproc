@@ -8,7 +8,7 @@ use app_contracts::features::tabs::{UiTabsBindings, UiTabsPort, UiTabsPortMsg};
 use forsl::app::Window;
 use forsl::feature::{ContextActorExt, WindowFeature, WindowFeatureInitContext};
 use forsl::navigation::RouteRegistry;
-use macros::window_feature;
+use forsl_macros::window_feature;
 
 #[window_feature]
 pub fn tabs_feature<TWindow, P>(

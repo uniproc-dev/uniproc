@@ -14,7 +14,8 @@ use forsl_core::actor::event_bus::EventBus;
 use forsl_core::actor::{Context, ManagedActor};
 use context::page_status::{PageStatus, RouteStatusChanged};
 use forsl::navigation::{RouteActivated, RouteRegistry};
-use macros::{actor_manifest, handler};
+use forsl_macros::handler;
+use macros::actor_manifest;
 use std::sync::Arc;
 use tracing::{instrument, warn};
 

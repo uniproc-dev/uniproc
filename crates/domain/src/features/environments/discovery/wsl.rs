@@ -3,7 +3,8 @@ use app_contracts::features::environments::{
     DiscoveryReport, EnvironmentDescriptor, EnvironmentKind, EnvironmentStatus,
 };
 use forsl_core::actor::{AsyncContext, Context, ManagedActor};
-use macros::{actor_manifest, handler};
+use forsl_macros::handler;
+use macros::actor_manifest;
 
 #[actor_manifest]
 impl ManagedActor for WslDiscoveryActor {

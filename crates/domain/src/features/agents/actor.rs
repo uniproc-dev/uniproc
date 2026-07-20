@@ -5,7 +5,7 @@ use app_contracts::features::agents::{AgentConnectionState, ScanTick};
 use forsl_core::actor::event_bus::EventBus;
 use forsl_core::actor::{AsyncContext, Context, Message, NoOp};
 use forsl_core::messages;
-use macros::handler;
+use forsl_macros::handler;
 use std::fmt::Debug;
 use tracing::{info, warn};
 

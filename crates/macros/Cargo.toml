@@ -10,11 +10,7 @@ proc-macro = true
 app-contracts.workspace = true
 forsl-codegen.workspace = true
 forsl-core.workspace = true
-proc-macro2.workspace = true
-quote.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 syn.workspace = true
-heck = "0.5"
+
 [lints]
 workspace = true

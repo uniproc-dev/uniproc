@@ -2,7 +2,8 @@ use app_contracts::features::environments::{
     DiscoveryReport, EnvironmentDescriptor, EnvironmentRegistryChanged,
 };
 use forsl_core::actor::{Context, ManagedActor};
-use macros::{actor_manifest, handler};
+use forsl_macros::handler;
+use macros::actor_manifest;
 use std::borrow::Cow;
 use std::collections::HashMap;
 

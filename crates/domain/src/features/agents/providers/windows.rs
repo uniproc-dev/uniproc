@@ -9,7 +9,7 @@ use forsl_core::{
     ratelimit,
 };
 use forsl::feature::{AppFeature, AppFeatureInitContext, ContextReactorExt, ContextStoreExt};
-use macros::app_feature;
+use forsl_macros::app_feature;
 use ogurpchik::discovery::Scope;
 use ogurpchik::transport::stream::adapters::uds::UdsTransport;
 use amethystate::DefaultStore;

@@ -9,7 +9,8 @@ use app_contracts::features::environments::{
 use forsl_core::actor::{Context, ManagedActor};
 
 use app_contracts::features::agents::{WslAgentRuntimeEvent, WslConnectionState};
-use macros::{actor_manifest, handler};
+use forsl_macros::handler;
+use macros::actor_manifest;
 use std::fmt::Debug;
 use tracing::{error, info};
 

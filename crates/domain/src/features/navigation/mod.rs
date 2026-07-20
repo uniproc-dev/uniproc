@@ -14,7 +14,7 @@ use forsl::feature::{
 };
 use forsl::navigation::{Route, RouteRegistry};
 use forsl::uri::ContextlessAppUri;
-use macros::{app_feature, window_feature};
+use forsl_macros::{app_feature, window_feature};
 use std::borrow::Cow;
 use std::sync::Arc;
 

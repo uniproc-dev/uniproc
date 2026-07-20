@@ -8,7 +8,7 @@ use forsl::feature::{
     AppFeature, AppFeatureInitContext, ContextActorExt, ContextReactorExt, ContextStoreExt,
     WindowFeature, WindowFeatureInitContext,
 };
-use macros::{app_feature, window_feature};
+use forsl_macros::{app_feature, window_feature};
 
 pub mod discovery;
 mod registry;

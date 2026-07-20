@@ -15,6 +15,7 @@ context.workspace = true
 dashmap.workspace = true
 lazy_static.workspace = true
 macros.workspace = true
+forsl-macros.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 slint.workspace = true

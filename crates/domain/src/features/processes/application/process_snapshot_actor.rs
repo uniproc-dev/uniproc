@@ -11,7 +11,8 @@ use app_contracts::features::processes::{
 use forsl_core::actor::ManagedActor;
 use forsl_core::actor::addr::Addr;
 use forsl_core::{messages, ratelimit};
-use macros::{actor_manifest, handler};
+use forsl_macros::handler;
+use macros::actor_manifest;
 use slint::SharedString;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};

@@ -11,7 +11,7 @@ use forsl::feature::{
     WindowFeatureInitContext,
 };
 use forsl::native_windows::slint_factory::{RegistersSlintWindow, SlintWindowRegistry};
-use macros::window_feature;
+use forsl_macros::window_feature;
 use std::borrow::Cow;
 use std::collections::HashSet;
 

@@ -3,7 +3,8 @@ use app_contracts::features::window_actions::{
     WindowActionsBinder, WindowActionsPartialBinder, WindowBreakpoint, WindowConfigChanged,
 };
 use forsl_core::actor::{Context, ManagedActor};
-use macros::{actor_manifest, handler};
+use forsl_macros::handler;
+use macros::actor_manifest;
 
 #[actor_manifest(binder = WindowActionsBinder)]
 impl<P: UiWindowActionsPort> ManagedActor for WindowActor<P> {

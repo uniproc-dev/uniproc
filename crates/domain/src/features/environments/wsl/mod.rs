@@ -6,7 +6,7 @@ pub use actor::{Init, InstallAgent, WslEnvActor};
 
 use app_contracts::features::environments::{UiEnvironmentsBindings, UiEnvironmentsPort};
 use forsl::feature::{ContextActorExt, WindowFeature, WindowFeatureInitContext};
-use macros::window_feature;
+use forsl_macros::window_feature;
 
 #[window_feature]
 pub fn wsl_feature<TWindow, P>(

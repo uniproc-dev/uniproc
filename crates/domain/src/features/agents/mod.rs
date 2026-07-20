@@ -6,7 +6,7 @@ pub mod settings;
 
 use crate::agents_impl::providers::{windows, wsl};
 use forsl::feature::{AppFeature, AppFeatureDeinitContext, AppFeatureInitContext};
-use macros::app_feature;
+use forsl_macros::app_feature;
 use tracing::info;
 
 #[app_feature]

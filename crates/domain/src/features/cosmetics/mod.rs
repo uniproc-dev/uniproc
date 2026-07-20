@@ -1,7 +1,7 @@
 use app_contracts::features::cosmetics::{UiCosmeticsPort, UiCosmeticsPortMsg};
 use forsl::app::Window;
 use forsl::feature::{FromWindow, IntoWindowFeature, WindowFeature, WindowFeatureInitContext};
-use macros::window_feature;
+use forsl_macros::window_feature;
 
 #[derive(Clone, Copy, Debug)]
 pub struct AccentState(pub forsl::native_windows::platform_types::AccentPalette);

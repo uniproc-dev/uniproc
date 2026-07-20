@@ -5,7 +5,8 @@ use app_contracts::features::sidebar::{
 };
 use forsl_core::actor::ManagedActor;
 use forsl_core::trace::{current_meta, install_current_meta};
-use macros::{actor_manifest, handler};
+use forsl_macros::handler;
+use macros::actor_manifest;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};

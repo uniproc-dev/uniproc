@@ -8,7 +8,7 @@ use forsl::app::Window;
 use forsl::feature::{
     ContextActorExt, ContextStoreExt, WindowFeature, WindowFeatureInitContext,
 };
-use macros::window_feature;
+use forsl_macros::window_feature;
 
 #[window_feature]
 pub fn sidebar_feature<TWindow, P>(

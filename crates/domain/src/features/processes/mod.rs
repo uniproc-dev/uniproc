@@ -19,7 +19,7 @@ use forsl::feature::{
     ContextActorExt, ContextReactorExt, ContextStoreExt, FeatureContextState, WindowFeature,
     WindowFeatureInitContext,
 };
-use macros::window_feature;
+use forsl_macros::window_feature;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 

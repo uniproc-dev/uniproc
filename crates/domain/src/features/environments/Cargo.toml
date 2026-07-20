@@ -11,6 +11,7 @@ anyhow.workspace = true
 app-contracts.workspace = true
 forsl-core.workspace = true
 macros.workspace = true
+forsl-macros.workspace = true
 slint.workspace = true
 sysinfo.workspace = true
 tokio.workspace = true

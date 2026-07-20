@@ -1,6 +1,6 @@
 use context::page_status::RouteStatusRegistry;
 use forsl::feature::{AppFeature, AppFeatureInitContext};
-use macros::app_feature;
+use forsl_macros::app_feature;
 use std::sync::Arc;
 
 #[app_feature]

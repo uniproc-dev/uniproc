@@ -4,7 +4,7 @@ use self::settings::TraceSettings;
 use forsl_core::signal::SignalSubscription;
 use forsl_core::trace::TracePolicy;
 use forsl::feature::{AppFeature, AppFeatureInitContext, ContextStoreExt};
-use macros::app_feature;
+use forsl_macros::app_feature;
 use std::sync::Arc;
 
 #[app_feature]

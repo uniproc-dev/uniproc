@@ -8,7 +8,8 @@ use app_contracts::features::navigation::{
 use forsl_core::actor::event_bus::EventBus;
 use forsl_core::actor::{Context, ManagedActor};
 use forsl::navigation::{RouteActivated, RouteDeactivated, RouteRegistry};
-use macros::{actor_manifest, handler};
+use forsl_macros::handler;
+use macros::actor_manifest;
 use std::borrow::Cow;
 use std::sync::Arc;
 use tracing::{info, warn};

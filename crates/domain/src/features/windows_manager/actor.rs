@@ -1,7 +1,8 @@
 use app_contracts::features::windows_manager::OpenedWindow;
 use forsl_core::actor::{Context, ManagedActor};
 use forsl::native_windows::slint_factory::{OpenWindow, WindowClosed, WindowRegistry};
-use macros::{actor_manifest, handler};
+use forsl_macros::handler;
+use macros::actor_manifest;
 use std::sync::Arc;
 
 #[actor_manifest]
