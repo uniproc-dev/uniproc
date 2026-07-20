@@ -1,5 +1,4 @@
 use domain::features::cosmetics::CosmeticsFeature;
-use domain::features::l10n::L10nFeature;
 use domain::features::page_status::PageStatusFeature;
 use domain::features::services::ServicesFeature;
 use domain::features::sidebar::SidebarFeature;
@@ -12,6 +11,7 @@ use domain_environments::features::environments::EnvironmentsFeature;
 use domain_navigation::features::navigation::{NavigationFeature, NavigationRegistryFeature};
 use domain_processes::processes_impl::ProcessFeature;
 use forsl::app::App;
+use forsl::feature::L10nBootstrap;
 use forsl::settings::SettingsFeature;
 use slint::ComponentHandle;
 use slint_adapter::AppWindow;
@@ -51,7 +51,11 @@ pub fn run() -> anyhow::Result<()> {
         .window_feature(with_adapter!(TabsFeature => UiTabsAdapter))
         .window_feature(with_adapter!(NavigationFeature => UiNavigationAdapter))
         .window_feature(with_adapter!(SidebarFeature => UiSidebarAdapter))
-        .window_feature(with_adapter!(L10nFeature => SlintL10nPort))
+        .window_feature(|| {
+            L10nBootstrap::new(domain::features::l10n::build_l10n_strings, |ui: &AppWindow| {
+                SlintL10nPort::new(ui.as_weak())
+            })
+        })
         .window_feature(with_adapter!(ServicesFeature => UiServicesAdapter))
         .window_feature(with_adapter!(ProcessFeature => UiProcessesAdapter));
 

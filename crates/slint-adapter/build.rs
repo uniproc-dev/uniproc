@@ -1,8 +1,6 @@
 use forsl_codegen::bindings_gen;
 use forsl_codegen::{slint_parser, write_if_changed};
-use std::fs;
 use std::path::Path;
-use toml::{Table, Value};
 
 const CONTRACTS_CRATE: &str = "app_contracts";
 const ADAPTER_PATH: &str = "crate::features";
@@ -10,6 +8,7 @@ const ADAPTER_PATH: &str = "crate::features";
 fn main() {
     force_link_app_contracts();
     generate_slint_l10n();
+    generate_l10n_load_body();
     generate_capabilities_slint();
     generate_bindings_slint();
     generate_binding_adapter_bodies();
@@ -83,57 +82,27 @@ fn generate_binding_adapter_bodies() {
     }
 }
 
-fn collect_string_entries(prefix: &str, table: &Table, acc: &mut Vec<(String, String)>) {
-    for (key, value) in table {
-        let full_key = if prefix.is_empty() {
-            key.to_string()
-        } else {
-            format!("{}.{}", prefix, key)
-        };
-
-        match value {
-            Value::Table(sub_table) => collect_string_entries(&full_key, sub_table, acc),
-            Value::String(text) => acc.push((full_key, text.clone())),
-            other => acc.push((full_key, other.to_string())),
-        }
-    }
+fn l10n_message_ids() -> Vec<String> {
+    app_contracts::features::l10n::L10N_MESSAGE_IDS
+        .iter()
+        .map(|id| id.to_string())
+        .collect()
 }
 
-fn escape_slint_string(value: &str) -> String {
-    value
-        .replace('\\', "\\\\")
-        .replace('\"', "\\\"")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r")
-        .replace('\t', "\\t")
+fn l10n_message_defaults() -> Vec<(String, String)> {
+    app_contracts::features::l10n::L10N_MESSAGE_DEFAULTS
+        .iter()
+        .map(|(id, text)| (id.to_string(), text.to_string()))
+        .collect()
 }
 
 fn generate_slint_l10n() {
-    let en_toml = Path::new("../domain/locales/en.toml");
-    let out_file = Path::new("ui/shared/localization.slint");
+    let content = forsl_codegen::l10n::generate_slint_global_content(&l10n_message_defaults());
+    write_if_changed(Path::new("ui/shared/localization.slint"), &content);
+}
 
-    println!("cargo:rerun-if-changed=../domain/locales/");
-
-    let content = fs::read_to_string(en_toml).expect("../domain/locales/en.toml not found");
-    let table: Table = content.parse().expect("Failed to parse en.toml");
-
-    let mut flat_entries = Vec::new();
-    collect_string_entries("", &table, &mut flat_entries);
-    flat_entries.sort_by(|a, b| a.0.cmp(&b.0));
-
-    let properties = flat_entries
-        .iter()
-        .map(|(key, value)| {
-            let slint_name = key.replace(['.', '_'], "-");
-            let escaped = escape_slint_string(value);
-            format!("    in property <string> {slint_name}: \"{escaped}\";")
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let generated = format!(
-        "// AUTO-GENERATED — do not edit manually\nexport global L10n {{\n{properties}\n}}\n"
-    );
-
-    write_if_changed(out_file, &generated);
+fn generate_l10n_load_body() {
+    let content = forsl_codegen::l10n::generate_load_body_content(&l10n_message_ids());
+    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR not set");
+    write_if_changed(&Path::new(&out_dir).join("l10n_load_body.rs"), &content);
 }

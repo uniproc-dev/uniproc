@@ -11,7 +11,6 @@ context.workspace = true
 dashmap.workspace = true
 fluent-templates.workspace = true
 unic-langid.workspace = true
-rust-i18n.workspace = true
 macros.workspace = true
 forsl-macros.workspace = true
 serde.workspace = true
@@ -30,7 +29,8 @@ amethystate.workspace = true
 windows.workspace = true
 
 [build-dependencies]
-toml.workspace = true
+app-contracts.workspace = true
+forsl-codegen.workspace = true
 
 [features]
 test-utils = ["forsl-core/test-utils"]

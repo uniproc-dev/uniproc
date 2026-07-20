@@ -34,4 +34,3 @@ context.workspace = true
 forsl-codegen.workspace = true
 forsl-core.workspace = true
 slint-build.workspace = true
-toml.workspace = true
