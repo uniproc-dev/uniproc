@@ -124,8 +124,8 @@ itself. Tests replace the starter through `AgentLinkDeps::start_in_process`.
 
 A feature's `<F>Deps` (`ProcessesDeps`, `AgentLinkDeps`) is what its installer runs on:
 the platform functions tests swap for fakes. It is not a route's params. The segment
-takes it from the context with `try_require`, falling back to `Default` (the real
-functions), and tests put their fakes there with `h.provide(..)`.
+takes it with `ctx.require_or_default::<F Deps>()`: what tests put there with
+`h.provide(..)`, otherwise `Default`, the real functions.
 
 ## Testing and running
 

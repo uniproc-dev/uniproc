@@ -29,10 +29,7 @@ impl Page for Processes {
     type Message = ProcessesMsg;
 
     fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        let deps = ctx
-            .try_require::<ProcessesDeps>()
-            .map_or_else(ProcessesDeps::default, |provided| *provided);
-        ctx.install(&deps)
+        ctx.install(&ctx.require_or_default::<ProcessesDeps>())
     }
 
     fn init(_ctx: &FeatureInitContext, _params: &Self::Params) -> Self {

@@ -69,9 +69,7 @@ impl Layout for ShellLayout {
     type Message = ShellMsg;
 
     fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        let link = ctx
-            .try_require::<AgentLinkDeps>()
-            .map_or_else(AgentLinkDeps::default, |provided| *provided);
+        let link = ctx.require_or_default::<AgentLinkDeps>();
         Ok((ctx.install(&())?, ctx.install(&())?, ctx.install(&link)?))
     }
 
