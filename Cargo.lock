@@ -866,7 +866,7 @@ dependencies = [
  "libc 0.2.189",
  "option-ext",
  "redox_users",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -969,7 +969,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc 0.2.189",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1380,8 +1380,8 @@ dependencies = [
 
 [[package]]
 name = "guinea"
-version = "0.11.3"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.3#cc859d474be182ba0578177a1c81a694af631de2"
+version = "0.11.5"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.5#99302acf8b2520de271aceff08610cb3e3b5c1e6"
 dependencies = [
  "guinea-app",
  "guinea-codegen",
@@ -1394,8 +1394,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-app"
-version = "0.11.3"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.3#cc859d474be182ba0578177a1c81a694af631de2"
+version = "0.11.5"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.5#99302acf8b2520de271aceff08610cb3e3b5c1e6"
 dependencies = [
  "anyhow",
  "guinea-core",
@@ -1406,8 +1406,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-codegen"
-version = "0.11.3"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.3#cc859d474be182ba0578177a1c81a694af631de2"
+version = "0.11.5"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.5#99302acf8b2520de271aceff08610cb3e3b5c1e6"
 dependencies = [
  "guinea-core",
  "guinea-meta-build",
@@ -1422,8 +1422,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-core"
-version = "0.11.3"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.3#cc859d474be182ba0578177a1c81a694af631de2"
+version = "0.11.5"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.5#99302acf8b2520de271aceff08610cb3e3b5c1e6"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1445,8 +1445,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-devtools-protocol"
-version = "0.10.10"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.10#7fa9cbd59e0f786fc26f90aab37135072a5d9eaf"
+version = "0.10.15"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -1459,8 +1459,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-macros"
-version = "0.11.3"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.3#cc859d474be182ba0578177a1c81a694af631de2"
+version = "0.11.5"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.5#99302acf8b2520de271aceff08610cb3e3b5c1e6"
 dependencies = [
  "guinea-codegen",
  "guinea-route-dsl",
@@ -1474,8 +1474,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-mark"
-version = "0.11.3"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.3#cc859d474be182ba0578177a1c81a694af631de2"
+version = "0.11.5"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.5#99302acf8b2520de271aceff08610cb3e3b5c1e6"
 
 [[package]]
 name = "guinea-meta"
@@ -1494,8 +1494,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-devtools"
-version = "0.10.10"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.10#7fa9cbd59e0f786fc26f90aab37135072a5d9eaf"
+version = "0.10.15"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
 dependencies = [
  "anyhow",
  "capnp",
@@ -1511,8 +1511,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-l10n"
-version = "0.10.10"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.10#7fa9cbd59e0f786fc26f90aab37135072a5d9eaf"
+version = "0.10.15"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
 dependencies = [
  "anyhow",
  "fluent-bundle",
@@ -1527,8 +1527,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-l10n-build"
-version = "0.10.10"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.10#7fa9cbd59e0f786fc26f90aab37135072a5d9eaf"
+version = "0.10.15"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
 dependencies = [
  "fluent-syntax",
  "proc-macro2",
@@ -1540,7 +1540,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-store"
 version = "0.22.0"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.10#7fa9cbd59e0f786fc26f90aab37135072a5d9eaf"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
 dependencies = [
  "amethystate",
  "anyhow",
@@ -1551,8 +1551,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-route-dsl"
-version = "0.11.3"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.3#cc859d474be182ba0578177a1c81a694af631de2"
+version = "0.11.5"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.5#99302acf8b2520de271aceff08610cb3e3b5c1e6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1562,8 +1562,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-router"
-version = "0.11.3"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.3#cc859d474be182ba0578177a1c81a694af631de2"
+version = "0.11.5"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.5#99302acf8b2520de271aceff08610cb3e3b5c1e6"
 dependencies = [
  "anyhow",
  "guinea-app",
@@ -1575,8 +1575,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-trace"
-version = "0.11.3"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.3#cc859d474be182ba0578177a1c81a694af631de2"
+version = "0.11.5"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.5#99302acf8b2520de271aceff08610cb3e3b5c1e6"
 dependencies = [
  "serde_json",
  "tracing",
@@ -1585,8 +1585,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-widgets"
-version = "0.10.10"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.10#7fa9cbd59e0f786fc26f90aab37135072a5d9eaf"
+version = "0.10.15"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
 dependencies = [
  "guinea-mark",
  "tracing",
@@ -1597,8 +1597,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-winui"
-version = "0.11.3"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.3#cc859d474be182ba0578177a1c81a694af631de2"
+version = "0.11.5"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.11.5#99302acf8b2520de271aceff08610cb3e3b5c1e6"
 dependencies = [
  "anyhow",
  "guinea-app",
@@ -2091,7 +2091,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2143,8 +2143,8 @@ dependencies = [
 
 [[package]]
 name = "ogurpchik"
-version = "0.6.3"
-source = "git+https://github.com/uniproc-dev/oguRPChik?tag=v0.6.3#0d61d28bb427d15823f274e7626d076d8f25b9be"
+version = "0.6.4"
+source = "git+https://github.com/uniproc-dev/oguRPChik?tag=v0.6.4#9c167c1e367473b7569570de91b19dfef635eede"
 dependencies = [
  "base64",
  "binrw",
@@ -2189,7 +2189,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc 0.2.189",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2588,7 +2588,7 @@ dependencies = [
  "errno",
  "libc 0.2.189",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2901,7 +2901,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3295,7 +3295,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-agent"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.7.0#33596a7a39331b0854dac24c83e3346715e38d73"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.7.1#dbd2f54ba113c67c5cd1de765f8a06c5ac78bdc3"
 dependencies = [
  "anyhow",
  "capnp",
@@ -3315,7 +3315,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-core"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.7.0#33596a7a39331b0854dac24c83e3346715e38d73"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.7.1#dbd2f54ba113c67c5cd1de765f8a06c5ac78bdc3"
 dependencies = [
  "amethystate",
  "anyhow",
@@ -3522,7 +3522,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3542,6 +3542,17 @@ dependencies = [
  "windows-numerics",
  "windows-reference",
  "windows-time",
+]
+
+[[package]]
+name = "windows-bindgen"
+version = "0.100.0"
+source = "git+https://github.com/microsoft/windows-rs?rev=c14074c45#c14074c45476d2c49eaad890609489e5f37ecd01"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "windows-default",
+ "windows-metadata",
 ]
 
 [[package]]
@@ -3587,6 +3598,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "windows-default"
+version = "0.100.0"
+source = "git+https://github.com/microsoft/windows-rs?rev=c14074c45#c14074c45476d2c49eaad890609489e5f37ecd01"
+
+[[package]]
 name = "windows-future"
 version = "0.100.0"
 source = "git+https://github.com/microsoft/windows-rs?rev=c14074c45#c14074c45476d2c49eaad890609489e5f37ecd01"
@@ -3624,6 +3640,11 @@ checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
 
 [[package]]
 name = "windows-link"
+version = "0.100.0"
+source = "git+https://github.com/microsoft/windows-rs?rev=c14074c45#c14074c45476d2c49eaad890609489e5f37ecd01"
+
+[[package]]
+name = "windows-metadata"
 version = "0.100.0"
 source = "git+https://github.com/microsoft/windows-rs?rev=c14074c45#c14074c45476d2c49eaad890609489e5f37ecd01"
 
@@ -3851,7 +3872,9 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "serde_json",
  "windows",
+ "windows-bindgen",
 ]
 
 [[package]]
