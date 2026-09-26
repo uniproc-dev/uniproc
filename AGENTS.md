@@ -118,8 +118,10 @@ that is done in-process by `domain/features/processes/windows_scan.rs`.
 ## Testing and running
 
 - `cargo test --workspace`.
-- `cargo run` starts the app; it writes `run_desktop.log` next to the working directory
-  as well as stderr, so a second instance does not overwrite the first one's log.
+- `cargo run` starts the app. Plain text goes to stderr; `run_desktop.log` in the working
+  directory gets one JSON object per line (`ts`, `level`, `target`, `cause`, then the
+  fields), recreated on every start. guinea's own points are under `guinea::<kind>`
+  targets; `cause` ties an application event to the guinea point it ran under.
 - `cargo ragent` runs the agent task from `xtask`.
 - `UNIPROC_AGENT_PIPE=<name>` (debug builds only) connects to another Windows agent service
   name. A name nobody serves shows the splash, then the give-up state after 5 attempts.
