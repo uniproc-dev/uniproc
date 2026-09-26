@@ -1,13 +1,19 @@
-use guinea_core::actor::Message;
+use guinea::prelude::Event;
+use serde::Deserialize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Event, Deserialize, guinea::Remote)]
+#[remote(event)]
 pub struct ScanTick;
-impl Message for ScanTick {}
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Debug, Clone, Event, Deserialize, guinea::Remote)]
+#[remote(event)]
+pub struct AgentStateRequest;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize)]
 pub enum AgentConnectionState {
     Disconnected,
     Connecting,
     Connected,
-    WaitingRetry { delay_secs: u64 },
+    WaitingRetry,
+    GaveUp,
 }

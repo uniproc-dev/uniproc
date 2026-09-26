@@ -1,3 +1,4 @@
+pub mod agent_link;
 pub mod agents;
 pub mod metrics;
 pub mod processes;

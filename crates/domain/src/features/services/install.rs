@@ -1,17 +1,21 @@
 use app_contracts::features::agents::{ScanTick, WindowsReportMessage};
-use app_contracts::features::services::{ServicesReducer};
-use guinea::feature::FeatureInitContext;
-use guinea_core::actor::event_bus::GlobalEventBus;
+use app_contracts::features::services::ServicesState;
+use guinea::prelude::*;
 
-use super::actor::{ServicesActor};
+use super::actor::ServicesActor;
 
-pub fn install(ctx: &FeatureInitContext) -> anyhow::Result<()> {
-    let addr = ctx.spawn_actor(ServicesActor::new(ctx.port::<ServicesReducer>()));
+feature! {
+    pub ServicesFeature {
+        exports { ServicesState }
+    }
+}
 
-    ctx.subscribe_on_global_bus::<ServicesActor<_>, WindowsReportMessage>(addr.clone());
-    ctx.wire::<ServicesReducer, _>(&addr);
+#[installs]
+fn services(cx: &FeatureInitContext) -> anyhow::Result<ServicesFeature> {
+    let (services, addr) = cx.state::<ServicesState>().driven_by(ServicesActor::new);
+    addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
 
     GlobalEventBus::publish(ScanTick);
 
-    Ok(())
+    Ok(ServicesFeature(services))
 }

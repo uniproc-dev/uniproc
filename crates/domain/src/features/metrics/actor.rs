@@ -1,49 +1,51 @@
 use app_contracts::features::agents::WindowsReportMessage;
-use app_contracts::features::metrics::{MetricsMsg, MetricsPort};
+use app_contracts::features::metrics::{MetricsMsg, MetricsState};
 use app_contracts::features::processes::MachineSummary;
-use guinea::widgets::chart::RingSeries;
-use guinea_core::actor::Context;
-use guinea_macros::{actor, handler};
+use guinea::prelude::*;
+use guinea_widgets::chart::RingSeries;
 
-#[derive(derive_more::Debug)]
-pub struct MetricsActor<P: MetricsPort> {
-    #[debug(skip)]
-    ui_port: P,
-    #[debug("{}", cpu_history.len())]
+#[derive(Debug)]
+pub struct MetricsActor {
+    ui_port: Push<MetricsState>,
     cpu_history: RingSeries,
-    #[debug("{}", memory_history.len())]
     memory_history: RingSeries,
-    #[debug(skip)]
     machine: MachineSummary,
+    stats: std::cell::RefCell<crate::push_stats::PushStats<(Vec<(u64, f32)>, Vec<(u64, f32)>, MachineSummary)>>,
 }
 
-impl<P: MetricsPort> MetricsActor<P> {
-    pub fn new(ui_port: P) -> Self {
+impl MetricsActor {
+    pub fn new(ui_port: Push<MetricsState>) -> Self {
         Self {
             ui_port,
             cpu_history: RingSeries::new(120),
             memory_history: RingSeries::new(120),
             machine: MachineSummary::default(),
+            stats: std::cell::RefCell::new(crate::push_stats::PushStats::new("metrics")),
         }
     }
 
     fn publish(&self) {
+        let cpu = self.cpu_history.as_points();
+        let memory = self.memory_history.as_points();
+        self.stats
+            .borrow_mut()
+            .note((cpu.clone(), memory.clone(), self.machine.clone()));
         self.ui_port.send(MetricsMsg::SetHistory {
-            cpu: self.cpu_history.as_points(),
-            memory: self.memory_history.as_points(),
+            cpu,
+            memory,
             machine: self.machine.clone(),
         });
     }
 }
 
 actor! {
-    MetricsActor<P: MetricsPort> {
+    MetricsActor {
         handlers { WindowsReportMessage }
     }
 }
 
 #[handler]
-fn on_windows_report<P: MetricsPort>(this: &mut MetricsActor<P>, ctx: Context<MetricsActor<P>, WindowsReportMessage>) {
+fn on_windows_report(this: &mut MetricsActor, ctx: Context<MetricsActor, WindowsReportMessage>) {
     let msg = ctx.msg;
     let WindowsReportMessage::Report(report) = msg else {
         return;

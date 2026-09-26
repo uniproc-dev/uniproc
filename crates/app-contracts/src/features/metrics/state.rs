@@ -1,6 +1,5 @@
 use crate::features::processes::MachineSummary;
-use guinea_core::Load;
-use guinea_macros::reducer;
+use guinea::prelude::*;
 
 use super::messages::MetricsMsg;
 
@@ -21,17 +20,20 @@ impl Default for MetricsState {
     }
 }
 
-#[reducer]
-pub fn metrics_reducer(state: &mut MetricsState, msg: MetricsMsg) {
-    match msg {
-        MetricsMsg::SetHistory {
-            cpu,
-            memory,
-            machine,
-        } => {
-            state.cpu_history = Load::Ready(cpu);
-            state.memory_history = Load::Ready(memory);
-            state.machine = Load::Ready(machine);
+impl Reducer for MetricsState {
+    type Update = MetricsMsg;
+
+    fn reduce(&mut self, update: MetricsMsg) {
+        match update {
+            MetricsMsg::SetHistory {
+                cpu,
+                memory,
+                machine,
+            } => {
+                self.cpu_history = Load::Ready(cpu);
+                self.memory_history = Load::Ready(memory);
+                self.machine = Load::Ready(machine);
+            }
         }
     }
 }

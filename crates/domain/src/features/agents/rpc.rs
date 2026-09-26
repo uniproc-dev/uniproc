@@ -27,6 +27,14 @@ pub struct RpcHandle<S: RpcService> {
     tx: flume::Sender<Envelope<S>>,
 }
 
+impl<S: RpcService> std::fmt::Debug for RpcHandle<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RpcHandle")
+            .field("pending", &self.tx.len())
+            .finish()
+    }
+}
+
 impl<S: RpcService> Clone for RpcHandle<S> {
     fn clone(&self) -> Self {
         Self { tx: self.tx.clone() }

@@ -1,8 +1,7 @@
-use windows_reactor::{border, tokens, Element, ElementExt};
+use windows_reactor::{LayoutControl, Rectangle};
 
-pub fn separator() -> Element {
-    border(Element::Empty)
-        .height(1.0)
-        .background(tokens::DividerStroke)
-        .into()
+use crate::theme::Palette;
+
+pub fn separator(palette: Palette) -> Rectangle {
+    Rectangle::new().fill(palette.divider_stroke).height(1.0)
 }

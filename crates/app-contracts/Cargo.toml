@@ -5,21 +5,17 @@ edition.workspace = true
 
 [dependencies]
 guinea = { workspace = true }
-guinea-core = { workspace = true }
-guinea-macros = { workspace = true }
-inventory = { workspace = true }
-anyhow = { workspace = true }
+guinea-plugin-l10n = { workspace = true }
 fluent-templates = { workspace = true }
 fluent-bundle = { workspace = true }
 unic-langid = { workspace = true }
 cfg-if = { workspace = true }
-uuid = { workspace = true }
+uuid = { workspace = true, features = ["serde"] }
 guicons = { workspace = true }
-amethystate = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, features = ["rc"] }
 
 [build-dependencies]
-guinea-codegen = { workspace = true }
+guinea-plugin-l10n-build = { workspace = true }
 guicons-build = { workspace = true }
 
 [lints]

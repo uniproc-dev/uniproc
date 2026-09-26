@@ -17,22 +17,40 @@ members = [
 
 [workspace.dependencies]
 # --- guinea ---
-guinea-core = { git = "https://github.com/uniproc-dev/guinea", rev = "0f53049" }
-guinea-macros = { git = "https://github.com/uniproc-dev/guinea", rev = "0f53049" }
-guinea-codegen = { git = "https://github.com/uniproc-dev/guinea", rev = "0f53049" }
-guinea-trace = { git = "https://github.com/uniproc-dev/guinea", rev = "0f53049" }
-guinea = { git = "https://github.com/uniproc-dev/guinea", rev = "0f53049" }
+guinea = { git = "https://github.com/uniproc-dev/guinea", tag = "v0.10.0" }
 
-guinea-plugin-store = { git = "https://github.com/uniproc-dev/guinea-plugins", rev = "e34d575" }
-guinea-plugin-l10n = { git = "https://github.com/uniproc-dev/guinea-plugins", rev = "e34d575" }
-inventory = "0.3"
+guinea-plugin-store = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.3" }
+guinea-plugin-l10n = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.3", features = ["winui"] }
+guinea-plugin-devtools = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.3" }
+guinea-widgets = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.3" }
+guinea-plugin-l10n-build = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.3" }
 
 # --- guinea-meta ---
-guinea-meta = { git = "https://github.com/uniproc-dev/guinea-meta", tag = "v0.1.0" }
 guinea-meta-build = { git = "https://github.com/uniproc-dev/guinea-meta", tag = "v0.1.0" }
 
-guicons = "0.3.2"
-guicons-build = "0.3.2"
+# --- guicons ---
+guicons = "0.6.0"
+guicons-build = "0.6.0"
+
+# --- amethystate ---
+# Same minor as guinea-plugin-store's own amethystate dep: the store is a thin
+# lid on it and re-exports it, so a minor apart means two incompatible Stores.
+amethystate = "0.22.1"
+
+# --- windows-rs ---
+# Pinned to the exact rev guinea's own workspace pins, for the same reason
+# guinea pins it: two separate lockfiles resolving an unpinned `git = "..."`
+# dep independently can silently drift onto different commits.
+windows-reactor = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
+windows-reactor-setup = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
+windows-canvas = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45", features = ["reactor"] }
+windows-collections = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
+windows-core = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
+windows-reference = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
+
+# --- RPC & protocol ---
+ogurpchik = { git = "https://github.com/uniproc-dev/oguRPChik", tag = "v0.6.0" }
+uniproc-protocol = { git = "https://github.com/uniproc-dev/uniproc-protocol", tag = "v0.9.0" }
 
 # --- Internal ---
 app-contracts = { path = "crates/app-contracts" }
@@ -40,19 +58,6 @@ context = { path = "crates/context" }
 domain = { path = "crates/domain" }
 ui = { path = "crates/ui" }
 
-# Pinned to the exact rev guinea's own workspace pins, for the same reason
-# guinea pins it: two separate lockfiles resolving an unpinned `git = "..."`
-# dep independently can silently drift onto different commits.
-windows-reactor = { git = "https://github.com/Tam1SH/windows-rs", rev = "d0fd3ce88" }
-windows-reactor-setup = { git = "https://github.com/Tam1SH/windows-rs", rev = "d0fd3ce88" }
-windows-canvas = { git = "https://github.com/Tam1SH/windows-rs", rev = "d0fd3ce88" }
-windows-collections = { git = "https://github.com/Tam1SH/windows-rs", rev = "d0fd3ce88" }
-windows-core = { git = "https://github.com/Tam1SH/windows-rs", rev = "d0fd3ce88" }
-windows-reference = { git = "https://github.com/Tam1SH/windows-rs", rev = "d0fd3ce88" }
-
-# --- Custom & Git Dependencies ---
-ogurpchik = { git = "https://github.com/uniproc-dev/oguRPChik", tag = "v0.4.0" }
-uniproc-protocol = { git = "https://github.com/uniproc-dev/uniproc-protocol", tag = "v0.7.0" }
 capnp = "0.27"
 capnp-rpc = "0.27"
 
@@ -69,22 +74,16 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 toml = "0.9.8"
 uuid = { version = "1.23.0", features = ["v4"] }
-amethystate = "0.11.0"
-amethystate-core = "0.11.0"
 
 # --- Logging & Diagnostics ---
 tracing = { version = "0.1.44", features = ["release_max_level_warn"] }
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 
 # --- System & Platform ---
-windows = { version = "0.61.3", features = [
-    "Win32_UI_Controls", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_UI_Shell",
-    "Win32_UI_WindowsAndMessaging", "Win32_System_Com",
-    "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System_Performance",
-    "Win32_NetworkManagement", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis",
-    "Win32_Networking_WinSock", "Win32_System_Threading", "UI",
-    "UI_ViewManagement", "Win32_System_Hypervisor", "Management", "Management_Deployment",
-    "ApplicationModel", "ApplicationModel_Core", "Win32_Storage_Packaging", "Win32_Storage_Packaging_Appx", "Win32_System_Services",
+windows = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45", features = [
+    "UI_ViewManagement",
+    "appmodel", "combaseapi", "dwmapi", "knownfolders", "minwindef", "objbase", "shellapi",
+    "shlobj_core", "shobjidl_core", "windef", "wingdi", "winerror", "winuser",
 ] }
 
 # --- Utilities ---
@@ -93,8 +92,6 @@ cfg-if = "1"
 fluent-templates = "0.14.0"
 fluent-bundle = "0.16.0"
 unic-langid = { version = "0.9.6", features = ["macros"] }
-ttl_cache = "0.5"
-derive_more = { version = "2.1.1", features = ["debug"] }
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
@@ -107,8 +104,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
 # doesn't chain one [patch] block's target through another, so this has
 # to name the same rev by hand, not just point at the git source).
 [patch.crates-io]
-windows-reactor = { git = "https://github.com/Tam1SH/windows-rs", rev = "d0fd3ce88" }
-
+windows-reactor = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
 
 # --- Profiles ---
 [profile.release]
@@ -117,6 +113,11 @@ lto = true
 codegen-units = 1
 strip = true
 split-debuginfo = "packed"
+
+[profile.dhat]
+inherits = "release"
+debug = "line-tables-only"
+strip = false
 
 [profile.dev]
 debug = 1

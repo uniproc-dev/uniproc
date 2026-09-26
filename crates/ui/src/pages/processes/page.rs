@@ -1,196 +1,340 @@
+use std::cell::{Cell, RefCell};
+use std::collections::HashSet;
+use std::ops::Range;
+use std::rc::Rc;
+
+use amethystate::ReactiveMap;
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::processes::{
-    ColumnConfig, Deselect, ProcessCategory, ProcessesReducer, Select, Sort, Terminate,
+    ColumnConfig, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState, Select, Sort,
+    Terminate,
 };
 use guicons::icon;
-use guinea::router::PageCx;
-use guinea::widgets::table::{table_with_sort_indicator, SortState};
-use guinea_core::Load;
-use std::collections::HashSet;
-use std::rc::Rc;
+use guinea::prelude::{Dispatch, Load};
+use guinea_widgets::table::{table, Look, Resized, SortState};
 use windows_reactor::{
-    body_large, border, button, grid, hstack, text_block, Element, ElementExt, GridLength,
-    HorizontalAlignment, ProgressRing, SetState, VerticalAlignment,
+    Callback, ChildrenControl, Grid, GridLength, LayoutControl, Orientation, StackPanel,
+    VerticalAlignment, View,
 };
 
-use crate::l10n::use_tr;
-use crate::theme::{size, space};
-use crate::widgets::separator;
 use super::components::column_layout::ColumnLayout;
-use super::components::columns::{build_columns, sort_indicator_icon};
-use super::components::grouping::{self, flatten_for_display, pin_display_row, GroupsCache};
+use super::components::columns::{build_columns, ColumnInputs, NameCellActions};
+use super::components::grouping::{
+    flatten_for_display, highlight, pin_group, DisplayRow, GroupsCache, Held, Order, Selection,
+    ViewState,
+};
 use super::components::overlay::disconnected_overlay;
+use super::marks::ProcessesMark;
+use crate::l10n::L10n;
+use crate::theme::{radius, size, space, Palette};
+use crate::widgets::page::{command_button, loading, page_frame, page_title};
+use crate::widgets::text::text;
 
-pub fn processes_view<S: amethystate::Store>(
-    cx: &mut PageCx,
-    map: &amethystate::ReactiveMap<String, ColumnConfig, S, amethystate::WritableMode>,
-    expanded_groups: &amethystate::ReactiveMap<String, bool, S, amethystate::WritableMode>,
-    collapsed_sections_store: &amethystate::ReactiveMap<String, bool, S, amethystate::WritableMode>,
-) -> Element {
-    let l10n = use_tr(cx);
-    let scheme = cx.use_color_scheme();
-    let (state, dispatch) = cx.use_reducer::<ProcessesReducer>();
+pub struct ProcessesSettingsMaps {
+    pub columns: ReactiveMap<String, ColumnConfig>,
+    pub collapsed_sections: ReactiveMap<String, bool>,
+}
 
-    let layout = cx.use_memo((), || Rc::new(ColumnLayout::new(map)));
-    let icons = cx.use_memo((), || Rc::new(context::IconCache::new()));
-    let (revision, bump_revision) = cx.use_state(0u64);
-    let _ = revision;
+pub enum ProcessesMsg {
+    Resized(Resized),
+    ToggleGroup(String),
+    ToggleProcess(u32),
+    ToggleSection(ProcessCategory),
+    SelectGroup(Option<u32>),
+}
 
-    let expanded: HashSet<String> = expanded_groups
-        .entries()
-        .map(|it| it.collect::<Vec<_>>())
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|(_, on)| *on)
-        .map(|(name, _)| name)
-        .collect();
+enum Press {
+    Toggle(ProcessCategory),
+    Select(Selection),
+}
 
-    let collapsed_sections: HashSet<ProcessCategory> = collapsed_sections_store
-        .entries()
-        .map(|it| it.collect::<Vec<_>>())
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|(_, on)| *on)
-        .filter_map(|(id, _)| ProcessCategory::from_id(&id))
-        .collect();
-    let groups_cache = cx.use_ref(GroupsCache::empty());
-    let pinned_display_pos = cx.use_ref(Option::<usize>::None);
-
-    let selected_name = state
-        .selected
-        .and_then(|pid| state.rows().iter().find(|r| r.pid == pid))
-        .map(|r| r.name.clone());
-
-    let terminate_dispatch = dispatch.clone();
-    let header = hstack((
-        body_large(l10n.processes_title()).padding(space::Header),
-        text_block(selected_name.unwrap_or_default()),
-        button(l10n.processes_end_task())
-            .icon(icon!(prohibited).size(size::Icon))
-            .enabled(state.selected.is_some())
-            .on_click(move || terminate_dispatch.emit(Terminate)),
-    ))
-    .spacing(space::Header);
-
-    let body: Element = match &state.rows {
-        Load::Ready(rows) => {
-            let sort = SortState {
-                field_id: Some(state.sort_column.clone()),
-                descending: state.descending,
-            };
-            let sort_dispatch = dispatch.clone();
-            let on_sort = SetState::new(move |col: String| sort_dispatch.emit(Sort(col)));
-
-            let machine = state.machine_summary().cloned();
-
-            let toggle_expanded = {
-                let store = expanded_groups.clone();
-                let expanded = expanded.clone();
-                let bump = bump_revision.clone();
-                SetState::new(move |name: String| {
-                    let now_on = !expanded.contains(&name);
-                    let result = if now_on {
-                        store.set_or_create(name.clone(), &true)
-                    } else {
-                        store.remove(name.clone()).map(|_| ())
-                    };
-                    if let Err(err) = result {
-                        tracing::warn!(%name, ?err, "expanded_groups write failed");
-                    }
-                    bump.call(revision + 1);
-                })
-            };
-
-            let mut groups_cache = groups_cache.borrow_mut();
-            let sections = groups_cache.get(rows, state.selected);
-            let toggle_section = {
-                let store = collapsed_sections_store.clone();
-                let collapsed = collapsed_sections.clone();
-                let bump = bump_revision.clone();
-                SetState::new(move |category: ProcessCategory| {
-                    let label = category.id().to_string();
-                    let result = if collapsed.contains(&category) {
-                        store.remove(label.clone()).map(|_| ())
-                    } else {
-                        store.set_or_create(label.clone(), &true)
-                    };
-                    if let Err(err) = result {
-                        tracing::warn!(%label, ?err, "collapsed_sections write failed");
-                    }
-                    bump.call(revision + 1);
-                })
-            };
-
-            let mut display_rows =
-                flatten_for_display(sections, &expanded, &collapsed_sections);
-            let columns = build_columns(
-                layout.as_ref(),
-                machine,
-                rows,
-                icons.clone(),
-                toggle_expanded,
-                toggle_section,
-                scheme,
-                &l10n,
-            );
-
-            let prev_pos = *pinned_display_pos.borrow();
-            let new_pos = pin_display_row(&mut display_rows, state.selected, prev_pos);
-            *pinned_display_pos.borrow_mut() = new_pos;
-
-            let selected_index = new_pos.map(|i| i as i32).unwrap_or(-1);
-            let pids_for_select: Vec<u32> = display_rows.iter().map(|d| d.row.pid).collect();
-            let select_dispatch = dispatch.clone();
-            let on_selection_changed = SetState::new(move |idx: i32| {
-                if idx >= 0
-                    && let Some(&pid) = pids_for_select.get(idx as usize)
-                {
-                    select_dispatch.emit(Select(pid));
-                }
-            });
-
-            table_with_sort_indicator(
-                cx,
-                display_rows,
-                columns,
-                |d: &grouping::DisplayRow| d.row.pid.to_string(),
-                Some((sort, on_sort)),
-                Some((selected_index, on_selection_changed)),
-                Some(Rc::new(sort_indicator_icon)),
-            )
+impl Press {
+    fn of(d: &DisplayRow) -> Self {
+        match &d.section {
+            Some(section) => Self::Toggle(section.category),
+            None if d.has_children => Self::Select(Selection::Group(d.row.pid)),
+            None => Self::Select(Selection::Process(d.row.pid)),
         }
-        Load::Failed(err) => text_block(l10n.processes_failed(err.to_string())).into(),
-        _ => ProgressRing::indeterminate()
-            .horizontal_alignment(HorizontalAlignment::Center)
-            .vertical_alignment(VerticalAlignment::Center)
-            .into(),
+    }
+}
+
+fn selected_span(rows: &[DisplayRow]) -> Option<Range<usize>> {
+    let start = rows.iter().position(|d| d.highlight.is_some())?;
+    let len = rows[start..]
+        .iter()
+        .take_while(|d| d.highlight.is_some())
+        .count();
+    Some(start..start + len)
+}
+
+pub struct ProcessesPage {
+    expanded_groups: HashSet<String>,
+    expanded_processes: HashSet<u32>,
+    collapsed_sections: Option<ReactiveMap<String, bool>>,
+    layout: ColumnLayout,
+    groups: RefCell<GroupsCache>,
+    pinned: Cell<Option<(u32, usize)>>,
+    selected_group: Option<u32>,
+    held: RefCell<Held>,
+    icons: Rc<context::IconCache>,
+}
+
+impl Default for ProcessesPage {
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
+
+fn enabled_keys(map: Option<&ReactiveMap<String, bool>>) -> Vec<String> {
+    map.map(|map| {
+        map.entries()
+            .filter(|(_, on)| *on)
+            .map(|(key, _)| key)
+            .collect()
+    })
+    .unwrap_or_default()
+}
+
+fn toggle_key(map: Option<&ReactiveMap<String, bool>>, key: String) {
+    let Some(map) = map else {
+        return;
     };
-
-    let body_separator = separator();
-    let status_bar = text_block(l10n.processes_status(state.total() as i64)).padding(space::Control);
-
-    let body = if matches!(state.agent_state, AgentConnectionState::Connected) {
-        body
+    let result = if map.get(&key).unwrap_or(false) {
+        map.remove(&key).map(|_| ())
     } else {
-        grid((body.grid_row(0), disconnected_overlay(&l10n).grid_row(0)))
-            .rows([GridLength::Star(1.0)])
-            .into()
+        map.insert(key.clone(), &true)
     };
-    let body = border(body).on_tapped(|| {});
-    let deselect_dispatch = dispatch.clone();
+    if let Err(err) = result {
+        tracing::warn!(%key, ?err, "grouping state write failed");
+    }
+}
 
-    grid((
-        header.grid_row(0),
-        body.grid_row(1),
-        body_separator.grid_row(2),
-        status_bar.grid_row(3),
-    ))
-    .rows([
-        GridLength::Auto,
-        GridLength::Star(1.0),
-        GridLength::Auto,
-        GridLength::Auto,
-    ])
-    .on_tapped(move || deselect_dispatch.emit(Deselect))
-    .into()
+impl ProcessesPage {
+    pub fn new(settings: Option<ProcessesSettingsMaps>) -> Self {
+        let (columns, collapsed_sections) = match settings {
+            Some(maps) => (Some(maps.columns), Some(maps.collapsed_sections)),
+            None => (None, None),
+        };
+        Self {
+            expanded_groups: HashSet::new(),
+            expanded_processes: HashSet::new(),
+            collapsed_sections,
+            layout: ColumnLayout::new(columns),
+            groups: RefCell::new(GroupsCache::empty()),
+            pinned: Cell::new(None),
+            selected_group: None,
+            held: RefCell::new(Held::default()),
+            icons: Rc::new(context::IconCache::new()),
+        }
+    }
+
+    pub fn update(&mut self, message: ProcessesMsg) {
+        match message {
+            ProcessesMsg::Resized(drag) => self.layout.resize(drag),
+            ProcessesMsg::ToggleGroup(name) => {
+                if !self.expanded_groups.remove(&name) {
+                    self.expanded_groups.insert(name);
+                }
+            }
+            ProcessesMsg::ToggleProcess(pid) => {
+                if !self.expanded_processes.remove(&pid) {
+                    self.expanded_processes.insert(pid);
+                }
+            }
+            ProcessesMsg::ToggleSection(category) => {
+                toggle_key(self.collapsed_sections.as_ref(), category.id().to_string())
+            }
+            ProcessesMsg::SelectGroup(pid) => self.selected_group = pid,
+        }
+    }
+
+    pub fn view(
+        &self,
+        state: &ProcessesState,
+        dispatch: &Dispatch,
+        l10n: &L10n,
+        palette: Palette,
+        forward: Callback<ProcessesMsg>,
+    ) -> View {
+        let live = state
+            .selected
+            .and_then(|pid| state.rows().iter().find(|r| r.pid == pid));
+        let selected_name = match live {
+            Some(row) => row.name.to_string(),
+            None => state
+                .selected
+                .and_then(|pid| {
+                    self.held
+                        .borrow()
+                        .row(pid)
+                        .map(|r| format!("{} — {}", r.name, l10n.processes_exited()))
+                })
+                .unwrap_or_default(),
+        };
+
+        let terminate = dispatch.clone();
+        let header = StackPanel::new()
+            .orientation(Orientation::Horizontal)
+            .spacing(space::Header)
+            .children((
+                page_title(l10n.processes_title()),
+                text(selected_name)
+                    .foreground(palette.secondary_text)
+                    .vertical_alignment(VerticalAlignment::Center),
+                command_button(
+                    ProcessesMark::EndTask,
+                    l10n.processes_end_task(),
+                    Some(icon!(prohibited).size(size::Icon).build_element()),
+                    live.is_some(),
+                    move || terminate.emit(Terminate),
+                ),
+            ));
+
+        let body = match &state.rows {
+            Load::Ready(rows) => self.table(state, rows, dispatch, l10n, palette, forward),
+            Load::Failed(err) => text(l10n.processes_failed(err.to_string())).into(),
+            _ => loading(),
+        };
+
+        let body = if matches!(state.agent_state, AgentConnectionState::Connected) {
+            body
+        } else {
+            Grid::new()
+                .rows([GridLength::Star(1.0)])
+                .children((body, disconnected_overlay(l10n, palette, state.agent_state)))
+        };
+
+        page_frame(
+            header,
+            body,
+            l10n.processes_status(state.total() as i64),
+            palette,
+        )
+    }
+
+    fn table(
+        &self,
+        state: &ProcessesState,
+        rows: &[ProcessRow],
+        dispatch: &Dispatch,
+        l10n: &L10n,
+        palette: Palette,
+        forward: Callback<ProcessesMsg>,
+    ) -> View {
+        let collapsed_sections: HashSet<ProcessCategory> =
+            enabled_keys(self.collapsed_sections.as_ref())
+                .iter()
+                .filter_map(|id| ProcessCategory::from_id(id))
+                .collect();
+
+        let order = Order {
+            column: state.sort_column,
+            descending: state.descending,
+        };
+        let selection = state.selected.map(|pid| {
+            if self.selected_group == Some(pid) {
+                Selection::Group(pid)
+            } else {
+                Selection::Process(pid)
+            }
+        });
+        let exited_rows = self.held.borrow().exited(selection, rows);
+        let kept = self.held.borrow().section(selection);
+        let exited: HashSet<u32> = exited_rows.iter().map(|row| row.pid).collect();
+        let display_rows = {
+            let mut groups = self.groups.borrow_mut();
+            let sections = groups.get(rows, &exited_rows, state.selected, kept, &order);
+            self.pinned.set(pin_group(sections, state.selected, self.pinned.get()));
+            self.held.borrow_mut().hold(sections, selection);
+            let mut display_rows = flatten_for_display(
+                sections,
+                &ViewState {
+                    groups: &self.expanded_groups,
+                    processes: &self.expanded_processes,
+                    collapsed_sections: &collapsed_sections,
+                    exited: &exited,
+                },
+            );
+            highlight(&mut display_rows, selection);
+            display_rows
+        };
+
+        let toggle_forward = forward.clone();
+        let process_forward = forward.clone();
+        let actions = NameCellActions {
+            icons: self.icons.clone(),
+            toggle_group: Callback::new(move |name: String| {
+                let _ = toggle_forward.call(ProcessesMsg::ToggleGroup(name));
+            }),
+            toggle_process: Callback::new(move |pid: u32| {
+                let _ = process_forward.call(ProcessesMsg::ToggleProcess(pid));
+            }),
+        };
+
+        let span = selected_span(&display_rows);
+        let presses: Vec<Press> = display_rows.iter().map(Press::of).collect();
+        let select = dispatch.clone();
+        let press_forward = forward.clone();
+        let on_press = Callback::new(move |at: Option<usize>| {
+            match at.and_then(|at| presses.get(at)) {
+                Some(Press::Toggle(category)) => {
+                    let _ = press_forward.call(ProcessesMsg::ToggleSection(*category));
+                }
+                Some(Press::Select(selection)) => {
+                    let (pid, group) = match *selection {
+                        Selection::Group(pid) => (pid, Some(pid)),
+                        Selection::Process(pid) => (pid, None),
+                    };
+                    let _ = press_forward.call(ProcessesMsg::SelectGroup(group));
+                    select.emit(Select(pid));
+                }
+                None => {}
+            }
+        });
+
+        let columns = build_columns(ColumnInputs {
+            layout: &self.layout,
+            machine: state.machine_summary().cloned(),
+            rows,
+            actions,
+            sort_column: state.sort_column,
+            descending: state.descending,
+            palette,
+            l10n,
+        });
+
+        let sort = dispatch.clone();
+        let resize_forward = forward;
+
+        let table = table(display_rows, columns)
+            .look(Look {
+                row_height: size::ProcessRow,
+                hovered: palette.row_hovered,
+                selected: palette.row_selected,
+                inset: (space::Compact, space::Hairline),
+                radius: radius::Control,
+                separator: palette.divider_stroke,
+                rule: palette.divider_stroke,
+            })
+            .selection(span.as_ref().map(|span| span.start), on_press);
+        let table = match span {
+            Some(span) => table.selected_span(span),
+            None => table,
+        };
+
+        table
+            .widths(self.layout.widths())
+            .on_resize(move |drag: Resized| {
+                let _ = resize_forward.call(ProcessesMsg::Resized(drag));
+            })
+            .sort(
+                SortState {
+                    field_id: Some(state.sort_column),
+                    descending: state.descending,
+                },
+                move |column: ProcessColumn| sort.emit(Sort(column)),
+            )
+            .sort_indicator(|_| View::empty())
+            .build()
+    }
 }

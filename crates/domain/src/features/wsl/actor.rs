@@ -2,17 +2,14 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use app_contracts::features::agents::RemoteScanResult;
-use guinea_core::messages;
 use app_contracts::features::wsl::{
-    AgentPresence, DistroRow, LinuxMachineSummary, WslMsg, WslPort,
+    AgentPresence, DistroRow, LinuxMachineSummary, WslMsg, WslState,
 };
-use guinea_core::actor::{AsyncContext, Message};
-use guinea_core::actor::Context;
-use guinea_macros::{actor, handler};
+use guinea::prelude::*;
 
 use super::scanner;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct CpuSample {
     busy_ns: u64,
     at: Instant,
@@ -31,33 +28,41 @@ fn cpu_percent(previous: Option<CpuSample>, current: CpuSample, cpu_count: u32) 
     Some(((busy_ns / (elapsed_ns * cores)) * 100.0).clamp(0.0, 100.0) as f32)
 }
 
-#[derive(derive_more::Debug)]
-pub struct WslActor<P: WslPort> {
-    #[debug(skip)]
-    ui_port: P,
-    #[debug("{}", distros.len())]
+#[derive(Debug)]
+pub struct WslActor {
+    ui_port: Push<WslState>,
     distros: Rc<[DistroRow]>,
     configured: String,
-    #[debug("{}", machine.is_some())]
     machine: Option<LinuxMachineSummary>,
-    #[debug(skip)]
     previous_cpu: Option<CpuSample>,
+    published: Option<(Rc<[DistroRow]>, Option<LinuxMachineSummary>)>,
 }
 
-impl<P: WslPort> WslActor<P> {
-    pub fn new(ui_port: P, configured: String) -> Self {
+impl WslActor {
+    pub fn new(ui_port: Push<WslState>, configured: String) -> Self {
         Self {
             ui_port,
             distros: Rc::from(Vec::new()),
             configured,
             machine: None,
             previous_cpu: None,
+            published: None,
         }
     }
 
-    fn publish(&self) {
-        self.ui_port.send(WslMsg::SetDistros(self.distros.clone()));
-        self.ui_port.send(WslMsg::SetMachine(self.machine.clone()));
+    fn publish(&mut self) {
+        let unchanged = self
+            .published
+            .as_ref()
+            .is_some_and(|(distros, machine)| *distros == self.distros && *machine == self.machine);
+        if unchanged {
+            return;
+        }
+        self.published = Some((self.distros.clone(), self.machine.clone()));
+        self.ui_port.send(WslMsg::Set {
+            distros: self.distros.clone(),
+            machine: self.machine.clone(),
+        });
     }
 
     fn apply_presence(&mut self) {
@@ -72,51 +77,86 @@ impl<P: WslPort> WslActor<P> {
                 } else {
                     AgentPresence::Silent
                 };
-                row.metrics = self.machine.clone();
+                if self.machine.is_some() {
+                    row.metrics = self.machine.clone();
+                }
+            }
+        }
+        self.distros = Rc::from(rows);
+    }
+
+    fn carry_known_metrics(&self, rows: &mut [DistroRow]) {
+        for row in rows {
+            if row.metrics.is_none()
+                && let Some(known) = self.distros.iter().find(|previous| previous.name == row.name)
+            {
+                row.metrics = known.metrics.clone();
+            }
+        }
+    }
+
+    fn forget_metrics(&mut self) {
+        let configured = self.configured.clone();
+
+        let mut rows = self.distros.to_vec();
+        for row in &mut rows {
+            if row.name == configured {
+                row.metrics = None;
             }
         }
         self.distros = Rc::from(rows);
     }
 }
 
-messages! { RefreshDistros }
+#[derive(Clone, Debug, serde::Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct RefreshDistros;
 
 enum ScanResult {
     Distros(Vec<DistroRow>),
     Failed,
 }
-impl Message for ScanResult {}
 
 actor! {
-    WslActor<P: WslPort> {
+    WslActor {
         handlers { RefreshDistros, ScanResult, RemoteScanResult }
     }
 }
 
 #[handler]
-async fn handle_refresh<P: WslPort>(ctx: AsyncContext<WslActor<P>>, _: RefreshDistros) {
-    match scanner::scan_distros() {
-        Ok(distros) => ctx.send(ScanResult::Distros(distros)),
-        Err(err) => {
+async fn handle_refresh(ctx: AsyncContext<WslActor>, _: RefreshDistros) {
+    let scanned = tokio::task::spawn_blocking(scanner::scan_distros);
+    let Some(scanned) = ctx.until_gone(scanned).await else {
+        return;
+    };
+
+    match scanned {
+        Ok(Ok(distros)) => ctx.send(ScanResult::Distros(distros)),
+        Ok(Err(err)) => {
             tracing::warn!(%err, "wsl distribution scan failed");
+            ctx.send(ScanResult::Failed);
+        }
+        Err(err) => {
+            tracing::warn!(%err, "wsl distribution scan did not finish");
             ctx.send(ScanResult::Failed);
         }
     }
 }
 
 #[handler]
-fn on_scan_result<P: WslPort>(this: &mut WslActor<P>, ctx: Context<WslActor<P>, ScanResult>) {
+fn on_scan_result(this: &mut WslActor, ctx: Context<WslActor, ScanResult>) {
     let msg = ctx.msg;
-    let ScanResult::Distros(distros) = msg else {
+    let ScanResult::Distros(mut distros) = msg else {
         return;
     };
+    this.carry_known_metrics(&mut distros);
     this.distros = Rc::from(distros);
     this.apply_presence();
     this.publish();
 }
 
 #[handler]
-fn on_remote_scan<P: WslPort>(this: &mut WslActor<P>, ctx: Context<WslActor<P>, RemoteScanResult>) {
+fn on_remote_scan(this: &mut WslActor, ctx: Context<WslActor, RemoteScanResult>) {
     let msg = ctx.msg;
     match msg {
         RemoteScanResult::Scan(scan) => {
@@ -124,7 +164,9 @@ fn on_remote_scan<P: WslPort>(this: &mut WslActor<P>, ctx: Context<WslActor<P>, 
                 busy_ns: scan.machine.busy_ns,
                 at: Instant::now(),
             };
-            let percent = cpu_percent(this.previous_cpu, sample, scan.machine.cpu_count);
+            let known_percent = this.machine.as_ref().and_then(|m| m.cpu_percent);
+            let percent =
+                cpu_percent(this.previous_cpu, sample, scan.machine.cpu_count).or(known_percent);
             this.previous_cpu = Some(sample);
 
             let m = &scan.machine;
@@ -144,6 +186,7 @@ fn on_remote_scan<P: WslPort>(this: &mut WslActor<P>, ctx: Context<WslActor<P>, 
         RemoteScanResult::Unavailable(_) => {
             this.machine = None;
             this.previous_cpu = None;
+            this.forget_metrics();
         }
     }
     this.apply_presence();
@@ -206,13 +249,18 @@ mod tests {
         }
     }
 
-    struct Recorder;
-    impl WslPort for Recorder {
-        fn send(&self, _msg: WslMsg) {}
+    fn detached_port() -> Push<WslState> {
+        let scope = Rc::new(guinea::core::scope::Scope::new());
+        let token = guinea::core::actor::UiThreadToken::dangerously_create_token_unchecked();
+        let registry = Rc::new(guinea::core::actor::registry::DebugRegistry::new());
+        let bus = Rc::new(guinea::core::actor::event_bus::EventBus::new());
+        guinea::core::feature::Claim::<WslState>::new(&scope, &bus, &token, &registry)
+            .plain()
+            .port()
     }
 
-    fn actor_with(distros: Vec<DistroRow>) -> WslActor<Recorder> {
-        let mut actor = WslActor::new(Recorder, "Ubuntu".to_string());
+    fn actor_with(distros: Vec<DistroRow>) -> WslActor {
+        let mut actor = WslActor::new(detached_port(), "Ubuntu".to_string());
         actor.distros = Rc::from(distros);
         actor
     }
@@ -246,8 +294,48 @@ mod tests {
         actor.apply_presence();
 
         actor.machine = None;
+        actor.forget_metrics();
         actor.apply_presence();
 
         assert_eq!(actor.distros[0].agent, AgentPresence::Silent);
+        assert_eq!(actor.distros[0].metrics, None);
+    }
+
+    #[test]
+    fn a_report_that_has_not_arrived_yet_leaves_the_figures_alone() {
+        let mut actor = actor_with(vec![distro("Ubuntu", true)]);
+        actor.machine = Some(LinuxMachineSummary {
+            memory_used_bytes: 512,
+            ..LinuxMachineSummary::default()
+        });
+        actor.apply_presence();
+
+        actor.machine = None;
+        actor.apply_presence();
+
+        assert_eq!(
+            actor.distros[0].metrics.as_ref().map(|m| m.memory_used_bytes),
+            Some(512),
+            "a fresh actor with no report yet must not blank what the page already showed"
+        );
+    }
+
+    #[test]
+    fn a_rescan_carries_the_known_figures_onto_the_new_rows() {
+        let actor = actor_with(vec![DistroRow {
+            metrics: Some(LinuxMachineSummary {
+                memory_used_bytes: 512,
+                ..LinuxMachineSummary::default()
+            }),
+            ..distro("Ubuntu", true)
+        }]);
+
+        let mut scanned = vec![distro("Ubuntu", true)];
+        actor.carry_known_metrics(&mut scanned);
+
+        assert_eq!(
+            scanned[0].metrics.as_ref().map(|m| m.memory_used_bytes),
+            Some(512)
+        );
     }
 }

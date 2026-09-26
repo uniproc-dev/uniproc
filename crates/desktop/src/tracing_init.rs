@@ -4,6 +4,8 @@ use std::sync::{Arc, Mutex};
 
 use tracing_subscriber::filter::{LevelFilter, Targets};
 use tracing_subscriber::fmt::MakeWriter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 const LOG_FILE: &str = "run_desktop.log";
 
@@ -53,5 +55,10 @@ pub fn init() -> anyhow::Result<()> {
 
     let file = File::create(LOG_FILE).ok().map(|f| Arc::new(Mutex::new(f)));
 
-    guinea_trace::init_subscriber(StderrAndFile { file }, 64, targets)
+    tracing_subscriber::registry()
+        .with(targets)
+        .with(tracing_subscriber::fmt::layer().with_writer(StderrAndFile { file }))
+        .with(guinea::core::devtools::layer())
+        .try_init()?;
+    Ok(())
 }

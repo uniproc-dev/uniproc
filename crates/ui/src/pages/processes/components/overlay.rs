@@ -1,26 +1,35 @@
+use app_contracts::features::agents::AgentConnectionState;
 use windows_reactor::{
-    border, hstack, text_block, tokens, Element, ElementExt, HorizontalAlignment, ProgressRing,
-    Thickness, VerticalAlignment,
+    Border, ChildrenControl, ContentControl, HorizontalAlignment, LayoutControl, Orientation,
+    ProgressRing, StackPanel, Thickness, VerticalAlignment, View,
 };
 
 use crate::l10n::L10n;
-use crate::theme::{radius, size, space};
+use crate::theme::{radius, size, space, Palette};
+use crate::widgets::text::text;
 
-pub(crate) fn disconnected_overlay(l10n: &L10n) -> Element {
-    border(
-        hstack((
-            ProgressRing::indeterminate()
-                .width(size::NavIcon)
-                .height(size::NavIcon),
-            text_block(l10n.processes_connecting()),
-        ))
-        .spacing(space::Header),
-    )
-    .background(tokens::LayerFill)
-    .corner_radius(radius::Overlay)
-    .padding(Thickness::xy(space::Card, space::Header))
-    .horizontal_alignment(HorizontalAlignment::Center)
-    .vertical_alignment(VerticalAlignment::Top)
-    .margin(Thickness::xy(0.0, space::Header))
-    .into()
+pub(crate) fn disconnected_overlay(l10n: &L10n, palette: Palette, agent: AgentConnectionState) -> View {
+    let status = match agent {
+        AgentConnectionState::GaveUp => l10n.processes_agent_gave_up(),
+        _ => l10n.processes_connecting(),
+    };
+    Border::new()
+        .background(palette.layer_fill)
+        .corner_radius(radius::Overlay)
+        .padding(Thickness::xy(space::Card, space::Header))
+        .horizontal_alignment(HorizontalAlignment::Center)
+        .vertical_alignment(VerticalAlignment::Top)
+        .margin(Thickness::xy(0.0, space::Header))
+        .content(
+            StackPanel::new()
+                .orientation(Orientation::Horizontal)
+                .spacing(space::Header)
+                .children((
+                    ProgressRing::new()
+                        .is_indeterminate(true)
+                        .width(size::NavIcon)
+                        .height(size::NavIcon),
+                    text(status),
+                )),
+        )
 }

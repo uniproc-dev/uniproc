@@ -1,23 +1,49 @@
 use app_contracts::features::wsl::{AgentPresence, DistroRow, LinuxMachineSummary};
 use guicons::icon;
-use guinea::widgets::table::ColumnSpec;
+use guinea_widgets::table::ColumnSpec;
 use windows_reactor::{
-    border, hstack, text_block, tokens, BrushBinding, Color, Element, ElementExt, Thickness,
-    VerticalAlignment,
+    Border, ChildrenControl, Color, ContentControl, LayoutControl, Orientation, StackPanel,
+    Thickness, VerticalAlignment, View,
 };
 
 use crate::format;
 use crate::l10n::L10n;
-use crate::theme::{accent_color, size, space};
+use crate::theme::{accent_color, opacity, size, space, Palette};
 use crate::widgets::table_cell;
+use crate::widgets::text::text;
 
-const NAME_TEXT_INSET: f64 = size::Dot + size::Icon + space::Control * 2.0 + 6.0;
-
-fn maybe_dim(el: Element, running: bool) -> Element {
-    if running { el } else { el.opacity(0.55) }
+#[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum WslColumn {
+    Name,
+    Status,
+    Cpu,
+    Memory,
+    Net,
+    Disk,
 }
 
-fn distro_icon(name: &str) -> Element {
+type Column = ColumnSpec<DistroRow, WslColumn>;
+
+struct NameHeader;
+
+#[expect(non_upper_case_globals)]
+impl NameHeader {
+    const TextInset: f64 = size::Dot + size::Icon + space::Control * 2.0 + 6.0;
+}
+
+struct AgentDot;
+
+#[expect(non_upper_case_globals)]
+impl AgentDot {
+    const NotChecked: Color = Color::argb(90, 128, 128, 128);
+}
+
+fn dimmed(content: impl Into<View>, running: bool) -> View {
+    let opacity = if running { 1.0 } else { opacity::Stopped };
+    Border::new().opacity(opacity).content(content)
+}
+
+fn distro_icon(name: &str) -> View {
     let name = name.to_ascii_lowercase();
     let icon = if name.contains("ubuntu") {
         icon!(ubuntu)
@@ -35,50 +61,39 @@ fn distro_icon(name: &str) -> Element {
     icon.size(size::Icon).build_element()
 }
 
-fn agent_dot(presence: AgentPresence) -> Element {
-    let color: BrushBinding = match presence {
-        AgentPresence::Answering => tokens::SystemSuccess.into(),
-        AgentPresence::Silent => tokens::SystemCaution.into(),
-        AgentPresence::NotChecked => Color {
-            a: 90,
-            r: 128,
-            g: 128,
-            b: 128,
-        }
-        .into(),
+fn agent_dot(presence: AgentPresence, palette: Palette) -> View {
+    let color = match presence {
+        AgentPresence::Answering => palette.success,
+        AgentPresence::Silent => palette.caution,
+        AgentPresence::NotChecked => AgentDot::NotChecked,
     };
 
-    border(Element::Empty)
+    Border::new()
         .width(size::Dot)
         .height(size::Dot)
         .corner_radius(size::Dot / 2.0)
         .background(color)
         .vertical_alignment(VerticalAlignment::Center)
-        .into()
+        .content(View::empty())
 }
 
-fn name_header(l10n: &L10n) -> Element {
-    border(text_block(l10n.wsl_col_distribution()).margin(Thickness {
-        left: NAME_TEXT_INSET,
-        top: 0.0,
-        right: 0.0,
-        bottom: 0.0,
-    }))
-    .into()
+fn name_header(l10n: &L10n) -> View {
+    Border::new()
+        .padding(Thickness::new(NameHeader::TextInset, 0.0, 0.0, 0.0))
+        .content(text(l10n.wsl_col_distribution()))
 }
 
 fn metric_column(
-    id: &'static str,
+    id: WslColumn,
     header: String,
-    width: u64,
+    width: f64,
+    palette: Palette,
     read: impl Fn(&LinuxMachineSummary) -> (String, f32) + 'static,
-) -> ColumnSpec<DistroRow> {
+) -> Column {
     ColumnSpec::new(id, header, width, move |row: &DistroRow| {
         let Some(metrics) = row.metrics.as_ref() else {
-            return maybe_dim(
-                table_cell::cell_text("-")
-                    .foreground(tokens::SecondaryText)
-                    .into(),
+            return dimmed(
+                table_cell::cell_text("-").foreground(palette.secondary_text),
                 row.running,
             );
         };
@@ -87,56 +102,49 @@ fn metric_column(
     })
 }
 
-fn name_column(l10n: &L10n) -> ColumnSpec<DistroRow> {
+fn name_column(l10n: &L10n, palette: Palette) -> Column {
     let header_l10n = l10n.clone();
     ColumnSpec::new_with_header(
-        "name",
+        WslColumn::Name,
         move || name_header(&header_l10n),
-        260u64,
-        |row: &DistroRow| {
-            let content = hstack((
-                agent_dot(row.agent),
-                distro_icon(&row.name),
-                table_cell::cell_text(row.name.clone()),
-            ))
-            .spacing(space::Control);
-            maybe_dim(content.into(), row.running)
+        260.0,
+        move |row: &DistroRow| {
+            let content = StackPanel::new()
+                .orientation(Orientation::Horizontal)
+                .spacing(space::Control)
+                .children((
+                    agent_dot(row.agent, palette),
+                    distro_icon(&row.name),
+                    table_cell::cell_text(row.name.clone()),
+                ));
+            dimmed(content, row.running)
         },
     )
     .flush()
 }
 
-fn status_column(l10n: &L10n) -> ColumnSpec<DistroRow> {
+fn status_column(l10n: &L10n, palette: Palette) -> Column {
     let cell_l10n = l10n.clone();
     ColumnSpec::new(
-        "status",
+        WslColumn::Status,
         l10n.wsl_col_status(),
-        110u64,
+        110.0,
         move |row: &DistroRow| {
-            let label = if row.running {
-                cell_l10n.wsl_running()
+            let (label, color) = if row.running {
+                (cell_l10n.wsl_running(), palette.success)
             } else {
-                cell_l10n.wsl_stopped()
+                (cell_l10n.wsl_stopped(), palette.secondary_text)
             };
-            let el: Element = if row.running {
-                table_cell::cell_text(label)
-                    .foreground(tokens::SystemSuccess)
-                    .into()
-            } else {
-                table_cell::cell_text(label)
-                    .foreground(tokens::SecondaryText)
-                    .into()
-            };
-            maybe_dim(el, row.running)
+            dimmed(table_cell::cell_text(label).foreground(color), row.running)
         },
     )
 }
 
-pub(crate) fn build_columns(l10n: &L10n) -> Vec<ColumnSpec<DistroRow>> {
+pub(crate) fn build_columns(l10n: &L10n, palette: Palette) -> Vec<Column> {
     vec![
-        name_column(l10n),
-        status_column(l10n),
-        metric_column("cpu", l10n.wsl_col_cpu(), 110u64, |m| {
+        name_column(l10n, palette),
+        status_column(l10n, palette),
+        metric_column(WslColumn::Cpu, l10n.wsl_col_cpu(), 110.0, palette, |m| {
             (
                 m.cpu_percent
                     .map(|p| format!("{p:.1}%"))
@@ -144,7 +152,7 @@ pub(crate) fn build_columns(l10n: &L10n) -> Vec<ColumnSpec<DistroRow>> {
                 m.cpu_percent.unwrap_or(0.0) / 100.0,
             )
         }),
-        metric_column("memory", l10n.wsl_col_memory(), 130u64, |m| {
+        metric_column(WslColumn::Memory, l10n.wsl_col_memory(), 130.0, palette, |m| {
             let share = if m.memory_total_bytes > 0 {
                 m.memory_used_bytes as f32 / m.memory_total_bytes as f32
             } else {
@@ -152,10 +160,10 @@ pub(crate) fn build_columns(l10n: &L10n) -> Vec<ColumnSpec<DistroRow>> {
             };
             (format::bytes(m.memory_used_bytes), share)
         }),
-        metric_column("net", l10n.wsl_col_net(), 110u64, |m| {
+        metric_column(WslColumn::Net, l10n.wsl_col_net(), 110.0, palette, |m| {
             (format::bytes(m.net_bytes), 0.0)
         }),
-        metric_column("disk", l10n.wsl_col_disk(), 110u64, |m| {
+        metric_column(WslColumn::Disk, l10n.wsl_col_disk(), 110.0, palette, |m| {
             (format::bytes(m.disk_bytes), 0.0)
         }),
     ]

@@ -5,43 +5,190 @@ use crate::features::agents::rpc::{RpcHandle, RpcService};
 use crate::features::agents::settings::AgentSettings;
 use anyhow::{anyhow, bail};
 use app_contracts::features::agents::{
-    AgentConnectionState, ScanTick, WindowsAction, WindowsActionRequest, WindowsAgentRuntimeEvent, WindowsReport,
+    AgentConnectionState, AgentStateRequest, ScanTick, WindowsAction, WindowsActionRequest,
+    WindowsAgentRuntimeEvent, WindowsReport,
     WindowsReportMessage,
 };
-use guinea::app::FeatureBuilder;
-use guinea::feature::{ContextActorExt, ContextReactorExt};
-use guinea_core::actor::event_bus::GlobalEventBus;
-use guinea_core::ratelimit;
-use ogurpchik::auth::handshake::{HandshakeMode, authenticate_client};
+use guinea::prelude::*;
+use guinea::ratelimit;
+use ogurpchik::auth::handshake::{HandshakeMode, SchemaId, authenticate_client};
 use ogurpchik::endpoint::Endpoint;
 use ogurpchik::rpc::{RpcSession, Side, spawn_session};
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 use tracing::instrument;
+use uniproc_protocol::meta_capnp::ResponseStatus;
 use uniproc_protocol::windows_capnp::windows_agent;
 
-const APP_NAME: &str = "uniproc";
-const AGENT_SERVICE_NAME: &str = "windows-agent";
+use uniproc_protocol::{APP_NAME, WINDOWS_AGENT_SERVICE, WINDOWS_SCHEMA_ID};
+
+pub const AGENT_SERVICE_DISPLAY_NAME: &str = "Uniproc Process Monitor";
 
 struct HostStub;
 impl windows_agent::Server for HostStub {}
 
+fn agent_service() -> String {
+    #[cfg(debug_assertions)]
+    if let Some(service) = std::env::var_os("UNIPROC_AGENT_PIPE") {
+        return service.to_string_lossy().into_owned();
+    }
+    WINDOWS_AGENT_SERVICE.to_string()
+}
+
 pub enum WindowsRequest {
     Ping,
-    GetReport,
+    Scan,
     Action(WindowsAction),
 }
 
 pub enum WindowsReply {
     Pong,
-    Report(WindowsReport),
+    Report(Option<WindowsReport>),
     Code(u32),
+}
+
+const JOIN_ATTEMPTS: usize = 3;
+
+struct Tagged<T> {
+    etag: u64,
+    value: T,
+}
+
+#[derive(Default)]
+struct Cache {
+    services: Option<Tagged<Vec<app_contracts::features::agents::WindowsServiceStats>>>,
+    processes: Option<Tagged<decode::Processes>>,
+}
+
+impl Cache {
+    fn services_etag(&self) -> u64 {
+        self.services.as_ref().map_or(0, |s| s.etag)
+    }
+
+    fn processes_etag(&self) -> u64 {
+        self.processes.as_ref().map_or(0, |p| p.etag)
+    }
+}
+
+pub struct WindowsSession {
+    rpc: RpcSession<windows_agent::Client>,
+    cache: RefCell<Cache>,
+    nonce: Cell<u64>,
+}
+
+impl WindowsSession {
+    pub fn remote(&self) -> &windows_agent::Client {
+        self.rpc.remote()
+    }
+}
+
+fn not_modified(meta: uniproc_protocol::meta_capnp::response_meta::Reader<'_>) -> bool {
+    matches!(meta.get_status(), Ok(ResponseStatus::NotModified))
+}
+
+async fn fetch_processes(
+    client: &windows_agent::Client,
+    if_none_match: u64,
+) -> anyhow::Result<capnp::capability::Response<windows_agent::get_processes_results::Owned>> {
+    let mut request = client.get_processes_request();
+    request.get().init_meta().set_if_none_match(if_none_match);
+    Ok(request.send().promise.await?)
+}
+
+fn apply_processes(
+    session: &WindowsSession,
+    reply: &capnp::capability::Response<windows_agent::get_processes_results::Owned>,
+) -> anyhow::Result<()> {
+    let reply = reply.get()?;
+    let meta = reply.get_meta()?;
+    if not_modified(meta) {
+        return Ok(());
+    }
+    let value = decode::windows_processes(reply.get_processes()?)?;
+    session.cache.borrow_mut().processes = Some(Tagged {
+        etag: meta.get_etag(),
+        value,
+    });
+    Ok(())
+}
+
+fn apply_services(
+    session: &WindowsSession,
+    reply: &capnp::capability::Response<windows_agent::get_services_results::Owned>,
+) -> anyhow::Result<()> {
+    let reply = reply.get()?;
+    let meta = reply.get_meta()?;
+    if not_modified(meta) {
+        return Ok(());
+    }
+    let value = decode::windows_services(reply.get_services()?)?;
+    session.cache.borrow_mut().services = Some(Tagged {
+        etag: meta.get_etag(),
+        value,
+    });
+    Ok(())
+}
+
+async fn scan(session: &WindowsSession) -> anyhow::Result<Option<WindowsReport>> {
+    let client = session.remote();
+    let (services_etag, processes_etag) = {
+        let cache = session.cache.borrow();
+        (cache.services_etag(), cache.processes_etag())
+    };
+
+    let machine = client.get_machine_request().send().promise;
+    let mut services = client.get_services_request();
+    services.get().init_meta().set_if_none_match(services_etag);
+    let services = services.send().promise;
+    let processes = fetch_processes(client, processes_etag);
+    let metrics = client.get_process_metrics_request().send().promise;
+    let (machine, services, processes, metrics) = futures::join!(machine, services, processes, metrics);
+
+    let machine = decode::windows_machine(machine?.get()?.get_machine()?)?;
+    apply_services(session, &services?)?;
+    apply_processes(session, &processes?)?;
+
+    let mut metrics = metrics?;
+    for _ in 0..JOIN_ATTEMPTS {
+        let wanted = metrics.get()?.get_processes_etag();
+        let held = session.cache.borrow().processes_etag();
+        if held == wanted {
+            break;
+        }
+        apply_processes(session, &fetch_processes(client, held).await?)?;
+        if session.cache.borrow().processes_etag() == wanted {
+            break;
+        }
+        metrics = client.get_process_metrics_request().send().promise.await?;
+    }
+
+    let metrics = metrics.get()?;
+    let cache = session.cache.borrow();
+    let Some(processes) = cache
+        .processes
+        .as_ref()
+        .filter(|p| p.etag == metrics.get_processes_etag())
+    else {
+        tracing::debug!("process list kept moving under the metrics, skipping this scan");
+        return Ok(None);
+    };
+
+    Ok(Some(WindowsReport {
+        machine,
+        processes: decode::join_metrics(&processes.value, metrics.get_metrics()?),
+        services: cache
+            .services
+            .as_ref()
+            .map(|s| s.value.clone())
+            .unwrap_or_default(),
+    }))
 }
 
 pub struct WindowsRpc;
 
 impl RpcService for WindowsRpc {
-    type Session = Rc<RpcSession<windows_agent::Client>>;
+    type Session = Rc<WindowsSession>;
     type Request = WindowsRequest;
     type Reply = WindowsReply;
 
@@ -49,39 +196,44 @@ impl RpcService for WindowsRpc {
 
     async fn connect(timeout_secs: u64) -> anyhow::Result<Self::Session> {
         let endpoint =
-            Endpoint::for_service(APP_NAME, AGENT_SERVICE_NAME).map_err(|e| anyhow!("{e:?}"))?;
+            Endpoint::for_service(APP_NAME, &agent_service()).map_err(|e| anyhow!("{e:#}"))?;
 
         let mut conn = endpoint
             .connect_ready(Duration::from_secs(timeout_secs))
             .await
-            .map_err(|e| anyhow!("{e:?}"))?;
+            .map_err(|e| anyhow!("{e:#}"))?;
 
-        authenticate_client(&mut conn, &HandshakeMode::version_only())
+        authenticate_client(
+            &mut conn,
+            &HandshakeMode::version_only(),
+            SchemaId(WINDOWS_SCHEMA_ID),
+        )
             .await
-            .map_err(|e| anyhow!("{e:?}"))?;
+            .map_err(|e| anyhow!("{e:#}"))?;
 
-        Ok(Rc::new(spawn_session::<windows_agent::Client, _>(
-            conn,
-            Side::Client,
-            HostStub,
-        )))
+        Ok(Rc::new(WindowsSession {
+            rpc: spawn_session::<windows_agent::Client, _>(conn, Side::Client, HostStub),
+            cache: RefCell::new(Cache::default()),
+            nonce: Cell::new(0),
+        }))
     }
 
     async fn dispatch(session: Self::Session, request: Self::Request) -> anyhow::Result<Self::Reply> {
-        let client = session.remote();
-
         match request {
             WindowsRequest::Ping => {
-                client.ping_request().send().promise.await?;
+                let nonce = session.nonce.get().wrapping_add(1);
+                session.nonce.set(nonce);
+                let mut request = session.remote().ping_request();
+                request.get().set_nonce(nonce);
+                let echoed = request.send().promise.await?.get()?.get_nonce();
+                if echoed != nonce {
+                    bail!("agent echoed nonce {echoed} to ping {nonce}");
+                }
                 Ok(WindowsReply::Pong)
             }
-            WindowsRequest::GetReport => {
-                let reply = client.get_report_request().send().promise.await?;
-                let report = decode::windows_report(reply.get()?.get_report()?)?;
-                Ok(WindowsReply::Report(report))
-            }
+            WindowsRequest::Scan => Ok(WindowsReply::Report(scan(&session).await?)),
             WindowsRequest::Action(action) => {
-                let code = perform_action(client, action).await?;
+                let code = perform_action(session.remote(), action).await?;
                 Ok(WindowsReply::Code(code))
             }
         }
@@ -130,6 +282,7 @@ async fn perform_action(client: &windows_agent::Client, action: WindowsAction) -
     Ok(code)
 }
 
+#[derive(Debug)]
 pub struct WindowsBackend;
 
 impl AgentBackend for WindowsBackend {
@@ -152,13 +305,14 @@ impl AgentBackend for WindowsBackend {
 
     #[instrument(skip(client), level = "debug", err)]
     async fn perform_scan(client: &Self::Client) -> anyhow::Result<()> {
-        match client.call(WindowsRequest::GetReport).await? {
-            WindowsReply::Report(report) => {
-                GlobalEventBus::publish(WindowsReportMessage::Report(report));
+        match client.call(WindowsRequest::Scan).await? {
+            WindowsReply::Report(Some(report)) => {
+                GlobalEventBus::publish(WindowsReportMessage::Report(std::sync::Arc::new(report)));
                 ratelimit!(3600, info!("Report published to event bus"));
                 Ok(())
             }
-            _ => bail!("agent answered getReport with something else"),
+            WindowsReply::Report(None) => Ok(()),
+            _ => bail!("agent answered a scan with something else"),
         }
     }
 
@@ -176,13 +330,19 @@ pub fn windows_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
     let ping_interval = settings.ping_interval_ms();
 
     let addr = app.spawn(GenericAgentActor::<WindowsBackend>::new(
-        settings.connect_timeout_secs(),
+        settings.connect_attempt_secs(),
     ));
 
-    app.spawn_heartbeat(&addr, move || ping_interval.get(), || Ping);
+    app.every(
+        Period::varying(move || Duration::from_millis(ping_interval.get())),
+        &addr,
+        || Ping,
+    )
+    .named("windows-agent-ping");
 
-    app.subscribe_actor::<_, ScanTick>(&addr);
-    app.subscribe_actor::<_, WindowsActionRequest>(&addr);
+    addr.subscribe_on::<ScanTick>(Bus::Global);
+    addr.subscribe_on::<WindowsActionRequest>(Bus::Global);
+    addr.subscribe_on::<AgentStateRequest>(Bus::Global);
     addr.send(Init);
 
     Ok(())

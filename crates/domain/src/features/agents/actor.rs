@@ -1,45 +1,61 @@
 use super::backend::AgentBackend;
 use super::connection::*;
-use amethystate::{DefaultStore, Field, WritableMode};
-use app_contracts::features::agents::{AgentConnectionState, ScanTick};
-use guinea_core::actor::event_bus::GlobalEventBus;
-use guinea_core::actor::{AsyncContext, Context, Message};
-use guinea_core::messages;
-use guinea_macros::{actor, handler};
+use amethystate::Field;
+use app_contracts::features::agents::{AgentConnectionState, AgentStateRequest, ScanTick};
+use guinea::prelude::*;
 use std::fmt::Debug;
 use tracing::{info, warn};
 
-messages! {
-    Init,
-    Ping,
-    StartConnect,
-    TryConnectWithDelay(u64),
-    RetryTimerElapsed,
-    ConnectionLost,
-    PingResult(Option<i32>),
-    ScanResult(bool)
-}
+#[derive(Clone, Debug)]
+pub struct Init;
+
+#[derive(Clone, Debug)]
+pub struct Ping;
+
+#[derive(Clone, Debug)]
+pub struct StartConnect;
+
+#[derive(Clone, Debug)]
+pub struct TryConnectWithDelay(pub std::time::Duration);
+
+#[derive(Clone, Debug)]
+pub struct RetryTimerElapsed;
+
+#[derive(Clone, Debug)]
+pub struct ConnectionLost;
+
+#[derive(Clone, Debug)]
+pub struct PingResult(pub Option<i32>);
+
+#[derive(Clone, Debug)]
+pub struct ScanResult(pub bool);
 
 struct ConnectResult<C>(Option<C>);
-impl<C: Send + 'static> Message for ConnectResult<C> {}
 
+#[derive(Debug)]
 pub struct GenericAgentActor<B: AgentBackend> {
     client: Option<B::Client>,
     connection: ConnectionMachine,
     ping_in_flight: bool,
     failed_scans: u32,
-    connect_timeout_secs: Field<u64, DefaultStore, WritableMode>,
+    attempt_secs: Field<u64>,
+    attempt_started: Option<tokio::time::Instant>,
 }
 
 impl<B: AgentBackend> GenericAgentActor<B> {
-    pub fn new(connect_timeout_secs: Field<u64, DefaultStore, WritableMode>) -> Self {
+    pub fn new(attempt_secs: Field<u64>) -> Self {
         Self {
             client: None,
             connection: ConnectionMachine::new(),
             ping_in_flight: false,
             failed_scans: 0,
-            connect_timeout_secs,
+            attempt_secs,
+            attempt_started: None,
         }
+    }
+
+    fn attempt_window(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.attempt_secs.get().max(1))
     }
 
     fn apply(&mut self, event: ConnectionEvent) -> Option<Transition> {
@@ -61,13 +77,14 @@ impl<B: AgentBackend> GenericAgentActor<B> {
         }
     }
 
-    fn spawn_connect(&self, ctx: &Context<Self>) {
-        let timeout = self.connect_timeout_secs.get().max(1);
+    fn spawn_connect(&mut self, ctx: &Context<Self>) {
+        self.attempt_started = Some(tokio::time::Instant::now());
+        let timeout = self.attempt_secs.get().max(1);
         ctx.spawn_bg(async move {
             match B::connect(timeout).await {
                 Ok(client) => ConnectResult(Some(client)),
                 Err(err) => {
-                    warn!("[{}] Connect failed: {err}", B::NAME);
+                    warn!(agent = B::NAME, error = %err, "connect failed");
                     ConnectResult(None)
                 }
             }
@@ -88,8 +105,14 @@ actor! {
             TryConnectWithDelay,
             RetryTimerElapsed,
             ConnectionLost,
+            AgentStateRequest,
         }
     }
+}
+
+#[handler]
+fn on_state_request<B: AgentBackend>(this: &GenericAgentActor<B>, _ctx: Context<GenericAgentActor<B>, AgentStateRequest>) {
+    this.publish_state(None);
 }
 
 #[handler]
@@ -130,8 +153,11 @@ fn on_connect_result<B: AgentBackend>(
             if let Some(t) = this.apply(ConnectionEvent::ConnectFailed) {
                 this.client = None;
                 this.publish_state(None);
-                if let TransitionEffect::ScheduleRetry { delay_secs } = t.effect {
-                    addr.send(TryConnectWithDelay(delay_secs));
+                if t.effect == TransitionEffect::ScheduleRetry {
+                    let spent = this
+                        .attempt_started
+                        .map_or(std::time::Duration::ZERO, |started| started.elapsed());
+                    addr.send(TryConnectWithDelay(retry_in(this.attempt_window(), spent)));
                 }
             }
         }
@@ -211,8 +237,10 @@ fn on_scan_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context
 
 #[handler]
 async fn schedule_retry<B: AgentBackend>(ctx: AsyncContext<GenericAgentActor<B>>, msg: TryConnectWithDelay) {
-    let secs = msg.0;
-    tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
+    let waited = ctx.until_gone(tokio::time::sleep(msg.0)).await;
+    if waited.is_none() {
+        return;
+    }
     ctx.send(RetryTimerElapsed);
 }
 

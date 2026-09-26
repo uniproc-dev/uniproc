@@ -1,102 +1,117 @@
+use std::sync::Arc;
+
 use app_contracts::features::services::{
-    Command, Deselect, Select, ServiceActionKind, ServiceRow, ServicesReducer, Sort,
+    Command, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesState, Sort,
 };
-use guinea::router::PageCx;
-use guinea::widgets::table::{table_with_sort_indicator, SortState};
-use guinea_core::Load;
-use windows_reactor::{
-    body_large, border, button, grid, hstack, text_block, Element, ElementExt, GridLength,
-    HorizontalAlignment, ProgressRing, SetState, VerticalAlignment,
-};
+use guinea::prelude::{Dispatch, Load};
+use guinea_widgets::table::{table, ColumnWidths, Resized, SortState};
+use windows_reactor::{Callback, ChildrenControl, Orientation, StackPanel, View};
 
-use crate::l10n::use_tr;
-use crate::theme::space;
-use crate::widgets::separator;
 use super::components::columns::build_columns;
+use super::marks::ServicesMark;
+use crate::l10n::L10n;
+use crate::theme::{space, Palette};
+use crate::widgets::page::{command_button, loading, page_frame, page_title};
+use crate::widgets::text::text;
 
-pub fn services_view(cx: &mut PageCx) -> Element {
-    let l10n = use_tr(cx);
-    let (state, dispatch) = cx.use_reducer::<ServicesReducer>();
+pub enum ServicesMsg {
+    Resized(Resized),
+}
 
-    let has_selection = state.selected.is_some();
-    let start_dispatch = dispatch.clone();
-    let stop_dispatch = dispatch.clone();
-    let restart_dispatch = dispatch.clone();
+#[derive(Default)]
+pub struct ServicesPage {
+    widths: ColumnWidths,
+}
 
-    let header = hstack((
-        body_large(l10n.services_title()).padding(space::Header),
-        button(l10n.services_start())
-            .enabled(has_selection)
-            .on_click(move || start_dispatch.emit(Command(ServiceActionKind::Start))),
-        button(l10n.services_stop())
-            .enabled(has_selection)
-            .on_click(move || stop_dispatch.emit(Command(ServiceActionKind::Stop))),
-        button(l10n.services_restart())
-            .enabled(has_selection)
-            .on_click(move || restart_dispatch.emit(Command(ServiceActionKind::Restart))),
-    ))
-    .spacing(space::Header);
+fn command(dispatch: &Dispatch, kind: ServiceActionKind) -> impl Fn() + 'static {
+    let dispatch = dispatch.clone();
+    move || dispatch.emit(Command(kind))
+}
 
-    let body: Element = match &state.rows {
-        Load::Ready(rows) => {
-            let sort = SortState {
-                field_id: Some(state.sort_column.clone()),
-                descending: state.descending,
-            };
-            let sort_dispatch = dispatch.clone();
-            let on_sort = SetState::new(move |col: String| sort_dispatch.emit(Sort(col)));
-
-            let rows: Vec<ServiceRow> = rows.to_vec();
-
-            let selected_index = state
-                .selected
-                .as_deref()
-                .and_then(|name| rows.iter().position(|r| r.name == name))
-                .map(|i| i as i32)
-                .unwrap_or(-1);
-            let names_for_select: Vec<String> = rows.iter().map(|r| r.name.clone()).collect();
-            let select_dispatch = dispatch.clone();
-            let on_selection_changed = SetState::new(move |idx: i32| {
-                if idx >= 0
-                    && let Some(name) = names_for_select.get(idx as usize)
-                {
-                    select_dispatch.emit(Select(name.clone()));
-                }
-            });
-
-            table_with_sort_indicator(
-                cx,
-                rows,
-                build_columns(&l10n),
-                |r: &ServiceRow| r.name.clone(),
-                Some((sort, on_sort)),
-                Some((selected_index, on_selection_changed)),
-                None,
-            )
+impl ServicesPage {
+    pub fn update(&mut self, message: ServicesMsg) {
+        match message {
+            ServicesMsg::Resized(drag) => self.widths.apply(drag),
         }
-        Load::Failed(err) => text_block(l10n.services_failed(err.to_string())).into(),
-        _ => ProgressRing::indeterminate()
-            .horizontal_alignment(HorizontalAlignment::Center)
-            .vertical_alignment(VerticalAlignment::Center)
-            .into(),
-    };
+    }
 
-    let status_bar = text_block(l10n.services_status(state.total() as i64)).padding(space::Control);
-    let body = border(body).on_tapped(|| {});
-    let deselect_dispatch = dispatch.clone();
+    pub fn view(
+        &self,
+        state: &ServicesState,
+        dispatch: &Dispatch,
+        l10n: &L10n,
+        palette: Palette,
+        forward: Callback<ServicesMsg>,
+    ) -> View {
+        let has_selection = state.selected.is_some();
 
-    grid((
-        header.grid_row(0),
-        body.grid_row(1),
-        separator().grid_row(2),
-        status_bar.grid_row(3),
-    ))
-    .rows([
-        GridLength::Auto,
-        GridLength::Star(1.0),
-        GridLength::Auto,
-        GridLength::Auto,
-    ])
-    .on_tapped(move || deselect_dispatch.emit(Deselect))
-    .into()
+        let header = StackPanel::new()
+            .orientation(Orientation::Horizontal)
+            .spacing(space::Header)
+            .children((
+                page_title(l10n.services_title()),
+                command_button(
+                    ServicesMark::Start,
+                    l10n.services_start(),
+                    None,
+                    has_selection,
+                    command(dispatch, ServiceActionKind::Start),
+                ),
+                command_button(
+                    ServicesMark::Stop,
+                    l10n.services_stop(),
+                    None,
+                    has_selection,
+                    command(dispatch, ServiceActionKind::Stop),
+                ),
+                command_button(
+                    ServicesMark::Restart,
+                    l10n.services_restart(),
+                    None,
+                    has_selection,
+                    command(dispatch, ServiceActionKind::Restart),
+                ),
+            ));
+
+        let body = match &state.rows {
+            Load::Ready(rows) => {
+                let rows: Vec<ServiceRow> = rows.to_vec();
+                let selected = state
+                    .selected
+                    .as_deref()
+                    .and_then(|name| rows.iter().position(|r| &*r.name == name));
+                let names: Vec<Arc<str>> = rows.iter().map(|r| r.name.clone()).collect();
+                let select = dispatch.clone();
+                let sort = dispatch.clone();
+
+                table(rows, build_columns(l10n, palette))
+                .widths(&self.widths)
+                .on_resize(move |drag: Resized| {
+                    let _ = forward.call(ServicesMsg::Resized(drag));
+                })
+                .sort(
+                    SortState {
+                        field_id: Some(state.sort_column),
+                        descending: state.descending,
+                    },
+                    move |column: ServiceColumn| sort.emit(Sort(column)),
+                )
+                .selection(selected, move |at: Option<usize>| {
+                    if let Some(name) = at.and_then(|at| names.get(at)) {
+                        select.emit(Select(name.to_string()));
+                    }
+                })
+                .build()
+            }
+            Load::Failed(err) => text(l10n.services_failed(err.to_string())).into(),
+            _ => loading(),
+        };
+
+        page_frame(
+            header,
+            body,
+            l10n.services_status(state.total() as i64),
+            palette,
+        )
+    }
 }

@@ -1,13 +1,15 @@
 use windows::core::{Interface, HRESULT, HSTRING, PCWSTR, PWSTR};
-use windows::Win32::Foundation::*;
-use windows::Win32::Storage::Packaging::Appx::{
-    ClosePackageInfo, GetPackageApplicationIds, OpenPackageInfoByFullName,
-    PackageFamilyNameFromFullName, _PACKAGE_INFO_REFERENCE,
+use windows::Win32::{
+    ClosePackageInfo, CoInitializeEx, GetPackageApplicationIds, IShellItem, IShellItemImageFactory,
+    OpenPackageInfoByFullName, PackageFamilyNameFromFullName, SHCreateItemInKnownFolder,
+    COINIT_APARTMENTTHREADED, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, FOLDERID_AppsFolder,
+    SIIGBF_RESIZETOFIT, SIZE, _PACKAGE_INFO_REFERENCE,
 };
-use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
-use windows::Win32::UI::Shell::*;
 
 use super::bitmap::{hbitmap_to_rgba, GdiObjectGuard, RgbaImage};
+use super::trim::fit_content;
+
+pub(super) const TILE_SOURCE_SIZE: i32 = 96;
 
 struct PackageInfoGuard(*mut _PACKAGE_INFO_REFERENCE);
 
@@ -22,21 +24,28 @@ impl Drop for PackageInfoGuard {
 }
 
 pub fn extract_appx_icon_rgba(package_full_name: &str, size: i32) -> Option<RgbaImage> {
+    let tile = appx_tile_rgba(package_full_name, TILE_SOURCE_SIZE)?;
+    Some(fit_content(&tile, size as u32))
+}
+
+pub(super) fn appx_tile_rgba(package_full_name: &str, size: i32) -> Option<RgbaImage> {
     let family = family_name(package_full_name)?;
-    let app_id = first_application_id(package_full_name)
-        .unwrap_or_else(|| "App".to_string());
-    let aumid = format!("{family}!{app_id}");
+    let aumid = match first_application_id(package_full_name) {
+        Some(id) if id.contains('!') => id,
+        Some(id) => format!("{family}!{id}"),
+        None => format!("{family}!App"),
+    };
 
     unsafe {
         let h_aumid = HSTRING::from(&aumid);
-        let HRESULT(e) = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let HRESULT(e) = CoInitializeEx(None, COINIT_APARTMENTTHREADED as u32);
         if e < 0 {
             tracing::warn!(hresult = e, "context: CoInitializeEx failed");
         }
 
         let shell_item: IShellItem = SHCreateItemInKnownFolder(
             &FOLDERID_AppsFolder,
-            KNOWN_FOLDER_FLAG(0),
+            0,
             PCWSTR(h_aumid.as_ptr()),
         )
         .ok()?;

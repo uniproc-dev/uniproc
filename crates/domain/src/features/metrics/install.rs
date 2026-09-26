@@ -1,11 +1,18 @@
 use app_contracts::features::agents::WindowsReportMessage;
-use app_contracts::features::metrics::MetricsReducer;
-use guinea::feature::FeatureInitContext;
+use app_contracts::features::metrics::MetricsState;
+use guinea::prelude::*;
 
 use super::actor::MetricsActor;
 
-pub fn install(ctx: &FeatureInitContext) -> anyhow::Result<()> {
-    let addr = ctx.spawn_actor(MetricsActor::new(ctx.port::<MetricsReducer>()));
-    ctx.subscribe_on_global_bus::<MetricsActor<_>, WindowsReportMessage>(addr);
-    Ok(())
+feature! {
+    pub MetricsFeature {
+        exports { MetricsState }
+    }
+}
+
+#[installs]
+fn metrics(cx: &FeatureInitContext) -> anyhow::Result<MetricsFeature> {
+    let (metrics, addr) = cx.state::<MetricsState>().driven_by(MetricsActor::new);
+    addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
+    Ok(MetricsFeature(metrics))
 }

@@ -1,9 +1,12 @@
-use guinea_core::actor::Message;
+use std::sync::Arc;
+
+use guinea::prelude::Event;
+use serde::Deserialize;
 use uuid::Uuid;
 
 use super::connection::AgentConnectionState;
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
 pub enum SignatureStatus {
     #[default]
     Unknown,
@@ -12,7 +15,7 @@ pub enum SignatureStatus {
     ThirdParty,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize)]
 pub enum ProcessPriority {
     Idle,
     BelowNormal,
@@ -22,7 +25,8 @@ pub enum ProcessPriority {
     Realtime,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default)]
 pub struct WindowsMachineStats {
     pub total_physical_kb: u64,
     pub available_physical_kb: u64,
@@ -40,15 +44,16 @@ pub struct WindowsMachineStats {
     pub net_tx_bytes: u64,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default)]
 pub struct WindowsProcessStats {
     pub pid: u32,
     pub parent_pid: u32,
     pub session_id: u32,
-    pub name: String,
-    pub cmdline: Vec<String>,
-    pub package_full_name: String,
-    pub package_relative_app_id: String,
+    pub name: Arc<str>,
+    pub first_arg: Arc<str>,
+    pub package_full_name: Arc<str>,
+    pub package_relative_app_id: Arc<str>,
     pub cpu_percent: f32,
     pub working_set_kb: u64,
     pub private_bytes_kb: u64,
@@ -67,8 +72,9 @@ pub struct WindowsProcessStats {
     pub is_kernel_process: bool,
     pub is_windows_process: bool,
     pub signature: SignatureStatus,
-    pub image_path: String,
-    pub display_name: String,
+    pub image_path: Arc<str>,
+    pub display_name: Arc<str>,
+    pub console_host_pid: u32,
 }
 
 impl WindowsProcessStats {
@@ -81,7 +87,7 @@ impl WindowsProcessStats {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
 pub enum WindowsServiceState {
     #[default]
     Unknown,
@@ -113,39 +119,41 @@ impl WindowsServiceState {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default)]
 pub struct WindowsServiceStats {
-    pub name: String,
-    pub display_name: String,
+    pub name: Arc<str>,
+    pub display_name: Arc<str>,
     pub pid: u32,
     pub state: WindowsServiceState,
-    pub load_group: String,
-    pub description: String,
-    pub image_path: String,
+    pub load_group: Arc<str>,
+    pub description: Arc<str>,
+    pub image_path: Arc<str>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default)]
 pub struct WindowsReport {
     pub machine: WindowsMachineStats,
     pub processes: Vec<WindowsProcessStats>,
     pub services: Vec<WindowsServiceStats>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
+#[remote(event)]
 pub enum WindowsReportMessage {
-    Report(WindowsReport),
+    Report(Arc<WindowsReport>),
     Unavailable(AgentConnectionState),
 }
-impl Message for WindowsReportMessage {}
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
+#[remote(event)]
 pub struct WindowsAgentRuntimeEvent {
     pub state: AgentConnectionState,
     pub latency_ms: Option<i32>,
 }
-impl Message for WindowsAgentRuntimeEvent {}
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
 pub enum WindowsAction {
     Kill { pid: u32 },
     Suspend { pid: u32 },
@@ -159,12 +167,12 @@ pub enum WindowsAction {
     ServiceRestart { name: String },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
+#[remote(event)]
 pub struct WindowsActionRequest {
     pub correlation_id: Uuid,
     pub action: WindowsAction,
 }
-impl Message for WindowsActionRequest {}
 
 impl WindowsActionRequest {
     pub fn new(correlation_id: Uuid, action: WindowsAction) -> Self {
@@ -172,12 +180,12 @@ impl WindowsActionRequest {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
+#[remote(event)]
 pub struct WindowsActionResponse {
     pub correlation_id: Uuid,
     pub code: u32,
 }
-impl Message for WindowsActionResponse {}
 
 impl WindowsActionResponse {
     pub fn new(correlation_id: Uuid, code: u32) -> Self {

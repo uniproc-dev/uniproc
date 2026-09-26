@@ -1,3 +1,6 @@
+#[cfg(windows)]
+mod taskmgr;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -6,11 +9,24 @@ fn main() -> anyhow::Result<()> {
     match args.first().map(|s| s.as_str()) {
         Some("run") => run(),
         Some("agent-check") => agent_check(&args[1..]),
+        Some("l10n-taskmgr") => l10n_taskmgr(&args[1..]),
         _ => {
-            eprintln!("Usage: cargo run -p xtask -- <run|agent-check [--wsl]>");
+            eprintln!(
+                "Usage: cargo run -p xtask -- <run|agent-check [--wsl]|l10n-taskmgr [<dir with <locale>\\Taskmgr.exe.mui>]>"
+            );
             std::process::exit(1);
         }
     }
+}
+
+#[cfg(windows)]
+fn l10n_taskmgr(args: &[String]) -> anyhow::Result<()> {
+    taskmgr::run(args, &workspace_root()?)
+}
+
+#[cfg(not(windows))]
+fn l10n_taskmgr(_args: &[String]) -> anyhow::Result<()> {
+    anyhow::bail!("l10n-taskmgr reads Windows MUI files; run it on Windows.")
 }
 
 fn agent_check(extra_args: &[String]) -> anyhow::Result<()> {

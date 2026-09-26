@@ -1,6 +1,8 @@
 mod actor;
-mod windows_scan;
+mod rates;
+pub mod windows_scan;
 mod install;
 pub mod settings;
 
-pub use install::install;
+pub use actor::rows_from_report;
+pub use install::{ProcessesFeature, ProcessesParams};

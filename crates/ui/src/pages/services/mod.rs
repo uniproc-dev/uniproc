@@ -1,4 +1,6 @@
 mod components;
+mod marks;
 mod page;
 
-pub use page::services_view;
+pub use marks::ServicesMark;
+pub use page::{ServicesMsg, ServicesPage};

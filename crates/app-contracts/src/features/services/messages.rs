@@ -1,26 +1,28 @@
-use guinea_core::messages;
-use guinea_macros::port;
 use std::rc::Rc;
 
-use super::model::{ServiceActionKind, ServiceRow};
+use serde::Deserialize;
+
+use super::model::{ServiceActionKind, ServiceColumn, ServiceRow};
 
 #[derive(Clone)]
 pub enum ServicesMsg {
     SetRows { rows: Rc<[ServiceRow]> },
     SetSelected(Option<String>),
-    SetSort { column: String, descending: bool },
+    SetSort { column: ServiceColumn, descending: bool },
 }
 
-#[port]
-pub trait ServicesPort: 'static {
-    fn send(&self, msg: ServicesMsg);
-}
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Sort(pub ServiceColumn);
 
-messages! {
-    pub Services {
-        Sort(String),
-        Select(String),
-        Deselect,
-        Command(ServiceActionKind),
-    }
-}
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Select(pub String);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Deselect;
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Command(pub ServiceActionKind);

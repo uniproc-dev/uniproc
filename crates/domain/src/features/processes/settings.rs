@@ -16,20 +16,17 @@ pub struct ProcessesSettings {
 #[amethystate]
 pub struct ProcessesGroupingSettings {
     #[amestate(default = {})]
-    expanded_groups: ReactiveMap<String, bool>,
-
-    #[amestate(default = {})]
     collapsed_sections: ReactiveMap<String, bool>,
 }
 
 #[amethystate]
 pub struct ProcessesColumnsSettings {
     #[amestate(default = {
-        "name": ColumnConfig { width: 280, min_width: 200, visible: true },
-        "cpu": ColumnConfig { width: 120, min_width: 90, visible: true },
-        "memory": ColumnConfig { width: 140, min_width: 90, visible: true },
-        "net": ColumnConfig { width: 110, min_width: 80, visible: true },
-        "disk": ColumnConfig { width: 110, min_width: 80, visible: true },
+        "name": ColumnConfig { width: 280, visible: true },
+        "cpu": ColumnConfig { width: 120, visible: true },
+        "memory": ColumnConfig { width: 140, visible: true },
+        "net": ColumnConfig { width: 110, visible: true },
+        "disk": ColumnConfig { width: 110, visible: true },
     })]
     configs: ReactiveMap<String, ColumnConfig>,
 }

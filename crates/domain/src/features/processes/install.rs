@@ -1,17 +1,39 @@
-use app_contracts::features::agents::{ScanTick, WindowsReportMessage};
-use app_contracts::features::processes::ProcessesReducer;
-use guinea::feature::FeatureInitContext;
-use guinea_core::actor::event_bus::GlobalEventBus;
+use app_contracts::features::agents::{AgentStateRequest, ScanTick, WindowsReportMessage};
+use app_contracts::features::processes::ProcessesState;
+use guinea::prelude::*;
 
 use super::actor::ProcessesActor;
+use super::windows_scan::{self, AppWindows};
 
-pub fn install(ctx: &FeatureInitContext) -> anyhow::Result<()> {
-    let addr = ctx.spawn_actor(ProcessesActor::new(ctx.port::<ProcessesReducer>()));
+#[derive(Clone, Copy)]
+pub struct ProcessesParams {
+    pub windows: fn() -> AppWindows,
+}
 
-    ctx.subscribe_on_global_bus::<ProcessesActor<_>, WindowsReportMessage>(addr.clone());
-    ctx.wire::<ProcessesReducer, _>(&addr);
+impl Default for ProcessesParams {
+    fn default() -> Self {
+        Self {
+            windows: windows_scan::app_windows,
+        }
+    }
+}
 
+feature! {
+    pub ProcessesFeature {
+        exports { ProcessesState }
+    }
+}
+
+#[installs]
+fn processes(cx: &FeatureInitContext, params: &ProcessesParams) -> anyhow::Result<ProcessesFeature> {
+    let windows = params.windows;
+    let (processes, addr) = cx
+        .state::<ProcessesState>()
+        .driven_by(move |port| ProcessesActor::new(port, windows));
+    addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
+
+    GlobalEventBus::publish(AgentStateRequest);
     GlobalEventBus::publish(ScanTick);
 
-    Ok(())
+    Ok(ProcessesFeature(processes))
 }

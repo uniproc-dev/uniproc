@@ -1,54 +1,321 @@
-use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarReducer};
+use app_contracts::features::agent_link::{AgentLinkState, OpenNativeTaskManager};
+use app_contracts::features::agents::AgentConnectionState;
+use app_contracts::features::metrics::MetricsState;
+use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarState};
+use domain::features::agent_link::{AgentLinkFeature, AgentLinkParams};
+use domain::features::agents::providers::windows::AGENT_SERVICE_DISPLAY_NAME;
+use domain::features::metrics::MetricsFeature;
+use domain::features::sidebar::SidebarFeature;
 use guinea::feature::FeatureInitContext;
-use guinea::router::{Layout, LayoutCx, UseNavigate, UseRoute};
-use guinea::uri::AppUri;
-use windows_reactor::{Element, SetState};
+use guinea::prelude::Dispatch;
+use ui::l10n::L10n;
+use ui::theme::Palette;
+use guinea::winui::{layout, Layout, LayoutCx, UpdateCx, UseNavigate, UseRoute};
+use guinea_widgets::chart::Chart;
+use windows_reactor::{Callback, ColorScheme, View, WindowBackdrop, WindowVisuals};
 
+use crate::pages::{Processes, Services, Wsl};
+use crate::route_memory;
 use crate::routes::Route;
 
-pub struct ShellLayout;
+const WINDOW_WIDTH: f64 = 1000.0;
+const WINDOW_HEIGHT: f64 = 700.0;
 
+pub(crate) fn splash(
+    link: &AgentLinkState,
+    dispatch: &Dispatch,
+    l10n: &L10n,
+    palette: Palette,
+) -> Option<View> {
+    if !link.awaiting_first_connection() {
+        return None;
+    }
+    let dispatch = dispatch.clone();
+    Some(ui::splash_view(ui::SplashProps {
+        l10n,
+        palette,
+        native_offered: link.native_offered,
+        unreachable_service: (link.windows == AgentConnectionState::GaveUp)
+            .then_some(AGENT_SERVICE_DISPLAY_NAME),
+        on_open_native: Callback::new(move |()| dispatch.emit(OpenNativeTaskManager)),
+    }))
+}
+
+#[derive(Default)]
+pub struct ShellLayout {
+    scheme: ColorScheme,
+    cpu_chart: Chart,
+    memory_chart: Chart,
+}
+
+pub enum ShellMsg {
+    Scheme(ColorScheme),
+    Resize(f64),
+    OpenChanged(bool),
+}
+
+#[layout]
 impl Layout for ShellLayout {
-    fn install(ctx: &FeatureInitContext, _uri: &AppUri) -> anyhow::Result<()> {
-        ctx.install(domain::features::sidebar::install)?;
-        ctx.install(domain::features::metrics::install)
+    type Params = crate::routes::ShellLayoutParams;
+    type Installs = ((SidebarFeature, MetricsFeature), AgentLinkFeature);
+    type Message = ShellMsg;
+
+    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
+        let link = ctx
+            .try_require::<AgentLinkParams>()
+            .map_or_else(AgentLinkParams::default, |provided| *provided);
+        Ok(((ctx.install(&())?, ctx.install(&())?), ctx.install(&link)?))
     }
 
-    fn view(cx: &mut LayoutCx) -> Element {
-        let (state, dispatch) = cx.use_reducer::<SidebarReducer>();
+    fn update(&mut self, message: ShellMsg, cx: &mut UpdateCx<'_, Self>) {
+        match message {
+            ShellMsg::Scheme(scheme) => self.scheme = scheme,
+            ShellMsg::Resize(width) => {
+                let (_, dispatch) = cx.state::<SidebarState, _>();
+                dispatch.emit(SetWidth(width.round() as u64));
+            }
+            ShellMsg::OpenChanged(open) => {
+                let (sidebar, dispatch) = cx.state::<SidebarState, _>();
+                if sidebar.open != open {
+                    dispatch.emit(SetOpen(open));
+                }
+            }
+        }
+    }
+
+    fn view(&self, cx: &mut LayoutCx<'_, Self>) -> View {
+        crate::xaml_resources::override_navigation_view_resources();
+        guicons::set_theme(match self.scheme {
+            ColorScheme::Dark => guicons::Theme::Dark,
+            ColorScheme::Light => guicons::Theme::Light,
+        });
+
+        let on_scheme = cx.on(ShellMsg::Scheme);
+        cx.on_color_scheme(on_scheme);
+        cx.window_visuals(
+            WindowVisuals::new()
+                .client_size(WINDOW_WIDTH, WINDOW_HEIGHT)
+                .backdrop(WindowBackdrop::Mica),
+        );
+
         let current = cx.use_route::<Route>();
+        cx.use_effect("uniproc::remember_route", current.clone(), move || {
+            route_memory::remember(&current);
+            None
+        });
+
+        let (sidebar, _) = cx.use_reducer::<SidebarState, _>();
+        let (metrics, _) = cx.use_reducer::<MetricsState, _>();
+        let (link, link_dispatch) = cx.use_reducer::<AgentLinkState, _>();
+        let l10n = ui::l10n::use_tr(cx);
         let nav = cx.use_navigate::<Route>();
 
-        let selected_tag = match current {
-            Route::Processes { .. } => "processes",
-            Route::Services { .. } => "services",
-            Route::Wsl { .. } => "wsl",
+        let selected_tag = if cx.child_is::<Services>() {
+            "services"
+        } else if cx.child_is::<Wsl>() {
+            "wsl"
+        } else if cx.child_is::<Processes>() {
+            "processes"
+        } else {
+            ""
         };
 
-        let content = cx.outlet();
-        let resize_dispatch = dispatch.clone();
-        let set_width = SetState::new(move |w: f64| {
-            resize_dispatch.emit(SetWidth(w.round() as u64));
+        let on_select = Callback::new(move |tag: Option<String>| match tag.as_deref() {
+            Some("processes") => nav.to(Route::Processes {}),
+            Some("services") => nav.to(Route::Services {}),
+            Some("wsl") => nav.to(Route::Wsl {}),
+            _ => {}
         });
-        let open_dispatch = dispatch.clone();
-        let set_open = SetState::new(move |open: bool| {
-            open_dispatch.emit(SetOpen(open));
-        });
+        let on_resize = cx.on(ShellMsg::Resize);
+        let on_open_changed = cx.on(ShellMsg::OpenChanged);
+        let content = View::provide(ui::theme::scheme_context(), self.scheme, cx.outlet());
 
-        ui::shell_view(
-            cx,
-            state.open,
+        let palette = ui::theme::Palette::of(self.scheme);
+        ui::shell_view(ui::ShellProps {
+            l10n: &l10n,
+            palette,
+            open: sidebar.open,
+            width: sidebar.width as f64,
             selected_tag,
-            state.width as f64,
             content,
-            move |tag: String| match tag.as_str() {
-                "processes" => nav.to(Route::Processes {}),
-                "services" => nav.to(Route::Services {}),
-                "wsl" => nav.to(Route::Wsl {}),
-                _ => {}
-            },
-            set_width,
-            set_open,
-        )
+            splash: splash(&link, &link_dispatch, &l10n, palette),
+            metrics: &metrics,
+            cpu_chart: &self.cpu_chart,
+            memory_chart: &self.memory_chart,
+            on_select,
+            on_resize,
+            on_open_changed,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::time::Duration;
+
+    use guinea::app::Harness;
+    use guinea::feature::Segment;
+    use guinea::winui::harness::Mounted;
+    use guinea::winui::{page, Page, PageCx};
+    use guinea_plugin_l10n::L10nPlugin;
+    use guinea_plugin_store::amethystate::store::builder::Backend;
+    use guinea_plugin_store::StorePlugin;
+    use windows_reactor::TextBlock;
+
+    use app_contracts::features::agents::AgentConnectionState;
+
+    use super::*;
+    use crate::test_agent;
+
+    static OPENED: AtomicU32 = AtomicU32::new(0);
+
+    fn open_native() {
+        OPENED.fetch_add(1, Ordering::SeqCst);
+    }
+
+    #[derive(Default)]
+    pub struct ShellProbe;
+
+    #[page]
+    impl Page for ShellProbe {
+        type Params = ();
+        type Installs = AgentLinkFeature;
+        type Message = ();
+
+        fn install(ctx: &FeatureInitContext, _params: &()) -> anyhow::Result<AgentLinkFeature> {
+            ctx.install(&AgentLinkParams { open_native })
+        }
+
+        fn update(&mut self, _message: (), _cx: &mut UpdateCx<'_, Self>) {}
+
+        fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
+            let (link, dispatch) = cx.use_reducer::<AgentLinkState, _>();
+            let l10n = ui::l10n::use_tr(cx);
+            splash(&link, &dispatch, &l10n, Palette::of(ColorScheme::Dark))
+                .unwrap_or_else(|| TextBlock::new().text("shell").into())
+        }
+    }
+
+    impl Segment for ShellProbe {
+        type Installs = AgentLinkFeature;
+        type Above = ();
+    }
+
+    fn splash_shown(page: &Mounted<'_, ShellProbe>) -> bool {
+        page.find(ui::SplashMark::Splash).is_some()
+    }
+
+    fn agent(h: &Harness) -> AgentConnectionState {
+        h.state::<AgentLinkState>().windows
+    }
+
+    fn start(h: &mut Harness, agent_up: bool) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        test_agent::reset(agent_up);
+        OPENED.store(0, Ordering::SeqCst);
+        h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json))
+            .unwrap()
+            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
+            .unwrap()
+            .feature(test_agent::FakeAgentFeature)
+            .unwrap();
+        dir
+    }
+
+    fn after(h: &Harness, page: &mut Mounted<'_, ShellProbe>, seconds: u64) {
+        h.advance(Duration::from_secs(seconds));
+        page.settle();
+    }
+
+    #[guinea::test(iterations = 16, exclusive = "store")]
+    fn the_splash_gives_up_after_five_attempts_and_keeps_trying(h: &mut Harness) {
+        let _store = start(h, false);
+        let h = &*h;
+        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+        assert!(splash_shown(&page), "{:#?}", page.tree());
+        assert_eq!(test_agent::connects(), 1);
+
+        after(h, &mut page, 9);
+        assert_eq!(test_agent::connects(), 4);
+        assert_ne!(agent(h), AgentConnectionState::GaveUp);
+        assert!(splash_shown(&page), "{:#?}", page.tree());
+        assert!(page.find(ui::SplashMark::Unreachable).is_none(), "not given up yet");
+
+        after(h, &mut page, 3);
+        assert_eq!(test_agent::connects(), 5, "one attempt per three-second window");
+        assert_eq!(agent(h), AgentConnectionState::GaveUp);
+        assert!(splash_shown(&page), "{:#?}", page.tree());
+        assert!(page.find(ui::SplashMark::Unreachable).is_some(), "{:#?}", page.tree());
+
+        after(h, &mut page, 3);
+        assert_eq!(test_agent::connects(), 6, "giving up does not stop the attempts");
+        assert_eq!(agent(h), AgentConnectionState::GaveUp);
+
+        test_agent::set_up(true);
+        after(h, &mut page, 3);
+        assert!(!splash_shown(&page), "{:#?}", page.tree());
+        assert!(page.find_text("shell").is_some(), "{:#?}", page.tree());
+    }
+
+    fn unreachable_line(page: &Mounted<'_, ShellProbe>) -> Option<String> {
+        page.tree()
+            .find(ui::SplashMark::Unreachable)
+            .and_then(|node| node.text.clone())
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "store")]
+    fn the_splash_names_the_service_it_cannot_reach(h: &mut Harness) {
+        let _store = start(h, false);
+        let h = &*h;
+        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+
+        after(h, &mut page, 9);
+        assert_ne!(agent(h), AgentConnectionState::GaveUp);
+        assert_eq!(unreachable_line(&page), None, "slow is not unreachable yet");
+
+        after(h, &mut page, 3);
+        assert_eq!(agent(h), AgentConnectionState::GaveUp);
+        let line = unreachable_line(&page).unwrap_or_else(|| panic!("{:#?}", page.tree()));
+        assert_eq!(
+            line,
+            format!("Can’t connect to the “\u{2068}{AGENT_SERVICE_DISPLAY_NAME}\u{2069}” service")
+        );
+
+        after(h, &mut page, 3);
+        assert!(unreachable_line(&page).is_some(), "still named while it keeps trying");
+
+        test_agent::set_up(true);
+        after(h, &mut page, 3);
+        assert_eq!(unreachable_line(&page), None, "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_splash_is_gone_as_soon_as_the_agent_answers(h: &mut Harness) {
+        let _store = start(h, true);
+        let h = &*h;
+        let page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+
+        assert!(page.find_text("shell").is_some(), "{:#?}", page.tree());
+        assert_eq!(test_agent::connects(), 1);
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_splash_opens_the_native_task_manager(h: &mut Harness) {
+        let _store = start(h, false);
+        let h = &*h;
+        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+
+        after(h, &mut page, 4);
+        assert!(page.find(ui::SplashMark::OpenNative).is_none(), "not offered yet");
+        assert!(page.find_text("Starting is taking longer than usual").is_none());
+
+        after(h, &mut page, 1);
+        assert!(page.find_text("Starting is taking longer than usual").is_some(), "{:#?}", page.tree());
+        page.click(ui::SplashMark::OpenNative).settle();
+        page.settle();
+
+        assert_eq!(OPENED.load(Ordering::SeqCst), 1);
+        assert!(splash_shown(&page), "{:#?}", page.tree());
     }
 }

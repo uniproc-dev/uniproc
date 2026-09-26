@@ -5,7 +5,6 @@ edition.workspace = true
 
 [dependencies]
 windows = { workspace = true }
-ttl_cache = { workspace = true }
 tracing = { workspace = true }
 png = "0.18.1"
 

@@ -1,6 +1,6 @@
-use guinea_macros::reducer;
+use guinea::prelude::*;
 
-use super::messages::{Sidebar, SidebarMsg};
+use super::messages::SidebarMsg;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct SidebarState {
@@ -17,13 +17,15 @@ impl Default for SidebarState {
     }
 }
 
-#[reducer]
-#[dispatch(Sidebar)]
-pub fn sidebar_reducer(state: &mut SidebarState, msg: SidebarMsg) {
-    match msg {
-        SidebarMsg::Set { open, width } => {
-            state.open = open;
-            state.width = width;
+impl Reducer for SidebarState {
+    type Update = SidebarMsg;
+
+    fn reduce(&mut self, update: SidebarMsg) {
+        match update {
+            SidebarMsg::Set { open, width } => {
+                self.open = open;
+                self.width = width;
+            }
         }
     }
 }

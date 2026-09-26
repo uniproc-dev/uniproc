@@ -7,15 +7,13 @@ edition.workspace = true
 app-contracts = { workspace = true }
 domain = { workspace = true }
 guinea = { workspace = true }
-guinea-core = { workspace = true }
-guinea-macros = { workspace = true }
 ui = { workspace = true }
 guicons = { workspace = true, features = ["windows-reactor"] }
-guinea-meta = { workspace = true }
-guinea-trace = { workspace = true }
 amethystate = { workspace = true }
 guinea-plugin-store = { workspace = true }
 guinea-plugin-l10n = { workspace = true }
+guinea-plugin-devtools = { workspace = true }
+guinea-widgets = { workspace = true }
 anyhow = { workspace = true }
 uuid = { workspace = true }
 unic-langid = { workspace = true }
@@ -26,6 +24,14 @@ windows-collections = { workspace = true }
 windows-core = { workspace = true }
 windows-reference = { workspace = true }
 windows-reactor = { workspace = true }
+dhat = { version = "0.3", optional = true }
+
+[features]
+dhat-heap = ["dep:dhat"]
+
+[dev-dependencies]
+guinea = { workspace = true, features = ["harness"] }
+tempfile = "3"
 
 [build-dependencies]
 windows-reactor-setup = { workspace = true }

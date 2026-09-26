@@ -3,6 +3,7 @@ root = "assets/ui"
 
 [docker]
 iconify = "mdi:docker"
+paint = { light = "#1a1a1a", dark = "#ffffff" }
 
 [linux]
 iconify = "flat-color-icons:linux"

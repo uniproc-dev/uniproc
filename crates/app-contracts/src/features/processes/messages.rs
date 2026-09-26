@@ -1,9 +1,8 @@
 use crate::features::agents::AgentConnectionState;
-use guinea_core::messages;
-use guinea_macros::port;
+use serde::Deserialize;
 use std::rc::Rc;
 
-use super::model::{MachineSummary, ProcessRow};
+use super::model::{MachineSummary, ProcessColumn, ProcessRow};
 
 #[derive(Clone)]
 pub enum ProcessesMsg {
@@ -14,21 +13,23 @@ pub enum ProcessesMsg {
     },
     SetSelected(Option<u32>),
     SetSort {
-        column: String,
+        column: ProcessColumn,
         descending: bool,
     },
 }
 
-#[port]
-pub trait ProcessesPort: 'static {
-    fn send(&self, msg: ProcessesMsg);
-}
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Sort(pub ProcessColumn);
 
-messages! {
-    pub Processes {
-        Sort(String),
-        Select(u32),
-        Deselect,
-        Terminate,
-    }
-}
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Select(pub u32);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Deselect;
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Terminate;

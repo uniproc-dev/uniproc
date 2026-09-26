@@ -1,14 +1,17 @@
 [defaults]
 root = "assets/ui"
+paint = { light = "#1a1a1a", dark = "#ffffff" }
 
 [link]
 includes = ["icons.vendor.gui.toml"]
 
 [app]
 iconify = "fluent-color:apps-24"
+paint = "none"
 
 [apps-list]
 iconify = "fluent-color:apps-list-24"
+paint = "none"
 
 [arrow-up-filled]
 iconify = "fluent:arrow-up-24-filled"
@@ -27,15 +30,19 @@ iconify = "fluent:chevron-right-24-regular"
 
 [coin]
 iconify = "fluent-color:coin-multiple-24"
+paint = "none"
 
 [dashed-settings]
 file = "dashed-settings.svg"
+paint = "none"
 
 [data-area]
 iconify = "fluent-color:data-area-20"
+paint = "none"
 
 [database]
 iconify = "fluent-color:database-24"
+paint = "none"
 
 [dismiss]
 iconify = "fluent:dismiss-20-regular"
@@ -69,6 +76,7 @@ file = "info.svg"
 
 [layer-filled]
 file = "layer-filled.svg"
+paint = "none"
 
 [layer-regular]
 iconify = "fluent:layer-24-regular"
@@ -87,6 +95,7 @@ iconify = "fluent:open-20-regular"
 
 [people]
 iconify = "fluent-color:people-24"
+paint = "none"
 
 [play]
 iconify = "fluent:play-24-regular"
@@ -111,6 +120,7 @@ file = "pulse-regular.svg"
 
 [puzzle]
 iconify = "fluent-color:puzzle-piece-24"
+paint = "none"
 
 [refresh]
 iconify = "fluent:arrow-sync-24-regular"
@@ -123,6 +133,7 @@ iconify = "fluent:search-24-regular"
 
 [settings]
 iconify = "fluent-color:settings-24"
+paint = "none"
 
 [settings-filled]
 iconify = "fluent:settings-24-filled"
@@ -135,6 +146,7 @@ iconify = "fluent:spinner-ios-20-regular"
 
 [statistics]
 iconify = "fluent-color:data-trending-24"
+paint = "none"
 
 [stop]
 iconify = "fluent:stop-24-regular"
@@ -142,9 +154,18 @@ iconify = "fluent:stop-24-regular"
 [terminate]
 iconify = "fluent:dismiss-circle-24-regular"
 
+[window]
+iconify = "fluent:window-24-regular"
+
 [uniproc-logo]
 file = "uniproc-logo.svg"
+paint = "none"
+
+[uniproc-logo-splash]
+file = "uniproc-logo-splash.svg"
+paint = "none"
 
 [sys.application.icon]
 file = "app.svg"
 windows-ico = "icon.ico"
+paint = "none"

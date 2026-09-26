@@ -1,6 +1,7 @@
-use windows::Win32::Foundation::*;
-use windows::Win32::Graphics::Gdi::*;
-use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, HICON, ICONINFO};
+use windows::Win32::{
+    DeleteObject, GetDC, GetDIBits, GetIconInfo, GetObjectW, ReleaseDC, BITMAP, BITMAPINFOHEADER,
+    BI_RGB, DIB_RGB_COLORS, HANDLE, HBITMAP, HDC, HGDIOBJ, HICON, HWND, ICONINFO,
+};
 
 pub struct RgbaImage {
     pub pixels: Vec<u8>,
@@ -11,20 +12,20 @@ pub struct RgbaImage {
 pub(super) unsafe fn hicon_to_rgba(hicon: HICON) -> Option<RgbaImage> {
     unsafe {
         let mut icon_info = ICONINFO::default();
-        if GetIconInfo(hicon, &mut icon_info).is_err() {
+        if !GetIconInfo(hicon, &mut icon_info).as_bool() {
             return None;
         }
         let _color_guard = GdiObjectGuard(icon_info.hbmColor);
         let _mask_guard = GdiObjectGuard(icon_info.hbmMask);
 
         let hdc = GetDC(Option::from(HWND(std::ptr::null_mut())));
-        if hdc.is_invalid() {
+        if hdc.0.is_null() {
             return None;
         }
 
         let mut bm = BITMAP::default();
         let described = GetObjectW(
-            icon_info.hbmColor.into(),
+            HANDLE(icon_info.hbmColor.0),
             std::mem::size_of::<BITMAP>() as i32,
             Some(&mut bm as *mut _ as *mut _),
         );
@@ -54,7 +55,7 @@ pub(super) unsafe fn hicon_to_rgba(hicon: HICON) -> Option<RgbaImage> {
             h as u32,
             Some(buffer.as_mut_ptr() as *mut _),
             &mut bmi as *mut _ as *mut _,
-            DIB_RGB_COLORS,
+            DIB_RGB_COLORS as u32,
         );
         if scan_lines == 0 {
             let _ = ReleaseDC(Option::from(HWND(std::ptr::null_mut())), hdc);
@@ -93,7 +94,7 @@ unsafe fn read_and_mask(hdc: HDC, hbmp: HBITMAP, w: i32, h: i32) -> Option<Vec<u
             biHeight: -h,
             biPlanes: 1,
             biBitCount: 1,
-            biCompression: BI_RGB.0 as u32,
+            biCompression: BI_RGB as u32,
             ..std::mem::zeroed()
         };
         let scan_lines = GetDIBits(
@@ -103,7 +104,7 @@ unsafe fn read_and_mask(hdc: HDC, hbmp: HBITMAP, w: i32, h: i32) -> Option<Vec<u
             h as u32,
             Some(buffer.as_mut_ptr() as *mut _),
             &mut bmi as *mut _ as *mut _,
-            DIB_RGB_COLORS,
+            DIB_RGB_COLORS as u32,
         );
         if scan_lines == 0 {
             return None;
@@ -129,13 +130,13 @@ fn apply_and_mask(buffer: &mut [u8], mask: &[u8], w: i32, h: i32) {
 pub(super) unsafe fn hbitmap_to_rgba(hbitmap: HBITMAP) -> Option<RgbaImage> {
     unsafe {
         let hdc = GetDC(None);
-        if hdc.is_invalid() {
+        if hdc.0.is_null() {
             return None;
         }
 
         let mut bm = BITMAP::default();
         let res = GetObjectW(
-            hbitmap.into(),
+            HANDLE(hbitmap.0),
             std::mem::size_of::<BITMAP>() as i32,
             Some(&mut bm as *mut _ as *mut _),
         );
@@ -158,7 +159,7 @@ pub(super) unsafe fn hbitmap_to_rgba(hbitmap: HBITMAP) -> Option<RgbaImage> {
             biHeight: -h,
             biPlanes: 1,
             biBitCount: 32,
-            biCompression: BI_RGB.0 as u32,
+            biCompression: BI_RGB as u32,
             ..Default::default()
         };
 
@@ -169,7 +170,7 @@ pub(super) unsafe fn hbitmap_to_rgba(hbitmap: HBITMAP) -> Option<RgbaImage> {
             h as u32,
             Some(buffer.as_mut_ptr() as *mut _),
             &mut bmi as *mut _ as *mut _,
-            DIB_RGB_COLORS,
+            DIB_RGB_COLORS as u32,
         );
         ReleaseDC(None, hdc);
         if scan_lines == 0 {
@@ -204,9 +205,9 @@ fn bgra_swap_and_detect_alpha(buffer: &mut [u8]) -> bool {
 pub(super) struct GdiObjectGuard(pub HBITMAP);
 impl Drop for GdiObjectGuard {
     fn drop(&mut self) {
-        if !self.0.is_invalid() {
+        if !self.0.0.is_null() {
             unsafe {
-                let _ = DeleteObject(self.0.into());
+                let _ = DeleteObject(HGDIOBJ(self.0.0));
             }
         }
     }

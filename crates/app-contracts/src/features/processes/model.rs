@@ -1,9 +1,10 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, amethystate::AmeType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ColumnConfig {
     pub width: u64,
-    pub min_width: u64,
     pub visible: bool,
 }
 
@@ -11,7 +12,6 @@ impl Default for ColumnConfig {
     fn default() -> Self {
         Self {
             width: 110,
-            min_width: 80,
             visible: true,
         }
     }
@@ -69,18 +69,56 @@ impl ProcessCategory {
     }
 }
 
+#[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug, Hash, serde::Deserialize)]
+pub enum ProcessColumn {
+    Name,
+    Cpu,
+    Memory,
+    Net,
+    Disk,
+}
+
+impl ProcessColumn {
+    pub const ALL: [Self; 5] = [Self::Name, Self::Cpu, Self::Memory, Self::Net, Self::Disk];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Name => "name",
+            Self::Cpu => "cpu",
+            Self::Memory => "memory",
+            Self::Net => "net",
+            Self::Disk => "disk",
+        }
+    }
+
+    pub fn from_mark(name: &str) -> Option<Self> {
+        use guinea::Mark;
+        Self::ALL.into_iter().find(|c| c.name() == name)
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct HostedService {
+    pub name: Arc<str>,
+    pub display_name: Arc<str>,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct ProcessRow {
     pub pid: u32,
-    pub name: String,
-    pub display_name: String,
+    pub name: Arc<str>,
+    pub display_name: Arc<str>,
     pub cpu_percent: f32,
     pub memory_bytes: u64,
     pub disk_bytes: u64,
     pub net_bytes: u64,
-    pub exe_path: String,
-    pub package_full_name: String,
+    pub exe_path: Arc<str>,
+    pub package_full_name: Arc<str>,
+    pub owner: Option<Arc<str>>,
+    pub owner_pid: Option<u32>,
     pub category: ProcessCategory,
+    pub services: Option<Arc<[HostedService]>>,
+    pub windows: Option<Arc<[Arc<str>]>>,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]

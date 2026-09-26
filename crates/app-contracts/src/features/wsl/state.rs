@@ -1,5 +1,4 @@
-use guinea_core::Load;
-use guinea_macros::reducer;
+use guinea::prelude::*;
 use std::rc::Rc;
 
 use super::messages::WslMsg;
@@ -34,14 +33,15 @@ impl WslState {
     }
 }
 
-#[reducer]
-pub fn wsl_reducer(state: &mut WslState, msg: WslMsg) {
-    match msg {
-        WslMsg::SetDistros(distros) => {
-            state.distros = Load::Ready(distros);
-        }
-        WslMsg::SetMachine(machine) => {
-            state.machine = machine;
+impl Reducer for WslState {
+    type Update = WslMsg;
+
+    fn reduce(&mut self, update: WslMsg) {
+        match update {
+            WslMsg::Set { distros, machine } => {
+                self.distros = Load::Ready(distros);
+                self.machine = machine;
+            }
         }
     }
 }

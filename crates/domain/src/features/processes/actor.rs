@@ -1,116 +1,201 @@
-use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use app_contracts::features::agents::{
-    AgentConnectionState, SignatureStatus, WindowsAction, WindowsActionRequest, WindowsReportMessage,
+    AgentConnectionState, SignatureStatus, WindowsAction, WindowsActionRequest,
+    WindowsProcessStats, WindowsReport, WindowsReportMessage,
 };
-use app_contracts::features::processes::{Deselect, Select, Sort, Terminate, 
-    MachineSummary, ProcessCategory, ProcessRow, ProcessesMsg, ProcessesPort,
+use app_contracts::features::processes::{
+    Deselect, HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessRow,
+    ProcessesMsg, ProcessesState, Select, Sort, Terminate,
 };
-use guinea_core::actor::event_bus::GlobalEventBus;
-use guinea_core::actor::Context;
-use guinea_macros::{actor, handler};
+use guinea::prelude::*;
 use uuid::Uuid;
 
-use super::windows_scan;
+use super::rates::IoRates;
+use super::windows_scan::AppWindows;
 
-#[derive(derive_more::Debug)]
-pub struct ProcessesActor<P: ProcessesPort> {
-    #[debug(skip)]
-    ui_port: P,
-    #[debug("{}", rows.len())]
+#[derive(Debug)]
+pub struct ProcessesActor {
+    ui_port: Push<ProcessesState>,
     rows: Rc<[ProcessRow]>,
-    #[debug(skip)]
     machine_summary: MachineSummary,
-    sort_column: String,
+    sort_column: ProcessColumn,
     descending: bool,
     selected: Option<u32>,
     agent_state: AgentConnectionState,
+    io_rates: IoRates,
+    windows: fn() -> AppWindows,
+    stats: std::cell::RefCell<crate::push_stats::PushStats<(Rc<[ProcessRow]>, MachineSummary, AgentConnectionState)>>,
 }
 
-impl<P: ProcessesPort> ProcessesActor<P> {
-    pub fn new(ui_port: P) -> Self {
+impl ProcessesActor {
+    pub fn new(ui_port: Push<ProcessesState>, windows: fn() -> AppWindows) -> Self {
         Self {
+            stats: std::cell::RefCell::new(crate::push_stats::PushStats::new("processes")),
             ui_port,
+            windows,
             rows: Rc::from(Vec::new()),
             machine_summary: MachineSummary::default(),
             agent_state: AgentConnectionState::Disconnected,
-            sort_column: "cpu".to_string(),
+            io_rates: IoRates::default(),
+            sort_column: ProcessColumn::Cpu,
             descending: true,
             selected: None,
         }
     }
 
     fn publish_rows(&self) {
+        self.stats.borrow_mut().note((
+            self.rows.clone(),
+            self.machine_summary.clone(),
+            self.agent_state,
+        ));
         self.ui_port.send(ProcessesMsg::SetRows {
             rows: self.rows.clone(),
             machine: self.machine_summary.clone(),
             agent_state: self.agent_state,
         });
     }
+}
 
-    fn resort(&mut self) {
-        let pinned_pos = self
-            .selected
-            .and_then(|pid| self.rows.iter().position(|r| r.pid == pid));
-        let mut rows = self.rows.to_vec();
-        sort_rows_pinned(
-            &mut rows,
-            &self.sort_column,
-            self.descending,
-            pinned_pos,
-            self.selected,
-        );
-        self.rows = Rc::from(rows);
+const CONSOLE_HOSTS: [&str; 2] = ["conhost.exe", "OpenConsole.exe"];
+const SERVICE_HOST: &str = "svchost.exe";
+
+fn shown_name(p: &WindowsProcessStats) -> Arc<str> {
+    if p.display_name.is_empty() {
+        p.name.clone()
+    } else {
+        p.display_name.clone()
     }
 }
 
-fn sort_rows_pinned(
-    rows: &mut Vec<ProcessRow>,
-    column: &str,
-    descending: bool,
-    pinned_pos: Option<usize>,
-    pinned_pid: Option<u32>,
-) {
-    rows.sort_by(|a, b| {
-        let ord = match column {
-            "name" => a
-                .name
-                .chars()
-                .flat_map(char::to_lowercase)
-                .cmp(b.name.chars().flat_map(char::to_lowercase)),
-            "cpu" => a
-                .cpu_percent
-                .partial_cmp(&b.cpu_percent)
-                .unwrap_or(Ordering::Equal),
-            "memory" => a.memory_bytes.cmp(&b.memory_bytes),
-            "disk" => a.disk_bytes.cmp(&b.disk_bytes),
-            "net" => a.net_bytes.cmp(&b.net_bytes),
-            _ => Ordering::Equal,
-        };
-        let ord = ord
-            .then_with(|| a.name.cmp(&b.name))
-            .then_with(|| a.pid.cmp(&b.pid));
-        if descending { ord.reverse() } else { ord }
-    });
+fn is_console_host(p: &WindowsProcessStats) -> bool {
+    CONSOLE_HOSTS.iter().any(|host| p.name.eq_ignore_ascii_case(host))
+}
 
-    if let (Some(pos), Some(pid)) = (pinned_pos, pinned_pid)
-        && let Some(current) = rows.iter().position(|r| r.pid == pid)
-    {
-        let row = rows.remove(current);
-        let insert_at = pos.min(rows.len());
-        rows.insert(insert_at, row);
+fn console_owner<'a>(
+    host: &WindowsProcessStats,
+    clients: &HashMap<u32, Vec<&'a WindowsProcessStats>>,
+    by_pid: &HashMap<u32, &'a WindowsProcessStats>,
+) -> Option<&'a WindowsProcessStats> {
+    let Some(clients) = clients.get(&host.pid) else {
+        return by_pid.get(&host.parent_pid).copied();
+    };
+    let is_client = |pid: u32| clients.iter().any(|c| c.pid == pid);
+    clients
+        .iter()
+        .find(|c| c.pid == host.parent_pid)
+        .or_else(|| clients.iter().find(|c| !is_client(c.parent_pid)))
+        .or_else(|| clients.first())
+        .copied()
+}
+
+fn is_service_host(p: &WindowsProcessStats) -> bool {
+    p.name.eq_ignore_ascii_case(SERVICE_HOST)
+}
+
+pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<ProcessRow> {
+    let has_console_hosts = report.processes.iter().any(is_console_host);
+    let by_pid: HashMap<u32, &WindowsProcessStats> = if has_console_hosts {
+        report.processes.iter().map(|p| (p.pid, p)).collect()
+    } else {
+        HashMap::new()
+    };
+    let mut console_clients: HashMap<u32, Vec<&WindowsProcessStats>> = HashMap::new();
+    if has_console_hosts {
+        for p in report.processes.iter().filter(|p| p.console_host_pid != 0) {
+            console_clients.entry(p.console_host_pid).or_default().push(p);
+        }
     }
+    let mut known_signatures: HashMap<&str, SignatureStatus> = HashMap::new();
+    for p in &report.processes {
+        if p.signature != SignatureStatus::Unknown && !p.image_path.is_empty() {
+            known_signatures.insert(&p.image_path, p.signature);
+        }
+    }
+    let signature_of = |p: &WindowsProcessStats| match p.signature {
+        SignatureStatus::Unknown => known_signatures
+            .get(&*p.image_path)
+            .copied()
+            .unwrap_or(SignatureStatus::Unknown),
+        known => known,
+    };
+    let mut hosted: HashMap<u32, Vec<HostedService>> = HashMap::new();
+    for service in report.services.iter().filter(|s| s.pid != 0) {
+        hosted.entry(service.pid).or_default().push(HostedService {
+            name: service.name.clone(),
+            display_name: service.display_name.clone(),
+        });
+    }
+    let services: HashMap<u32, Arc<[HostedService]>> = hosted
+        .into_iter()
+        .map(|(pid, mut list)| {
+            list.sort_by(|a, b| a.display_name.cmp(&b.display_name));
+            (pid, Arc::from(list))
+        })
+        .collect();
+    let owner_of = |p: &WindowsProcessStats| {
+        if is_console_host(p) {
+            return console_owner(p, &console_clients, &by_pid).map(shown_name);
+        }
+        if is_service_host(p) {
+            return services.get(&p.pid).and_then(|list| match list.len() {
+                0 => None,
+                1 => Some(list[0].display_name.clone()),
+                more => Some(Arc::from(format!("{} +{}", list[0].display_name, more - 1))),
+            });
+        }
+        None
+    };
+
+    report
+        .processes
+        .iter()
+        .map(|p| ProcessRow {
+            pid: p.pid,
+            cpu_percent: p.cpu_percent,
+            memory_bytes: p.memory_kb() * 1024,
+            disk_bytes: p.disk_read_bytes + p.disk_write_bytes,
+            net_bytes: p.net_rx_bytes + p.net_tx_bytes,
+
+            exe_path: if p.image_path.is_empty() {
+                p.first_arg.clone()
+            } else {
+                p.image_path.clone()
+            },
+            category: ProcessCategory::classify(
+                windows.contains(p.pid),
+                p.is_kernel_process,
+                p.is_service,
+                signature_of(p) == SignatureStatus::Microsoft,
+            ),
+
+            display_name: shown_name(p),
+            name: p.name.clone(),
+            package_full_name: p.package_full_name.clone(),
+            owner: owner_of(p),
+            owner_pid: is_console_host(p)
+                .then(|| console_owner(p, &console_clients, &by_pid))
+                .flatten()
+                .map(|owner| owner.pid),
+            services: services.get(&p.pid).cloned(),
+            windows: Some(windows.titles(p.pid))
+                .filter(|titles| !titles.is_empty())
+                .map(Arc::from),
+        })
+        .collect()
 }
 
 actor! {
-    ProcessesActor<P: ProcessesPort> {
+    ProcessesActor {
         handlers { Sort, Select, Deselect, Terminate, WindowsReportMessage }
     }
 }
 
 #[handler]
-fn on_windows_report<P: ProcessesPort>(this: &mut ProcessesActor<P>, ctx: Context<ProcessesActor<P>, WindowsReportMessage>) {
+fn on_windows_report(this: &mut ProcessesActor, ctx: Context<ProcessesActor, WindowsReportMessage>) {
     let msg = ctx.msg;
     let report = match msg {
         WindowsReportMessage::Report(report) => report,
@@ -130,91 +215,43 @@ fn on_windows_report<P: ProcessesPort>(this: &mut ProcessesActor<P>, ctx: Contex
         memory_total_bytes: machine.total_physical_kb * 1024,
     };
 
-    let windowed = windows_scan::visible_window_pids();
-
-    let pinned_pos = this
-        .selected
-        .and_then(|pid| this.rows.iter().position(|r| r.pid == pid));
-    let pinned_pid = this.selected;
-
-    let mut rows: Vec<ProcessRow> = report
-        .processes
-        .into_iter()
-        .map(|mut p| ProcessRow {
-            pid: p.pid,
-            cpu_percent: p.cpu_percent,
-            memory_bytes: p.memory_kb() * 1024,
-            disk_bytes: p.disk_read_bytes + p.disk_write_bytes,
-            net_bytes: p.net_rx_bytes + p.net_tx_bytes,
-
-            exe_path: if p.image_path.is_empty() {
-                if p.cmdline.is_empty() {
-                    String::new()
-                } else {
-                    p.cmdline.swap_remove(0)
-                }
-            } else {
-                std::mem::take(&mut p.image_path)
-            },
-            category: ProcessCategory::classify(
-                windowed.contains(&p.pid),
-                p.is_kernel_process,
-                p.is_service,
-                p.signature == SignatureStatus::Microsoft,
-            ),
-
-            display_name: if p.display_name.is_empty() {
-                p.name.clone()
-            } else {
-                std::mem::take(&mut p.display_name)
-            },
-            name: p.name,
-            package_full_name: p.package_full_name,
-        })
-        .collect();
-    sort_rows_pinned(
-        &mut rows,
-        &this.sort_column,
-        this.descending,
-        pinned_pos,
-        pinned_pid,
-    );
+    let windows = (this.windows)();
+    let mut rows = rows_from_report(&report, &windows);
+    this.io_rates.apply(&mut rows, tokio::time::Instant::now());
     this.rows = Rc::from(rows);
     this.publish_rows();
 }
 
 #[handler]
-fn sort<P: ProcessesPort>(this: &mut ProcessesActor<P>, ctx: Context<ProcessesActor<P>, Sort>) {
+fn sort(this: &mut ProcessesActor, ctx: Context<ProcessesActor, Sort>) {
     let msg = ctx.msg;
     if this.sort_column == msg.0 {
         this.descending = !this.descending;
     } else {
+        this.descending = msg.0 != ProcessColumn::Name;
         this.sort_column = msg.0;
-        this.descending = true;
     }
-    this.resort();
     this.ui_port.send(ProcessesMsg::SetSort {
-        column: this.sort_column.clone(),
+        column: this.sort_column,
         descending: this.descending,
     });
-    this.publish_rows();
 }
 
 #[handler]
-fn select<P: ProcessesPort>(this: &mut ProcessesActor<P>, ctx: Context<ProcessesActor<P>, Select>) {
+fn select(this: &mut ProcessesActor, ctx: Context<ProcessesActor, Select>) {
     let msg = ctx.msg;
     this.selected = Some(msg.0);
     this.ui_port.send(ProcessesMsg::SetSelected(this.selected));
 }
 
 #[handler]
-fn deselect<P: ProcessesPort>(this: &mut ProcessesActor<P>, _ctx: Context<ProcessesActor<P>, Deselect>) {
+fn deselect(this: &mut ProcessesActor, _ctx: Context<ProcessesActor, Deselect>) {
     this.selected = None;
     this.ui_port.send(ProcessesMsg::SetSelected(None));
 }
 
 #[handler]
-fn terminate<P: ProcessesPort>(this: &mut ProcessesActor<P>, _ctx: Context<ProcessesActor<P>, Terminate>) {
+fn terminate(this: &mut ProcessesActor, _ctx: Context<ProcessesActor, Terminate>) {
     let Some(pid) = this.selected else {
         return;
     };
@@ -222,97 +259,144 @@ fn terminate<P: ProcessesPort>(this: &mut ProcessesActor<P>, _ctx: Context<Proce
         Uuid::new_v4(),
         WindowsAction::Kill { pid },
     ));
-    this.selected = None;
-    this.ui_port.send(ProcessesMsg::SetSelected(None));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn row(pid: u32, name: &str, cpu: f32) -> ProcessRow {
-        ProcessRow {
+    fn stats(pid: u32, parent_pid: u32, name: &str, display_name: &str) -> WindowsProcessStats {
+        WindowsProcessStats {
             pid,
-            name: name.to_string(),
-            display_name: name.to_string(),
-            cpu_percent: cpu,
-            memory_bytes: 0,
-            disk_bytes: 0,
-            net_bytes: 0,
-            exe_path: String::new(),
-            package_full_name: String::new(),
-            category: ProcessCategory::App,
+            parent_pid,
+            name: name.into(),
+            display_name: display_name.into(),
+            ..WindowsProcessStats::default()
         }
     }
 
     #[test]
-    fn pinned_row_keeps_position_on_sort() {
-        let mut rows = vec![
-            row(1, "alpha", 5.0),
-            row(2, "beta", 3.0),
-            row(3, "gamma", 1.0),
-        ];
+    fn a_console_host_is_owned_by_the_process_that_started_it() {
+        let report = WindowsReport {
+            processes: vec![
+                stats(10, 1, "cargo.exe", ""),
+                stats(11, 10, "conhost.exe", "Console Window Host"),
+                stats(12, 999, "conhost.exe", "Console Window Host"),
+                stats(13, 10, "rustc.exe", ""),
+            ],
+            ..WindowsReport::default()
+        };
 
-        sort_rows_pinned(&mut rows, "cpu", true, Some(1), Some(2));
+        let rows = rows_from_report(&report, &AppWindows::default());
+        let owner = |pid: u32| rows.iter().find(|r| r.pid == pid).and_then(|r| r.owner.as_deref());
 
-        assert_eq!(rows[1].pid, 2, "pinned row must stay at index 1");
-        assert_eq!(rows[0].pid, 1, "highest cpu must be first");
-        assert_eq!(rows[2].pid, 3, "lowest cpu must be last");
+        assert_eq!(owner(11), Some("cargo.exe"));
+        assert_eq!(owner(12), None, "the parent is not in this report");
+        assert_eq!(owner(13), None, "only console hosts get an owner");
+        assert_eq!(owner(10), None);
     }
 
-    #[test]
-    fn pinned_row_keeps_position_when_report_reorders() {
-        let mut rows = vec![
-            row(3, "gamma", 1.0),
-            row(1, "alpha", 5.0),
-            row(2, "beta", 3.0),
-        ];
-
-        sort_rows_pinned(&mut rows, "cpu", true, Some(1), Some(2));
-
-        assert_eq!(rows[1].pid, 2, "pinned row must return to its pinned index");
-        assert_eq!(rows[0].pid, 1);
-        assert_eq!(rows[2].pid, 3);
-    }
-
-    #[test]
-    fn pinned_row_keeps_position_on_repeated_sorts() {
-        let mut rows = vec![
-            row(1, "alpha", 5.0),
-            row(2, "beta", 3.0),
-            row(3, "gamma", 1.0),
-        ];
-
-        sort_rows_pinned(&mut rows, "cpu", true, Some(1), Some(2));
-        assert_eq!(rows[1].pid, 2);
-
-        for r in &mut rows {
-            if r.pid == 2 {
-                r.cpu_percent = 0.5;
-            }
-            if r.pid == 3 {
-                r.cpu_percent = 4.0;
-            }
+    fn client(pid: u32, parent_pid: u32, name: &str, console_host_pid: u32) -> WindowsProcessStats {
+        WindowsProcessStats {
+            console_host_pid,
+            ..stats(pid, parent_pid, name, "")
         }
-
-        sort_rows_pinned(&mut rows, "cpu", true, Some(1), Some(2));
-        assert_eq!(rows[1].pid, 2, "pinned row must not drift across re-sorts");
-        assert_eq!(rows[0].pid, 1);
-        assert_eq!(rows[2].pid, 3);
     }
 
     #[test]
-    fn missing_pinned_pos_sorts_normally() {
-        let mut rows = vec![
-            row(3, "gamma", 1.0),
-            row(1, "alpha", 5.0),
-            row(2, "beta", 3.0),
-        ];
+    fn a_console_host_belongs_to_the_process_whose_console_it_serves() {
+        let report = WindowsReport {
+            processes: vec![
+                stats(20, 999, "conhost.exe", "Console Window Host"),
+                client(21, 999, "app.exe", 20),
+                stats(30, 1, "cmd.exe", ""),
+                stats(31, 30, "conhost.exe", "Console Window Host"),
+                client(32, 30, "cmd.exe", 31),
+                client(33, 32, "cargo.exe", 31),
+                stats(40, 1, "OpenConsole.exe", ""),
+                client(41, 1, "pwsh.exe", 40),
+            ],
+            ..WindowsReport::default()
+        };
 
-        sort_rows_pinned(&mut rows, "cpu", true, None, None);
+        let rows = rows_from_report(&report, &AppWindows::default());
+        let owner = |pid: u32| rows.iter().find(|r| r.pid == pid).and_then(|r| r.owner.as_deref());
 
-        assert_eq!(rows[0].pid, 1);
-        assert_eq!(rows[1].pid, 2);
-        assert_eq!(rows[2].pid, 3);
+        assert_eq!(owner(20), Some("app.exe"), "its creator is gone, the client remains");
+        let owner_pid = |pid: u32| rows.iter().find(|r| r.pid == pid).and_then(|r| r.owner_pid);
+        assert_eq!(owner_pid(20), Some(21));
+        assert_eq!(owner_pid(31), Some(32));
+        assert_eq!(owner_pid(21), None, "only console hosts point at an owner");
+        assert_eq!(owner(31), Some("cmd.exe"), "the root client, not the one it started");
+        assert_eq!(owner(40), Some("pwsh.exe"), "OpenConsole is a console host too");
     }
+
+    use app_contracts::features::agents::WindowsServiceStats;
+
+    fn service(pid: u32, display_name: &str) -> WindowsServiceStats {
+        WindowsServiceStats {
+            pid,
+            display_name: display_name.into(),
+            ..WindowsServiceStats::default()
+        }
+    }
+
+    #[test]
+    fn a_service_host_is_named_after_the_services_it_runs() {
+        let report = WindowsReport {
+            processes: vec![
+                stats(20, 1, "svchost.exe", "Host Process for Windows Services"),
+                stats(21, 1, "svchost.exe", "Host Process for Windows Services"),
+                stats(22, 1, "svchost.exe", "Host Process for Windows Services"),
+                stats(23, 1, "lsass.exe", "Local Security Authority Process"),
+            ],
+            services: vec![
+                service(20, "Windows Audio"),
+                service(21, "DCOM Server Process Launcher"),
+                service(21, "RPC Endpoint Mapper"),
+                service(21, "Power"),
+                service(0, "Stopped Service"),
+                service(23, "Security Accounts Manager"),
+            ],
+            ..WindowsReport::default()
+        };
+
+        let rows = rows_from_report(&report, &AppWindows::default());
+        let owner = |pid: u32| rows.iter().find(|r| r.pid == pid).and_then(|r| r.owner.as_deref());
+
+        assert_eq!(owner(20), Some("Windows Audio"));
+        assert_eq!(owner(21), Some("DCOM Server Process Launcher +2"));
+        assert_eq!(owner(22), None, "no running service in this host");
+        assert_eq!(owner(23), None, "only generic service hosts get a name");
+    }
+
+    fn at(pid: u32, path: &str, signature: SignatureStatus) -> WindowsProcessStats {
+        WindowsProcessStats {
+            pid,
+            name: "conhost.exe".into(),
+            image_path: path.into(),
+            signature,
+            ..WindowsProcessStats::default()
+        }
+    }
+
+    #[test]
+    fn a_process_not_yet_verified_takes_the_signature_of_its_image() {
+        let conhost = r"C:\Windows\System32\conhost.exe";
+        let report = WindowsReport {
+            processes: vec![
+                at(1, conhost, SignatureStatus::Microsoft),
+                at(2, conhost, SignatureStatus::Unknown),
+                at(3, r"C:\tools\fresh.exe", SignatureStatus::Unknown),
+            ],
+            ..WindowsReport::default()
+        };
+
+        let rows = rows_from_report(&report, &AppWindows::default());
+        let category = |pid: u32| rows.iter().find(|r| r.pid == pid).unwrap().category;
+
+        assert_eq!(category(2), ProcessCategory::BackgroundMicrosoft);
+        assert_eq!(category(3), ProcessCategory::BackgroundThirdParty);
+    }
+
 }

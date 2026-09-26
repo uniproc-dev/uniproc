@@ -1,10 +1,10 @@
 use app_contracts::features::agents::AgentConnectionState;
-use guinea_core::actor::Message;
+use guinea::prelude::*;
 
-pub trait AgentBackend: Send + Sync + 'static {
-    type Client: Clone + Send + Sync + 'static;
-    type RuntimeEvent: Message + Send + Clone + 'static;
-    type ScanMessage: Message + Send + Clone + 'static;
+pub trait AgentBackend: std::fmt::Debug + Send + Sync + 'static {
+    type Client: Clone + std::fmt::Debug + Send + Sync + 'static;
+    type RuntimeEvent: Event;
+    type ScanMessage: Event;
 
     const NAME: &'static str;
 

@@ -1,4 +1,4 @@
 mod components;
 mod page;
 
-pub use page::wsl_view;
+pub use page::{WslMsg, WslPage};

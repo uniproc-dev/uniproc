@@ -1,31 +1,34 @@
 use app_contracts::features::agents::RemoteScanResult;
-use app_contracts::features::wsl::WslReducer;
-use guinea::feature::FeatureInitContext;
-use guinea::reactor::Reactor;
+use app_contracts::features::wsl::WslState;
+use guinea::prelude::*;
+use std::time::Duration;
 
 use super::actor::{RefreshDistros, WslActor};
 use crate::features::agents::settings::AgentSettings;
 
-const DISTRO_SCAN_INTERVAL_MS: u64 = 3000;
+const DISTRO_SCAN_INTERVAL: Duration = Duration::from_secs(3);
 
-pub fn install(ctx: &FeatureInitContext) -> anyhow::Result<()> {
+feature! {
+    pub WslFeature {
+        exports { WslState }
+    }
+}
+
+#[installs]
+fn wsl(cx: &FeatureInitContext) -> anyhow::Result<WslFeature> {
     let settings = AgentSettings::new()?;
     let configured = settings.wsl_distro().get();
 
-    let addr = ctx.spawn_actor(WslActor::new(ctx.port::<WslReducer>(), configured));
+    let (wsl, addr) = cx
+        .state::<WslState>()
+        .driven_by(|push| WslActor::new(push, configured));
 
-    let ticker = addr.clone();
-    let heartbeat = Reactor::new().add_heartbeat(
-        || DISTRO_SCAN_INTERVAL_MS,
-        move || {
-            ticker.send(RefreshDistros);
-        },
-    );
-    ctx.scope.own(heartbeat);
+    cx.every(DISTRO_SCAN_INTERVAL, &addr, || RefreshDistros)
+        .named("wsl-distro-scan");
 
-    ctx.subscribe_on_global_bus::<WslActor<_>, RemoteScanResult>(addr.clone());
+    addr.subscribe_on::<RemoteScanResult>(Bus::Global);
 
     addr.send(RefreshDistros);
 
-    Ok(())
+    Ok(WslFeature(wsl))
 }

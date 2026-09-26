@@ -1,8 +1,6 @@
-use std::fs::File;
-use std::io::{self, BufWriter};
-use std::path::Path;
+use std::io;
 
-pub fn write_png(path: &Path, width: u32, height: u32, pixels_rgba: &[u8]) -> io::Result<()> {
+pub fn encode_png(width: u32, height: u32, pixels_rgba: &[u8]) -> io::Result<Vec<u8>> {
     let expected_len = (width as usize) * (height as usize) * 4;
     if pixels_rgba.len() != expected_len {
         return Err(io::Error::new(
@@ -14,15 +12,15 @@ pub fn write_png(path: &Path, width: u32, height: u32, pixels_rgba: &[u8]) -> io
         ));
     }
 
-    let file = File::create(path)?;
-    let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);
+    let mut bytes = Vec::new();
+    let mut encoder = png::Encoder::new(&mut bytes, width, height);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
 
-    let mut writer = encoder
-        .write_header()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let mut writer = encoder.write_header().map_err(io::Error::other)?;
     writer
         .write_image_data(pixels_rgba)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        .map_err(io::Error::other)?;
+    writer.finish().map_err(io::Error::other)?;
+    Ok(bytes)
 }

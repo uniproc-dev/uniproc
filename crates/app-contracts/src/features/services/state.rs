@@ -1,15 +1,14 @@
-use guinea_core::Load;
-use guinea_macros::reducer;
+use guinea::prelude::*;
 use std::rc::Rc;
 
-use super::messages::{Services, ServicesMsg};
-use super::model::ServiceRow;
+use super::messages::ServicesMsg;
+use super::model::{ServiceColumn, ServiceRow};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ServicesState {
     pub rows: Load<Rc<[ServiceRow]>>,
     pub selected: Option<String>,
-    pub sort_column: String,
+    pub sort_column: ServiceColumn,
     pub descending: bool,
 }
 
@@ -18,7 +17,7 @@ impl Default for ServicesState {
         Self {
             rows: Load::Loading,
             selected: None,
-            sort_column: "name".to_string(),
+            sort_column: ServiceColumn::Name,
             descending: false,
         }
     }
@@ -34,19 +33,21 @@ impl ServicesState {
     }
 }
 
-#[reducer]
-#[dispatch(Services)]
-pub fn services_reducer(state: &mut ServicesState, msg: ServicesMsg) {
-    match msg {
-        ServicesMsg::SetRows { rows } => {
-            state.rows = Load::Ready(rows);
-        }
-        ServicesMsg::SetSelected(name) => {
-            state.selected = name;
-        }
-        ServicesMsg::SetSort { column, descending } => {
-            state.sort_column = column;
-            state.descending = descending;
+impl Reducer for ServicesState {
+    type Update = ServicesMsg;
+
+    fn reduce(&mut self, update: ServicesMsg) {
+        match update {
+            ServicesMsg::SetRows { rows } => {
+                self.rows = Load::Ready(rows);
+            }
+            ServicesMsg::SetSelected(name) => {
+                self.selected = name;
+            }
+            ServicesMsg::SetSort { column, descending } => {
+                self.sort_column = column;
+                self.descending = descending;
+            }
         }
     }
 }

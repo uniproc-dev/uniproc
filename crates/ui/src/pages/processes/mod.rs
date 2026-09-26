@@ -1,4 +1,6 @@
 mod components;
+mod marks;
 mod page;
 
-pub use page::processes_view;
+pub use marks::ProcessesMark;
+pub use page::{ProcessesMsg, ProcessesPage, ProcessesSettingsMaps};

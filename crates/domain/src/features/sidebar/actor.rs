@@ -1,21 +1,20 @@
-use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarMsg, SidebarPort, Toggle};
-use guinea_core::actor::Context;
-use guinea_core::messages;
-use guinea_macros::{actor, handler};
+use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarMsg, SidebarState, Toggle};
+use guinea::prelude::*;
 
 use super::settings::SidebarSettings;
 
-messages! { Refresh }
+#[derive(Clone, Debug, serde::Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Refresh;
 
-#[derive(derive_more::Debug)]
-pub struct SidebarActor<P: SidebarPort> {
-    #[debug(skip)]
-    ui_port: P,
+#[derive(Debug)]
+pub struct SidebarActor {
+    ui_port: Push<SidebarState>,
     settings: SidebarSettings,
 }
 
-impl<P: SidebarPort> SidebarActor<P> {
-    pub fn new(ui_port: P, settings: SidebarSettings) -> Self {
+impl SidebarActor {
+    pub fn new(ui_port: Push<SidebarState>, settings: SidebarSettings) -> Self {
         Self { ui_port, settings }
     }
 
@@ -28,43 +27,31 @@ impl<P: SidebarPort> SidebarActor<P> {
 }
 
 actor! {
-    SidebarActor<P: SidebarPort> {
+    SidebarActor {
         handlers { Toggle, SetOpen, SetWidth, Refresh }
     }
 }
 
 #[handler]
-fn toggle<P: SidebarPort>(
-    this: &mut SidebarActor<P>,
-    _ctx: Context<SidebarActor<P>, Toggle>,
-) {
+fn toggle(this: &mut SidebarActor, _ctx: Context<SidebarActor, Toggle>) {
     let open = !this.settings.open().get();
     let _ = this.settings.open().set(open);
     this.publish();
 }
 
 #[handler]
-fn set_open<P: SidebarPort>(
-    this: &mut SidebarActor<P>,
-    ctx: Context<SidebarActor<P>, SetOpen>,
-) {
+fn set_open(this: &mut SidebarActor, ctx: Context<SidebarActor, SetOpen>) {
     let _ = this.settings.open().set(ctx.msg.0);
     this.publish();
 }
 
 #[handler]
-fn set_width<P: SidebarPort>(
-    this: &mut SidebarActor<P>,
-    ctx: Context<SidebarActor<P>, SetWidth>,
-) {
+fn set_width(this: &mut SidebarActor, ctx: Context<SidebarActor, SetWidth>) {
     let _ = this.settings.width().set(ctx.msg.0);
     this.publish();
 }
 
 #[handler]
-fn refresh<P: SidebarPort>(
-    this: &SidebarActor<P>,
-    _ctx: Context<SidebarActor<P>, Refresh>,
-) {
+fn refresh(this: &SidebarActor, _ctx: Context<SidebarActor, Refresh>) {
     this.publish();
 }

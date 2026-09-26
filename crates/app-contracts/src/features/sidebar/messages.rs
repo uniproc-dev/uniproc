@@ -1,20 +1,18 @@
-use guinea_core::messages;
-use guinea_macros::port;
+use serde::Deserialize;
 
 #[derive(Clone, Copy)]
 pub enum SidebarMsg {
     Set { open: bool, width: u64 },
 }
 
-#[port]
-pub trait SidebarPort: 'static {
-    fn send(&self, msg: SidebarMsg);
-}
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Toggle;
 
-messages! {
-    pub Sidebar {
-        Toggle,
-        SetOpen(bool),
-        SetWidth(u64),
-    }
-}
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct SetOpen(pub bool);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct SetWidth(pub u64);

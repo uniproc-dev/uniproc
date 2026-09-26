@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use app_contracts::features::agents::AgentConnectionState;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -12,7 +14,7 @@ pub enum ConnectionEvent {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TransitionEffect {
     None,
-    ScheduleRetry { delay_secs: u64 },
+    ScheduleRetry,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -29,11 +31,21 @@ pub struct InvalidTransition {
     pub event: ConnectionEvent,
 }
 
+pub fn retry_in(window: Duration, spent: Duration) -> Duration {
+    window.saturating_sub(spent)
+}
+
+pub struct Attempts;
+
+#[expect(non_upper_case_globals)]
+impl Attempts {
+    pub const BeforeGivingUp: u32 = 5;
+}
+
 #[derive(Debug)]
 pub struct ConnectionMachine {
     state: AgentConnectionState,
-    next_retry_delay_secs: u64,
-    max_retry_delay_secs: u64,
+    failures: u32,
 }
 
 impl Default for ConnectionMachine {
@@ -46,8 +58,7 @@ impl ConnectionMachine {
     pub fn new() -> Self {
         Self {
             state: AgentConnectionState::Disconnected,
-            next_retry_delay_secs: 1,
-            max_retry_delay_secs: 5,
+            failures: 0,
         }
     }
 
@@ -59,21 +70,18 @@ impl ConnectionMachine {
                 (AgentConnectionState::Connecting, TransitionEffect::None)
             }
             (AgentConnectionState::Connecting, ConnectionEvent::ConnectSucceeded) => {
-                self.next_retry_delay_secs = 1;
+                self.failures = 0;
                 (AgentConnectionState::Connected, TransitionEffect::None)
             }
             (AgentConnectionState::Connecting, ConnectionEvent::ConnectFailed) => {
-                let delay_secs = self.next_retry_delay_secs;
-                self.next_retry_delay_secs = (delay_secs.saturating_mul(2)).min(self.max_retry_delay_secs);
-                (
-                    AgentConnectionState::WaitingRetry { delay_secs },
-                    TransitionEffect::ScheduleRetry { delay_secs },
-                )
+                self.failures = self.failures.saturating_add(1);
+                (AgentConnectionState::WaitingRetry, TransitionEffect::ScheduleRetry)
             }
-            (AgentConnectionState::WaitingRetry { .. }, ConnectionEvent::RetryDelayElapsed) => {
+            (AgentConnectionState::WaitingRetry, ConnectionEvent::RetryDelayElapsed) => {
                 (AgentConnectionState::Connecting, TransitionEffect::None)
             }
             (AgentConnectionState::Connected, ConnectionEvent::ConnectionLost) => {
+                self.failures = 0;
                 (AgentConnectionState::Disconnected, TransitionEffect::None)
             }
             _ => {
@@ -86,6 +94,9 @@ impl ConnectionMachine {
     }
 
     pub fn state(&self) -> AgentConnectionState {
+        if self.state != AgentConnectionState::Connected && self.failures >= Attempts::BeforeGivingUp {
+            return AgentConnectionState::GaveUp;
+        }
         self.state
     }
 }
@@ -124,28 +135,57 @@ mod tests {
         );
     }
 
-    #[test]
-    fn retry_delay_doubles_up_to_the_cap_and_resets_on_success() {
-        let mut machine = ConnectionMachine::new();
-        let mut delays = Vec::new();
-        for _ in 0..6 {
-            machine.apply(ConnectionEvent::BeginConnect).ok();
-            let t = machine.apply(ConnectionEvent::ConnectFailed).unwrap();
-            if let TransitionEffect::ScheduleRetry { delay_secs } = t.effect {
-                delays.push(delay_secs);
-            }
-            machine.apply(ConnectionEvent::RetryDelayElapsed).unwrap();
-        }
-        assert_eq!(delays, vec![1, 2, 4, 5, 5, 5], "doubles, then caps");
+    fn fail_once(machine: &mut ConnectionMachine) {
+        machine.apply(ConnectionEvent::ConnectFailed).unwrap();
+        machine.apply(ConnectionEvent::RetryDelayElapsed).unwrap();
+    }
 
+    #[test]
+    fn it_gives_up_after_the_budget_and_keeps_trying() {
+        let mut machine = ConnectionMachine::new();
+        machine.apply(ConnectionEvent::BeginConnect).unwrap();
+
+        for _ in 1..Attempts::BeforeGivingUp {
+            fail_once(&mut machine);
+            assert_ne!(machine.state(), AgentConnectionState::GaveUp);
+        }
+        fail_once(&mut machine);
+        assert_eq!(machine.state(), AgentConnectionState::GaveUp);
+
+        let t = machine.apply(ConnectionEvent::ConnectFailed).unwrap();
+        assert_eq!(t.effect, TransitionEffect::ScheduleRetry, "still trying");
+        assert_eq!(machine.state(), AgentConnectionState::GaveUp);
+
+        machine.apply(ConnectionEvent::RetryDelayElapsed).unwrap();
+        machine.apply(ConnectionEvent::ConnectSucceeded).unwrap();
+        assert_eq!(machine.state(), AgentConnectionState::Connected);
+    }
+
+    #[test]
+    fn a_lost_connection_gets_a_fresh_budget() {
+        let mut machine = ConnectionMachine::new();
+        machine.apply(ConnectionEvent::BeginConnect).unwrap();
+        for _ in 0..Attempts::BeforeGivingUp {
+            fail_once(&mut machine);
+        }
         machine.apply(ConnectionEvent::ConnectSucceeded).unwrap();
         machine.apply(ConnectionEvent::ConnectionLost).unwrap();
         machine.apply(ConnectionEvent::BeginConnect).unwrap();
-        let t = machine.apply(ConnectionEvent::ConnectFailed).unwrap();
-        assert_eq!(
-            t.effect,
-            TransitionEffect::ScheduleRetry { delay_secs: 1 },
-            "a successful connect resets the backoff"
-        );
+
+        fail_once(&mut machine);
+        assert_eq!(machine.state(), AgentConnectionState::Connecting);
+    }
+
+    #[test]
+    fn an_attempt_that_used_its_window_is_retried_at_once() {
+        let window = Duration::from_secs(3);
+        assert_eq!(retry_in(window, Duration::from_secs(3)), Duration::ZERO);
+        assert_eq!(retry_in(window, Duration::from_secs(4)), Duration::ZERO);
+    }
+
+    #[test]
+    fn a_fast_failure_waits_out_the_rest_of_its_window() {
+        let window = Duration::from_secs(3);
+        assert_eq!(retry_in(window, Duration::from_millis(200)), Duration::from_millis(2800));
     }
 }

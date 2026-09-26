@@ -1,14 +1,16 @@
-use guinea::widgets::chart::{line_chart_with_options, Interpolation, LineChartOptions, Series};
-use guinea::widgets::color::hex;
-use guinea_core::Load;
+use guinea::prelude::Load;
+use guinea_widgets::chart::{Chart, HoverInfo, Interpolation, LineChartOptions, Series};
+use guinea_widgets::color::hex;
 use windows_canvas::ColorF;
 use windows_reactor::{
-    border, caption, grid, hstack, vstack, Color, ColorScheme, Element, ElementExt, GridLength,
-    HorizontalAlignment, RenderCx, Thickness, VerticalAlignment, tokens,
+    Border, ChildrenControl, Color, ContentControl, Grid, GridChildExt, GridLength,
+    HorizontalAlignment, LayoutControl, Orientation, StackPanel, ThemeBrush, Thickness,
+    VerticalAlignment, View,
 };
 
 use crate::l10n::tr;
 use crate::theme::{radius, space, Palette};
+use crate::widgets::text::caption;
 
 #[derive(Clone, Copy, Debug)]
 pub enum MetricChartKind {
@@ -33,8 +35,8 @@ impl MetricChartKind {
 
     fn color_direct(&self) -> Color {
         match self {
-            Self::Cpu => Color { a: 255, r: 0x60, g: 0xa5, b: 0xfa },
-            Self::Memory => Color { a: 255, r: 0x34, g: 0xd3, b: 0x99 },
+            Self::Cpu => Color::rgb(0x60, 0xa5, 0xfa),
+            Self::Memory => Color::rgb(0x34, 0xd3, 0x99),
         }
     }
 }
@@ -45,28 +47,34 @@ pub struct MetricChartStyle {
     pub card: bool,
 }
 
+#[expect(non_upper_case_globals)]
 impl MetricChartStyle {
-    pub const CARD: Self = Self { show_grid: true, card: true };
-    pub const SPARKLINE: Self = Self { show_grid: false, card: false };
+    pub const Card: Self = Self { show_grid: true, card: true };
+    pub const Sparkline: Self = Self { show_grid: false, card: false };
 }
 
-const MINI_BAR_WIDTH: f64 = 6.0;
-const MINI_BAR_HEIGHT: f64 = 34.0;
+struct MiniBar;
 
-const WARNING_THRESHOLD: f32 = 65.0;
-const CRITICAL_THRESHOLD: f32 = 90.0;
-const CRITICAL_FILL_THRESHOLD: f32 = 95.0;
+#[expect(non_upper_case_globals)]
+impl MiniBar {
+    const Width: f64 = 6.0;
+    const Height: f64 = 34.0;
 
-const WARNING_COLOR: Color = Color { a: 255, r: 0xFF, g: 0xB9, b: 0x00 };
-const CRITICAL_COLOR: Color = Color { a: 255, r: 0xE7, g: 0x48, b: 0x56 };
-const TRACK_WARNING_COLOR: Color = Color { a: 130, ..WARNING_COLOR };
-const TRACK_CRITICAL_COLOR: Color = Color { a: 130, ..CRITICAL_COLOR };
+    const WarningAbove: f32 = 65.0;
+    const CriticalAbove: f32 = 90.0;
+    const CriticalFillFrom: f32 = 95.0;
+
+    const Warning: Color = Color { a: 255, r: 0xFF, g: 0xB9, b: 0x00 };
+    const Critical: Color = Color { a: 255, r: 0xE7, g: 0x48, b: 0x56 };
+    const TrackWarning: Color = Color { a: 130, ..Self::Warning };
+    const TrackCritical: Color = Color { a: 130, ..Self::Critical };
+}
 
 pub fn metric_mini_bar(
-    scheme: ColorScheme,
+    palette: Palette,
     kind: MetricChartKind,
     history: &Load<Vec<(u64, f32)>>,
-) -> Element {
+) -> View {
     let current = history
         .ready()
         .and_then(|points| points.last())
@@ -74,90 +82,111 @@ pub fn metric_mini_bar(
         .unwrap_or(0.0)
         .clamp(0.0, 100.0);
 
-    let fill_color = if current >= CRITICAL_FILL_THRESHOLD {
-        CRITICAL_COLOR
+    let fill_color = if current >= MiniBar::CriticalFillFrom {
+        MiniBar::Critical
     } else {
         kind.color_direct()
     };
-    let track_color = if current > CRITICAL_THRESHOLD {
-        TRACK_CRITICAL_COLOR
-    } else if current > WARNING_THRESHOLD {
-        TRACK_WARNING_COLOR
+    let track_color = if current > MiniBar::CriticalAbove {
+        MiniBar::TrackCritical
+    } else if current > MiniBar::WarningAbove {
+        MiniBar::TrackWarning
     } else {
-        Palette::of(scheme).track_idle
+        palette.track_idle
     };
 
-    let fill = border(Element::Empty)
-        .height(MINI_BAR_HEIGHT * (current as f64 / 100.0))
+    let fill = Border::new()
+        .height(MiniBar::Height * (current as f64 / 100.0))
         .background(fill_color)
-        .corner_radius(MINI_BAR_WIDTH / 2.0)
-        .vertical_alignment(VerticalAlignment::Bottom);
+        .corner_radius(MiniBar::Width / 2.0)
+        .vertical_alignment(VerticalAlignment::Bottom)
+        .content(View::empty());
 
-    border(fill)
-        .width(MINI_BAR_WIDTH)
-        .height(MINI_BAR_HEIGHT)
-        .corner_radius(MINI_BAR_WIDTH / 2.0)
+    Border::new()
+        .width(MiniBar::Width)
+        .height(MiniBar::Height)
+        .corner_radius(MiniBar::Width / 2.0)
         .background(track_color)
         .horizontal_alignment(HorizontalAlignment::Center)
         .vertical_alignment(VerticalAlignment::Bottom)
-        .into()
+        .content(fill)
 }
 
-pub fn metric_chart(
-    cx: &mut RenderCx,
-    kind: MetricChartKind,
-    history: &Load<Vec<(u64, f32)>>,
-    height: f64,
-    style: MetricChartStyle,
-    detail: Option<String>,
-) -> Element {
+pub struct MetricChart<'a> {
+    pub chart: &'a Chart,
+    pub kind: MetricChartKind,
+    pub history: &'a Load<Vec<(u64, f32)>>,
+    pub height: f64,
+    pub style: MetricChartStyle,
+    pub detail: Option<String>,
+    pub palette: Palette,
+}
+
+pub fn metric_chart(props: MetricChart<'_>) -> View {
+    let MetricChart {
+        chart,
+        kind,
+        history,
+        height,
+        style,
+        detail,
+        palette,
+    } = props;
+
     let points = history.ready().cloned().unwrap_or_default();
     let current = points.last().map(|&(_, v)| v).unwrap_or(0.0);
 
-    let series = Series {
-        color: kind.color(),
-        interpolation: Interpolation::Linear,
-        fill: None,
-        points,
-    };
+    chart.publish(
+        vec![Series {
+            color: kind.color(),
+            interpolation: Interpolation::Linear,
+            fill: None,
+            points,
+        }],
+        LineChartOptions {
+            background: None,
+            border: None,
+            show_grid: style.show_grid,
+            y_range: Some((0.0, 100.0)),
+        },
+    );
+    let surface = Border::new()
+        .height(height)
+        .content(chart.view(|_: Option<HoverInfo>| {}));
 
-    let options = LineChartOptions {
-        background: None,
-        border: None,
-        show_grid: style.show_grid,
-        y_range: Some((0.0, 100.0)),
-    };
-    let chart = line_chart_with_options(cx, vec![series], |_| {}, options).height(height);
-
-    let label: Element = match detail {
-        Some(detail) => hstack((
-            caption(kind.title()),
-            caption(detail).foreground(tokens::TertiaryText),
-        ))
-        .spacing(space::Control)
-        .into(),
+    let label: View = match detail {
+        Some(detail) => StackPanel::new()
+            .orientation(Orientation::Horizontal)
+            .spacing(space::Control)
+            .children((
+                caption(kind.title()),
+                caption(detail).foreground(palette.tertiary_text),
+            )),
         None => caption(kind.title()).into(),
     };
-    let header = grid((
-        label.grid_column(0),
-        caption(format!("{current:.1}%"))
-            .foreground(tokens::SecondaryText)
-            .horizontal_alignment(HorizontalAlignment::Right)
-            .grid_column(1),
-    ))
-    .columns([GridLength::Auto, GridLength::Star(1.0)]);
+    let header = Grid::new()
+        .columns([GridLength::Auto, GridLength::Star(1.0)])
+        .children((
+            Border::new().grid_column(0).content(label),
+            caption(format!("{current:.1}%"))
+                .foreground(palette.secondary_text)
+                .horizontal_alignment(HorizontalAlignment::Right)
+                .grid_column(1),
+        ));
 
-    let content = vstack((header, chart)).spacing(space::Compact);
+    let content = StackPanel::new()
+        .spacing(space::Compact)
+        .children((header, surface));
 
     if style.card {
-        border(content)
-            .background(tokens::CardBackground)
-            .border_brush(tokens::CardStroke)
+        Border::new()
+            .background(ThemeBrush::CardBackground)
+            .border_brush(ThemeBrush::CardStroke)
             .border_thickness(Thickness::uniform(1.0))
             .corner_radius(radius::Overlay)
             .padding(Thickness::uniform(space::Control))
-            .into()
+            .content(content)
     } else {
-        content.into()
+        content
     }
 }

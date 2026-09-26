@@ -1,6 +1,9 @@
 mod appx;
 mod bitmap;
 mod exe;
+#[cfg(test)]
+mod goldens;
+mod trim;
 
 pub use appx::extract_appx_icon_rgba;
 pub use exe::{extract_icon_rgba, has_own_icon};

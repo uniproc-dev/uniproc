@@ -57,16 +57,17 @@ mod windows {
 
     async fn get_report(handle: &RpcHandle<WindowsRpc>) -> anyhow::Result<WindowsReport> {
         let started = Instant::now();
-        match handle.call(WindowsRequest::GetReport).await? {
-            WindowsReply::Report(report) => {
+        match handle.call(WindowsRequest::Scan).await? {
+            WindowsReply::Report(Some(report)) => {
                 println!(
-                    "getReport: {} processes decoded in {} ms",
+                    "scan: {} processes joined in {} ms",
                     report.processes.len(),
                     started.elapsed().as_millis()
                 );
                 Ok(report)
             }
-            _ => bail!("agent answered getReport with the wrong reply"),
+            WindowsReply::Report(None) => bail!("the process list kept moving under the metrics"),
+            _ => bail!("agent answered a scan with the wrong reply"),
         }
     }
 
@@ -118,7 +119,7 @@ mod windows {
 
     async fn concurrency_probe(handle: &RpcHandle<WindowsRpc>) -> anyhow::Result<()> {
         let report_handle = handle.clone();
-        let report = tokio::spawn(async move { report_handle.call(WindowsRequest::GetReport).await });
+        let report = tokio::spawn(async move { report_handle.call(WindowsRequest::Scan).await });
 
         let ping_handle = handle.clone();
         let pings = tokio::spawn(async move {

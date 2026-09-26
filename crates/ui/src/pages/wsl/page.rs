@@ -1,54 +1,56 @@
-use app_contracts::features::wsl::{DistroRow, WslReducer};
-use guinea::router::PageCx;
-use guinea::widgets::table::table;
-use guinea_core::Load;
-use windows_reactor::{
-    body_large, border, grid, hstack, text_block, Element, ElementExt, GridLength,
-    HorizontalAlignment, ProgressRing, VerticalAlignment,
-};
+use app_contracts::features::wsl::WslState;
+use guinea::prelude::Load;
+use guinea_widgets::table::{table, ColumnWidths, Resized};
+use windows_reactor::{Callback, View};
 
-use crate::l10n::use_tr;
-use crate::theme::space;
-use crate::widgets::separator;
 use super::components::columns::build_columns;
+use crate::l10n::L10n;
+use crate::theme::Palette;
+use crate::widgets::page::{loading, page_frame, page_title};
+use crate::widgets::text::text;
 
-pub fn wsl_view(cx: &mut PageCx) -> Element {
-    let l10n = use_tr(cx);
-    let (state, _dispatch) = cx.use_reducer::<WslReducer>();
+pub enum WslMsg {
+    Resized(Resized),
+}
 
-    let header = hstack((body_large(l10n.wsl_title()).padding(space::Header),))
-        .spacing(space::Header);
+#[derive(Default)]
+pub struct WslPage {
+    widths: ColumnWidths,
+}
 
-    let body: Element = match &state.distros {
-        Load::Ready(rows) => table(
-            cx,
-            rows.to_vec(),
-            build_columns(&l10n),
-            |row: &DistroRow| row.name.clone(),
-            None,
-            None,
-        ),
-        Load::Failed(err) => text_block(l10n.wsl_failed(err.to_string())).into(),
-        _ => ProgressRing::indeterminate()
-            .horizontal_alignment(HorizontalAlignment::Center)
-            .vertical_alignment(VerticalAlignment::Center)
-            .into(),
-    };
+impl WslPage {
+    pub fn update(&mut self, message: WslMsg) {
+        match message {
+            WslMsg::Resized(drag) => self.widths.apply(drag),
+        }
+    }
 
-    let status_bar = text_block(l10n.wsl_status(state.total() as i64, state.running() as i64))
-        .padding(space::Control);
+    pub fn view(
+        &self,
+        state: &WslState,
+        l10n: &L10n,
+        palette: Palette,
+        forward: Callback<WslMsg>,
+    ) -> View {
+        let body = match &state.distros {
+            Load::Ready(rows) => table(
+                rows.to_vec(),
+                build_columns(l10n, palette),
+            )
+            .widths(&self.widths)
+            .on_resize(move |drag: Resized| {
+                let _ = forward.call(WslMsg::Resized(drag));
+            })
+            .build(),
+            Load::Failed(err) => text(l10n.wsl_failed(err.to_string())).into(),
+            _ => loading(),
+        };
 
-    grid((
-        header.grid_row(0),
-        border(body).grid_row(1),
-        separator().grid_row(2),
-        status_bar.grid_row(3),
-    ))
-    .rows([
-        GridLength::Auto,
-        GridLength::Star(1.0),
-        GridLength::Auto,
-        GridLength::Auto,
-    ])
-    .into()
+        page_frame(
+            page_title(l10n.wsl_title()),
+            body,
+            l10n.wsl_status(state.total() as i64, state.running() as i64),
+            palette,
+        )
+    }
 }

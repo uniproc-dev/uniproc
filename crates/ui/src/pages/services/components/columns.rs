@@ -1,19 +1,22 @@
 use app_contracts::features::agents::WindowsServiceState;
-use app_contracts::features::services::ServiceRow;
+use app_contracts::features::services::{ServiceColumn, ServiceRow};
 use guicons::icon;
-use guinea::widgets::table::ColumnSpec;
-use windows_reactor::{hstack, tokens, Element, ElementExt};
+use guinea_widgets::table::ColumnSpec;
+use windows_reactor::{
+    Border, ChildrenControl, ContentControl, LayoutControl, Orientation, StackPanel, View,
+};
 
 use crate::l10n::L10n;
-use crate::theme::{size, space};
+use crate::theme::{opacity, size, space, Palette};
 use crate::widgets::table_cell;
 
-fn service_icon() -> Element {
+fn service_icon() -> View {
     icon!(gears).size(size::Icon).build_element()
 }
 
-fn maybe_dim(el: Element, running: bool) -> Element {
-    if running { el } else { el.opacity(0.55) }
+fn dimmed(content: impl Into<View>, running: bool) -> View {
+    let opacity = if running { 1.0 } else { opacity::Stopped };
+    Border::new().opacity(opacity).content(content)
 }
 
 fn state_label(l10n: &L10n, state: WindowsServiceState) -> String {
@@ -29,74 +32,66 @@ fn state_label(l10n: &L10n, state: WindowsServiceState) -> String {
     }
 }
 
-pub(crate) fn build_columns(l10n: &L10n) -> Vec<ColumnSpec<ServiceRow>> {
+type Column = ColumnSpec<ServiceRow, ServiceColumn>;
+
+fn text_column(
+    id: ServiceColumn,
+    header: String,
+    width: f64,
+    read: impl Fn(&ServiceRow) -> String + 'static,
+) -> Column {
+    ColumnSpec::new(id, header, width, move |row: &ServiceRow| {
+        dimmed(table_cell::cell_text(read(row)), row.is_running())
+    })
+}
+
+pub(crate) fn build_columns(l10n: &L10n, palette: Palette) -> Vec<Column> {
+    let status_l10n = l10n.clone();
     vec![
-        ColumnSpec::new(
-            "name",
-            l10n.services_col_name(),
-            260u64,
-            |row: &ServiceRow| {
-                let content = hstack((
+        ColumnSpec::new(ServiceColumn::Name, l10n.services_col_name(), 260.0, |row: &ServiceRow| {
+            let content = StackPanel::new()
+                .orientation(Orientation::Horizontal)
+                .spacing(space::Control)
+                .children((
                     service_icon(),
-                    table_cell::cell_text(row.display_name.clone()),
-                ))
-                .spacing(space::Control);
-                maybe_dim(content.into(), row.is_running())
-            },
-        )
-        .sortable(),
-        ColumnSpec::new(
-            "status",
-            l10n.services_col_status(),
-            90u64,
-            {
-                let l10n = l10n.clone();
-                move |row: &ServiceRow| {
-                    let running = row.is_running();
-                    let label = state_label(&l10n, row.state);
-                    let el: Element = if running {
-                        table_cell::cell_text(label)
-                            .foreground(tokens::SystemSuccess)
-                            .into()
-                    } else {
-                        table_cell::cell_text(label).into()
-                    };
-                    maybe_dim(el, running)
-                }
-            },
-        )
-        .sortable(),
-        ColumnSpec::new("pid", l10n.services_col_pid(), 70u64, |row: &ServiceRow| {
-            let text = if row.pid == 0 {
-                String::new()
-            } else {
-                row.pid.to_string()
-            };
-            maybe_dim(table_cell::cell_text(text).into(), row.is_running())
+                    table_cell::cell_text(&*row.display_name),
+                ));
+            dimmed(content, row.is_running())
         })
         .sortable(),
         ColumnSpec::new(
-            "group",
-            l10n.services_col_group(),
-            120u64,
-            |row: &ServiceRow| {
-                maybe_dim(
-                    table_cell::cell_text(row.group.clone()).into(),
-                    row.is_running(),
-                )
+            ServiceColumn::Status,
+            l10n.services_col_status(),
+            90.0,
+            move |row: &ServiceRow| {
+                let running = row.is_running();
+                let label = table_cell::cell_text(state_label(&status_l10n, row.state));
+                let label = if running {
+                    label.foreground(palette.success)
+                } else {
+                    label
+                };
+                dimmed(label, running)
             },
         )
         .sortable(),
-        ColumnSpec::new(
-            "description",
+        text_column(ServiceColumn::Pid, l10n.services_col_pid(), 70.0, |row| {
+            if row.pid == 0 {
+                String::new()
+            } else {
+                row.pid.to_string()
+            }
+        })
+        .sortable(),
+        text_column(ServiceColumn::Group, l10n.services_col_group(), 120.0, |row| {
+            row.group.to_string()
+        })
+        .sortable(),
+        text_column(
+            ServiceColumn::Description,
             l10n.services_col_description(),
-            320u64,
-            |row: &ServiceRow| {
-                maybe_dim(
-                    table_cell::cell_text(row.description.clone()).into(),
-                    row.is_running(),
-                )
-            },
+            320.0,
+            |row| row.description.to_string(),
         ),
     ]
 }

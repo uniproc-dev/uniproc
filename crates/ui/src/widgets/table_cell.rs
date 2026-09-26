@@ -1,96 +1,110 @@
 use windows_reactor::{
-    body_strong, border, caption, grid, Color, Element, ElementExt, GridLength, HorizontalAlignment, TextBlock,
-    TextTrimming, TextWrapping, Thickness, VerticalAlignment,
+    Border, ChildrenControl, Color, ContentControl, Grid, HorizontalAlignment, LayoutControl,
+    TextBlock, TextTrimming, TextWrapping, Thickness, VerticalAlignment, View,
 };
 
-use crate::theme::{radius, size, space};
+use crate::theme::{radius, size, space, Palette};
+use crate::widgets::text::caption;
 
-pub fn heat_alpha(intensity: f32) -> u8 {
-    const HEAT_THRESHOLD: f32 = 0.01;
-
-    let clamped = intensity.clamp(0.0, 1.0);
-    if clamped < HEAT_THRESHOLD {
-        return 0;
-    }
-    let normalized = (clamped - HEAT_THRESHOLD) / (1.0 - HEAT_THRESHOLD);
-    (normalized.powf(0.6) * 230.0) as u8
+#[derive(Clone, Copy)]
+pub struct Heat {
+    pub share: f32,
+    pub threshold: f32,
+    pub color: Color,
 }
 
-pub fn no_wrap(mut block: TextBlock) -> TextBlock {
-    block.text_wrapping = TextWrapping::NoWrap;
-    block
+#[expect(non_upper_case_globals)]
+impl Heat {
+    pub const Threshold: f32 = 0.007;
+    const Ceiling: f32 = 230.0;
+    const Curve: f32 = 0.5;
+}
+
+impl Heat {
+    pub fn alpha(self) -> u8 {
+        let clamped = self.share.clamp(0.0, 1.0);
+        if clamped < self.threshold {
+            return 0;
+        }
+        (clamped.powf(Self::Curve) * Self::Ceiling) as u8
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Highlight {
+    pub top: bool,
+    pub bottom: bool,
+}
+
+#[expect(non_upper_case_globals)]
+impl Highlight {
+    pub const Whole: Self = Self {
+        top: true,
+        bottom: true,
+    };
 }
 
 pub fn cell_text(content: impl Into<String>) -> TextBlock {
-    no_wrap(caption(content)).text_trimming(TextTrimming::CharacterEllipsis)
+    caption(content)
+        .text_wrapping(TextWrapping::NoWrap)
+        .text_trimming(TextTrimming::CharacterEllipsis)
 }
 
-pub fn text_cell(content: impl Into<String>) -> Element {
+pub fn text_cell(content: impl Into<String>) -> TextBlock {
     cell_text(content)
         .height(size::TableRow)
         .max_height(size::TableRow)
-        .into()
 }
 
-pub fn section_cell(content: impl Into<String>) -> Element {
-    let text = no_wrap(body_strong(content))
-        .text_trimming(TextTrimming::CharacterEllipsis)
-        .vertical_alignment(VerticalAlignment::Center);
-
-    border(text)
-        .padding(Thickness::xy(0.0, space::Compact))
-        .into()
-}
-
-pub fn heat_cell(content: impl Into<String>, intensity: f32, accent: Color) -> Element {
+pub fn heat_cell(content: impl Into<String>, intensity: f32, accent: Color) -> View {
+    let heat = Heat {
+        share: intensity,
+        threshold: Heat::Threshold,
+        color: accent,
+    };
     let wash = Color {
-        a: heat_alpha(intensity),
+        a: heat.alpha(),
         ..accent
     };
-    border(text_cell(content))
+    Border::new()
         .background(wash)
         .corner_radius(radius::Control)
         .margin(Thickness::xy(space::Compact, 0.0))
-        .into()
+        .content(text_cell(content))
 }
 
-// TODO: unfinished, do not build on it yet.
-// - corners: windows-reactor exposes one f64, so the outer corners cannot
-//   be rounded while the seam stays square (issue filed upstream).
-// - the seam is a bare colour change; it needs a divider once the corners
-//   are sorted, otherwise the two segments read as one pill with a stain.
-// - a small share renders as a sliver: no minimum width, and nothing tells
-//   the reader whether a thin band means "a little" or "almost none".
-// - the text sits over both segments, so it can straddle the seam and lose
-//   contrast on either side.
-pub fn split_heat_cell(
-    content: impl Into<String>,
-    intensity: f32,
-    accent: Color,
-    muted: Color,
-    left_share: u64,
-    right_share: u64,
-) -> Element {
-    let alpha = heat_alpha(intensity);
-    let left = Color { a: alpha, ..accent };
-    let right = Color { a: alpha, ..muted };
+pub struct Metric {
+    pub text: String,
+    pub zero: bool,
+    pub heat: Option<Heat>,
+    pub height: f64,
+}
 
-    border(
-        grid((
-            border(Element::Empty)
-                .background(right)
-                .horizontal_alignment(HorizontalAlignment::Stretch)
-                .vertical_alignment(VerticalAlignment::Stretch)
-                .grid_column(1),
-            text_cell(content).grid_column(0).grid_column_span(2),
-        ))
-        .columns([
-            GridLength::Star(left_share.max(1) as f64),
-            GridLength::Star(right_share.max(1) as f64),
-        ]),
-    )
-    .background(left)
-    .corner_radius(radius::Control)
-    .margin(Thickness::xy(space::Compact, 0.0))
-    .into()
+pub fn metric_cell(metric: Metric, palette: Palette) -> View {
+    let value = cell_text(metric.text)
+        .horizontal_alignment(HorizontalAlignment::Right)
+        .vertical_alignment(VerticalAlignment::Center)
+        .margin(Thickness::xy(space::Cell, 0.0));
+    let value = if metric.zero {
+        value.foreground(palette.disabled_text)
+    } else {
+        value
+    };
+
+    let wash: View = match metric.heat {
+        Some(heat) if heat.alpha() > 0 => Border::new()
+            .background(Color {
+                a: heat.alpha(),
+                ..heat.color
+            })
+            .corner_radius(radius::Control)
+            .margin(Thickness::uniform(space::Compact))
+            .into(),
+        _ => View::empty(),
+    };
+
+    Grid::new()
+        .height(metric.height)
+        .children((wash, value))
+        .into()
 }

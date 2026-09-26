@@ -5,13 +5,12 @@ use crate::features::agents::rpc::{RpcHandle, RpcService};
 use crate::features::agents::settings::AgentSettings;
 use anyhow::{anyhow, bail};
 use app_contracts::features::agents::{
-    AgentConnectionState, LinuxReport, RemoteScan, RemoteScanResult, ScanTick, WslAgentRuntimeEvent,
+    AgentConnectionState, AgentStateRequest, LinuxReport, RemoteScan, RemoteScanResult, ScanTick,
+    WslAgentRuntimeEvent,
 };
-use guinea::app::FeatureBuilder;
-use guinea::feature::{ContextActorExt, ContextReactorExt};
-use guinea_core::actor::event_bus::GlobalEventBus;
-use guinea_core::ratelimit;
-use ogurpchik::auth::handshake::{HandshakeMode, authenticate_client};
+use guinea::prelude::*;
+use guinea::ratelimit;
+use ogurpchik::auth::handshake::{HandshakeMode, SchemaId, authenticate_client};
 use ogurpchik::endpoint::Endpoint;
 use ogurpchik::rpc::{RpcSession, Side, spawn_session};
 use std::io::Write;
@@ -21,9 +20,8 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use tracing::instrument;
 use uniproc_protocol::linux_capnp::linux_agent;
+use uniproc_protocol::{LINUX_SCHEMA_ID, WSL_AGENT_VSOCK_PORT};
 use uuid::Uuid;
-
-const AGENT_VSOCK_PORT: u32 = 5000;
 
 const SCHEMA_ID: &str = "wsl";
 
@@ -48,15 +46,28 @@ impl Drop for WslSession {
     }
 }
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+fn wsl() -> Command {
+    let mut command = Command::new("wsl.exe");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
+}
+
 fn launch_agent(distro: &str, agent_path: &str, secret: &str) -> anyhow::Result<Child> {
     let process_name = agent_path.rsplit(['/', '\\']).next().unwrap_or(agent_path);
-    let _ = Command::new("wsl.exe")
+    let _ = wsl()
         .args(["-d", distro, "-u", "root", "--", "pkill", "-x", process_name])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
 
-    let mut child = Command::new("wsl.exe")
+    let mut child = wsl()
         .args(["-d", distro, "-u", "root", "--", agent_path])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
@@ -115,16 +126,21 @@ impl RpcService for WslRpc {
         let secret = generate_secret();
         let child = launch_agent(distro, agent_path, &secret)?;
 
-        let endpoint = Endpoint::vsock_to_best_vm(AGENT_VSOCK_PORT).map_err(|e| anyhow!("{e:?}"))?;
+        let endpoint =
+            Endpoint::vsock_to_best_vm(WSL_AGENT_VSOCK_PORT).map_err(|e| anyhow!("{e:#}"))?;
 
         let mut conn = endpoint
             .connect_ready(Duration::from_secs(timeout_secs))
             .await
-            .map_err(|e| anyhow!("{e:?}"))?;
+            .map_err(|e| anyhow!("{e:#}"))?;
 
-        authenticate_client(&mut conn, &HandshakeMode::hmac(secret.into_bytes()))
+        authenticate_client(
+            &mut conn,
+            &HandshakeMode::hmac(secret.into_bytes()),
+            SchemaId(LINUX_SCHEMA_ID),
+        )
             .await
-            .map_err(|e| anyhow!("{e:?}"))?;
+            .map_err(|e| anyhow!("{e:#}"))?;
 
         Ok(Rc::new(WslSession {
             rpc: spawn_session::<linux_agent::Client, _>(conn, Side::Client, HostStub),
@@ -149,6 +165,7 @@ impl RpcService for WslRpc {
     }
 }
 
+#[derive(Debug)]
 pub struct WslBackend;
 
 impl AgentBackend for WslBackend {
@@ -206,9 +223,15 @@ pub fn wsl_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
         settings.wsl_connect_timeout_secs(),
     ));
 
-    app.spawn_heartbeat(&addr, move || ping_interval.get(), || Ping);
+    app.every(
+        Period::varying(move || Duration::from_millis(ping_interval.get())),
+        &addr,
+        || Ping,
+    )
+    .named("wsl-agent-ping");
 
-    app.subscribe_actor::<_, ScanTick>(&addr);
+    addr.subscribe_on::<ScanTick>(Bus::Global);
+    addr.subscribe_on::<AgentStateRequest>(Bus::Global);
     addr.send(Init);
 
     Ok(())

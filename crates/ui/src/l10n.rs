@@ -1,9 +1,12 @@
+use guinea::winui::Refreshable;
+use windows_reactor::ViewContext;
+
 pub use app_contracts::l10n::L10n;
 
 pub fn tr() -> L10n {
-    guinea_core::l10n::L10n::<L10n>::current()
+    guinea_plugin_l10n::L10n::<L10n>::current()
 }
 
-pub fn use_tr(cx: &mut windows_reactor::RenderCx) -> L10n {
-    guinea::l10n::use_l10n::<L10n>(cx)
+pub fn use_tr<C: Refreshable>(cx: &mut ViewContext<C>) -> L10n {
+    guinea_plugin_l10n::ui::use_l10n::<L10n, C>(cx)
 }

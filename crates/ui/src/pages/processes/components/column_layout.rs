@@ -1,50 +1,102 @@
-use amethystate::{ReactiveCell, ReactiveMap, Store, WritableMode};
-use app_contracts::features::processes::ColumnConfig;
-use guinea::widgets::table::Width;
+use amethystate::ReactiveMap;
+use app_contracts::features::processes::{ColumnConfig, ProcessColumn};
+use guinea::Mark;
+use guinea_widgets::table::{ColumnWidths, Resized};
 
-const COLUMN_IDS: &[&str] = &["name", "cpu", "memory", "net", "disk"];
+struct MinWidth;
 
-pub(crate) struct ColumnLayout {
-    pub(crate) entries: Vec<ColumnLayoutEntry>,
+#[expect(non_upper_case_globals)]
+impl MinWidth {
+    const Name: f64 = 140.0;
+    const Metric: f64 = 64.0;
+
+    fn of(column: ProcessColumn) -> f64 {
+        if column == ProcessColumn::Name {
+            Self::Name
+        } else {
+            Self::Metric
+        }
+    }
 }
 
-pub(crate) struct ColumnLayoutEntry {
-    pub(crate) id: &'static str,
-    config: ReactiveCell<ColumnConfig>,
+pub(crate) struct ColumnState {
+    pub(crate) column: ProcessColumn,
+    pub(crate) width: f64,
+    pub(crate) min_width: f64,
+    pub(crate) visible: bool,
+}
+
+#[derive(Default)]
+pub(crate) struct ColumnLayout {
+    configs: Option<ReactiveMap<String, ColumnConfig>>,
+    widths: ColumnWidths,
 }
 
 impl ColumnLayout {
-    pub(crate) fn new<S: Store>(map: &ReactiveMap<String, ColumnConfig, S, WritableMode>) -> Self {
-        let entries = COLUMN_IDS
-            .iter()
-            .map(|&id| ColumnLayoutEntry {
-                id,
-                config: map.entry_cell(id.to_string(), ColumnConfig::default()),
-            })
-            .collect();
-        Self { entries }
-    }
-}
-
-impl ColumnLayoutEntry {
-    pub(crate) fn width(&self) -> Width {
-        let read = self.config.clone();
-        let write = self.config.clone();
-        Width::bound(
-            move || read.get().width,
-            move |width| {
-                if let Err(err) = write.update(|config| ColumnConfig { width, ..config }) {
-                    tracing::warn!(?err, "column width write failed");
+    pub(crate) fn new(configs: Option<ReactiveMap<String, ColumnConfig>>) -> Self {
+        let mut widths = ColumnWidths::default();
+        if let Some(configs) = &configs {
+            for column in ProcessColumn::ALL {
+                if let Some(config) = configs.get(column.id()) {
+                    widths.apply(Resized {
+                        column: column.name(),
+                        width: config.width as f64,
+                    });
                 }
-            },
-        )
+            }
+        }
+        Self { configs, widths }
     }
 
-    pub(crate) fn min_width(&self) -> f64 {
-        self.config.get().min_width as f64
+    pub(crate) fn widths(&self) -> &ColumnWidths {
+        &self.widths
     }
 
-    pub(crate) fn visible(&self) -> bool {
-        self.config.get().visible
+    fn config(&self, column: ProcessColumn) -> ColumnConfig {
+        self.configs
+            .as_ref()
+            .and_then(|configs| configs.get(column.id()))
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn columns(&self) -> Vec<ColumnState> {
+        ProcessColumn::ALL
+            .into_iter()
+            .map(|column| {
+                let config = self.config(column);
+                ColumnState {
+                    column,
+                    width: self.widths.get(column.name()).unwrap_or(config.width as f64),
+                    min_width: MinWidth::of(column),
+                    visible: config.visible,
+                }
+            })
+            .collect()
+    }
+
+    pub(crate) fn resize(&mut self, drag: Resized) {
+        self.widths.apply(drag);
+
+        let Some(column) = ProcessColumn::from_mark(drag.column) else {
+            tracing::warn!(column = drag.column, "resize of a column this page does not know");
+            return;
+        };
+        let Some(configs) = &self.configs else {
+            return;
+        };
+        let width = drag.width.round().max(0.0) as u64;
+        let config = ColumnConfig {
+            width,
+            ..self.config(column)
+        };
+        let id = column.id();
+        let result = if configs.contains_key(id) {
+            configs.update(id, &config)
+        } else {
+            configs.insert(id.to_string(), &config)
+        };
+        if let Err(err) = result {
+            tracing::warn!(column = id, ?err, "column width write failed");
+        }
     }
 }

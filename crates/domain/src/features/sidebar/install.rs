@@ -1,10 +1,17 @@
-use app_contracts::features::sidebar::{SidebarReducer, SidebarState};
-use guinea::feature::FeatureInitContext;
+use app_contracts::features::sidebar::SidebarState;
+use guinea::prelude::*;
 
 use super::actor::{Refresh, SidebarActor};
 use super::settings::SidebarSettings;
 
-pub fn install(ctx: &FeatureInitContext) -> anyhow::Result<()> {
+feature! {
+    pub SidebarFeature {
+        exports { SidebarState }
+    }
+}
+
+#[installs]
+fn sidebar(cx: &FeatureInitContext) -> anyhow::Result<SidebarFeature> {
     let settings = SidebarSettings::new()?;
 
     let seed = SidebarState {
@@ -12,13 +19,12 @@ pub fn install(ctx: &FeatureInitContext) -> anyhow::Result<()> {
         width: settings.width().get(),
     };
 
-    ctx.seed_reducer::<SidebarReducer>(seed);
+    let (sidebar, _) = cx
+        .state::<SidebarState>()
+        .seed(seed)
+        .driven_by(|push| SidebarActor::new(push, settings));
 
-    let addr = ctx.spawn_actor(SidebarActor::new(ctx.port::<SidebarReducer>(), settings));
+    sidebar.emit(Refresh);
 
-    ctx.wire::<SidebarReducer, _>(&addr);
-
-    addr.send(Refresh);
-
-    Ok(())
+    Ok(SidebarFeature(sidebar))
 }
