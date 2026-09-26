@@ -28,16 +28,10 @@ impl AppFeature for AgentsFeature {
         })
         .named("scan");
 
-        cfg_if::cfg_if! {
-            if #[cfg(target_os = "windows")] {
-                providers::wsl::wsl_agent_feature(app)?;
-                match providers::synthetic::requested() {
-                    Some(processes) => providers::synthetic::install(app, processes)?,
-                    None => providers::windows::windows_agent_feature(app)?,
-                }
-            } else {
-                providers::linux::linux_agent_feature(app)?;
-            }
+        providers::wsl::wsl_agent_feature(app)?;
+        match providers::synthetic::requested() {
+            Some(processes) => providers::synthetic::install(app, processes)?,
+            None => providers::windows::windows_agent_feature(app)?,
         }
 
         Ok(())

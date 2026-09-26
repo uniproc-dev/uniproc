@@ -14,6 +14,7 @@ use ogurpchik::auth::handshake::{HandshakeMode, SchemaId, authenticate_client};
 use ogurpchik::endpoint::Endpoint;
 use ogurpchik::rpc::{RpcSession, Side, spawn_session};
 use std::io::Write;
+use std::os::windows::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::rc::Rc;
 use std::sync::OnceLock;
@@ -46,16 +47,11 @@ impl Drop for WslSession {
     }
 }
 
-#[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 fn wsl() -> Command {
     let mut command = Command::new("wsl.exe");
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
+    command.creation_flags(CREATE_NO_WINDOW);
     command
 }
 

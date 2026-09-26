@@ -10,7 +10,6 @@ guinea-widgets = { workspace = true }
 amethystate = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
-cfg-if = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 ogurpchik = { workspace = true }
@@ -21,8 +20,6 @@ flume = { workspace = true }
 futures = { workspace = true }
 uuid = { workspace = true }
 windows = { workspace = true }
-
-[target.'cfg(windows)'.dependencies]
 uniproc-windows-agent = { workspace = true }
 
 [lints]

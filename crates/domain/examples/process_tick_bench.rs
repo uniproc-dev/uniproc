@@ -1,22 +1,11 @@
-#[cfg(not(target_os = "windows"))]
-fn main() {
-    eprintln!("process_tick_bench reads a live report from the Windows agent; nothing to measure here.");
-}
-
-#[cfg(target_os = "windows")]
 use std::alloc::{GlobalAlloc, Layout, System};
-#[cfg(target_os = "windows")]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-#[cfg(target_os = "windows")]
 struct Counting;
 
-#[cfg(target_os = "windows")]
 static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(target_os = "windows")]
 static BYTES: AtomicUsize = AtomicUsize::new(0);
 
-#[cfg(target_os = "windows")]
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
@@ -35,17 +24,14 @@ unsafe impl GlobalAlloc for Counting {
     }
 }
 
-#[cfg(target_os = "windows")]
 #[global_allocator]
 static GLOBAL: Counting = Counting;
 
-#[cfg(target_os = "windows")]
 #[compio::main]
 async fn main() -> anyhow::Result<()> {
     bench::run().await
 }
 
-#[cfg(target_os = "windows")]
 mod bench {
     use super::{ALLOCATIONS, BYTES};
     use anyhow::Context;

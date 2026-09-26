@@ -293,7 +293,6 @@ fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Con
     ctx.addr().send(StartConnect);
 }
 
-#[cfg(windows)]
 mod windows {
     use super::*;
     use crate::features::agents::providers::windows::{WindowsBackend, WindowsReply, WindowsRequest};

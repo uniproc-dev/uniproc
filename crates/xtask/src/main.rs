@@ -1,4 +1,3 @@
-#[cfg(windows)]
 mod taskmgr;
 
 use std::path::{Path, PathBuf};
@@ -19,21 +18,11 @@ fn main() -> anyhow::Result<()> {
     }
 }
 
-#[cfg(windows)]
 fn l10n_taskmgr(args: &[String]) -> anyhow::Result<()> {
     taskmgr::run(args, &workspace_root()?)
 }
 
-#[cfg(not(windows))]
-fn l10n_taskmgr(_args: &[String]) -> anyhow::Result<()> {
-    anyhow::bail!("l10n-taskmgr reads Windows MUI files; run it on Windows.")
-}
-
 fn agent_check(extra_args: &[String]) -> anyhow::Result<()> {
-    if !cfg!(target_os = "windows") {
-        anyhow::bail!("agent-check probes the Windows host agents; nothing to do here.");
-    }
-
     let workspace_root = workspace_root()?;
     ensure_agent_running(&workspace_root)?;
 
@@ -60,12 +49,6 @@ fn agent_check(extra_args: &[String]) -> anyhow::Result<()> {
 
 fn run() -> anyhow::Result<()> {
     let workspace_root = workspace_root()?;
-
-    if !cfg!(target_os = "windows") {
-        println!("Non-Windows host: starting desktop only.");
-        return run_desktop(&workspace_root);
-    }
-
     ensure_agent_running(&workspace_root)?;
     run_desktop(&workspace_root)
 }

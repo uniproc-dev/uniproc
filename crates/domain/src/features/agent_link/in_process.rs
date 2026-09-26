@@ -16,15 +16,8 @@ pub trait InProcessAgent: Send + Sync + 'static {
 pub type InProcessStart =
     fn() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>>;
 
-#[cfg(windows)]
 pub use local::start_local;
 
-#[cfg(not(windows))]
-pub fn start_local() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
-    Box::pin(async { Err(InProcessStartError::Failed("the in-process agent is Windows only".into())) })
-}
-
-#[cfg(windows)]
 mod local {
     use std::collections::HashMap;
     use std::sync::Arc;

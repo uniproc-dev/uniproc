@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-#[cfg(windows)]
 mod taskbar {
     use std::ffi::c_void;
 
@@ -166,17 +165,11 @@ impl AppWindows {
     }
 }
 
-#[cfg(windows)]
 pub fn app_windows() -> AppWindows {
     taskbar::app_windows()
 }
 
-#[cfg(not(windows))]
-pub fn app_windows() -> AppWindows {
-    AppWindows::default()
-}
-
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

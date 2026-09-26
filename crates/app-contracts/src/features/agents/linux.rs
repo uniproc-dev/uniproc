@@ -139,20 +139,9 @@ pub enum RemoteScanResult {
     Unavailable(AgentConnectionState),
 }
 
-cfg_if::cfg_if! {
-    if #[cfg(target_os = "windows")] {
-        #[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
-        #[remote(event)]
-        pub struct WslAgentRuntimeEvent {
-            pub state: AgentConnectionState,
-            pub latency_ms: Option<i32>,
-        }
-    } else {
-        #[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
-        #[remote(event)]
-        pub struct LinuxAgentRuntimeEvent {
-            pub state: AgentConnectionState,
-            pub latency_ms: Option<i32>,
-        }
-    }
+#[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
+#[remote(event)]
+pub struct WslAgentRuntimeEvent {
+    pub state: AgentConnectionState,
+    pub latency_ms: Option<i32>,
 }

@@ -9,7 +9,6 @@ guinea-plugin-l10n = { workspace = true }
 fluent-templates = { workspace = true }
 fluent-bundle = { workspace = true }
 unic-langid = { workspace = true }
-cfg-if = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 guicons = { workspace = true }
 serde = { workspace = true, features = ["rc"] }

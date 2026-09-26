@@ -8,6 +8,10 @@ metrics, WSL distributions. The UI is WinUI 3 driven from Rust through
 actors. Metrics are collected by out-of-process agents (a Windows service, and an
 eBPF agent inside WSL) and arrive over capnp-rpc.
 
+The only target is Windows. There are no `cfg(windows)` gates or non-Windows fallbacks:
+Windows APIs are used directly, and a Linux build is not supported. "Linux" in the code
+means the agent inside a WSL distribution, which the Windows host talks to.
+
 ## Crates
 
 | crate | role |

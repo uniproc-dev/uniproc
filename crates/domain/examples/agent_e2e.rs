@@ -1,9 +1,3 @@
-#[cfg(not(target_os = "windows"))]
-fn main() {
-    eprintln!("agent_e2e targets the Windows host agents; nothing to probe here.");
-}
-
-#[cfg(target_os = "windows")]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let probe_wsl = std::env::args().any(|arg| arg == "--wsl");
@@ -21,7 +15,6 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
 mod windows {
     use anyhow::{Context, bail};
     use app_contracts::features::agents::{
@@ -238,7 +231,6 @@ mod windows {
     }
 }
 
-#[cfg(target_os = "windows")]
 mod wsl {
     use anyhow::{Context, bail};
     use domain::features::agents::backend::AgentBackend;

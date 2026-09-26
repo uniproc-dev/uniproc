@@ -5,6 +5,4 @@ edition.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-
-[target.'cfg(windows)'.dependencies]
 windows = { workspace = true, features = ["libloaderapi"] }

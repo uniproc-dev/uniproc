@@ -89,7 +89,6 @@ windows = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45", 
 
 # --- Utilities ---
 anyhow = "1.0.100"
-cfg-if = "1"
 fluent-templates = "0.14.0"
 fluent-bundle = "0.16.0"
 unic-langid = { version = "0.9.6", features = ["macros"] }
