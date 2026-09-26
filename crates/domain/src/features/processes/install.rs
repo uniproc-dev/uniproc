@@ -6,11 +6,11 @@ use super::actor::ProcessesActor;
 use super::windows_scan::{self, AppWindows};
 
 #[derive(Clone, Copy)]
-pub struct ProcessesParams {
+pub struct ProcessesDeps {
     pub windows: fn() -> AppWindows,
 }
 
-impl Default for ProcessesParams {
+impl Default for ProcessesDeps {
     fn default() -> Self {
         Self {
             windows: windows_scan::app_windows,
@@ -25,8 +25,8 @@ feature! {
 }
 
 #[installs]
-fn processes(cx: &FeatureInitContext, params: &ProcessesParams) -> anyhow::Result<ProcessesFeature> {
-    let windows = params.windows;
+fn processes(cx: &FeatureInitContext, deps: &ProcessesDeps) -> anyhow::Result<ProcessesFeature> {
+    let windows = deps.windows;
     let (processes, addr) = cx
         .state::<ProcessesState>()
         .driven_by(move |port| ProcessesActor::new(port, windows));

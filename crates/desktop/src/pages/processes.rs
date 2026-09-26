@@ -1,6 +1,6 @@
 use app_contracts::features::processes::ProcessesState;
 use domain::features::processes::settings::ProcessesSettings;
-use domain::features::processes::{ProcessesFeature, ProcessesParams};
+use domain::features::processes::{ProcessesDeps, ProcessesFeature};
 use guinea::feature::FeatureInitContext;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::pages::processes::{ProcessesMsg, ProcessesPage, ProcessesSettingsMaps};
@@ -29,10 +29,10 @@ impl Page for Processes {
     type Message = ProcessesMsg;
 
     fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        let params = ctx
-            .try_require::<ProcessesParams>()
-            .map_or_else(ProcessesParams::default, |provided| *provided);
-        ctx.install(&params)
+        let deps = ctx
+            .try_require::<ProcessesDeps>()
+            .map_or_else(ProcessesDeps::default, |provided| *provided);
+        ctx.install(&deps)
     }
 
     fn init(_ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
@@ -64,7 +64,7 @@ mod tests {
 
     use app_contracts::features::agent_link::AgentLinkState;
     use app_contracts::features::processes::{ProcessColumn, ProcessesState};
-    use domain::features::agent_link::{AgentLinkFeature, AgentLinkParams};
+    use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
     use app_contracts::features::services::{ServiceColumn, ServicesState};
     use guinea::core::remote;
     use domain::features::processes::windows_scan::AppWindows;
@@ -170,7 +170,7 @@ mod tests {
             .unwrap()
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
             .unwrap()
-            .provide(ProcessesParams { windows: desktop_windows });
+            .provide(ProcessesDeps { windows: desktop_windows });
         dir
     }
 
@@ -671,7 +671,7 @@ mod tests {
         });
         h.feature(crate::test_agent::FakeAgentFeature).unwrap();
         let h = &*h;
-        h.install::<AgentLinkFeature>(&AgentLinkParams {
+        h.install::<AgentLinkFeature>(&AgentLinkDeps {
             start_in_process: crate::test_agent::start_in_process,
         })
             .unwrap();

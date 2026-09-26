@@ -2,7 +2,7 @@ use app_contracts::features::agent_link::{AgentLinkState, StartInProcess};
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::metrics::MetricsState;
 use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarState};
-use domain::features::agent_link::{AgentLinkFeature, AgentLinkParams};
+use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
 use domain::features::agents::providers::windows::AGENT_SERVICE_DISPLAY_NAME;
 use domain::features::metrics::MetricsFeature;
 use domain::features::sidebar::SidebarFeature;
@@ -70,8 +70,8 @@ impl Layout for ShellLayout {
 
     fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
         let link = ctx
-            .try_require::<AgentLinkParams>()
-            .map_or_else(AgentLinkParams::default, |provided| *provided);
+            .try_require::<AgentLinkDeps>()
+            .map_or_else(AgentLinkDeps::default, |provided| *provided);
         Ok((ctx.install(&())?, ctx.install(&())?, ctx.install(&link)?))
     }
 
@@ -194,7 +194,7 @@ mod tests {
         type Message = ();
 
         fn install(ctx: &FeatureInitContext, _params: &()) -> anyhow::Result<AgentLinkFeature> {
-            ctx.install(&AgentLinkParams {
+            ctx.install(&AgentLinkDeps {
                 start_in_process: test_agent::start_in_process,
             })
         }

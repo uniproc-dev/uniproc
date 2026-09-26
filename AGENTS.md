@@ -120,7 +120,12 @@ When the service does not answer, the splash offers "Open monitor in process" af
 inside uniproc (it needs an elevated uniproc, otherwise `NotElevated` is shown) and
 publishes `WindowsAgentInProcess`: the service actor goes dormant for the rest of the
 run, and `agent_link` answers `ScanTick`, `WindowsActionRequest` and `AgentStateRequest`
-itself. Tests replace the starter through `AgentLinkParams::start_in_process`.
+itself. Tests replace the starter through `AgentLinkDeps::start_in_process`.
+
+A feature's `<F>Deps` (`ProcessesDeps`, `AgentLinkDeps`) is what its installer runs on:
+the platform functions tests swap for fakes. It is not a route's params. The segment
+takes it from the context with `try_require`, falling back to `Default` (the real
+functions), and tests put their fakes there with `h.provide(..)`.
 
 ## Testing and running
 
