@@ -5,7 +5,7 @@ use app_contracts::features::agents::{
 use guinea::prelude::*;
 
 use super::actor::{AgentLinkActor, OfferInProcessLater};
-use super::in_process::{InProcessStart, start_embedded};
+use super::in_process::{InProcessStart, start_local};
 
 #[derive(Clone, Copy)]
 pub struct AgentLinkParams {
@@ -15,7 +15,7 @@ pub struct AgentLinkParams {
 impl Default for AgentLinkParams {
     fn default() -> Self {
         Self {
-            start_in_process: start_embedded,
+            start_in_process: start_local,
         }
     }
 }

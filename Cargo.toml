@@ -50,8 +50,8 @@ windows-reference = { git = "https://github.com/microsoft/windows-rs", rev = "c1
 
 # --- RPC & protocol ---
 ogurpchik = { git = "https://github.com/uniproc-dev/oguRPChik", tag = "v0.6.3" }
-uniproc-protocol = { git = "https://github.com/uniproc-dev/uniproc-protocol", tag = "v0.9.0" }
-uniproc-windows-agent = { git = "https://github.com/uniproc-dev/uniproc-windows-agent", tag = "v0.6.0", default-features = false }
+uniproc-protocol = { git = "https://github.com/uniproc-dev/uniproc-protocol", tag = "v0.10.0" }
+uniproc-windows-agent = { git = "https://github.com/uniproc-dev/uniproc-windows-agent", rev = "33596a7", default-features = false }
 
 # --- Internal ---
 app-contracts = { path = "crates/app-contracts" }

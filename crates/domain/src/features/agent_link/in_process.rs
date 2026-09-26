@@ -17,15 +17,15 @@ pub type InProcessStart =
     fn() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>>;
 
 #[cfg(windows)]
-pub use embedded::start_embedded;
+pub use local::start_local;
 
 #[cfg(not(windows))]
-pub fn start_embedded() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
+pub fn start_local() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
     Box::pin(async { Err(InProcessStartError::Failed("the in-process agent is Windows only".into())) })
 }
 
 #[cfg(windows)]
-mod embedded {
+mod local {
     use std::collections::HashMap;
     use std::sync::Arc;
 
@@ -36,14 +36,14 @@ mod embedded {
     use futures::future::BoxFuture;
     use uniproc_windows_agent::agent::Agent;
     use uniproc_windows_agent::api;
-    use uniproc_windows_agent::embedded::{Embedded, StartError};
+    use uniproc_windows_agent::local::{Local, StartError};
 
     use super::{InProcessAgent, InProcessStartError};
 
-    pub fn start_embedded() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
+    pub fn start_local() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
         Box::pin(async {
-            match tokio::task::spawn_blocking(Embedded::start).await {
-                Ok(Ok(embedded)) => Ok(Arc::new(embedded) as Arc<dyn InProcessAgent>),
+            match tokio::task::spawn_blocking(Local::start).await {
+                Ok(Ok(local)) => Ok(Arc::new(local) as Arc<dyn InProcessAgent>),
                 Ok(Err(StartError::NotElevated)) => Err(InProcessStartError::NotElevated),
                 Ok(Err(error)) => Err(InProcessStartError::Failed(error.to_string())),
                 Err(error) => Err(InProcessStartError::Failed(error.to_string())),
@@ -51,14 +51,14 @@ mod embedded {
         })
     }
 
-    impl InProcessAgent for Embedded {
+    impl InProcessAgent for Local {
         fn report(&self) -> WindowsReport {
             report(self.snapshot())
         }
 
         fn act(self: Arc<Self>, action: WindowsAction) -> BoxFuture<'static, u32> {
             Box::pin(async move {
-                match Agent::Embedded(self).run(command(action)).await {
+                match Agent::Local(self).run(command(action)).await {
                     Ok(Ok(())) => 0,
                     Ok(Err(code)) => code,
                     Err(_) => u32::MAX,
