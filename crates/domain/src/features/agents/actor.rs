@@ -1,7 +1,7 @@
 use super::backend::AgentBackend;
 use super::connection::*;
 use amethystate::Field;
-use app_contracts::features::agents::{AgentConnectionState, AgentStateRequest, ScanTick};
+use app_contracts::features::agents::{AgentConnectionState, AgentStateRequest, ScanTick, WindowsAgentInProcess};
 use guinea::prelude::*;
 use std::fmt::Debug;
 use tracing::{info, warn};
@@ -40,6 +40,7 @@ pub struct GenericAgentActor<B: AgentBackend> {
     failed_scans: u32,
     attempt_secs: Field<u64>,
     attempt_started: Option<tokio::time::Instant>,
+    dormant: bool,
 }
 
 impl<B: AgentBackend> GenericAgentActor<B> {
@@ -51,6 +52,7 @@ impl<B: AgentBackend> GenericAgentActor<B> {
             failed_scans: 0,
             attempt_secs,
             attempt_started: None,
+            dormant: false,
         }
     }
 
@@ -69,6 +71,9 @@ impl<B: AgentBackend> GenericAgentActor<B> {
     }
 
     fn publish_state(&self, latency_ms: Option<i32>) {
+        if self.dormant {
+            return;
+        }
         let state = self.connection.state();
         GlobalEventBus::publish(B::create_runtime_event(state, latency_ms));
 
@@ -106,8 +111,17 @@ actor! {
             RetryTimerElapsed,
             ConnectionLost,
             AgentStateRequest,
+            WindowsAgentInProcess,
         }
     }
+}
+
+#[handler]
+fn on_in_process<B: AgentBackend>(this: &mut GenericAgentActor<B>, _ctx: Context<GenericAgentActor<B>, WindowsAgentInProcess>) {
+    info!("[{}] the in-process agent took over, going dormant", B::NAME);
+    this.dormant = true;
+    this.client = None;
+    this.ping_in_flight = false;
 }
 
 #[handler]
@@ -124,6 +138,9 @@ fn init<B: AgentBackend>(this: &GenericAgentActor<B>, ctx: Context<GenericAgentA
 
 #[handler]
 fn start_connect<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, StartConnect>) {
+    if this.dormant {
+        return;
+    }
     if let Some(t) = this.apply(ConnectionEvent::BeginConnect)
         && t.to == AgentConnectionState::Connecting
     {
@@ -137,6 +154,9 @@ fn on_connect_result<B: AgentBackend>(
     this: &mut GenericAgentActor<B>,
     ctx: Context<GenericAgentActor<B>, ConnectResult<B::Client>>,
 ) {
+    if this.dormant {
+        return;
+    }
     let addr = ctx.addr();
     let ConnectResult(client) = ctx.msg;
     match client {
@@ -198,7 +218,7 @@ fn on_ping_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context
 
 #[handler]
 fn perform_scan_tick<B: AgentBackend>(this: &GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, ScanTick>) {
-    if !matches!(this.connection.state(), AgentConnectionState::Connected) {
+    if this.dormant || !matches!(this.connection.state(), AgentConnectionState::Connected) {
         return;
     }
 
@@ -246,6 +266,9 @@ async fn schedule_retry<B: AgentBackend>(ctx: AsyncContext<GenericAgentActor<B>>
 
 #[handler]
 fn on_retry_elapsed<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, RetryTimerElapsed>) {
+    if this.dormant {
+        return;
+    }
     if let Some(t) = this.apply(ConnectionEvent::RetryDelayElapsed)
         && t.to == AgentConnectionState::Connecting
     {
@@ -256,6 +279,9 @@ fn on_retry_elapsed<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Conte
 
 #[handler]
 fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, ConnectionLost>) {
+    if this.dormant {
+        return;
+    }
     if this.apply(ConnectionEvent::ConnectionLost).is_none() {
         return;
     }
@@ -279,6 +305,9 @@ mod windows {
         this: &GenericAgentActor<WindowsBackend>,
         ctx: Context<GenericAgentActor<WindowsBackend>, WindowsActionRequest>,
     ) {
+        if this.dormant {
+            return;
+        }
         let msg = ctx.msg.clone();
         let Some(client) = this.client.clone() else {
             error!("Dropping {:?}: not connected to the agent", msg.action);

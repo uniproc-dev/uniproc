@@ -1,3 +1,4 @@
+use app_contracts::features::agent_link::InProcess;
 use guicons::icon;
 use guinea::winui::MarkExt;
 use windows_reactor::{
@@ -13,8 +14,9 @@ use crate::widgets::text::{subtitle, text};
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SplashMark {
     Splash,
-    OpenNative,
+    OpenInProcess,
     Unreachable,
+    InProcessError,
 }
 
 struct Splash;
@@ -29,9 +31,16 @@ impl Splash {
 pub struct SplashProps<'a> {
     pub l10n: &'a L10n,
     pub palette: Palette,
-    pub native_offered: bool,
+    pub in_process_offered: bool,
+    pub in_process: InProcess,
     pub unreachable_service: Option<&'a str>,
-    pub on_open_native: Callback<()>,
+    pub on_start_in_process: Callback<()>,
+}
+
+fn line(content: String, palette: Palette) -> windows_reactor::TextBlock {
+    text(content)
+        .foreground(palette.secondary_text)
+        .horizontal_alignment(HorizontalAlignment::Center)
 }
 
 pub fn splash_view(props: SplashProps<'_>) -> View {
@@ -56,15 +65,22 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
         .vertical_alignment(VerticalAlignment::Bottom)
         .margin(Thickness::new(0.0, 0.0, 0.0, Splash::SpinnerFromBottom));
 
-    let (slow, corner): (View, View) = if props.native_offered {
-        let open_native = props.on_open_native;
+    let (slow, corner): (View, View) = if props.in_process_offered {
+        let start_in_process = props.on_start_in_process;
         let unreachable: View = match props.unreachable_service {
-            Some(service) => text(props.l10n.shell_splash_unreachable(service.to_string()))
+            Some(service) => line(props.l10n.shell_splash_unreachable(service.to_string()), props.palette)
                 .mark(SplashMark::Unreachable)
-                .foreground(props.palette.secondary_text)
-                .horizontal_alignment(HorizontalAlignment::Center)
                 .into(),
             None => View::empty(),
+        };
+        let in_process_error: View = match props.in_process {
+            InProcess::NotElevated => line(props.l10n.shell_splash_in_process_not_elevated(), props.palette)
+                .mark(SplashMark::InProcessError)
+                .into(),
+            InProcess::Failed => line(props.l10n.shell_splash_in_process_failed(), props.palette)
+                .mark(SplashMark::InProcessError)
+                .into(),
+            InProcess::Off | InProcess::Starting | InProcess::Running => View::empty(),
         };
         let slow = StackPanel::new()
             .orientation(Orientation::Vertical)
@@ -78,10 +94,9 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
                 Splash::SpinnerFromBottom + Splash::Spinner + space::Card,
             ))
             .children((
-                text(props.l10n.shell_splash_slow())
-                    .foreground(props.palette.secondary_text)
-                    .horizontal_alignment(HorizontalAlignment::Center),
+                line(props.l10n.shell_splash_slow(), props.palette),
                 unreachable,
+                in_process_error,
             ))
             .into();
         let corner = Border::new()
@@ -89,11 +104,12 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
             .vertical_alignment(VerticalAlignment::Bottom)
             .margin(Thickness::xy(space::Section, space::Section))
             .content(action_button(
-                SplashMark::OpenNative,
-                props.l10n.shell_splash_open_native(),
+                SplashMark::OpenInProcess,
+                props.l10n.shell_splash_open_in_process(),
                 Some(icon!(open).size(size::Icon).build_element()),
+                !matches!(props.in_process, InProcess::Starting | InProcess::Running),
                 move || {
-                    let _ = open_native.call(());
+                    let _ = start_in_process.call(());
                 },
             ))
             .into();

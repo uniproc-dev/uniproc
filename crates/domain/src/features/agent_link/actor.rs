@@ -1,42 +1,79 @@
+use std::sync::Arc;
 use std::time::Duration;
 
-use app_contracts::features::agent_link::{AgentLinkMsg, AgentLinkState, OpenNativeTaskManager};
-use app_contracts::features::agents::{AgentConnectionState, WindowsAgentRuntimeEvent};
+use app_contracts::features::agent_link::{AgentLinkMsg, AgentLinkState, InProcess, StartInProcess};
+use app_contracts::features::agents::{
+    AgentConnectionState, AgentStateRequest, ScanTick, WindowsActionRequest, WindowsActionResponse,
+    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsReportMessage,
+};
 use guinea::prelude::*;
 
-pub struct Native;
+use super::in_process::{InProcessAgent, InProcessStart, InProcessStartError};
+
+pub struct Offer;
 
 #[expect(non_upper_case_globals)]
-impl Native {
-    pub const OfferedAfter: Duration = Duration::from_secs(5);
+impl Offer {
+    pub const InProcessAfter: Duration = Duration::from_secs(5);
 }
 
 #[derive(Clone, Debug)]
-pub struct OfferNativeLater;
+pub struct OfferInProcessLater;
 
 #[derive(Clone, Debug)]
-pub struct NativeOfferDue;
+pub struct InProcessOfferDue;
 
-#[derive(Debug)]
+struct InProcessStarted(Result<Arc<dyn InProcessAgent>, InProcessStartError>);
+
 pub struct AgentLinkActor {
     ui_port: Push<AgentLinkState>,
-    open_native: fn(),
+    start_in_process: InProcessStart,
+    in_process: Option<Arc<dyn InProcessAgent>>,
+    starting: bool,
     last: Option<AgentConnectionState>,
 }
 
+impl std::fmt::Debug for AgentLinkActor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AgentLinkActor")
+            .field("in_process", &self.in_process.is_some())
+            .field("starting", &self.starting)
+            .field("last", &self.last)
+            .finish()
+    }
+}
+
 impl AgentLinkActor {
-    pub fn new(ui_port: Push<AgentLinkState>, open_native: fn()) -> Self {
+    pub fn new(ui_port: Push<AgentLinkState>, start_in_process: InProcessStart) -> Self {
         Self {
             ui_port,
-            open_native,
+            start_in_process,
+            in_process: None,
+            starting: false,
             last: None,
         }
+    }
+
+    fn announce_in_process(&self) {
+        GlobalEventBus::publish(WindowsAgentRuntimeEvent {
+            state: AgentConnectionState::Connected,
+            latency_ms: None,
+        });
     }
 }
 
 actor! {
     AgentLinkActor {
-        handlers { WindowsAgentRuntimeEvent, OpenNativeTaskManager, OfferNativeLater, NativeOfferDue }
+        handlers {
+            WindowsAgentRuntimeEvent,
+            StartInProcess,
+            InProcessStarted,
+            OfferInProcessLater,
+            InProcessOfferDue,
+            ScanTick,
+            WindowsActionRequest,
+            AgentStateRequest,
+        }
     }
 }
 
@@ -51,19 +88,73 @@ fn on_windows_agent(this: &mut AgentLinkActor, ctx: Context<AgentLinkActor, Wind
 }
 
 #[handler]
-fn open_native(this: &AgentLinkActor, _ctx: Context<AgentLinkActor, OpenNativeTaskManager>) {
-    (this.open_native)();
+fn start_in_process(this: &mut AgentLinkActor, ctx: Context<AgentLinkActor, StartInProcess>) {
+    if this.starting || this.in_process.is_some() {
+        return;
+    }
+    this.starting = true;
+    this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Starting));
+    let start = this.start_in_process;
+    ctx.spawn_bg(async move { InProcessStarted(start().await) });
 }
 
 #[handler]
-async fn offer_native_later(ctx: AsyncContext<AgentLinkActor>, _msg: OfferNativeLater) {
-    let waited = ctx.until_gone(tokio::time::sleep(Native::OfferedAfter)).await;
-    if waited.is_some() {
-        ctx.send(NativeOfferDue);
+fn on_in_process_started(this: &mut AgentLinkActor, ctx: Context<AgentLinkActor, InProcessStarted>) {
+    this.starting = false;
+    match ctx.msg.0 {
+        Ok(agent) => {
+            tracing::info!("in-process agent started");
+            this.in_process = Some(agent);
+            this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Running));
+            GlobalEventBus::publish(WindowsAgentInProcess);
+            this.announce_in_process();
+        }
+        Err(InProcessStartError::NotElevated) => {
+            tracing::warn!("in-process agent needs an elevated process");
+            this.ui_port.send(AgentLinkMsg::InProcess(InProcess::NotElevated));
+        }
+        Err(InProcessStartError::Failed(error)) => {
+            tracing::warn!(%error, "in-process agent did not start");
+            this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Failed));
+        }
     }
 }
 
 #[handler]
-fn native_offer_due(this: &AgentLinkActor, _ctx: Context<AgentLinkActor, NativeOfferDue>) {
-    this.ui_port.send(AgentLinkMsg::OfferNative);
+fn on_scan_tick(this: &AgentLinkActor, _ctx: Context<AgentLinkActor, ScanTick>) {
+    if let Some(agent) = &this.in_process {
+        GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(agent.report())));
+    }
+}
+
+#[handler]
+fn on_action(this: &AgentLinkActor, ctx: Context<AgentLinkActor, WindowsActionRequest>) {
+    let Some(agent) = this.in_process.clone() else {
+        return;
+    };
+    let request = ctx.msg.clone();
+    ctx.spawn_bg_detached(async move {
+        let code = agent.act(request.action).await;
+        GlobalEventBus::publish(WindowsActionResponse::new(request.correlation_id, code));
+    });
+}
+
+#[handler]
+fn on_state_request(this: &AgentLinkActor, _ctx: Context<AgentLinkActor, AgentStateRequest>) {
+    if this.in_process.is_some() {
+        this.announce_in_process();
+    }
+}
+
+#[handler]
+async fn offer_in_process_later(ctx: AsyncContext<AgentLinkActor>, _msg: OfferInProcessLater) {
+    let waited = ctx.until_gone(tokio::time::sleep(Offer::InProcessAfter)).await;
+    if waited.is_some() {
+        ctx.send(InProcessOfferDue);
+    }
+}
+
+#[handler]
+fn in_process_offer_due(this: &AgentLinkActor, _ctx: Context<AgentLinkActor, InProcessOfferDue>) {
+    this.ui_port.send(AgentLinkMsg::OfferInProcess);
 }

@@ -6,8 +6,7 @@ use crate::features::agents::settings::AgentSettings;
 use anyhow::{anyhow, bail};
 use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, ScanTick, WindowsAction, WindowsActionRequest,
-    WindowsAgentRuntimeEvent, WindowsReport,
-    WindowsReportMessage,
+    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsReport, WindowsReportMessage,
 };
 use guinea::prelude::*;
 use guinea::ratelimit;
@@ -343,6 +342,7 @@ pub fn windows_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
     addr.subscribe_on::<ScanTick>(Bus::Global);
     addr.subscribe_on::<WindowsActionRequest>(Bus::Global);
     addr.subscribe_on::<AgentStateRequest>(Bus::Global);
+    addr.subscribe_on::<WindowsAgentInProcess>(Bus::Global);
     addr.send(Init);
 
     Ok(())

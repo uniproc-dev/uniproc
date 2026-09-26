@@ -635,8 +635,8 @@ mod tests {
         assert_eq!(
             remote::actions(),
             [
-                "Command", "Deselect", "OpenNativeTaskManager", "Refresh", "RefreshDistros", "Select",
-                "SetOpen", "SetWidth", "Sort", "Terminate", "Toggle",
+                "Command", "Deselect", "Refresh", "RefreshDistros", "Select", "SetOpen", "SetWidth",
+                "Sort", "StartInProcess", "Terminate", "Toggle",
             ]
         );
         assert_eq!(
@@ -647,6 +647,7 @@ mod tests {
                 "ScanTick",
                 "WindowsActionRequest",
                 "WindowsActionResponse",
+                "WindowsAgentInProcess",
                 "WindowsAgentRuntimeEvent",
                 "WindowsReportMessage",
                 "WslAgentRuntimeEvent",
@@ -670,7 +671,9 @@ mod tests {
         });
         h.feature(crate::test_agent::FakeAgentFeature).unwrap();
         let h = &*h;
-        h.install::<AgentLinkFeature>(&AgentLinkParams { open_native: || {} })
+        h.install::<AgentLinkFeature>(&AgentLinkParams {
+            start_in_process: crate::test_agent::start_in_process,
+        })
             .unwrap();
         let params = crate::routes::ProcessesParams::default();
         let mut page = Mounted::mount_with(&h.segment(), params, |page| {

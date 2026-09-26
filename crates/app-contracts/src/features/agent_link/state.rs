@@ -1,13 +1,14 @@
 use guinea::prelude::*;
 
-use super::messages::AgentLinkMsg;
+use super::messages::{AgentLinkMsg, InProcess};
 use crate::features::agents::AgentConnectionState;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct AgentLinkState {
     pub windows: AgentConnectionState,
     pub ever_connected: bool,
-    pub native_offered: bool,
+    pub in_process_offered: bool,
+    pub in_process: InProcess,
 }
 
 impl Default for AgentLinkState {
@@ -15,7 +16,8 @@ impl Default for AgentLinkState {
         Self {
             windows: AgentConnectionState::Connecting,
             ever_connected: false,
-            native_offered: false,
+            in_process_offered: false,
+            in_process: InProcess::Off,
         }
     }
 }
@@ -35,7 +37,8 @@ impl Reducer for AgentLinkState {
                 self.windows = state;
                 self.ever_connected |= state == AgentConnectionState::Connected;
             }
-            AgentLinkMsg::OfferNative => self.native_offered = true,
+            AgentLinkMsg::OfferInProcess => self.in_process_offered = true,
+            AgentLinkMsg::InProcess(in_process) => self.in_process = in_process,
         }
     }
 }

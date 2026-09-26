@@ -31,6 +31,7 @@ dhat-heap = ["dep:dhat"]
 
 [dev-dependencies]
 guinea = { workspace = true, features = ["harness"] }
+futures = { workspace = true }
 tempfile = "3"
 
 [build-dependencies]

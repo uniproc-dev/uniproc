@@ -1,5 +1,6 @@
 mod actor;
+mod in_process;
 mod install;
-mod native;
 
+pub use in_process::{InProcessAgent, InProcessStart, InProcessStartError};
 pub use install::{AgentLinkFeature, AgentLinkParams};

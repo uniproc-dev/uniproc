@@ -115,6 +115,13 @@ global bus; each feature subscribes to what it needs.
 The Windows agent runs as a service in session 0, so it cannot enumerate user windows;
 that is done in-process by `domain/features/processes/windows_scan.rs`.
 
+When the service does not answer, the splash offers "Open monitor in process" after 5 s.
+`domain/features/agent_link` then starts `uniproc_windows_agent::embedded::Embedded`
+inside uniproc (it needs an elevated uniproc, otherwise `NotElevated` is shown) and
+publishes `WindowsAgentInProcess`: the service actor goes dormant for the rest of the
+run, and `agent_link` answers `ScanTick`, `WindowsActionRequest` and `AgentStateRequest`
+itself. Tests replace the starter through `AgentLinkParams::start_in_process`.
+
 ## Testing and running
 
 - `cargo test --workspace`.

@@ -22,5 +22,8 @@ futures = { workspace = true }
 uuid = { workspace = true }
 windows = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+uniproc-windows-agent = { workspace = true }
+
 [lints]
 workspace = true

@@ -1,4 +1,4 @@
-use app_contracts::features::agent_link::{AgentLinkState, OpenNativeTaskManager};
+use app_contracts::features::agent_link::{AgentLinkState, StartInProcess};
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::metrics::MetricsState;
 use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarState};
@@ -34,10 +34,11 @@ pub(crate) fn splash(
     Some(ui::splash_view(ui::SplashProps {
         l10n,
         palette,
-        native_offered: link.native_offered,
+        in_process_offered: link.in_process_offered,
+        in_process: link.in_process,
         unreachable_service: (link.windows == AgentConnectionState::GaveUp)
             .then_some(AGENT_SERVICE_DISPLAY_NAME),
-        on_open_native: Callback::new(move |()| dispatch.emit(OpenNativeTaskManager)),
+        on_start_in_process: Callback::new(move |()| dispatch.emit(StartInProcess)),
     }))
 }
 
@@ -151,7 +152,6 @@ impl Layout for ShellLayout {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::Duration;
 
     use guinea::app::Harness;
@@ -161,18 +161,17 @@ mod tests {
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
+    use uuid::Uuid;
     use windows_reactor::TextBlock;
 
-    use app_contracts::features::agents::AgentConnectionState;
+    use app_contracts::features::agent_link::InProcess;
+    use app_contracts::features::agents::{
+        AgentConnectionState, ScanTick, WindowsAction, WindowsActionRequest, WindowsActionResponse,
+        WindowsReportMessage,
+    };
 
     use super::*;
     use crate::test_agent;
-
-    static OPENED: AtomicU32 = AtomicU32::new(0);
-
-    fn open_native() {
-        OPENED.fetch_add(1, Ordering::SeqCst);
-    }
 
     #[derive(Default)]
     pub struct ShellProbe;
@@ -184,7 +183,9 @@ mod tests {
         type Message = ();
 
         fn install(ctx: &FeatureInitContext, _params: &()) -> anyhow::Result<AgentLinkFeature> {
-            ctx.install(&AgentLinkParams { open_native })
+            ctx.install(&AgentLinkParams {
+                start_in_process: test_agent::start_in_process,
+            })
         }
 
         fn update(&mut self, _message: (), _cx: &mut UpdateCx<'_, Self>) {}
@@ -213,7 +214,6 @@ mod tests {
     fn start(h: &mut Harness, agent_up: bool) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         test_agent::reset(agent_up);
-        OPENED.store(0, Ordering::SeqCst);
         h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json))
             .unwrap()
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
@@ -300,22 +300,123 @@ mod tests {
         assert_eq!(test_agent::connects(), 1);
     }
 
+    fn in_process(h: &Harness) -> InProcess {
+        h.state::<AgentLinkState>().in_process
+    }
+
+    fn in_process_error(page: &Mounted<'_, ShellProbe>) -> Option<String> {
+        page.tree()
+            .find(ui::SplashMark::InProcessError)
+            .and_then(|node| node.text.clone())
+    }
+
+    fn start_in_process(page: &mut Mounted<'_, ShellProbe>) {
+        page.click(ui::SplashMark::OpenInProcess).settle();
+        page.settle();
+    }
+
     #[guinea::test(iterations = 4, exclusive = "store")]
-    fn the_splash_opens_the_native_task_manager(h: &mut Harness) {
+    fn the_splash_offers_the_monitor_in_process_after_five_seconds(h: &mut Harness) {
         let _store = start(h, false);
         let h = &*h;
         let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
 
         after(h, &mut page, 4);
-        assert!(page.find(ui::SplashMark::OpenNative).is_none(), "not offered yet");
+        assert!(page.find(ui::SplashMark::OpenInProcess).is_none(), "not offered yet");
         assert!(page.find_text("Starting is taking longer than usual").is_none());
 
         after(h, &mut page, 1);
         assert!(page.find_text("Starting is taking longer than usual").is_some(), "{:#?}", page.tree());
-        page.click(ui::SplashMark::OpenNative).settle();
-        page.settle();
+        assert!(page.find_text("Open monitor in process").is_some(), "{:#?}", page.tree());
+        assert_eq!(test_agent::in_process_starts(), 0, "offered, not started");
+        assert_eq!(in_process(h), InProcess::Off);
+    }
 
-        assert_eq!(OPENED.load(Ordering::SeqCst), 1);
+    #[guinea::test(iterations = 8, exclusive = "store")]
+    fn the_monitor_in_process_takes_over_from_the_service(h: &mut Harness) {
+        let _store = start(h, false);
+        test_agent::set_elevated(true);
+        let h = &*h;
+        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+
+        after(h, &mut page, 5);
+        start_in_process(&mut page);
+
+        assert_eq!(test_agent::in_process_starts(), 1);
+        assert_eq!(in_process(h), InProcess::Running);
+        assert_eq!(agent(h), AgentConnectionState::Connected);
+        assert!(!splash_shown(&page), "{:#?}", page.tree());
+        assert!(page.find_text("shell").is_some(), "{:#?}", page.tree());
+
+        let connects = test_agent::connects();
+        after(h, &mut page, 15);
+        assert_eq!(test_agent::connects(), connects, "the service is left alone");
+        assert_eq!(agent(h), AgentConnectionState::Connected, "no give-up from the dormant service");
+
+        test_agent::set_up(true);
+        after(h, &mut page, 5);
+        assert_eq!(test_agent::connects(), connects, "not even once it is up");
+
+        let reports = test_agent::in_process_reports();
+        let tick = h.publish(ScanTick);
+        tick.settle();
+        assert!(tick.chain().published::<WindowsReportMessage>(), "{:#?}", tick.chain());
+        assert!(test_agent::in_process_reports() > reports);
+
+        let kill = h.publish(WindowsActionRequest::new(Uuid::new_v4(), WindowsAction::Kill { pid: 42 }));
+        kill.settle();
+        assert!(kill.chain().published::<WindowsActionResponse>(), "{:#?}", kill.chain());
+        assert!(
+            matches!(test_agent::in_process_actions().as_slice(), [WindowsAction::Kill { pid: 42 }]),
+            "{:?}",
+            test_agent::in_process_actions()
+        );
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "store")]
+    fn the_monitor_in_process_needs_an_elevated_uniproc(h: &mut Harness) {
+        let _store = start(h, false);
+        let h = &*h;
+        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+
+        after(h, &mut page, 5);
+        assert_eq!(in_process_error(&page), None);
+        start_in_process(&mut page);
+
+        assert_eq!(test_agent::in_process_starts(), 1);
+        assert_eq!(in_process(h), InProcess::NotElevated);
         assert!(splash_shown(&page), "{:#?}", page.tree());
+        assert_eq!(
+            in_process_error(&page).as_deref(),
+            Some("Monitoring in process needs Uniproc to run as administrator"),
+            "{:#?}",
+            page.tree()
+        );
+
+        let connects = test_agent::connects();
+        after(h, &mut page, 3);
+        assert_eq!(test_agent::connects(), connects + 1, "the service is still being tried");
+
+        test_agent::set_elevated(true);
+        start_in_process(&mut page);
+        assert_eq!(test_agent::in_process_starts(), 2, "the button stays usable after a refusal");
+        assert_eq!(in_process(h), InProcess::Running);
+        assert!(!splash_shown(&page), "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_service_still_wins_after_the_monitor_in_process_was_refused(h: &mut Harness) {
+        let _store = start(h, false);
+        let h = &*h;
+        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+
+        after(h, &mut page, 5);
+        start_in_process(&mut page);
+        assert_eq!(in_process(h), InProcess::NotElevated);
+
+        test_agent::set_up(true);
+        after(h, &mut page, 3);
+        assert_eq!(agent(h), AgentConnectionState::Connected);
+        assert!(!splash_shown(&page), "{:#?}", page.tree());
     }
 }

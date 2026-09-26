@@ -71,9 +71,10 @@ pub fn action_button(
     mark: impl Mark,
     label: impl Into<String>,
     icon: Option<View>,
+    enabled: bool,
     on_click: impl Fn() + 'static,
 ) -> View {
-    labelled_button(ButtonStyle::Default, mark, label, icon, true, on_click)
+    labelled_button(ButtonStyle::Default, mark, label, icon, enabled, on_click)
 }
 
 fn labelled_button(

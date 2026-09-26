@@ -1,23 +1,76 @@
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, ScanTick, WindowsAgentRuntimeEvent, WindowsReport,
-    WindowsReportMessage,
+    AgentConnectionState, AgentStateRequest, ScanTick, WindowsAction, WindowsAgentInProcess,
+    WindowsAgentRuntimeEvent, WindowsReport, WindowsReportMessage,
 };
+use domain::features::agent_link::{InProcessAgent, InProcessStartError};
 use domain::features::agents::actor::{GenericAgentActor, Init, Ping};
 use domain::features::agents::backend::AgentBackend;
 use domain::features::agents::settings::AgentSettings;
+use futures::future::BoxFuture;
 use guinea::prelude::*;
 
 static UP: AtomicBool = AtomicBool::new(false);
 static CONNECTS: AtomicU32 = AtomicU32::new(0);
 static REPORT: std::sync::Mutex<Option<WindowsReport>> = std::sync::Mutex::new(None);
+static ELEVATED: AtomicBool = AtomicBool::new(false);
+static IN_PROCESS_STARTS: AtomicU32 = AtomicU32::new(0);
+static IN_PROCESS_REPORTS: AtomicU32 = AtomicU32::new(0);
+static IN_PROCESS_ACTIONS: std::sync::Mutex<Vec<WindowsAction>> = std::sync::Mutex::new(Vec::new());
 
 pub fn reset(up: bool) {
     UP.store(up, Ordering::SeqCst);
     CONNECTS.store(0, Ordering::SeqCst);
     *REPORT.lock().unwrap() = None;
+    ELEVATED.store(false, Ordering::SeqCst);
+    IN_PROCESS_STARTS.store(0, Ordering::SeqCst);
+    IN_PROCESS_REPORTS.store(0, Ordering::SeqCst);
+    IN_PROCESS_ACTIONS.lock().unwrap().clear();
+}
+
+pub fn set_elevated(elevated: bool) {
+    ELEVATED.store(elevated, Ordering::SeqCst);
+}
+
+pub fn in_process_starts() -> u32 {
+    IN_PROCESS_STARTS.load(Ordering::SeqCst)
+}
+
+pub fn in_process_reports() -> u32 {
+    IN_PROCESS_REPORTS.load(Ordering::SeqCst)
+}
+
+pub fn in_process_actions() -> Vec<WindowsAction> {
+    IN_PROCESS_ACTIONS.lock().unwrap().clone()
+}
+
+struct FakeInProcess;
+
+impl InProcessAgent for FakeInProcess {
+    fn report(&self) -> WindowsReport {
+        IN_PROCESS_REPORTS.fetch_add(1, Ordering::SeqCst);
+        REPORT.lock().unwrap().clone().unwrap_or_default()
+    }
+
+    fn act(self: Arc<Self>, action: WindowsAction) -> BoxFuture<'static, u32> {
+        IN_PROCESS_ACTIONS.lock().unwrap().push(action);
+        Box::pin(async { 0 })
+    }
+}
+
+pub fn start_in_process() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
+    IN_PROCESS_STARTS.fetch_add(1, Ordering::SeqCst);
+    let elevated = ELEVATED.load(Ordering::SeqCst);
+    Box::pin(async move {
+        if elevated {
+            Ok(Arc::new(FakeInProcess) as Arc<dyn InProcessAgent>)
+        } else {
+            Err(InProcessStartError::NotElevated)
+        }
+    })
 }
 
 pub fn set_up(up: bool) {
@@ -88,6 +141,7 @@ impl AppFeature for FakeAgentFeature {
         app.repeat(Duration::from_millis(500), || GlobalEventBus::publish(ScanTick));
         addr.subscribe_on::<ScanTick>(Bus::Global);
         addr.subscribe_on::<AgentStateRequest>(Bus::Global);
+        addr.subscribe_on::<WindowsAgentInProcess>(Bus::Global);
         addr.send(Init);
 
         Ok(())

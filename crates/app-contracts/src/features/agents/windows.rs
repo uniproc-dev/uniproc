@@ -153,6 +153,10 @@ pub struct WindowsAgentRuntimeEvent {
     pub latency_ms: Option<i32>,
 }
 
+#[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
+#[remote(event)]
+pub struct WindowsAgentInProcess;
+
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
 pub enum WindowsAction {
     Kill { pid: u32 },
