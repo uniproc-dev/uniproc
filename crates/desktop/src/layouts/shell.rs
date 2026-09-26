@@ -75,6 +75,7 @@ impl Layout for ShellLayout {
 
     fn init(_ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
         crate::xaml_resources::override_navigation_view_resources();
+        crate::window_press::install();
         let shell = Self::default();
         guicons::set_theme(icon_theme(shell.scheme));
         shell

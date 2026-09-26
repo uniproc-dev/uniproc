@@ -109,6 +109,9 @@ storage and a `category_label(&l10n, ..)` for display, for exactly this reason.
   `app-contracts/build.rs` from `icons.gui.toml` and `locales/`.
 - Anything under `target/*/out/`.
 - `desktop/build.rs` generates app metadata from `app.toml`.
+- `desktop/src/window_press/bindings.rs` — WinUI bindings produced by
+  `cargo run -p xtask -- winui-bindings` from `bindings.txt` next to it, out of the
+  WinUI metadata in the pinned windows-rs checkout.
 
 ## Agents
 

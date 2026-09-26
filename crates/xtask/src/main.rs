@@ -1,4 +1,5 @@
 mod taskmgr;
+mod winui_bindings;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -9,9 +10,10 @@ fn main() -> anyhow::Result<()> {
         Some("run") => run(),
         Some("agent-check") => agent_check(&args[1..]),
         Some("l10n-taskmgr") => l10n_taskmgr(&args[1..]),
+        Some("winui-bindings") => winui_bindings::run(&workspace_root()?),
         _ => {
             eprintln!(
-                "Usage: cargo run -p xtask -- <run|agent-check [--wsl]|l10n-taskmgr [<dir with <locale>\\Taskmgr.exe.mui>]>"
+                "Usage: cargo run -p xtask -- <run|agent-check [--wsl]|l10n-taskmgr [<dir with <locale>\\Taskmgr.exe.mui>]|winui-bindings>"
             );
             std::process::exit(1);
         }

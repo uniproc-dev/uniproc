@@ -7,6 +7,7 @@ mod routes;
 #[cfg(test)]
 mod test_agent;
 mod tracing_init;
+mod window_press;
 mod xaml_resources;
 
 mod meta {

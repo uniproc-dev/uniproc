@@ -1,0 +1,8 @@
+Microsoft::UI::Xaml::Input::FocusManager::{add_GotFocus, remove_GotFocus}
+Microsoft::UI::Xaml::Input::FocusManagerGotFocusEventArgs::get_NewFocusedElement
+Microsoft::UI::Xaml::Input::PointerRoutedEventArgs
+Microsoft::UI::Xaml::UIElement::{get_XamlRoot, AddHandler, get_PointerPressedEvent}
+Microsoft::UI::Xaml::XamlRoot::get_Content
+Microsoft::UI::Xaml::RoutedEventArgs::get_OriginalSource
+Microsoft::UI::Xaml::Media::VisualTreeHelper::GetParent
+Microsoft::UI::Xaml::Automation::AutomationProperties::GetAutomationId
