@@ -184,7 +184,7 @@ impl ProcessesPage {
                 command_button(
                     ProcessesMark::EndTask,
                     l10n.processes_end_task(),
-                    Some(icon!(prohibited).size(size::Icon).build_element()),
+                    Some(icon!(prohibited).size(size::CommandIcon).build_element()),
                     live.is_some(),
                     move || terminate.emit(Terminate),
                 ),
