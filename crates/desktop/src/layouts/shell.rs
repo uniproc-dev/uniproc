@@ -49,6 +49,13 @@ pub struct ShellLayout {
     memory_chart: Chart,
 }
 
+fn icon_theme(scheme: ColorScheme) -> guicons::Theme {
+    match scheme {
+        ColorScheme::Dark => guicons::Theme::Dark,
+        ColorScheme::Light => guicons::Theme::Light,
+    }
+}
+
 pub enum ShellMsg {
     Scheme(ColorScheme),
     Resize(f64),
@@ -68,9 +75,19 @@ impl Layout for ShellLayout {
         Ok((ctx.install(&())?, ctx.install(&())?, ctx.install(&link)?))
     }
 
+    fn init(_ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
+        crate::xaml_resources::override_navigation_view_resources();
+        let shell = Self::default();
+        guicons::set_theme(icon_theme(shell.scheme));
+        shell
+    }
+
     fn update(&mut self, message: ShellMsg, cx: &mut UpdateCx<'_, Self>) {
         match message {
-            ShellMsg::Scheme(scheme) => self.scheme = scheme,
+            ShellMsg::Scheme(scheme) => {
+                self.scheme = scheme;
+                guicons::set_theme(icon_theme(scheme));
+            }
             ShellMsg::Resize(width) => {
                 let (_, dispatch) = cx.state::<SidebarState, _>();
                 dispatch.emit(SetWidth(width.round() as u64));
@@ -85,12 +102,6 @@ impl Layout for ShellLayout {
     }
 
     fn view(&self, cx: &mut LayoutCx<'_, Self>) -> View {
-        crate::xaml_resources::override_navigation_view_resources();
-        guicons::set_theme(match self.scheme {
-            ColorScheme::Dark => guicons::Theme::Dark,
-            ColorScheme::Light => guicons::Theme::Light,
-        });
-
         let on_scheme = cx.on(ShellMsg::Scheme);
         cx.on_color_scheme(on_scheme);
         cx.window_visuals(
