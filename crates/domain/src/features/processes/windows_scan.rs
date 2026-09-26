@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use app_contracts::features::processes::ProcessWindow;
+
 mod taskbar {
     use std::ffi::c_void;
 
@@ -121,7 +123,7 @@ mod taskbar {
                 Some(pid_of(hwnd))
             };
             if let Some(pid) = pid.filter(|pid| *pid != 0) {
-                windows.add(pid, title_of(hwnd));
+                windows.add(pid, hwnd.0 as isize, title_of(hwnd));
             }
         }
         BOOL(1)
@@ -140,28 +142,31 @@ mod taskbar {
 
 #[derive(Debug, Default)]
 pub struct AppWindows {
-    titles: HashMap<u32, Vec<Arc<str>>>,
+    by_pid: HashMap<u32, Vec<ProcessWindow>>,
 }
 
 impl AppWindows {
-    pub fn add(&mut self, pid: u32, title: String) {
-        self.titles.entry(pid).or_default().push(Arc::from(title));
+    pub fn add(&mut self, pid: u32, handle: isize, title: String) {
+        self.by_pid.entry(pid).or_default().push(ProcessWindow {
+            handle,
+            title: Arc::from(title),
+        });
     }
 
     pub fn contains(&self, pid: u32) -> bool {
-        self.titles.contains_key(&pid)
+        self.by_pid.contains_key(&pid)
     }
 
-    pub fn titles(&self, pid: u32) -> &[Arc<str>] {
-        self.titles.get(&pid).map_or(&[], Vec::as_slice)
+    pub fn of(&self, pid: u32) -> &[ProcessWindow] {
+        self.by_pid.get(&pid).map_or(&[], Vec::as_slice)
     }
 
     pub fn len(&self) -> usize {
-        self.titles.len()
+        self.by_pid.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.titles.is_empty()
+        self.by_pid.is_empty()
     }
 }
 
@@ -188,13 +193,13 @@ mod tests {
     #[test]
     fn every_window_of_a_process_is_kept_under_its_pid() {
         let mut windows = AppWindows::default();
-        windows.add(7, "First".into());
-        windows.add(7, "Second".into());
-        windows.add(9, "Other".into());
+        windows.add(7, 70, "First".into());
+        windows.add(7, 71, "Second".into());
+        windows.add(9, 90, "Other".into());
 
-        let titles: Vec<&str> = windows.titles(7).iter().map(|t| &**t).collect();
-        assert_eq!(titles, ["First", "Second"]);
-        assert!(windows.titles(8).is_empty());
+        let kept: Vec<(isize, &str)> = windows.of(7).iter().map(|w| (w.handle, &*w.title)).collect();
+        assert_eq!(kept, [(70, "First"), (71, "Second")]);
+        assert!(windows.of(8).is_empty());
         assert_eq!(windows.len(), 2);
     }
 }

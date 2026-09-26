@@ -1,0 +1,319 @@
+use app_contracts::features::processes::{ProcessCommand, ProcessRow, ProcessWindow, WindowCommand};
+use guicons::icon;
+use windows_reactor::{
+    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, CornerRadius,
+    Grid, GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation,
+    PointerEventInfo, StackPanel, TextTrimming, Thickness, VerticalAlignment, View,
+};
+
+use guinea::winui::MarkExt;
+
+use super::super::marks::ProcessesMark;
+use super::columns::{process_icon, window_icon};
+use crate::l10n::L10n;
+use crate::theme::{radius, size, space, Palette};
+use crate::widgets::separator;
+use crate::widgets::text::{body_strong, caption, text};
+
+struct Menu;
+
+#[expect(non_upper_case_globals)]
+impl Menu {
+    const Width: f64 = 248.0;
+    const HeaderIcon: f64 = 24.0;
+    const ShadowDrop: f64 = 2.0;
+    const Backdrop: Color = Color::argb(0, 0, 0, 0);
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum MenuTarget {
+    Process(ProcessRow),
+    Group { leader: ProcessRow, count: usize },
+    Window { window: ProcessWindow, owner: ProcessRow },
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) struct OpenMenu {
+    pub(crate) x: f64,
+    pub(crate) y: f64,
+    pub(crate) target: MenuTarget,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum MenuCommand {
+    EndTask,
+    Process(ProcessCommand),
+    Window { handle: isize, command: WindowCommand },
+}
+
+struct Entry {
+    mark: ProcessesMark,
+    icon: View,
+    label: String,
+    enabled: bool,
+    command: MenuCommand,
+}
+
+enum Line {
+    Entry(Entry),
+    Separator,
+}
+
+fn entry(mark: ProcessesMark, icon: View, label: String, command: MenuCommand) -> Line {
+    Line::Entry(Entry {
+        mark,
+        icon,
+        label,
+        enabled: true,
+        command,
+    })
+}
+
+fn needs_path(line: Line, row: &ProcessRow) -> Line {
+    match line {
+        Line::Entry(entry) => Line::Entry(Entry {
+            enabled: !row.exe_path.is_empty(),
+            ..entry
+        }),
+        Line::Separator => Line::Separator,
+    }
+}
+
+fn file_lines(row: &ProcessRow, l10n: &L10n) -> Vec<Line> {
+    vec![
+        needs_path(
+            entry(
+                ProcessesMark::MenuOpenFileLocation,
+                icon!(folder).size(size::Icon).build_element(),
+                l10n.processes_menu_open_file_location(),
+                MenuCommand::Process(ProcessCommand::OpenFileLocation),
+            ),
+            row,
+        ),
+        entry(
+            ProcessesMark::MenuSearchOnline,
+            icon!(search).size(size::Icon).build_element(),
+            l10n.processes_menu_search_online(),
+            MenuCommand::Process(ProcessCommand::SearchOnline),
+        ),
+        needs_path(
+            entry(
+                ProcessesMark::MenuProperties,
+                icon!(info).size(size::Icon).build_element(),
+                l10n.processes_menu_properties(),
+                MenuCommand::Process(ProcessCommand::Properties),
+            ),
+            row,
+        ),
+    ]
+}
+
+fn process_lines(row: &ProcessRow, l10n: &L10n) -> Vec<Line> {
+    let mut lines = vec![
+        entry(
+            ProcessesMark::MenuEndTask,
+            icon!(prohibited).size(size::Icon).build_element(),
+            l10n.processes_menu_end_task(),
+            MenuCommand::EndTask,
+        ),
+        entry(
+            ProcessesMark::MenuSuspend,
+            icon!(pause).size(size::Icon).build_element(),
+            l10n.processes_menu_suspend(),
+            MenuCommand::Process(ProcessCommand::Suspend),
+        ),
+        entry(
+            ProcessesMark::MenuResume,
+            icon!(play).size(size::Icon).build_element(),
+            l10n.processes_menu_resume(),
+            MenuCommand::Process(ProcessCommand::Resume),
+        ),
+        Line::Separator,
+    ];
+    lines.extend(file_lines(row, l10n));
+    lines
+}
+
+fn window_lines(handle: isize, l10n: &L10n) -> Vec<Line> {
+    let command = |command| MenuCommand::Window { handle, command };
+    vec![
+        entry(
+            ProcessesMark::MenuSwitchTo,
+            icon!(open).size(size::Icon).build_element(),
+            l10n.processes_menu_switch_to(),
+            command(WindowCommand::SwitchTo),
+        ),
+        entry(
+            ProcessesMark::MenuMinimize,
+            icon!(minimize).size(size::Icon).build_element(),
+            l10n.processes_menu_minimize(),
+            command(WindowCommand::Minimize),
+        ),
+        entry(
+            ProcessesMark::MenuMaximize,
+            icon!(maximize).size(size::Icon).build_element(),
+            l10n.processes_menu_maximize(),
+            command(WindowCommand::Maximize),
+        ),
+        Line::Separator,
+        entry(
+            ProcessesMark::MenuCloseWindow,
+            icon!(dismiss).size(size::Icon).build_element(),
+            l10n.processes_menu_close_window(),
+            command(WindowCommand::Close),
+        ),
+    ]
+}
+
+fn header(icon: View, title: String, subtitle: String, palette: Palette) -> View {
+    Grid::new()
+        .columns([GridLength::Auto, GridLength::Star(1.0)])
+        .margin(Thickness::xy(space::Control, space::Control))
+        .children((
+            Border::new()
+                .grid_column(0)
+                .width(Menu::HeaderIcon)
+                .height(Menu::HeaderIcon)
+                .vertical_alignment(VerticalAlignment::Center)
+                .content(icon),
+            StackPanel::new()
+                .grid_column(1)
+                .margin(Thickness::new(space::Header, 0.0, 0.0, 0.0))
+                .vertical_alignment(VerticalAlignment::Center)
+                .children((
+                    body_strong(title).text_trimming(TextTrimming::CharacterEllipsis),
+                    caption(subtitle)
+                        .foreground(palette.secondary_text)
+                        .text_trimming(TextTrimming::CharacterEllipsis),
+                )),
+        ))
+        .into()
+}
+
+fn line_view(line: Line, on_command: &Callback<MenuCommand>, palette: Palette) -> View {
+    match line {
+        Line::Separator => separator(palette)
+            .margin(Thickness::xy(0.0, space::Compact))
+            .into(),
+        Line::Entry(entry) => {
+            let on_command = on_command.clone();
+            let command = entry.command;
+            Button::new()
+                .mark(entry.mark)
+                .style(ButtonStyle::Subtle)
+                .is_enabled(entry.enabled)
+                .horizontal_alignment(HorizontalAlignment::Stretch)
+                .horizontal_content_alignment(HorizontalAlignment::Left)
+                .on_click(move || {
+                    let _ = on_command.call(command);
+                })
+                .content(
+                    StackPanel::new()
+                        .orientation(Orientation::Horizontal)
+                        .spacing(space::Header)
+                        .children((entry.icon, text(entry.label))),
+                )
+                .into()
+        }
+    }
+}
+
+pub(crate) fn context_menu(
+    menu: &OpenMenu,
+    icons: &context::IconCache,
+    l10n: &L10n,
+    palette: Palette,
+    on_command: Callback<MenuCommand>,
+    on_dismiss: Callback<()>,
+) -> View {
+    let (head, lines) = match &menu.target {
+        MenuTarget::Process(row) => (
+            header(
+                process_icon(icons, row),
+                row.display_name.to_string(),
+                l10n.processes_menu_process(row.name.to_string(), row.pid as i64),
+                palette,
+            ),
+            process_lines(row, l10n),
+        ),
+        MenuTarget::Group { leader, count } => (
+            header(
+                process_icon(icons, leader),
+                leader.display_name.to_string(),
+                l10n.processes_menu_group(leader.name.to_string(), *count as i64),
+                palette,
+            ),
+            file_lines(leader, l10n),
+        ),
+        MenuTarget::Window { window, owner } => (
+            header(
+                window_icon(icons, window, owner),
+                window.title.to_string(),
+                l10n.processes_menu_process(owner.name.to_string(), owner.pid as i64),
+                palette,
+            ),
+            window_lines(window.handle, l10n),
+        ),
+    };
+
+    let items = View::keyed_fragment(
+        lines
+            .into_iter()
+            .map(|line| line_view(line, &on_command, palette))
+            .enumerate()
+            .map(|(at, view)| KeyedView::new(at, view)),
+    );
+    let items = (
+        head,
+        separator(palette).margin(Thickness::xy(0.0, space::Compact)),
+        items,
+    );
+
+    let card = Border::new()
+        .mark(ProcessesMark::Menu)
+        .grid_row(1)
+        .grid_column(1)
+        .width(Menu::Width)
+        .background(palette.menu_fill)
+        .border_brush(palette.menu_stroke)
+        .border_thickness(Thickness::uniform(space::Hairline))
+        .corner_radius(radius::Overlay)
+        .padding(Thickness::uniform(space::Compact))
+        .content(StackPanel::new().children(items));
+
+    let shadow = Border::new()
+        .grid_row(1)
+        .grid_column(1)
+        .background(palette.menu_shadow)
+        .corner_radius(CornerRadius::uniform(radius::Overlay + space::Hairline))
+        .margin(Thickness::new(
+            -space::Hairline,
+            Menu::ShadowDrop,
+            -space::Hairline,
+            -Menu::ShadowDrop,
+        ));
+
+    let placed = Grid::new()
+        .horizontal_alignment(HorizontalAlignment::Left)
+        .vertical_alignment(VerticalAlignment::Top)
+        .rows([GridLength::Star(1.0), GridLength::Auto])
+        .columns([GridLength::Star(1.0), GridLength::Auto])
+        .children((
+            Border::new()
+                .grid_row(0)
+                .grid_column(0)
+                .width(menu.x)
+                .height(menu.y),
+            shadow,
+            card,
+        ));
+
+    let backdrop = Border::new()
+        .mark(ProcessesMark::MenuBackdrop)
+        .background(Menu::Backdrop)
+        .on_pointer_released(Callback::new(move |_: PointerEventInfo| {
+            let _ = on_dismiss.call(());
+        }));
+
+    Grid::new().children((backdrop, placed)).into()
+}

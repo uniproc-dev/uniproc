@@ -104,6 +104,12 @@ pub struct HostedService {
 }
 
 #[derive(Clone, PartialEq, Debug)]
+pub struct ProcessWindow {
+    pub handle: isize,
+    pub title: Arc<str>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub struct ProcessRow {
     pub pid: u32,
     pub name: Arc<str>,
@@ -118,7 +124,7 @@ pub struct ProcessRow {
     pub owner_pid: Option<u32>,
     pub category: ProcessCategory,
     pub services: Option<Arc<[HostedService]>>,
-    pub windows: Option<Arc<[Arc<str>]>>,
+    pub windows: Option<Arc<[ProcessWindow]>>,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]

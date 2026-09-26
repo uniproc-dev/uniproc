@@ -51,6 +51,7 @@ impl WslPage {
             body,
             l10n.wsl_status(state.total() as i64, state.running() as i64),
             palette,
+            None,
         )
     }
 }

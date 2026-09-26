@@ -1,7 +1,7 @@
 use windows_reactor::{
-    Border, Button, ButtonStyle, ChildrenControl, ContentControl, Grid, GridChildExt, GridLength,
-    HorizontalAlignment, LayoutControl, Orientation, ProgressRing, StackPanel, Thickness,
-    VerticalAlignment, View,
+    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, Grid,
+    GridChildExt, GridLength, HorizontalAlignment, LayoutControl, Orientation, PointerEventInfo,
+    ProgressRing, StackPanel, Thickness, VerticalAlignment, View,
 };
 
 use guinea::winui::MarkExt;
@@ -12,17 +12,55 @@ use crate::widgets::card::card;
 use crate::widgets::separator;
 use crate::widgets::text::{body_large, text};
 
+#[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PageMark {
+    Header,
+    Status,
+    Blank,
+}
+
+struct Blank;
+
+#[expect(non_upper_case_globals)]
+impl Blank {
+    const Hit: Color = Color::argb(0, 0, 0, 0);
+}
+
+fn on_blank(on_blank: &Option<Callback<()>>) -> Option<Callback<PointerEventInfo>> {
+    on_blank.clone().map(|on_blank| {
+        Callback::new(move |_: PointerEventInfo| {
+            let _ = on_blank.call(());
+        })
+    })
+}
+
 pub fn page_frame(
     header: impl Into<View>,
     body: impl Into<View>,
     status: impl Into<String>,
     palette: Palette,
+    blank: Option<Callback<()>>,
 ) -> View {
     let header_card = card()
+        .mark(PageMark::Header)
         .grid_row(0)
         .margin(Thickness::new(0.0, 0.0, 0.0, space::Control))
-        .padding(Thickness::xy(space::Header, space::Control))
-        .content(header);
+        .padding(Thickness::xy(space::Header, space::Control));
+    let header_card = match on_blank(&blank) {
+        Some(released) => header_card.on_pointer_released(released),
+        None => header_card,
+    }
+    .content(header);
+
+    let status_bar = Border::new()
+        .mark(PageMark::Status)
+        .grid_row(2)
+        .padding(Thickness::xy(space::Header, space::Control));
+    let status_bar = match on_blank(&blank) {
+        Some(released) => status_bar.background(Blank::Hit).on_pointer_released(released),
+        None => status_bar,
+    }
+    .content(text(status).foreground(palette.secondary_text));
 
     let content_card = card().grid_row(1).content(
         Grid::new()
@@ -30,17 +68,25 @@ pub fn page_frame(
             .children((
                 Border::new().grid_row(0).content(body),
                 separator(palette).grid_row(1),
-                Border::new()
-                    .grid_row(2)
-                    .padding(Thickness::xy(space::Header, space::Control))
-                    .content(text(status).foreground(palette.secondary_text)),
+                status_bar,
             )),
     );
 
-    Grid::new()
+    let cards = Grid::new()
         .rows([GridLength::Auto, GridLength::Star(1.0)])
         .margin(Thickness::uniform(space::Control))
-        .children((header_card, content_card))
+        .children((header_card, content_card));
+
+    let under = match on_blank(&blank) {
+        Some(released) => Border::new()
+            .mark(PageMark::Blank)
+            .background(Blank::Hit)
+            .on_pointer_released(released)
+            .into(),
+        None => View::empty(),
+    };
+
+    Grid::new().children((under, cards)).into()
 }
 
 pub fn page_title(title: impl Into<String>) -> View {

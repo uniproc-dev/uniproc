@@ -33,3 +33,31 @@ pub struct Deselect;
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
 pub struct Terminate;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+pub enum ProcessCommand {
+    Suspend,
+    Resume,
+    OpenFileLocation,
+    Properties,
+    SearchOnline,
+}
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct RunProcessCommand(pub ProcessCommand);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+pub enum WindowCommand {
+    SwitchTo,
+    Minimize,
+    Maximize,
+    Close,
+}
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct RunWindowCommand {
+    pub handle: isize,
+    pub command: WindowCommand,
+}

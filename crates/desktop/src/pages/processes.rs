@@ -17,6 +17,7 @@ fn open_settings() -> Option<ProcessesSettingsMaps> {
     Some(ProcessesSettingsMaps {
         columns: settings.columns().configs().clone(),
         collapsed_sections: settings.grouping().collapsed_sections().clone(),
+        group_by_type: settings.grouping().by_type().clone(),
     })
 }
 
@@ -60,10 +61,11 @@ mod tests {
     use std::time::Duration;
 
     use app_contracts::features::agent_link::AgentLinkState;
-    use app_contracts::features::processes::{ProcessColumn, ProcessesState};
+    use app_contracts::features::processes::{ProcessColumn, ProcessesState, WindowCommand};
     use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
     use app_contracts::features::services::{ServiceColumn, ServicesState};
     use guinea::core::remote;
+    use domain::features::processes::shell::ShellRequest;
     use domain::features::processes::windows_scan::AppWindows;
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
@@ -71,6 +73,9 @@ mod tests {
     use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
     use ui::pages::processes::ProcessesMark;
+    use ui::widgets::page::PageMark;
+    use ui::widgets::selection::SelectionMark;
+    use app_contracts::features::window::PressedAway;
     use windows_reactor::ColorScheme;
 
     use super::*;
@@ -85,12 +90,21 @@ mod tests {
 
     thread_local! {
         static NOTEPAD_WINDOW: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+        static SHELL: std::cell::RefCell<Vec<ShellRequest>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    fn fake_shell(request: ShellRequest) {
+        SHELL.with_borrow_mut(|requests| requests.push(request));
+    }
+
+    fn shell_requests() -> Vec<ShellRequest> {
+        SHELL.with_borrow(Clone::clone)
     }
 
     fn desktop_windows() -> AppWindows {
         let mut windows = AppWindows::default();
         if NOTEPAD_WINDOW.get() {
-            windows.add(NOTEPAD, "Untitled - Notepad".to_string());
+            windows.add(NOTEPAD, 0, "Untitled - Notepad".to_string());
         }
         windows
     }
@@ -163,11 +177,15 @@ mod tests {
     fn start(h: &mut Harness) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         NOTEPAD_WINDOW.set(true);
+        SHELL.with_borrow_mut(Vec::clear);
         h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json))
             .unwrap()
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
             .unwrap()
-            .provide(ProcessesDeps { windows: desktop_windows });
+            .provide(ProcessesDeps {
+                windows: desktop_windows,
+                shell: fake_shell,
+            });
         dir
     }
 
@@ -273,6 +291,44 @@ mod tests {
             .collect()
     }
 
+    fn headings(page: &mut Mounted<'_, Processes>) -> Vec<String> {
+        labels(page)
+            .into_iter()
+            .filter(|label| label.starts_with("Apps") || label.starts_with("Background processes"))
+            .collect()
+    }
+
+    fn toggle_group_by_type(page: &mut Mounted<'_, Processes>) {
+        page.click(ProcessesMark::GroupByType).settle();
+        page.settle();
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "store")]
+    fn the_group_by_type_toggle_drops_the_sections_and_brings_them_back(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        assert!(!headings(&mut page).is_empty(), "{:?}", labels(&mut page));
+
+        toggle_group_by_type(&mut page);
+        assert_eq!(headings(&mut page), Vec::<String>::new(), "{:?}", labels(&mut page));
+        let flat = labels(&mut page);
+        assert_eq!(
+            flat[..2],
+            ["chrome.exe (3)".to_string(), "notepad.exe".to_string()],
+            "one CPU order across types, same-name groups kept: {flat:?}"
+        );
+        assert!(flat.contains(&"RuntimeBroker.exe".to_string()), "{flat:?}");
+        assert_ne!(h.state::<ProcessesState>().sort_column, ProcessColumn::Name, "the toggle does not sort");
+
+        let kept = || ProcessesSettings::new().unwrap().grouping().by_type().get();
+        assert!(!kept(), "the choice is kept in the settings");
+
+        toggle_group_by_type(&mut page);
+        assert!(!headings(&mut page).is_empty(), "{:?}", labels(&mut page));
+        assert!(kept());
+    }
+
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn a_selected_process_that_exits_stays_until_something_else_is_selected(h: &mut Harness) {
         let _store = start(h);
@@ -303,7 +359,14 @@ mod tests {
             "an exited process shows no memory"
         );
         assert!(!end_task_enabled(&page));
-        assert!(page.find_text("notepad.exe — Exited").is_some(), "{:#?}", page.tree());
+        assert!(
+            page.find_text(&format!(
+                "Selected: \u{2068}notepad.exe\u{2069} | PID \u{2068}{NOTEPAD}\u{2069} | Exited"
+            ))
+            .is_some(),
+            "{:#?}",
+            page.tree()
+        );
 
         report(h, without(&[NOTEPAD]));
         page.settle();
@@ -632,14 +695,16 @@ mod tests {
         assert_eq!(
             remote::actions(),
             [
-                "Command", "Deselect", "Refresh", "RefreshDistros", "Select", "SetOpen", "SetWidth",
-                "Sort", "StartInProcess", "Terminate", "Toggle",
+                "Command", "Deselect", "Refresh", "RefreshDistros", "RunProcessCommand",
+                "RunWindowCommand", "Select", "SetOpen", "SetWidth", "Sort", "StartInProcess",
+                "Terminate", "Toggle",
             ]
         );
         assert_eq!(
             remote::events(),
             [
                 "AgentStateRequest",
+                "PressedAway",
                 "RemoteScanResult",
                 "ScanTick",
                 "WindowsActionRequest",
@@ -713,5 +778,300 @@ mod tests {
 
         open(&mut page, "notepad.exe");
         assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
+    }
+
+    struct EmptyArea;
+
+    impl guinea::Mark for EmptyArea {
+        fn name(&self) -> &'static str {
+            guinea_widgets::table::EMPTY_AREA
+        }
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_click_below_the_rows_drops_the_selection(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        select(&mut page, "chrome.exe (3)");
+        assert_eq!(h.state::<ProcessesState>().selected, Some(CHROME[0]));
+
+        page.click(EmptyArea).settle();
+        page.settle();
+
+        assert_eq!(h.state::<ProcessesState>().selected, None);
+        assert!(marked_selected(&mut page).is_empty());
+        assert!(!end_task_enabled(&page));
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_click_on_the_page_around_the_table_drops_the_selection(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        for blank in [PageMark::Header, PageMark::Status, PageMark::Blank] {
+            select(&mut page, "notepad.exe");
+            assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
+
+            page.click(blank).settle();
+            page.settle();
+
+            assert_eq!(h.state::<ProcessesState>().selected, None, "{blank:?}");
+        }
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_press_away_from_the_table_drops_the_selection(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        select(&mut page, "notepad.exe");
+        assert!(!marked_selected(&mut page).is_empty());
+
+        h.publish(PressedAway).settle();
+        page.settle();
+
+        assert_eq!(h.state::<ProcessesState>().selected, None);
+        assert_eq!(marked_selected(&mut page), Vec::<String>::new());
+    }
+
+    fn keepers<'a>(node: &'a Node, out: &mut Vec<&'a Node>) {
+        if node.id.as_deref() == Some(guinea::Mark::name(&SelectionMark::Keeper)) {
+            out.push(node);
+        }
+        for child in &node.children {
+            keepers(child, out);
+        }
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_table_its_menu_and_end_task_keep_the_selection(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        right_click(&mut page, "notepad.exe");
+        assert!(menu_open(&page), "{:#?}", page.tree());
+
+        let tree = page.tree();
+        let mut found = Vec::new();
+        keepers(&tree, &mut found);
+        let is_end_task =
+            |node: &Node| node.id.as_deref() == Some(guinea::Mark::name(&ProcessesMark::EndTask));
+
+        assert!(found.iter().any(|keeper| contains(keeper, &is_list)), "{tree:#?}");
+        assert!(found.iter().any(|keeper| contains(keeper, &is_backdrop)), "{tree:#?}");
+        assert!(found.iter().any(|keeper| contains(keeper, &is_end_task)), "{tree:#?}");
+        assert!(!found.iter().any(|keeper| contains(keeper, &|node: &Node| {
+            node.id.as_deref() == Some(guinea::Mark::name(&PageMark::Status))
+        })), "{tree:#?}");
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_selection_bar_runs_through_the_window_rows_of_its_block(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        open(&mut page, "notepad.exe");
+
+        assert_eq!(marked_selected(&mut page), ["notepad.exe", "Untitled - Notepad"]);
+    }
+
+    fn right_click(page: &mut Mounted<'_, Processes>, wanted: &str) {
+        page.send(ProcessesMsg::MenuAnchor { x: 40.0, y: 60.0 });
+        select(page, wanted);
+    }
+
+    fn menu_open(page: &Mounted<'_, Processes>) -> bool {
+        page.find(ProcessesMark::Menu).is_some()
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_right_click_opens_the_menu_of_that_process_and_suspend_goes_to_the_agent(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        right_click(&mut page, "notepad.exe");
+        assert!(menu_open(&page), "{:#?}", page.tree());
+        assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
+        assert!(
+            page.find_text(&format!("\u{2068}notepad.exe\u{2069} | PID \u{2068}{NOTEPAD}\u{2069}")).is_some(),
+            "{:#?}",
+            page.tree()
+        );
+
+        let suspend = page.click(ProcessesMark::MenuSuspend);
+        suspend.settle();
+        assert!(suspend.chain().published::<WindowsActionRequest>(), "{:#?}", suspend.chain());
+        page.settle();
+        assert!(!menu_open(&page), "a command closes the menu");
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_left_click_opens_no_menu(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        select(&mut page, "notepad.exe");
+        assert!(!menu_open(&page));
+
+        right_click(&mut page, "notepad.exe");
+        page.send(ProcessesMsg::MenuDismiss);
+        page.settle();
+        assert!(!menu_open(&page));
+    }
+
+    fn contains(node: &Node, test: &dyn Fn(&Node) -> bool) -> bool {
+        test(node) || node.children.iter().any(|child| contains(child, test))
+    }
+
+    fn is_list(node: &Node) -> bool {
+        node.kind == "ScrollViewer"
+    }
+
+    fn is_backdrop(node: &Node) -> bool {
+        node.id.as_deref() == Some(guinea::Mark::name(&ProcessesMark::MenuBackdrop))
+    }
+
+    fn layer_over_list(node: &Node) -> Option<&Node> {
+        let list = node.children.iter().position(|child| contains(child, &is_list));
+        let layer = node.children.iter().position(|child| contains(child, &is_backdrop));
+        match (list, layer) {
+            (Some(list), Some(layer)) if list != layer => (layer > list).then(|| &node.children[layer]),
+            _ => node.children.iter().find_map(layer_over_list),
+        }
+    }
+
+    fn path_to<'a>(node: &'a Node, test: &dyn Fn(&Node) -> bool, out: &mut Vec<&'a Node>) -> bool {
+        out.push(node);
+        if test(node) || node.children.iter().any(|child| path_to(child, test, out)) {
+            return true;
+        }
+        out.pop();
+        false
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn an_open_menu_lies_over_the_whole_list_so_the_wheel_cannot_reach_it(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        right_click(&mut page, "notepad.exe");
+        let tree = page.tree();
+        let layer = layer_over_list(&tree).expect("the menu's layer comes after the list, over it");
+
+        let mut path = Vec::new();
+        assert!(path_to(layer, &is_backdrop, &mut path));
+        for node in &path {
+            for sized in [
+                PropertyId::Width,
+                PropertyId::Height,
+                PropertyId::HorizontalAlignment,
+                PropertyId::VerticalAlignment,
+            ] {
+                assert_eq!(page.property(node.at, sized), None, "{} {sized:?}", node.kind);
+            }
+        }
+        let backdrop = path.last().unwrap();
+        assert!(
+            page.property(backdrop.at, PropertyId::BorderBackground).is_some(),
+            "a layer without a background lets the pointer and the wheel through"
+        );
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn an_open_menu_covers_the_table_and_a_click_on_it_only_closes_the_menu(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        right_click(&mut page, "notepad.exe");
+        assert!(page.find(ProcessesMark::MenuBackdrop).is_some());
+
+        page.click(ProcessesMark::MenuBackdrop).settle();
+        page.settle();
+
+        assert!(!menu_open(&page));
+        assert!(page.find(ProcessesMark::MenuBackdrop).is_none());
+        assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn menu_commands_run_on_the_process_the_menu_was_opened_for(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        right_click(&mut page, "notepad.exe");
+        page.click(ProcessesMark::MenuSearchOnline).settle();
+        right_click(&mut page, "chrome.exe (3)");
+        page.click(ProcessesMark::MenuSearchOnline).settle();
+
+        assert_eq!(
+            shell_requests(),
+            [
+                ShellRequest::SearchOnline("notepad.exe".into()),
+                ShellRequest::SearchOnline("chrome.exe".into()),
+            ]
+        );
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_group_menu_offers_nothing_that_would_hit_only_one_member(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        right_click(&mut page, "chrome.exe (3)");
+        assert!(menu_open(&page), "{:#?}", page.tree());
+        for per_process in [
+            ProcessesMark::MenuEndTask,
+            ProcessesMark::MenuSuspend,
+            ProcessesMark::MenuResume,
+        ] {
+            assert!(page.find(per_process).is_none(), "{per_process:?}");
+        }
+        assert!(page.find(ProcessesMark::MenuSearchOnline).is_some());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_window_row_menu_acts_on_the_window(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        open(&mut page, "notepad.exe");
+        right_click(&mut page, "Untitled - Notepad");
+        assert!(page.find(ProcessesMark::MenuEndTask).is_none());
+        page.click(ProcessesMark::MenuSwitchTo).settle();
+
+        assert_eq!(
+            shell_requests(),
+            [ShellRequest::Window {
+                handle: 0,
+                command: WindowCommand::SwitchTo,
+            }]
+        );
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_right_click_on_a_section_heading_does_not_collapse_it(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        let heading = labels(&mut page)
+            .into_iter()
+            .find(|label| label.starts_with("Apps"))
+            .unwrap();
+        right_click(&mut page, &heading);
+
+        assert!(!menu_open(&page));
+        assert!(labels(&mut page).contains(&"notepad.exe".to_string()));
     }
 }

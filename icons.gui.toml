@@ -93,6 +93,9 @@ file = "new-task.svg"
 [open]
 iconify = "fluent:open-20-regular"
 
+[pause]
+iconify = "fluent:pause-24-regular"
+
 [people]
 iconify = "fluent-color:people-24"
 paint = "none"

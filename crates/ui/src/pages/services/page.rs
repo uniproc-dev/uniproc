@@ -112,6 +112,7 @@ impl ServicesPage {
             body,
             l10n.services_status(state.total() as i64),
             palette,
+            None,
         )
     }
 }

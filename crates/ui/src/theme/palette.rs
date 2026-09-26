@@ -14,6 +14,9 @@ pub struct Palette {
     pub layer_fill: Color,
     pub success: Color,
     pub caution: Color,
+    pub menu_fill: Color,
+    pub menu_stroke: Color,
+    pub menu_shadow: Color,
 }
 
 impl Palette {
@@ -31,6 +34,9 @@ impl Palette {
                 layer_fill: Color::argb(76, 58, 58, 58),
                 success: Color::argb(255, 0x6C, 0xCB, 0x5F),
                 caution: Color::argb(255, 0xFC, 0xE1, 0x00),
+                menu_fill: Color::argb(255, 0x2C, 0x2C, 0x2C),
+                menu_stroke: Color::argb(26, 255, 255, 255),
+                menu_shadow: Color::argb(72, 0, 0, 0),
             },
             ColorScheme::Light => Self {
                 heat_muted: Color::argb(255, 110, 110, 110),
@@ -44,6 +50,9 @@ impl Palette {
                 layer_fill: Color::argb(128, 255, 255, 255),
                 success: Color::argb(255, 0x0F, 0x7B, 0x0F),
                 caution: Color::argb(255, 0x9D, 0x5D, 0x00),
+                menu_fill: Color::argb(255, 0xF9, 0xF9, 0xF9),
+                menu_stroke: Color::argb(15, 0, 0, 0),
+                menu_shadow: Color::argb(28, 0, 0, 0),
             },
         }
     }

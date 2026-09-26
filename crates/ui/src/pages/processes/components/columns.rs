@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
 use app_contracts::features::processes::{
-    HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessRow,
+    HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessRow, ProcessWindow,
 };
 use guicons::icon;
 use guinea_widgets::table::ColumnSpec;
 use windows_reactor::{
-    Border, Callback, ChildrenControl, Color, ContentControl, CornerRadius, EncodedImage, Grid,
+    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, CornerRadius, EncodedImage, Grid,
     GridChildExt, GridLength, HorizontalAlignment, Image, LayoutControl, PointerEventInfo,
-    StackPanel, TextTrimming, TextWrapping, ThemeBrush, Thickness, VerticalAlignment, View,
+    ResourceOverrides, StackPanel, TextTrimming, TextWrapping, ThemeBrush, Thickness, VerticalAlignment, View,
 };
 
 use crate::format;
@@ -23,11 +23,11 @@ use super::super::marks::ProcessesMark;
 use super::column_layout::ColumnLayout;
 use super::grouping::{is_service_host, Child, DisplayRow, ProcessName, SectionRow};
 
-struct ChevronSlot;
+struct Hit;
 
 #[expect(non_upper_case_globals)]
-impl ChevronSlot {
-    const Clickable: Color = Color::argb(0, 0, 0, 0);
+impl Hit {
+    const Transparent: Color = Color::argb(0, 0, 0, 0);
 }
 
 struct Header;
@@ -84,7 +84,7 @@ fn chevron_slot(content: View, on_press: Option<Callback<()>>, height: f64) -> V
     match on_press {
         Some(on_press) => slot
             .mark(ProcessesMark::Chevron)
-            .background(ChevronSlot::Clickable)
+            .background(Hit::Transparent)
             .on_pointer_released(move |_: PointerEventInfo| {
                 let _ = on_press.call(());
             })
@@ -166,6 +166,12 @@ fn name_line(line: NameLine) -> View {
 }
 
 #[derive(Clone)]
+pub(crate) struct GroupByType {
+    pub(crate) on: bool,
+    pub(crate) toggle: Callback<()>,
+}
+
+#[derive(Clone)]
 pub(crate) struct NameCellActions {
     pub(crate) icons: Rc<context::IconCache>,
     pub(crate) toggle_group: Callback<String>,
@@ -184,7 +190,7 @@ fn runs_from_package(exe_path: &str, package_full_name: &str) -> bool {
     exe_path.to_ascii_lowercase().contains(&folder)
 }
 
-fn process_icon(icons: &context::IconCache, row: &ProcessRow) -> View {
+pub(crate) fn process_icon(icons: &context::IconCache, row: &ProcessRow) -> View {
     if is_service_host(row) {
         return icon!(gears).size(size::Icon).build_element();
     }
@@ -195,14 +201,25 @@ fn process_icon(icons: &context::IconCache, row: &ProcessRow) -> View {
         package_full_name: package,
     });
     match png {
-        Some(png) => Image::new()
-            .width(size::Icon)
-            .height(size::Icon)
-            .vertical_alignment(VerticalAlignment::Center)
-            .source_data(EncodedImage::new(png))
-            .into(),
+        Some(png) => png_icon(png),
         None => fallback_process_icon(),
     }
+}
+
+pub(crate) fn window_icon(icons: &context::IconCache, window: &ProcessWindow, owner: &ProcessRow) -> View {
+    match icons.window_icon(window.handle) {
+        Some(png) => png_icon(png),
+        None => process_icon(icons, owner),
+    }
+}
+
+fn png_icon(png: std::sync::Arc<[u8]>) -> View {
+    Image::new()
+        .width(size::Icon)
+        .height(size::Icon)
+        .vertical_alignment(VerticalAlignment::Center)
+        .source_data(EncodedImage::new(png))
+        .into()
 }
 
 struct NameCell<'a> {
@@ -235,7 +252,8 @@ fn selection_bar_for(height: f64, band: Highlight) -> View {
 }
 
 fn header_frame() -> Grid {
-    Grid::new().height(size::TableHeader)
+    Grid::new()
+        .height(size::TableHeader)
 }
 
 fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
@@ -244,7 +262,7 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
     }
     match &d.child {
         Some(Child::Service(service)) => return service_name_cell(d, service),
-        Some(Child::Window(title)) => return window_name_cell(cell, d, title),
+        Some(Child::Window(window)) => return window_name_cell(cell, d, window),
         Some(Child::Console) | None => {}
     }
 
@@ -301,16 +319,20 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
         count,
     });
 
-    let bar = match d.highlight {
-        Some(band) => selection_bar_for(row_height(d), band),
-        None => View::empty(),
-    };
     let line: View = if d.exited {
         Border::new().opacity(opacity::Stopped).content(line).into()
     } else {
         line
     };
 
+    name_row(d, line)
+}
+
+fn name_row(d: &DisplayRow, line: View) -> View {
+    let bar = match d.highlight {
+        Some(band) => selection_bar_for(row_height(d), band),
+        None => View::empty(),
+    };
     Grid::new()
         .height(row_height(d))
         .children((bar, line))
@@ -328,22 +350,19 @@ fn service_name_cell(d: &DisplayRow, service: &HostedService) -> View {
         count: View::empty(),
     });
 
-    Grid::new()
-        .height(row_height(d))
-        .children((line,))
-        .into()
+    name_row(d, line)
 }
 
-fn window_name_cell(cell: &NameCell<'_>, d: &DisplayRow, title: &str) -> View {
-    let title = if title.is_empty() {
+fn window_name_cell(cell: &NameCell<'_>, d: &DisplayRow, window: &ProcessWindow) -> View {
+    let title = if window.title.is_empty() {
         d.row.display_name.to_string()
     } else {
-        title.to_string()
+        window.title.to_string()
     };
     let line = name_line(NameLine {
         indent: indent(d.depth),
         chevron: chevron_slot(View::empty(), None, row_height(d)),
-        icon: Some(icon!(window).size(size::Icon).build_element()),
+        icon: Some(window_icon(&cell.actions.icons, window, &d.row)),
         label: table_cell::cell_text(title)
             .foreground(cell.palette.secondary_text)
             .vertical_alignment(VerticalAlignment::Center)
@@ -351,10 +370,7 @@ fn window_name_cell(cell: &NameCell<'_>, d: &DisplayRow, title: &str) -> View {
         count: View::empty(),
     });
 
-    Grid::new()
-        .height(row_height(d))
-        .children((line,))
-        .into()
+    name_row(d, line)
 }
 
 fn section_name_cell(cell: &NameCell<'_>, d: &DisplayRow, section: &SectionRow) -> View {
@@ -387,7 +403,28 @@ fn sort_mark(sorted: Option<bool>) -> View {
     }
 }
 
-fn name_header(label: String, sorted: Option<bool>, palette: Palette) -> View {
+fn group_by_type_toggle(group_by_type: &GroupByType) -> View {
+    let toggle = group_by_type.toggle.clone();
+    let icon = if group_by_type.on {
+        icon!(group_list_filled)
+    } else {
+        icon!(group_list_regular)
+    };
+    Button::new()
+        .mark(ProcessesMark::GroupByType)
+        .style(ButtonStyle::Subtle)
+        .resource_overrides(ResourceOverrides::new().set("ButtonPadding", Thickness::uniform(space::Compact)))
+        .horizontal_alignment(HorizontalAlignment::Right)
+        .vertical_alignment(VerticalAlignment::Bottom)
+        .margin(Thickness::new(0.0, 0.0, space::Cell, 0.0))
+        .on_click(move || {
+            let _ = toggle.call(());
+        })
+        .content(icon.size(size::Icon).build_element())
+        .into()
+}
+
+fn name_header(label: String, sorted: Option<bool>, group_by_type: &GroupByType, palette: Palette) -> View {
     header_frame().children((
         sort_mark(sorted),
         caption(label)
@@ -399,6 +436,7 @@ fn name_header(label: String, sorted: Option<bool>, palette: Palette) -> View {
                 0.0,
                 0.0,
             )),
+        group_by_type_toggle(group_by_type),
     ))
 }
 
@@ -438,10 +476,12 @@ struct Place {
 
 type Column = ColumnSpec<DisplayRow, ProcessColumn>;
 
-fn name_column(place: Place, actions: NameCellActions, l10n: L10n) -> Column {
+fn name_column(place: Place, actions: NameCellActions, group_by_type: GroupByType, l10n: L10n) -> Column {
     let header_l10n = l10n.clone();
     let (sorted, palette) = (place.sorted, place.palette);
-    let header = move || name_header(header_l10n.processes_col_name(), sorted, palette);
+    let header = move || {
+        name_header(header_l10n.processes_col_name(), sorted, &group_by_type, palette)
+    };
     ColumnSpec::new_with_header(ProcessColumn::Name, header, place.width, move |d: &DisplayRow| {
         let cell = NameCell {
             actions: &actions,
@@ -520,6 +560,7 @@ pub(crate) struct ColumnInputs<'a> {
     pub(crate) machine: Option<MachineSummary>,
     pub(crate) rows: &'a [ProcessRow],
     pub(crate) actions: NameCellActions,
+    pub(crate) group_by_type: GroupByType,
     pub(crate) sort_column: ProcessColumn,
     pub(crate) descending: bool,
     pub(crate) palette: Palette,
@@ -532,6 +573,7 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
         machine,
         rows,
         actions,
+        group_by_type,
         sort_column,
         descending,
         palette,
@@ -566,7 +608,9 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                 palette,
             };
             match column.column {
-                ProcessColumn::Name => name_column(place, actions.clone(), l10n.clone()),
+                ProcessColumn::Name => {
+                    name_column(place, actions.clone(), group_by_type.clone(), l10n.clone())
+                }
                 ProcessColumn::Cpu => metric_column(MetricColumn {
                     id: ProcessColumn::Cpu,
                     label: l10n.processes_col_cpu(),

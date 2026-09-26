@@ -7,13 +7,16 @@ use app_contracts::features::agents::{
     WindowsProcessStats, WindowsReport, WindowsReportMessage,
 };
 use app_contracts::features::processes::{
-    Deselect, HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessRow,
-    ProcessesMsg, ProcessesState, Select, Sort, Terminate,
+    Deselect, HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessCommand,
+    ProcessRow, ProcessesMsg, ProcessesState, RunProcessCommand, RunWindowCommand, Select, Sort,
+    Terminate,
 };
+use app_contracts::features::window::PressedAway;
 use guinea::prelude::*;
 use uuid::Uuid;
 
 use super::rates::IoRates;
+use super::shell::ShellRequest;
 use super::windows_scan::AppWindows;
 
 #[derive(Debug)]
@@ -27,15 +30,17 @@ pub struct ProcessesActor {
     agent_state: AgentConnectionState,
     io_rates: IoRates,
     windows: fn() -> AppWindows,
+    shell: fn(ShellRequest),
     stats: std::cell::RefCell<crate::push_stats::PushStats<(Rc<[ProcessRow]>, MachineSummary, AgentConnectionState)>>,
 }
 
 impl ProcessesActor {
-    pub fn new(ui_port: Push<ProcessesState>, windows: fn() -> AppWindows) -> Self {
+    pub fn new(ui_port: Push<ProcessesState>, windows: fn() -> AppWindows, shell: fn(ShellRequest)) -> Self {
         Self {
             stats: std::cell::RefCell::new(crate::push_stats::PushStats::new("processes")),
             ui_port,
             windows,
+            shell,
             rows: Rc::from(Vec::new()),
             machine_summary: MachineSummary::default(),
             agent_state: AgentConnectionState::Disconnected,
@@ -44,6 +49,11 @@ impl ProcessesActor {
             descending: true,
             selected: None,
         }
+    }
+
+    fn clear_selection(&mut self) {
+        self.selected = None;
+        self.ui_port.send(ProcessesMsg::SetSelected(None));
     }
 
     fn publish_rows(&self) {
@@ -181,8 +191,8 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
                 .flatten()
                 .map(|owner| owner.pid),
             services: services.get(&p.pid).cloned(),
-            windows: Some(windows.titles(p.pid))
-                .filter(|titles| !titles.is_empty())
+            windows: Some(windows.of(p.pid))
+                .filter(|windows| !windows.is_empty())
                 .map(Arc::from),
         })
         .collect()
@@ -190,7 +200,7 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
 
 actor! {
     ProcessesActor {
-        handlers { Sort, Select, Deselect, Terminate, WindowsReportMessage }
+        handlers { Sort, Select, Deselect, Terminate, RunProcessCommand, RunWindowCommand, WindowsReportMessage, PressedAway }
     }
 }
 
@@ -246,8 +256,12 @@ fn select(this: &mut ProcessesActor, ctx: Context<ProcessesActor, Select>) {
 
 #[handler]
 fn deselect(this: &mut ProcessesActor, _ctx: Context<ProcessesActor, Deselect>) {
-    this.selected = None;
-    this.ui_port.send(ProcessesMsg::SetSelected(None));
+    this.clear_selection();
+}
+
+#[handler]
+fn on_pressed_away(this: &mut ProcessesActor, _ctx: Context<ProcessesActor, PressedAway>) {
+    this.clear_selection();
 }
 
 #[handler]
@@ -259,6 +273,46 @@ fn terminate(this: &mut ProcessesActor, _ctx: Context<ProcessesActor, Terminate>
         Uuid::new_v4(),
         WindowsAction::Kill { pid },
     ));
+}
+
+#[handler]
+fn run_process_command(this: &mut ProcessesActor, ctx: Context<ProcessesActor, RunProcessCommand>) {
+    let Some(row) = this
+        .selected
+        .and_then(|pid| this.rows.iter().find(|row| row.pid == pid))
+    else {
+        return;
+    };
+    let pid = row.pid;
+    let action = match ctx.msg.0 {
+        ProcessCommand::Suspend => Some(WindowsAction::Suspend { pid }),
+        ProcessCommand::Resume => Some(WindowsAction::Resume { pid }),
+        _ => None,
+    };
+    if let Some(action) = action {
+        GlobalEventBus::publish(WindowsActionRequest::new(Uuid::new_v4(), action));
+        return;
+    }
+    let request = match ctx.msg.0 {
+        ProcessCommand::OpenFileLocation if !row.exe_path.is_empty() => {
+            ShellRequest::RevealFile(row.exe_path.clone())
+        }
+        ProcessCommand::Properties if !row.exe_path.is_empty() => {
+            ShellRequest::FileProperties(row.exe_path.clone())
+        }
+        ProcessCommand::SearchOnline => ShellRequest::SearchOnline(row.name.clone()),
+        _ => return,
+    };
+    (this.shell)(request);
+}
+
+#[handler]
+fn run_window_command(this: &mut ProcessesActor, ctx: Context<ProcessesActor, RunWindowCommand>) {
+    let msg = ctx.msg;
+    (this.shell)(ShellRequest::Window {
+        handle: msg.handle,
+        command: msg.command,
+    });
 }
 
 #[cfg(test)]

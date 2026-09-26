@@ -20,10 +20,15 @@ enum Slot {
     Missing,
 }
 
+enum Source {
+    File(String),
+    Package(String),
+    Window(isize),
+}
+
 struct Extraction {
     key: String,
-    path: String,
-    package_full_name: Option<String>,
+    source: Source,
 }
 
 type Slots = Arc<Mutex<HashMap<String, Slot>>>;
@@ -62,24 +67,33 @@ impl IconCache {
 
     pub fn icon(&self, req: IconRequest) -> Option<Arc<[u8]>> {
         let package = req.package_full_name.filter(|s| !s.is_empty());
-        let key = package.unwrap_or(req.path);
-        if key.is_empty() {
+        match package {
+            Some(package) => self.lookup(package.to_string(), || Source::Package(package.to_string())),
+            None if req.path.is_empty() => None,
+            None => self.lookup(req.path.to_string(), || Source::File(req.path.to_string())),
+        }
+    }
+
+    pub fn window_icon(&self, handle: isize) -> Option<Arc<[u8]>> {
+        if handle == 0 {
             return None;
         }
+        self.lookup(format!("window:{handle}"), || Source::Window(handle))
+    }
 
+    fn lookup(&self, key: String, source: impl FnOnce() -> Source) -> Option<Arc<[u8]>> {
         let mut slots = self.slots.lock().unwrap_or_else(PoisonError::into_inner);
-        match slots.get(key) {
+        match slots.get(&key) {
             Some(Slot::Ready(png)) => Some(png.clone()),
             Some(Slot::Pending | Slot::Missing) => None,
             None => {
-                slots.insert(key.to_string(), Slot::Pending);
+                slots.insert(key.clone(), Slot::Pending);
                 let queued = self.requests.send(Extraction {
-                    key: key.to_string(),
-                    path: req.path.to_string(),
-                    package_full_name: package.map(str::to_string),
+                    key: key.clone(),
+                    source: source(),
                 });
                 if queued.is_err() {
-                    slots.insert(key.to_string(), Slot::Missing);
+                    slots.insert(key, Slot::Missing);
                 }
                 None
             }
@@ -94,9 +108,10 @@ impl Default for IconCache {
 }
 
 fn extract_png(extraction: &Extraction) -> Option<Vec<u8>> {
-    let image = match &extraction.package_full_name {
-        Some(package) => extract::extract_appx_icon_rgba(package, ICON_SIZE),
-        None => extract::extract_icon_rgba(&extraction.path),
+    let image = match &extraction.source {
+        Source::Package(package) => extract::extract_appx_icon_rgba(package, ICON_SIZE),
+        Source::File(path) => extract::extract_icon_rgba(path),
+        Source::Window(handle) => extract::extract_window_icon_rgba(*handle),
     }?;
     encode::encode_png(image.width, image.height, &image.pixels)
         .inspect_err(|err| tracing::warn!(?err, key = extraction.key, "context: icon did not encode"))

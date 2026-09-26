@@ -1,5 +1,6 @@
 mod actor;
 mod rates;
+pub mod shell;
 pub mod windows_scan;
 mod install;
 pub mod settings;

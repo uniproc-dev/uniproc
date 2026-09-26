@@ -17,6 +17,9 @@ pub struct ProcessesSettings {
 pub struct ProcessesGroupingSettings {
     #[amestate(default = {})]
     collapsed_sections: ReactiveMap<String, bool>,
+
+    #[amestate(default = true)]
+    by_type: bool,
 }
 
 #[amethystate]

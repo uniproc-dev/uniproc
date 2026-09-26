@@ -1,5 +1,5 @@
 use app_contracts::features::processes::{
-    HostedService, ProcessCategory, ProcessColumn, ProcessRow,
+    HostedService, ProcessCategory, ProcessColumn, ProcessRow, ProcessWindow,
 };
 
 use crate::widgets::table_cell::Highlight;
@@ -77,8 +77,21 @@ pub(crate) fn group_by_name(rows: &[ProcessRow], leader_pid: Option<u32>) -> Vec
 
 pub(crate) struct Section {
     pub(crate) category: ProcessCategory,
+    headed: bool,
     groups: Vec<ProcessGroup>,
     consoles: HashMap<u32, Vec<ProcessRow>>,
+}
+
+fn one_section(groups: Vec<ProcessGroup>) -> Vec<Section> {
+    if groups.is_empty() {
+        return Vec::new();
+    }
+    vec![Section {
+        category: ProcessCategory::ORDER[0],
+        headed: false,
+        groups,
+        consoles: HashMap::new(),
+    }]
 }
 
 #[cfg(test)]
@@ -102,6 +115,7 @@ fn split_keeping(groups: Vec<ProcessGroup>, keep: Option<(u32, ProcessCategory)>
             let groups = by_category.remove(&category)?;
             (!groups.is_empty()).then_some(Section {
                 category,
+                headed: true,
                 groups,
                 consoles: HashMap::new(),
             })
@@ -196,7 +210,7 @@ pub(crate) struct ViewState<'a> {
 
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) enum Child {
-    Window(Arc<str>),
+    Window(ProcessWindow),
     Service(HostedService),
     Console,
 }
@@ -266,16 +280,16 @@ pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>
     let mut out = Vec::new();
 
     for section in sections {
-        let totals = SectionTotals::of(section);
-        let section_expanded = !expanded.collapsed_sections.contains(&section.category);
-        out.push(DisplayRow::section(
-            section.category,
-            totals,
-            section_expanded,
-        ));
-
-        if !section_expanded {
-            continue;
+        if section.headed {
+            let section_expanded = !expanded.collapsed_sections.contains(&section.category);
+            out.push(DisplayRow::section(
+                section.category,
+                SectionTotals::of(section),
+                section_expanded,
+            ));
+            if !section_expanded {
+                continue;
+            }
         }
 
         for group in &section.groups {
@@ -324,6 +338,10 @@ fn tenths(percent: f32) -> i64 {
     (percent * 10.0).round() as i64
 }
 
+fn sorted_memory(row: &ProcessRow) -> Option<u64> {
+    (&*row.name != ProcessName::MemoryCompression).then_some(row.memory_bytes)
+}
+
 fn compare_by(column: ProcessColumn, a: &ProcessRow, b: &ProcessRow) -> Ordering {
     match column {
         ProcessColumn::Name => a
@@ -332,7 +350,7 @@ fn compare_by(column: ProcessColumn, a: &ProcessRow, b: &ProcessRow) -> Ordering
             .flat_map(char::to_lowercase)
             .cmp(b.display_name.chars().flat_map(char::to_lowercase)),
         ProcessColumn::Cpu => tenths(a.cpu_percent).cmp(&tenths(b.cpu_percent)),
-        ProcessColumn::Memory => a.memory_bytes.cmp(&b.memory_bytes),
+        ProcessColumn::Memory => sorted_memory(a).cmp(&sorted_memory(b)),
         ProcessColumn::Disk => a.disk_bytes.cmp(&b.disk_bytes),
         ProcessColumn::Net => a.net_bytes.cmp(&b.net_bytes),
     }
@@ -365,7 +383,15 @@ pub(crate) struct GroupsCache {
     selected: Option<u32>,
     kept: Option<ProcessCategory>,
     order: Order,
+    by_type: bool,
     sections: Vec<Section>,
+}
+
+pub(crate) struct Grouping<'a> {
+    pub(crate) selected: Option<u32>,
+    pub(crate) kept: Option<ProcessCategory>,
+    pub(crate) order: &'a Order,
+    pub(crate) by_type: bool,
 }
 
 impl GroupsCache {
@@ -377,6 +403,7 @@ impl GroupsCache {
             selected: None,
             kept: None,
             order: Order::default(),
+            by_type: true,
             sections: Vec::new(),
         }
     }
@@ -385,10 +412,14 @@ impl GroupsCache {
         &mut self,
         rows: &[ProcessRow],
         exited: &[ProcessRow],
-        selected: Option<u32>,
-        kept: Option<ProcessCategory>,
-        order: &Order,
+        grouping: Grouping<'_>,
     ) -> &mut [Section] {
+        let Grouping {
+            selected,
+            kept,
+            order,
+            by_type,
+        } = grouping;
         let rows_ptr = rows.as_ptr();
         let same_exited = self.exited.len() == exited.len()
             && self.exited.iter().zip(exited).all(|(pid, row)| *pid == row.pid);
@@ -398,10 +429,16 @@ impl GroupsCache {
             || self.selected != selected
             || self.kept != kept
             || self.order != *order
+            || self.by_type != by_type
         {
             let (mut rest, consoles) = detach_consoles(rows);
             rest.extend(exited.iter().cloned());
-            self.sections = split_keeping(group_by_name(&rest, selected), selected.zip(kept));
+            let groups = group_by_name(&rest, selected);
+            self.sections = if by_type {
+                split_keeping(groups, selected.zip(kept))
+            } else {
+                one_section(groups)
+            };
             attach_consoles(&mut self.sections, consoles);
             sort_groups(&mut self.sections, order);
             self.rows_ptr = rows_ptr;
@@ -410,6 +447,7 @@ impl GroupsCache {
             self.selected = selected;
             self.kept = kept;
             self.order = *order;
+            self.by_type = by_type;
         }
         &mut self.sections
     }
@@ -531,10 +569,43 @@ fn exited_copy(row: &ProcessRow) -> ProcessRow {
     }
 }
 
+fn paint_block(block: &mut [DisplayRow]) {
+    let last = block.len() - 1;
+    for (i, d) in block.iter_mut().enumerate() {
+        d.highlight = Some(Highlight {
+            top: i == 0,
+            bottom: i == last,
+        });
+    }
+}
+
+fn highlight_process(rows: &mut [DisplayRow], pid: u32) {
+    let Some(host) = rows
+        .iter()
+        .position(|d| d.stands_for_one_process() && d.row.pid == pid)
+    else {
+        return;
+    };
+    let details = if rows[host].details_expanded {
+        let depth = rows[host].depth;
+        rows[host + 1..]
+            .iter()
+            .take_while(|d| d.child.is_some() && d.depth > depth)
+            .count()
+    } else {
+        0
+    };
+    paint_block(&mut rows[host..=host + details]);
+}
+
 pub(crate) fn highlight(rows: &mut [DisplayRow], selection: Option<Selection>) {
     let Some(selection) = selection else {
         return;
     };
+    if let Selection::Process(pid) = selection {
+        highlight_process(rows, pid);
+        return;
+    }
     let mut at = 0;
     while at < rows.len() {
         let heading = &rows[at];
@@ -547,24 +618,11 @@ pub(crate) fn highlight(rows: &mut [DisplayRow], selection: Option<Selection>) {
             0
         };
         let span = &mut rows[at..=at + members];
-        match selection {
-            Selection::Group(pid) if span[0].section.is_none() && span[0].row.pid == pid => {
-                let last = span.len() - 1;
-                for (i, d) in span.iter_mut().enumerate() {
-                    d.highlight = Some(Highlight {
-                        top: i == 0,
-                        bottom: i == last,
-                    });
-                }
-            }
-            Selection::Process(pid) => {
-                for d in span.iter_mut() {
-                    if d.stands_for_one_process() && d.row.pid == pid {
-                        d.highlight = Some(Highlight::Whole);
-                    }
-                }
-            }
-            Selection::Group(_) => {}
+        if let Selection::Group(pid) = selection
+            && span[0].section.is_none()
+            && span[0].row.pid == pid
+        {
+            paint_block(span);
         }
         at += members + 1;
     }
@@ -1100,6 +1158,25 @@ mod tests {
     }
 
     #[test]
+    fn memory_compression_sorts_below_every_process_by_memory() {
+        let mut compression = row(1, ProcessName::MemoryCompression);
+        compression.memory_bytes = 3_000;
+        let mut small = row(2, "small.exe");
+        small.memory_bytes = 0;
+        let mut large = row(3, "large.exe");
+        large.memory_bytes = 1_000;
+        let groups = || group_by_name(&[compression.clone(), small.clone(), large.clone()], None);
+
+        let mut descending = one_section(groups());
+        sort_groups(&mut descending, &Order { column: ProcessColumn::Memory, descending: true });
+        assert_eq!(group_pids(&descending), vec![3, 2, 1]);
+
+        let mut ascending = one_section(groups());
+        sort_groups(&mut ascending, &Order { column: ProcessColumn::Memory, descending: false });
+        assert_eq!(group_pids(&ascending), vec![1, 2, 3]);
+    }
+
+    #[test]
     fn groups_rank_by_their_summed_value_not_their_busiest_member() {
         let mut worker = row(1, "worker.exe");
         worker.cpu_percent = 3.0;
@@ -1179,7 +1256,7 @@ mod tests {
             .filter_map(|d| {
                 let label = match d.child.as_ref()? {
                     Child::Service(service) => &*service.display_name,
-                    Child::Window(title) => &**title,
+                    Child::Window(window) => &*window.title,
                     Child::Console => &*d.row.display_name,
                 };
                 Some((d.depth, d.row.pid, label))
@@ -1187,15 +1264,43 @@ mod tests {
             .collect()
     }
 
+    fn main_window() -> Option<Arc<[ProcessWindow]>> {
+        Some(Arc::from(vec![ProcessWindow {
+            handle: 0,
+            title: Arc::from("Main window"),
+        }]))
+    }
+
     #[test]
     fn an_app_lists_its_windows_before_its_services_even_a_single_one() {
         let mut app = hosting(7, "app.exe", &["Helper"]);
-        app.windows = Some(Arc::from(vec![Arc::<str>::from("Main window")]));
+        app.windows = main_window();
         let sections = one_section(vec![group(app, vec![])]);
 
         let out = with_open(&sections, &[7]);
 
         assert_eq!(children(&out), vec![(2, 7, "Main window"), (2, 7, "Helper")]);
+    }
+
+    #[test]
+    fn a_selected_process_with_its_details_open_is_one_block() {
+        let mut app = row(7, "app.exe");
+        app.windows = main_window();
+        let sections = split_by_category(group_by_name(&[app, row(9, "zeta")], None));
+
+        let mut closed = with_open(&sections, &[]);
+        highlight(&mut closed, Some(Selection::Process(7)));
+        assert_eq!(highlighted(&closed), vec![(1, 7, Highlight::Whole)]);
+
+        let mut open = with_open(&sections, &[7]);
+        highlight(&mut open, Some(Selection::Process(7)));
+        assert_eq!(
+            highlighted(&open),
+            vec![
+                (1, 7, Highlight { top: true, bottom: false }),
+                (2, 7, Highlight { top: false, bottom: true }),
+            ]
+        );
     }
 
     #[test]
@@ -1242,12 +1347,18 @@ mod tests {
     }
 
     #[test]
-    fn a_service_row_is_never_the_selected_process() {
+    fn a_service_row_is_painted_as_the_tail_of_its_hosts_block() {
         let sections = one_section(vec![group(hosting(7, "svchost.exe", &["Audio"]), vec![])]);
         let mut out = with_open(&sections, &[7]);
         highlight(&mut out, Some(Selection::Process(7)));
 
-        assert_eq!(highlighted(&out), vec![(1, 7, Highlight::Whole)]);
+        assert_eq!(
+            highlighted(&out),
+            vec![
+                (1, 7, Highlight { top: true, bottom: false }),
+                (2, 7, Highlight { top: false, bottom: true }),
+            ]
+        );
     }
 
     fn console_of(pid: u32, owner: u32) -> ProcessRow {
@@ -1257,10 +1368,63 @@ mod tests {
         console
     }
 
+    fn grouped(by_type: bool, order: &Order) -> Grouping<'_> {
+        Grouping {
+            selected: None,
+            kept: None,
+            order,
+            by_type,
+        }
+    }
+
     fn sections_for(rows: &[ProcessRow]) -> Vec<Section> {
         let mut cache = GroupsCache::empty();
-        cache.get(rows, &[], None, None, &cpu_order());
+        cache.get(rows, &[], grouped(true, &cpu_order()));
         cache.sections
+    }
+
+    fn untyped_sections_for(rows: &[ProcessRow]) -> Vec<Section> {
+        let mut cache = GroupsCache::empty();
+        cache.get(rows, &[], grouped(false, &cpu_order()));
+        cache.sections
+    }
+
+    #[test]
+    fn without_grouping_by_type_there_are_no_section_rows() {
+        let rows = vec![
+            row(10, "notepad.exe"),
+            categorised(20, "zeta", ProcessCategory::BackgroundThirdParty),
+        ];
+
+        let typed = with_open(&sections_for(&rows), &[]);
+        assert_eq!(typed.iter().filter(|d| d.section.is_some()).count(), 2);
+
+        let flat = with_open(&untyped_sections_for(&rows), &[]);
+        assert!(flat.iter().all(|d| d.section.is_none()));
+        let mut pids = process_pids(&flat);
+        pids.sort_unstable();
+        assert_eq!(pids, vec![10, 20]);
+        assert!(flat.iter().all(|d| d.depth == 1));
+    }
+
+    #[test]
+    fn without_grouping_by_type_one_order_runs_across_every_type() {
+        let mut app = row(10, "notepad.exe");
+        app.cpu_percent = 1.0;
+        let mut background = categorised(20, "zeta", ProcessCategory::BackgroundThirdParty);
+        background.cpu_percent = 9.0;
+
+        let flat = with_open(&untyped_sections_for(&[app, background]), &[]);
+        assert_eq!(process_pids(&flat), vec![20, 10]);
+    }
+
+    #[test]
+    fn same_name_groups_survive_without_grouping_by_type() {
+        let rows = vec![row(10, "notepad.exe"), row(11, "notepad.exe"), row(20, "zeta")];
+        let flat = with_open(&untyped_sections_for(&rows), &[]);
+
+        let group = flat.iter().find(|d| d.has_children).unwrap();
+        assert_eq!(group.group_size, 2);
     }
 
     #[test]
@@ -1322,7 +1486,17 @@ mod tests {
             let exited_rows = self.held.exited(selection, rows);
             let kept = self.held.section(selection);
             let exited: HashSet<u32> = exited_rows.iter().map(|r| r.pid).collect();
-            let sections = self.cache.get(rows, &exited_rows, pid, kept, &cpu_order());
+            let order = cpu_order();
+            let sections = self.cache.get(
+                rows,
+                &exited_rows,
+                Grouping {
+                    selected: pid,
+                    kept,
+                    order: &order,
+                    by_type: true,
+                },
+            );
             self.held.hold(sections, selection);
             let mut out = flatten_for_display(
                 sections,
