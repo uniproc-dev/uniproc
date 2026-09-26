@@ -127,7 +127,7 @@ impl RpcService for WslRpc {
         let child = launch_agent(distro, agent_path, &secret)?;
 
         let endpoint =
-            Endpoint::vsock_to_best_vm(WSL_AGENT_VSOCK_PORT).map_err(|e| anyhow!("{e:#}"))?;
+            Endpoint::vsock_to_wsl(WSL_AGENT_VSOCK_PORT).map_err(|e| anyhow!("{e:#}"))?;
 
         let mut conn = endpoint
             .connect_ready(Duration::from_secs(timeout_secs))
