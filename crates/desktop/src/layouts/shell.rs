@@ -58,14 +58,14 @@ pub enum ShellMsg {
 #[layout]
 impl Layout for ShellLayout {
     type Params = crate::routes::ShellLayoutParams;
-    type Installs = ((SidebarFeature, MetricsFeature), AgentLinkFeature);
+    type Installs = (SidebarFeature, MetricsFeature, AgentLinkFeature);
     type Message = ShellMsg;
 
     fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
         let link = ctx
             .try_require::<AgentLinkParams>()
             .map_or_else(AgentLinkParams::default, |provided| *provided);
-        Ok(((ctx.install(&())?, ctx.install(&())?), ctx.install(&link)?))
+        Ok((ctx.install(&())?, ctx.install(&())?, ctx.install(&link)?))
     }
 
     fn update(&mut self, message: ShellMsg, cx: &mut UpdateCx<'_, Self>) {
