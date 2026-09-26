@@ -9,6 +9,8 @@ processes-selected-group = Selected: { $name } | Group ({ $count })
 
 processes-menu-process = { $name } | PID { $pid }
 processes-menu-group = { $name } | Group ({ $count })
+processes-menu-pin = Pin
+processes-menu-unpin = Unpin
 processes-menu-end-task = End task
 processes-menu-suspend = Suspend
 processes-menu-resume = Resume
@@ -20,6 +22,7 @@ processes-menu-minimize = Minimize
 processes-menu-maximize = Maximize
 processes-menu-close-window = Close window
 
+processes-category-pinned = Pinned
 processes-category-background-microsoft = Background processes (Microsoft)
 processes-category-windows-service = Services
 processes-category-windows-kernel = Windows kernel

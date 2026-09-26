@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use app_contracts::features::processes::{ProcessCommand, ProcessRow, ProcessWindow, WindowCommand};
 use guicons::icon;
 use windows_reactor::{
@@ -32,6 +34,15 @@ pub enum MenuTarget {
     Window { window: ProcessWindow, owner: ProcessRow },
 }
 
+impl MenuTarget {
+    pub(crate) fn pin_key(&self) -> Option<Arc<str>> {
+        match self {
+            Self::Process(row) | Self::Group { leader: row, .. } => Some(row.name.clone()),
+            Self::Window { .. } => None,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) struct OpenMenu {
     pub(crate) x: f64,
@@ -41,6 +52,7 @@ pub(crate) struct OpenMenu {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum MenuCommand {
+    TogglePin,
     EndTask,
     Process(ProcessCommand),
     Window { handle: isize, command: WindowCommand },
@@ -108,8 +120,34 @@ fn file_lines(row: &ProcessRow, l10n: &L10n) -> Vec<Line> {
     ]
 }
 
-fn process_lines(row: &ProcessRow, l10n: &L10n) -> Vec<Line> {
-    let mut lines = vec![
+fn pin_lines(pinned: bool, l10n: &L10n) -> [Line; 2] {
+    let pin = if pinned {
+        entry(
+            ProcessesMark::MenuUnpin,
+            icon!(pin_off).size(size::Icon).build_element(),
+            l10n.processes_menu_unpin(),
+            MenuCommand::TogglePin,
+        )
+    } else {
+        entry(
+            ProcessesMark::MenuPin,
+            icon!(pin).size(size::Icon).build_element(),
+            l10n.processes_menu_pin(),
+            MenuCommand::TogglePin,
+        )
+    };
+    [pin, Line::Separator]
+}
+
+fn group_lines(leader: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
+    let mut lines = Vec::from(pin_lines(pinned, l10n));
+    lines.extend(file_lines(leader, l10n));
+    lines
+}
+
+fn process_lines(row: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
+    let mut lines = Vec::from(pin_lines(pinned, l10n));
+    lines.extend([
         entry(
             ProcessesMark::MenuEndTask,
             icon!(prohibited).size(size::Icon).build_element(),
@@ -129,7 +167,7 @@ fn process_lines(row: &ProcessRow, l10n: &L10n) -> Vec<Line> {
             MenuCommand::Process(ProcessCommand::Resume),
         ),
         Line::Separator,
-    ];
+    ]);
     lines.extend(file_lines(row, l10n));
     lines
 }
@@ -218,14 +256,24 @@ fn line_view(line: Line, on_command: &Callback<MenuCommand>, palette: Palette) -
     }
 }
 
-pub(crate) fn context_menu(
-    menu: &OpenMenu,
-    icons: &context::IconCache,
-    l10n: &L10n,
-    palette: Palette,
-    on_command: Callback<MenuCommand>,
-    on_dismiss: Callback<()>,
-) -> View {
+pub(crate) struct MenuInputs<'a> {
+    pub(crate) icons: &'a context::IconCache,
+    pub(crate) l10n: &'a L10n,
+    pub(crate) palette: Palette,
+    pub(crate) pinned: bool,
+    pub(crate) on_command: Callback<MenuCommand>,
+    pub(crate) on_dismiss: Callback<()>,
+}
+
+pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
+    let MenuInputs {
+        icons,
+        l10n,
+        palette,
+        pinned,
+        on_command,
+        on_dismiss,
+    } = inputs;
     let (head, lines) = match &menu.target {
         MenuTarget::Process(row) => (
             header(
@@ -234,7 +282,7 @@ pub(crate) fn context_menu(
                 l10n.processes_menu_process(row.name.to_string(), row.pid as i64),
                 palette,
             ),
-            process_lines(row, l10n),
+            process_lines(row, pinned, l10n),
         ),
         MenuTarget::Group { leader, count } => (
             header(
@@ -243,7 +291,7 @@ pub(crate) fn context_menu(
                 l10n.processes_menu_group(leader.name.to_string(), *count as i64),
                 palette,
             ),
-            file_lines(leader, l10n),
+            group_lines(leader, pinned, l10n),
         ),
         MenuTarget::Window { window, owner } => (
             header(

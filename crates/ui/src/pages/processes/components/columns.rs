@@ -14,6 +14,7 @@ use windows_reactor::{
 use crate::format;
 use crate::l10n::L10n;
 use crate::theme::{accent_color, opacity, radius, size, space, Palette};
+use crate::widgets::separator;
 use crate::widgets::table_cell::{self, metric_cell, Heat, Highlight, Metric};
 use crate::widgets::text::{body_strong, caption, text};
 
@@ -21,7 +22,7 @@ use guinea::winui::MarkExt;
 
 use super::super::marks::ProcessesMark;
 use super::column_layout::ColumnLayout;
-use super::grouping::{is_service_host, Child, DisplayRow, ProcessName, SectionRow};
+use super::grouping::{is_service_host, Child, DisplayRow, ProcessName, SectionId, SectionRow};
 
 struct Hit;
 
@@ -261,7 +262,7 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
         return section_name_cell(cell, d, section);
     }
     match &d.child {
-        Some(Child::Service(service)) => return service_name_cell(d, service),
+        Some(Child::Service(service)) => return service_name_cell(cell, d, service),
         Some(Child::Window(window)) => return window_name_cell(cell, d, window),
         Some(Child::Console) | None => {}
     }
@@ -325,21 +326,32 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
         line
     };
 
-    name_row(d, line)
+    name_row(d, line, cell.palette)
 }
 
-fn name_row(d: &DisplayRow, line: View) -> View {
+fn rule_below(d: &DisplayRow, palette: Palette) -> View {
+    if d.rule_below {
+        separator(palette)
+            .mark(ProcessesMark::PinnedRule)
+            .vertical_alignment(VerticalAlignment::Bottom)
+            .into()
+    } else {
+        View::empty()
+    }
+}
+
+fn name_row(d: &DisplayRow, line: View, palette: Palette) -> View {
     let bar = match d.highlight {
         Some(band) => selection_bar_for(row_height(d), band),
         None => View::empty(),
     };
     Grid::new()
         .height(row_height(d))
-        .children((bar, line))
+        .children((bar, line, rule_below(d, palette)))
         .into()
 }
 
-fn service_name_cell(d: &DisplayRow, service: &HostedService) -> View {
+fn service_name_cell(cell: &NameCell<'_>, d: &DisplayRow, service: &HostedService) -> View {
     let line = name_line(NameLine {
         indent: indent(d.depth),
         chevron: chevron_slot(View::empty(), None, row_height(d)),
@@ -350,7 +362,7 @@ fn service_name_cell(d: &DisplayRow, service: &HostedService) -> View {
         count: View::empty(),
     });
 
-    name_row(d, line)
+    name_row(d, line, cell.palette)
 }
 
 fn window_name_cell(cell: &NameCell<'_>, d: &DisplayRow, window: &ProcessWindow) -> View {
@@ -370,7 +382,7 @@ fn window_name_cell(cell: &NameCell<'_>, d: &DisplayRow, window: &ProcessWindow)
         count: View::empty(),
     });
 
-    name_row(d, line)
+    name_row(d, line, cell.palette)
 }
 
 fn section_name_cell(cell: &NameCell<'_>, d: &DisplayRow, section: &SectionRow) -> View {
@@ -378,7 +390,7 @@ fn section_name_cell(cell: &NameCell<'_>, d: &DisplayRow, section: &SectionRow) 
         indent: 0.0,
         chevron: chevron_slot(expand_chevron(d.is_expanded), None, row_height(d)),
         icon: None,
-        label: body_strong(category_label(cell.l10n, section.category))
+        label: body_strong(section_label(cell.l10n, section.id))
             .text_wrapping(TextWrapping::NoWrap)
             .text_trimming(TextTrimming::CharacterEllipsis)
             .vertical_alignment(VerticalAlignment::Center)
@@ -523,7 +535,10 @@ where
     let header = move || metric_header(label.clone(), total.clone(), sorted, palette);
     ColumnSpec::new_with_header(id, header, place.width, move |d: &DisplayRow| {
         if d.child.as_ref().is_some_and(|child| !child.has_metrics()) {
-            return Grid::new().height(row_height(d)).into();
+            return Grid::new()
+                .height(row_height(d))
+                .children((rule_below(d, palette),))
+                .into();
         }
         let (text, zero) = value(&d.row);
         let heat = if d.section.is_some() || zero {
@@ -536,7 +551,7 @@ where
                 color,
             })
         };
-        metric_cell(
+        let cell = metric_cell(
             Metric {
                 text,
                 zero,
@@ -544,7 +559,12 @@ where
                 height: row_height(d),
             },
             palette,
-        )
+        );
+        if d.rule_below {
+            Grid::new().children((cell, rule_below(d, palette))).into()
+        } else {
+            cell
+        }
     })
     .min_width(place.min_width)
     .flush()
@@ -657,6 +677,13 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
             }
         })
         .collect()
+}
+
+pub(crate) fn section_label(l10n: &L10n, id: SectionId) -> String {
+    match id {
+        SectionId::Pinned => l10n.processes_category_pinned(),
+        SectionId::Category(category) => category_label(l10n, category),
+    }
 }
 
 pub(crate) fn category_label(l10n: &L10n, category: ProcessCategory) -> String {

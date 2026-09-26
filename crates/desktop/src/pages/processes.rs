@@ -17,6 +17,7 @@ fn open_settings() -> Option<ProcessesSettingsMaps> {
     Some(ProcessesSettingsMaps {
         columns: settings.columns().configs().clone(),
         collapsed_sections: settings.grouping().collapsed_sections().clone(),
+        pinned: settings.grouping().pinned().clone(),
         group_by_type: settings.grouping().by_type().clone(),
     })
 }
@@ -46,6 +47,14 @@ impl Page for Processes {
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ProcessesMsg| message);
+        let dismiss = forward.clone();
+        let selected = state.selected;
+        cx.use_effect("uniproc::processes::menu_needs_a_selection", selected, move || {
+            if selected.is_none() {
+                let _ = dismiss.call(ProcessesMsg::MenuDismiss);
+            }
+            None
+        });
         self.0.view(&state, &dispatch, &l10n, palette, forward)
     }
 }
@@ -61,7 +70,7 @@ mod tests {
     use std::time::Duration;
 
     use app_contracts::features::agent_link::AgentLinkState;
-    use app_contracts::features::processes::{ProcessColumn, ProcessesState, WindowCommand};
+    use app_contracts::features::processes::{Deselect, ProcessColumn, ProcessesState, WindowCommand};
     use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
     use app_contracts::features::services::{ServiceColumn, ServicesState};
     use guinea::core::remote;
@@ -1057,6 +1066,106 @@ mod tests {
                 command: WindowCommand::SwitchTo,
             }]
         );
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn dropping_the_selection_closes_the_menu(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        right_click(&mut page, "notepad.exe");
+        assert!(menu_open(&page), "{:#?}", page.tree());
+        h.publish(PressedAway).settle();
+        page.settle();
+        assert!(!menu_open(&page), "{:#?}", page.tree());
+
+        right_click(&mut page, "notepad.exe");
+        assert!(menu_open(&page), "{:#?}", page.tree());
+        h.dispatch::<ProcessesState>().emit(Deselect);
+        page.settle();
+        assert!(!menu_open(&page), "{:#?}", page.tree());
+
+        select(&mut page, "notepad.exe");
+        assert!(!menu_open(&page), "a later selection does not bring the old menu back");
+    }
+
+    fn pin_from_menu(page: &mut Mounted<'_, Processes>, wanted: &str, mark: ProcessesMark) {
+        right_click(page, wanted);
+        page.click(mark).settle();
+        page.settle();
+    }
+
+    fn pin_kept(name: &str) -> Option<bool> {
+        ProcessesSettings::new().unwrap().grouping().pinned().get(&name.to_string())
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn pinning_from_the_menu_moves_the_process_into_a_pinned_section_on_top(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        pin_from_menu(&mut page, "notepad.exe", ProcessesMark::MenuPin);
+        let all = labels(&mut page);
+        assert_eq!(all[..2], ["Pinned (1)".to_string(), "notepad.exe".to_string()], "{all:?}");
+        assert_eq!(all.iter().filter(|label| *label == "notepad.exe").count(), 1, "{all:?}");
+        assert_eq!(pin_kept("notepad.exe"), Some(true), "the pin is kept in the settings");
+
+        right_click(&mut page, "notepad.exe");
+        assert!(page.find(ProcessesMark::MenuPin).is_none(), "a pinned process offers Unpin");
+        page.click(ProcessesMark::MenuUnpin).settle();
+        page.settle();
+
+        let all = labels(&mut page);
+        assert!(!all.iter().any(|label| label.starts_with("Pinned")), "{all:?}");
+        assert_eq!(pin_kept("notepad.exe"), None);
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn pinning_a_group_pins_every_member(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        pin_from_menu(&mut page, "chrome.exe (3)", ProcessesMark::MenuPin);
+
+        let all = labels(&mut page);
+        assert_eq!(all[..2], ["Pinned (1)".to_string(), "chrome.exe (3)".to_string()], "{all:?}");
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn without_grouping_by_type_pinned_processes_sit_on_top_above_a_rule(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        toggle_group_by_type(&mut page);
+
+        pin_from_menu(&mut page, "RuntimeBroker.exe", ProcessesMark::MenuPin);
+
+        let all = labels(&mut page);
+        assert_eq!(all[0], "RuntimeBroker.exe", "{all:?}");
+        assert_eq!(headings(&mut page), Vec::<String>::new());
+        let ruled: Vec<String> = page
+            .items()
+            .iter()
+            .filter(|item| item.find(ProcessesMark::PinnedRule).is_some())
+            .map(label)
+            .collect();
+        assert_eq!(ruled, ["RuntimeBroker.exe"]);
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_window_row_cannot_be_pinned(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        open(&mut page, "notepad.exe");
+        right_click(&mut page, "Untitled - Notepad");
+
+        assert!(page.find(ProcessesMark::MenuPin).is_none());
+        assert!(page.find(ProcessesMark::MenuUnpin).is_none());
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

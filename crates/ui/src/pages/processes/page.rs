@@ -2,11 +2,12 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::ops::Range;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use amethystate::{Field, ReactiveMap};
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::processes::{
-    ColumnConfig, Deselect, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState, RunProcessCommand,
+    ColumnConfig, Deselect, ProcessColumn, ProcessRow, ProcessesState, RunProcessCommand,
     RunWindowCommand, Select, Sort, Terminate,
 };
 use guicons::icon;
@@ -21,10 +22,10 @@ use windows_reactor::{
 
 use super::components::column_layout::ColumnLayout;
 use super::components::columns::{build_columns, ColumnInputs, GroupByType, NameCellActions};
-use super::components::context_menu::{context_menu, MenuCommand, MenuTarget, OpenMenu};
+use super::components::context_menu::{context_menu, MenuCommand, MenuInputs, MenuTarget, OpenMenu};
 use super::components::grouping::{
-    flatten_for_display, highlight, pin_group, Child, DisplayRow, Grouping, GroupsCache, Held,
-    Order, Selection, ViewState,
+    flatten_for_display, highlight, keep_group_place, Child, DisplayRow, Grouping, GroupsCache,
+    Held, Order, SectionId, Selection, ViewState,
 };
 use super::components::overlay::disconnected_overlay;
 use super::marks::ProcessesMark;
@@ -38,13 +39,15 @@ pub struct ProcessesSettingsMaps {
     pub columns: ReactiveMap<String, ColumnConfig>,
     pub collapsed_sections: ReactiveMap<String, bool>,
     pub group_by_type: Field<bool>,
+    pub pinned: ReactiveMap<String, bool>,
 }
 
 pub enum ProcessesMsg {
     Resized(Resized),
     ToggleGroup(String),
     ToggleProcess(u32),
-    ToggleSection(ProcessCategory),
+    ToggleSection(SectionId),
+    TogglePin(Arc<str>),
     ToggleGroupByType,
     SelectGroup(Option<u32>),
     MenuAnchor { x: f64, y: f64 },
@@ -53,14 +56,14 @@ pub enum ProcessesMsg {
 }
 
 enum Press {
-    Toggle(ProcessCategory),
+    Toggle(SectionId),
     Select(Selection),
 }
 
 impl Press {
     fn of(d: &DisplayRow) -> Self {
         match &d.section {
-            Some(section) => Self::Toggle(section.category),
+            Some(section) => Self::Toggle(section.id),
             None if d.has_children => Self::Select(Selection::Group(d.row.pid)),
             None => Self::Select(Selection::Process(d.row.pid)),
         }
@@ -98,11 +101,12 @@ pub struct ProcessesPage {
     expanded_groups: HashSet<String>,
     expanded_processes: HashSet<u32>,
     collapsed_sections: Option<ReactiveMap<String, bool>>,
+    pins: Option<ReactiveMap<String, bool>>,
     by_type: bool,
     by_type_setting: Option<Field<bool>>,
     layout: ColumnLayout,
     groups: RefCell<GroupsCache>,
-    pinned: Cell<Option<(u32, usize)>>,
+    kept_place: Cell<Option<(u32, usize)>>,
     selected_group: Option<u32>,
     selected_group_size: Cell<Option<usize>>,
     held: RefCell<Held>,
@@ -143,23 +147,25 @@ fn toggle_key(map: Option<&ReactiveMap<String, bool>>, key: String) {
 
 impl ProcessesPage {
     pub fn new(settings: Option<ProcessesSettingsMaps>) -> Self {
-        let (columns, collapsed_sections, by_type_setting) = match settings {
+        let (columns, collapsed_sections, pins, by_type_setting) = match settings {
             Some(maps) => (
                 Some(maps.columns),
                 Some(maps.collapsed_sections),
+                Some(maps.pinned),
                 Some(maps.group_by_type),
             ),
-            None => (None, None, None),
+            None => (None, None, None, None),
         };
         Self {
             expanded_groups: HashSet::new(),
             expanded_processes: HashSet::new(),
             collapsed_sections,
+            pins,
             by_type: by_type_setting.as_ref().is_none_or(Field::get),
             by_type_setting,
             layout: ColumnLayout::new(columns),
             groups: RefCell::new(GroupsCache::empty()),
-            pinned: Cell::new(None),
+            kept_place: Cell::new(None),
             selected_group: None,
             selected_group_size: Cell::new(None),
             held: RefCell::new(Held::default()),
@@ -182,11 +188,12 @@ impl ProcessesPage {
                     self.expanded_processes.insert(pid);
                 }
             }
-            ProcessesMsg::ToggleSection(category) => {
+            ProcessesMsg::ToggleSection(section) => {
                 if self.menu_anchor.take().is_none() {
-                    toggle_key(self.collapsed_sections.as_ref(), category.id().to_string())
+                    toggle_key(self.collapsed_sections.as_ref(), section.id().to_string())
                 }
             }
+            ProcessesMsg::TogglePin(name) => toggle_key(self.pins.as_ref(), name.to_string()),
             ProcessesMsg::ToggleGroupByType => {
                 self.by_type = !self.by_type;
                 if let Some(setting) = &self.by_type_setting
@@ -299,11 +306,15 @@ impl ProcessesPage {
         palette: Palette,
         forward: Callback<ProcessesMsg>,
     ) -> View {
-        let collapsed_sections: HashSet<ProcessCategory> =
+        let collapsed_sections: HashSet<SectionId> =
             enabled_keys(self.collapsed_sections.as_ref())
                 .iter()
-                .filter_map(|id| ProcessCategory::from_id(id))
+                .filter_map(|id| SectionId::from_id(id))
                 .collect();
+        let pins: HashSet<Arc<str>> = enabled_keys(self.pins.as_ref())
+            .into_iter()
+            .map(Arc::from)
+            .collect();
 
         let order = Order {
             column: state.sort_column,
@@ -329,9 +340,11 @@ impl ProcessesPage {
                     kept,
                     order: &order,
                     by_type: self.by_type,
+                    pins: &pins,
                 },
             );
-            self.pinned.set(pin_group(sections, state.selected, self.pinned.get()));
+            self.kept_place
+                .set(keep_group_place(sections, state.selected, self.kept_place.get()));
             self.held.borrow_mut().hold(sections, selection);
             let mut display_rows = flatten_for_display(
                 sections,
@@ -418,13 +431,20 @@ impl ProcessesPage {
             let command_dispatch = dispatch.clone();
             let command_forward = forward.clone();
             let dismiss_forward = forward.clone();
-            context_menu(
-                menu,
-                &self.icons,
+            let pin_key = menu.target.pin_key();
+            let pinned = pin_key.as_ref().is_some_and(|key| pins.contains(key));
+            context_menu(menu, MenuInputs {
+                icons: &self.icons,
                 l10n,
                 palette,
-                Callback::new(move |command: MenuCommand| {
+                pinned,
+                on_command: Callback::new(move |command: MenuCommand| {
                     match command {
+                        MenuCommand::TogglePin => {
+                            if let Some(key) = pin_key.clone() {
+                                let _ = command_forward.call(ProcessesMsg::TogglePin(key));
+                            }
+                        }
                         MenuCommand::EndTask => command_dispatch.emit(Terminate),
                         MenuCommand::Process(command) => {
                             command_dispatch.emit(RunProcessCommand(command))
@@ -435,10 +455,10 @@ impl ProcessesPage {
                     }
                     let _ = command_forward.call(ProcessesMsg::MenuDismiss);
                 }),
-                Callback::new(move |()| {
+                on_dismiss: Callback::new(move |()| {
                     let _ = dismiss_forward.call(ProcessesMsg::MenuDismiss);
                 }),
-            )
+            })
         });
 
         let columns = build_columns(ColumnInputs {

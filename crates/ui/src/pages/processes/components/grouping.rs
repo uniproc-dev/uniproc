@@ -75,51 +75,99 @@ pub(crate) fn group_by_name(rows: &[ProcessRow], leader_pid: Option<u32>) -> Vec
         .collect()
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub enum SectionId {
+    Pinned,
+    Category(ProcessCategory),
+}
+
+impl SectionId {
+    const PINNED: &str = "pinned";
+
+    pub(crate) fn id(self) -> &'static str {
+        match self {
+            Self::Pinned => Self::PINNED,
+            Self::Category(category) => category.id(),
+        }
+    }
+
+    pub(crate) fn from_id(id: &str) -> Option<Self> {
+        if id == Self::PINNED {
+            return Some(Self::Pinned);
+        }
+        ProcessCategory::from_id(id).map(Self::Category)
+    }
+}
+
 pub(crate) struct Section {
-    pub(crate) category: ProcessCategory,
+    pub(crate) id: SectionId,
     headed: bool,
+    ruled: bool,
     groups: Vec<ProcessGroup>,
     consoles: HashMap<u32, Vec<ProcessRow>>,
 }
 
-fn one_section(groups: Vec<ProcessGroup>) -> Vec<Section> {
-    if groups.is_empty() {
-        return Vec::new();
+impl Section {
+    fn new(id: SectionId, headed: bool, groups: Vec<ProcessGroup>) -> Option<Self> {
+        (!groups.is_empty()).then(|| Self {
+            id,
+            headed,
+            ruled: false,
+            groups,
+            consoles: HashMap::new(),
+        })
     }
-    vec![Section {
-        category: ProcessCategory::ORDER[0],
-        headed: false,
-        groups,
-        consoles: HashMap::new(),
-    }]
+}
+
+fn is_pinned(group: &ProcessGroup, pins: &HashSet<Arc<str>>) -> bool {
+    pins.contains(&group.leader.name)
+}
+
+fn one_section(groups: Vec<ProcessGroup>, pins: &HashSet<Arc<str>>) -> Vec<Section> {
+    let (pinned, rest): (Vec<_>, Vec<_>) = groups.into_iter().partition(|group| is_pinned(group, pins));
+    let mut sections: Vec<Section> = [
+        Section::new(SectionId::Pinned, false, pinned),
+        Section::new(SectionId::Category(ProcessCategory::ORDER[0]), false, rest),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    if let [pinned, _] = sections.as_mut_slice() {
+        pinned.ruled = true;
+    }
+    sections
 }
 
 #[cfg(test)]
 pub(crate) fn split_by_category(groups: Vec<ProcessGroup>) -> Vec<Section> {
-    split_keeping(groups, None)
+    split_keeping(groups, &HashSet::new(), None)
 }
 
-fn split_keeping(groups: Vec<ProcessGroup>, keep: Option<(u32, ProcessCategory)>) -> Vec<Section> {
-    let mut by_category: HashMap<ProcessCategory, Vec<ProcessGroup>> = HashMap::new();
+fn split_keeping(
+    groups: Vec<ProcessGroup>,
+    pins: &HashSet<Arc<str>>,
+    keep: Option<(u32, SectionId)>,
+) -> Vec<Section> {
+    let mut by_section: HashMap<SectionId, Vec<ProcessGroup>> = HashMap::new();
     for group in groups {
-        let category = match keep {
-            Some((pid, kept)) if group.members.iter().any(|member| member.pid == pid) => kept,
-            _ => group_category(&group),
+        let id = if is_pinned(&group, pins) {
+            SectionId::Pinned
+        } else {
+            match keep {
+                Some((pid, SectionId::Category(kept)))
+                    if group.members.iter().any(|member| member.pid == pid) =>
+                {
+                    SectionId::Category(kept)
+                }
+                _ => SectionId::Category(group_category(&group)),
+            }
         };
-        by_category.entry(category).or_default().push(group);
+        by_section.entry(id).or_default().push(group);
     }
 
-    ProcessCategory::ORDER
-        .into_iter()
-        .filter_map(|category| {
-            let groups = by_category.remove(&category)?;
-            (!groups.is_empty()).then_some(Section {
-                category,
-                headed: true,
-                groups,
-                consoles: HashMap::new(),
-            })
-        })
+    std::iter::once(SectionId::Pinned)
+        .chain(ProcessCategory::ORDER.map(SectionId::Category))
+        .filter_map(|id| Section::new(id, true, by_section.remove(&id)?))
         .collect()
 }
 
@@ -204,7 +252,7 @@ impl SectionTotals {
 pub(crate) struct ViewState<'a> {
     pub(crate) groups: &'a HashSet<String>,
     pub(crate) processes: &'a HashSet<u32>,
-    pub(crate) collapsed_sections: &'a HashSet<ProcessCategory>,
+    pub(crate) collapsed_sections: &'a HashSet<SectionId>,
     pub(crate) exited: &'a HashSet<u32>,
 }
 
@@ -241,6 +289,7 @@ fn process_row(row: &ProcessRow, depth: u8, expanded: &ViewState<'_>, section: &
         child: None,
         details,
         details_expanded: details && expanded.processes.contains(&row.pid),
+        rule_below: false,
     }
 }
 
@@ -257,6 +306,7 @@ fn child_row(row: &ProcessRow, depth: u8, child: Child) -> DisplayRow {
         details: false,
         details_expanded: false,
         exited: false,
+        rule_below: false,
     }
 }
 
@@ -281,9 +331,9 @@ pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>
 
     for section in sections {
         if section.headed {
-            let section_expanded = !expanded.collapsed_sections.contains(&section.category);
+            let section_expanded = !expanded.collapsed_sections.contains(&section.id);
             out.push(DisplayRow::section(
-                section.category,
+                section.id,
                 SectionTotals::of(section),
                 section_expanded,
             ));
@@ -314,6 +364,12 @@ pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>
                     push_with_details(&mut out, process_row(member, 2, expanded, section), section);
                 }
             }
+        }
+
+        if section.ruled
+            && let Some(last) = out.last_mut()
+        {
+            last.rule_below = true;
         }
     }
     out
@@ -381,17 +437,19 @@ pub(crate) struct GroupsCache {
     rows_len: usize,
     exited: Vec<u32>,
     selected: Option<u32>,
-    kept: Option<ProcessCategory>,
+    kept: Option<SectionId>,
     order: Order,
     by_type: bool,
+    pins: HashSet<Arc<str>>,
     sections: Vec<Section>,
 }
 
 pub(crate) struct Grouping<'a> {
     pub(crate) selected: Option<u32>,
-    pub(crate) kept: Option<ProcessCategory>,
+    pub(crate) kept: Option<SectionId>,
     pub(crate) order: &'a Order,
     pub(crate) by_type: bool,
+    pub(crate) pins: &'a HashSet<Arc<str>>,
 }
 
 impl GroupsCache {
@@ -404,6 +462,7 @@ impl GroupsCache {
             kept: None,
             order: Order::default(),
             by_type: true,
+            pins: HashSet::new(),
             sections: Vec::new(),
         }
     }
@@ -419,6 +478,7 @@ impl GroupsCache {
             kept,
             order,
             by_type,
+            pins,
         } = grouping;
         let rows_ptr = rows.as_ptr();
         let same_exited = self.exited.len() == exited.len()
@@ -430,15 +490,17 @@ impl GroupsCache {
             || self.kept != kept
             || self.order != *order
             || self.by_type != by_type
+            || self.pins != *pins
         {
             let (mut rest, consoles) = detach_consoles(rows);
             rest.extend(exited.iter().cloned());
             let groups = group_by_name(&rest, selected);
             self.sections = if by_type {
-                split_keeping(groups, selected.zip(kept))
+                split_keeping(groups, pins, selected.zip(kept))
             } else {
-                one_section(groups)
+                one_section(groups, pins)
             };
+            self.pins.clone_from(pins);
             attach_consoles(&mut self.sections, consoles);
             sort_groups(&mut self.sections, order);
             self.rows_ptr = rows_ptr;
@@ -455,7 +517,7 @@ impl GroupsCache {
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct SectionRow {
-    pub(crate) category: ProcessCategory,
+    pub(crate) id: SectionId,
     pub(crate) compressed_bytes: u64,
 }
 
@@ -472,6 +534,7 @@ pub(crate) struct DisplayRow {
     pub(crate) details: bool,
     pub(crate) details_expanded: bool,
     pub(crate) exited: bool,
+    pub(crate) rule_below: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -510,10 +573,10 @@ fn selected_rows(sections: &[Section], selection: Option<Selection>) -> Vec<Proc
 pub(crate) struct Held {
     selection: Option<Selection>,
     rows: Vec<ProcessRow>,
-    section: Option<ProcessCategory>,
+    section: Option<SectionId>,
 }
 
-fn section_of(sections: &[Section], selection: Option<Selection>) -> Option<ProcessCategory> {
+fn section_of(sections: &[Section], selection: Option<Selection>) -> Option<SectionId> {
     let pid = match selection? {
         Selection::Process(pid) | Selection::Group(pid) => pid,
     };
@@ -525,11 +588,11 @@ fn section_of(sections: &[Section], selection: Option<Selection>) -> Option<Proc
                 .iter()
                 .any(|group| group.members.iter().any(|member| member.pid == pid))
         })
-        .map(|section| section.category)
+        .map(|section| section.id)
 }
 
 impl Held {
-    pub(crate) fn section(&self, selection: Option<Selection>) -> Option<ProcessCategory> {
+    pub(crate) fn section(&self, selection: Option<Selection>) -> Option<SectionId> {
         self.section.filter(|_| selection.is_some() && self.selection == selection)
     }
 
@@ -629,8 +692,8 @@ pub(crate) fn highlight(rows: &mut [DisplayRow], selection: Option<Selection>) {
 }
 
 impl DisplayRow {
-    fn section(category: ProcessCategory, totals: SectionTotals, is_expanded: bool) -> Self {
-        let label = category.id();
+    fn section(id: SectionId, totals: SectionTotals, is_expanded: bool) -> Self {
+        let label = id.id();
         Self {
             row: ProcessRow {
                 pid: 0,
@@ -653,7 +716,7 @@ impl DisplayRow {
             is_expanded,
             group_size: totals.group_count,
             section: Some(SectionRow {
-                category,
+                id,
                 compressed_bytes: totals.compressed_bytes,
             }),
             highlight: None,
@@ -661,6 +724,7 @@ impl DisplayRow {
             details: false,
             details_expanded: false,
             exited: false,
+            rule_below: false,
         }
     }
 
@@ -671,7 +735,7 @@ impl DisplayRow {
     }
 }
 
-pub(crate) fn pin_group(
+pub(crate) fn keep_group_place(
     sections: &mut [Section],
     selected: Option<u32>,
     previous: Option<(u32, usize)>,
@@ -726,7 +790,7 @@ mod tests {
     fn flat(
         sections: &[Section],
         groups: &HashSet<String>,
-        collapsed_sections: &HashSet<ProcessCategory>,
+        collapsed_sections: &HashSet<SectionId>,
     ) -> Vec<DisplayRow> {
         flatten_for_display(
             sections,
@@ -748,7 +812,7 @@ mod tests {
 
     fn labels(rows: &[DisplayRow]) -> Vec<&str> {
         rows.iter()
-            .filter_map(|d| d.section.as_ref().map(|s| s.category.id()))
+            .filter_map(|d| d.section.as_ref().map(|s| s.id.id()))
             .collect()
     }
 
@@ -894,23 +958,23 @@ mod tests {
     }
 
     #[test]
-    fn a_pinned_group_keeps_its_place_among_siblings_across_a_resort() {
+    fn a_selected_group_keeps_its_place_among_siblings_across_a_resort() {
         let mut sections = one_section(vec![
             group(row(1, "alpha"), vec![]),
             group(row(2, "beta"), vec![]),
             group(row(3, "gamma"), vec![]),
         ]);
-        let pinned = pin_group(&mut sections, Some(2), None);
-        assert_eq!(pinned, Some((2, 1)), "nothing moves on the first sight");
+        let kept = keep_group_place(&mut sections, Some(2), None);
+        assert_eq!(kept, Some((2, 1)), "nothing moves on the first sight");
 
         let mut resorted = one_section(vec![
             group(row(2, "beta"), vec![]),
             group(row(1, "alpha"), vec![]),
             group(row(3, "gamma"), vec![]),
         ]);
-        let pinned = pin_group(&mut resorted, Some(2), pinned);
+        let kept = keep_group_place(&mut resorted, Some(2), kept);
 
-        assert_eq!(pinned, Some((2, 1)));
+        assert_eq!(kept, Some((2, 1)));
         assert_eq!(group_pids(&resorted), vec![1, 2, 3], "beta pulled back to its place");
     }
 
@@ -922,27 +986,27 @@ mod tests {
             group(row(3, "gamma"), vec![]),
         ]);
 
-        let pinned = pin_group(&mut sections, Some(3), Some((1, 0)));
+        let kept = keep_group_place(&mut sections, Some(3), Some((1, 0)));
 
-        assert_eq!(pinned, Some((3, 2)));
+        assert_eq!(kept, Some((3, 2)));
         assert_eq!(group_pids(&sections), vec![1, 2, 3], "the clicked group does not jump");
     }
 
     #[test]
-    fn a_pinned_group_never_lands_inside_an_expanded_group() {
+    fn a_held_group_never_lands_inside_an_expanded_group() {
         let mut sections = one_section(vec![
             group(row(10, "rust-analyzer.exe"), vec![row(11, "rust-analyzer.exe"), row(12, "rust-analyzer.exe")]),
             group(row(20, "proc-macro-srv.exe"), vec![]),
             group(row(30, "cargo.exe"), vec![]),
         ]);
-        let pinned = pin_group(&mut sections, Some(20), None);
+        let kept = keep_group_place(&mut sections, Some(20), None);
 
         let mut resorted = one_section(vec![
             group(row(30, "cargo.exe"), vec![]),
             group(row(10, "rust-analyzer.exe"), vec![row(11, "rust-analyzer.exe"), row(12, "rust-analyzer.exe")]),
             group(row(20, "proc-macro-srv.exe"), vec![]),
         ]);
-        pin_group(&mut resorted, Some(20), pinned);
+        keep_group_place(&mut resorted, Some(20), kept);
         let mut expanded = HashSet::new();
         expanded.insert("rust-analyzer.exe".to_string());
         let out = flat(&resorted, &expanded, &HashSet::new());
@@ -950,26 +1014,26 @@ mod tests {
         assert_eq!(
             process_pids(&out),
             vec![30, 20, 10, 10, 11, 12],
-            "the pinned group sits between whole groups, never among another group's members"
+            "the held group sits between whole groups, never among another group's members"
         );
     }
 
     #[test]
-    fn selecting_a_member_pins_its_whole_group() {
+    fn selecting_a_member_holds_its_whole_group() {
         let mut sections = one_section(vec![
             group(row(1, "alpha"), vec![]),
             group(row(10, "chrome.exe"), vec![row(11, "chrome.exe")]),
         ]);
 
-        assert_eq!(pin_group(&mut sections, Some(11), None), Some((11, 1)));
+        assert_eq!(keep_group_place(&mut sections, Some(11), None), Some((11, 1)));
     }
 
     #[test]
-    fn pin_reports_none_when_the_selection_is_not_on_screen() {
+    fn holding_reports_none_when_the_selection_is_not_on_screen() {
         let mut sections = one_section(vec![group(row(1, "alpha"), vec![])]);
 
-        assert_eq!(pin_group(&mut sections, Some(99), Some((99, 0))), None);
-        assert_eq!(pin_group(&mut sections, None, None), None);
+        assert_eq!(keep_group_place(&mut sections, Some(99), Some((99, 0))), None);
+        assert_eq!(keep_group_place(&mut sections, None, None), None);
     }
 
     #[test]
@@ -1014,7 +1078,7 @@ mod tests {
             group(categorised(2, "svchost.exe", ProcessCategory::WindowsService), vec![]),
         ]);
         let mut collapsed = HashSet::new();
-        collapsed.insert(ProcessCategory::WindowsService);
+        collapsed.insert(SectionId::Category(ProcessCategory::WindowsService));
         let out = flat(&sections, &HashSet::new(), &collapsed);
 
         assert_eq!(process_pids(&out), vec![1], "the service row is hidden");
@@ -1368,25 +1432,29 @@ mod tests {
         console
     }
 
-    fn grouped(by_type: bool, order: &Order) -> Grouping<'_> {
+    fn grouped<'a>(by_type: bool, order: &'a Order, pins: &'a HashSet<Arc<str>>) -> Grouping<'a> {
         Grouping {
             selected: None,
             kept: None,
             order,
             by_type,
+            pins,
         }
     }
 
-    fn sections_for(rows: &[ProcessRow]) -> Vec<Section> {
+    fn pinned_sections_for(rows: &[ProcessRow], by_type: bool, pins: &[&str]) -> Vec<Section> {
+        let pins: HashSet<Arc<str>> = pins.iter().map(|name| Arc::from(*name)).collect();
         let mut cache = GroupsCache::empty();
-        cache.get(rows, &[], grouped(true, &cpu_order()));
+        cache.get(rows, &[], grouped(by_type, &cpu_order(), &pins));
         cache.sections
     }
 
+    fn sections_for(rows: &[ProcessRow]) -> Vec<Section> {
+        pinned_sections_for(rows, true, &[])
+    }
+
     fn untyped_sections_for(rows: &[ProcessRow]) -> Vec<Section> {
-        let mut cache = GroupsCache::empty();
-        cache.get(rows, &[], grouped(false, &cpu_order()));
-        cache.sections
+        pinned_sections_for(rows, false, &[])
     }
 
     #[test]
@@ -1466,9 +1534,98 @@ mod tests {
         assert_eq!(highlighted(&out), vec![(2, 11, Highlight::Whole)]);
     }
 
+    fn ruled(rows: &[DisplayRow]) -> Vec<u32> {
+        rows.iter().filter(|d| d.rule_below).map(|d| d.row.pid).collect()
+    }
+
+    #[test]
+    fn by_type_pinned_groups_get_their_own_section_first() {
+        let rows = vec![
+            row(10, "notepad.exe"),
+            categorised(20, "zeta", ProcessCategory::BackgroundThirdParty),
+            categorised(30, "agent.exe", ProcessCategory::BackgroundThirdParty),
+        ];
+
+        let out = with_open(&pinned_sections_for(&rows, true, &["agent.exe"]), &[]);
+
+        assert_eq!(labels(&out), vec!["pinned", "app", "background-third-party"]);
+        assert_eq!(process_pids(&out), vec![30, 10, 20]);
+        assert_eq!(ruled(&out), Vec::<u32>::new(), "headings part the sections already");
+    }
+
+    #[test]
+    fn without_grouping_by_type_pinned_groups_come_first_above_a_rule() {
+        let mut busy = row(10, "notepad.exe");
+        busy.cpu_percent = 50.0;
+        let rows = vec![busy, row(20, "zeta"), row(30, "agent.exe"), row(31, "agent.exe")];
+
+        let out = with_open(&untyped_pinned(&rows, &["agent.exe"]), &[]);
+        assert!(out.iter().all(|d| d.section.is_none()));
+        assert_eq!(process_pids(&out), vec![30, 10, 20]);
+        assert_eq!(ruled(&out), vec![30]);
+
+        let mut expanded = HashSet::new();
+        expanded.insert("agent.exe".to_string());
+        let open = flat(&untyped_pinned(&rows, &["agent.exe"]), &expanded, &HashSet::new());
+        assert_eq!(process_pids(&open), vec![30, 31, 30, 10, 20]);
+        let under: Vec<usize> = open
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.rule_below)
+            .map(|(at, _)| at)
+            .collect();
+        assert_eq!(under, vec![2], "the rule runs under the last member");
+    }
+
+    fn untyped_pinned(rows: &[ProcessRow], pins: &[&str]) -> Vec<Section> {
+        pinned_sections_for(rows, false, pins)
+    }
+
+    #[test]
+    fn a_rule_needs_something_on_both_sides() {
+        let rows = vec![row(10, "notepad.exe"), row(20, "zeta")];
+
+        assert_eq!(ruled(&with_open(&untyped_pinned(&rows, &[]), &[])), Vec::<u32>::new());
+        assert_eq!(
+            ruled(&with_open(&untyped_pinned(&rows, &["notepad.exe", "zeta"]), &[])),
+            Vec::<u32>::new()
+        );
+    }
+
+    #[test]
+    fn a_pinned_section_collapses_like_any_other() {
+        let rows = vec![row(10, "notepad.exe"), row(30, "agent.exe")];
+        let sections = pinned_sections_for(&rows, true, &["agent.exe"]);
+
+        let collapsed: HashSet<SectionId> = [SectionId::Pinned].into_iter().collect();
+        let out = flat(&sections, &HashSet::new(), &collapsed);
+
+        assert_eq!(labels(&out), vec!["pinned", "app"]);
+        assert_eq!(process_pids(&out), vec![10]);
+        assert_eq!(SectionId::from_id(SectionId::Pinned.id()), Some(SectionId::Pinned));
+    }
+
+    #[test]
+    fn a_selected_group_follows_its_pin_both_ways() {
+        let rows = vec![row(10, "notepad.exe"), row(30, "agent.exe")];
+        let mut screen = Screen::new();
+        let selected = Some(Selection::Group(30));
+        screen.show(&rows, selected);
+
+        screen.pins.insert("agent.exe".into());
+        let pinned = screen.show(&rows, selected);
+        assert_eq!(labels(&pinned), vec!["pinned", "app"]);
+        assert_eq!(process_pids(&pinned), vec![30, 10]);
+
+        screen.pins.clear();
+        let unpinned = screen.show(&rows, selected);
+        assert_eq!(labels(&unpinned), vec!["app"]);
+    }
+
     struct Screen {
         cache: GroupsCache,
         held: Held,
+        pins: HashSet<Arc<str>>,
     }
 
     impl Screen {
@@ -1476,6 +1633,7 @@ mod tests {
             Self {
                 cache: GroupsCache::empty(),
                 held: Held::default(),
+                pins: HashSet::new(),
             }
         }
 
@@ -1495,6 +1653,7 @@ mod tests {
                     kept,
                     order: &order,
                     by_type: true,
+                    pins: &self.pins,
                 },
             );
             self.held.hold(sections, selection);
