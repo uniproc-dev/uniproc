@@ -2,7 +2,7 @@ use crate::features::agents::AgentConnectionState;
 use serde::Deserialize;
 use std::rc::Rc;
 
-use super::model::{MachineSummary, ProcessColumn, ProcessRow};
+use super::model::{MachineSummary, ProcessColumn, ProcessRow, WslEnvironment};
 
 #[derive(Clone)]
 pub enum ProcessesMsg {
@@ -11,7 +11,9 @@ pub enum ProcessesMsg {
         machine: MachineSummary,
         agent_state: AgentConnectionState,
     },
+    SetWsl(Rc<[WslEnvironment]>),
     SetSelected(Option<u32>),
+    SetSelectedLinux(Option<u32>),
     SetSort {
         column: ProcessColumn,
         descending: bool,
@@ -25,6 +27,10 @@ pub struct Sort(pub ProcessColumn);
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
 pub struct Select(pub u32);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct SelectLinux(pub u32);
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]

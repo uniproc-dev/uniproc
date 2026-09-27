@@ -1,5 +1,4 @@
 use app_contracts::features::wsl::{AgentPresence, DistroRow, LinuxMachineSummary};
-use guicons::icon;
 use guinea_widgets::table::ColumnSpec;
 use windows_reactor::{
     Border, ChildrenControl, Color, ContentControl, LayoutControl, Orientation, StackPanel,
@@ -9,6 +8,7 @@ use windows_reactor::{
 use crate::format;
 use crate::l10n::L10n;
 use crate::theme::{accent_color, opacity, size, space, Palette};
+use crate::widgets::distro_icon::distro_icon;
 use crate::widgets::table_cell;
 use crate::widgets::text::text;
 
@@ -41,24 +41,6 @@ impl AgentDot {
 fn dimmed(content: impl Into<View>, running: bool) -> View {
     let opacity = if running { 1.0 } else { opacity::Stopped };
     Border::new().opacity(opacity).content(content)
-}
-
-fn distro_icon(name: &str) -> View {
-    let name = name.to_ascii_lowercase();
-    let icon = if name.contains("ubuntu") {
-        icon!(ubuntu)
-    } else if name.contains("centos") {
-        icon!(centos)
-    } else if name.contains("debian") {
-        icon!(debian)
-    } else if name.contains("fedora") {
-        icon!(fedora)
-    } else if name.contains("docker") {
-        icon!(docker)
-    } else {
-        icon!(linux)
-    };
-    icon.size(size::Icon).build_element()
 }
 
 fn agent_dot(presence: AgentPresence, palette: Palette) -> View {

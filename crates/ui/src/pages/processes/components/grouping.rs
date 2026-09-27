@@ -1,5 +1,7 @@
+use app_contracts::features::agents::EnvironmentKind;
 use app_contracts::features::processes::{
     HostedService, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessWindow,
+    WslEnvironment, WslProcess,
 };
 
 use crate::widgets::table_cell::Highlight;
@@ -10,6 +12,7 @@ pub(crate) struct ProcessName;
 impl ProcessName {
     pub(crate) const MemoryCompression: &str = "Memory Compression";
     const ServiceHost: &str = "svchost.exe";
+    const WslHost: &str = "vmmemWSL";
 }
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -99,18 +102,84 @@ impl SectionId {
     }
 }
 
+pub(crate) struct Environment {
+    name: Arc<str>,
+    kind: EnvironmentKind,
+    leader: ProcessRow,
+    processes: Vec<WslProcess>,
+}
+
+impl Environment {
+    fn of(environment: &WslEnvironment) -> Self {
+        let processes = environment.processes.to_vec();
+        let leader = ProcessRow {
+            pid: 0,
+            name: environment.name.clone(),
+            display_name: environment.name.clone(),
+            cpu_percent: processes.iter().map(|p| p.row.cpu_percent).sum(),
+            memory_bytes: processes.iter().map(|p| p.row.memory_bytes).sum(),
+            disk_bytes: processes.iter().map(|p| p.row.disk_bytes).sum(),
+            net_bytes: processes.iter().map(|p| p.row.net_bytes).sum(),
+            exe_path: "".into(),
+            package_full_name: "".into(),
+            owner: None,
+            owner_pid: None,
+            category: ProcessCategory::Wsl,
+            services: None,
+            windows: None,
+        };
+        Self {
+            name: environment.name.clone(),
+            kind: environment.kind,
+            leader,
+            processes,
+        }
+    }
+
+    fn key(&self) -> String {
+        environment_key(&self.name)
+    }
+}
+
+pub(crate) fn environment_key(name: &str) -> String {
+    format!("wsl/{name}")
+}
+
+fn environments_of(wsl: &[WslEnvironment]) -> Vec<Environment> {
+    wsl.iter().map(Environment::of).collect()
+}
+
+fn is_wsl_host(group: &ProcessGroup) -> bool {
+    group.leader.name.eq_ignore_ascii_case(ProcessName::WslHost)
+}
+
 pub(crate) struct Section {
     pub(crate) id: SectionId,
     headed: bool,
     ruled: bool,
     groups: Vec<ProcessGroup>,
     absent: Vec<(Arc<str>, PinnedProcess)>,
+    environments: Vec<Environment>,
+    host: Option<ProcessRow>,
     consoles: HashMap<u32, Vec<ProcessRow>>,
 }
 
 pub(crate) type Pins = HashMap<Arc<str>, PinnedProcess>;
 
 impl Section {
+    fn empty(id: SectionId, headed: bool) -> Self {
+        Self {
+            id,
+            headed,
+            ruled: false,
+            groups: Vec::new(),
+            absent: Vec::new(),
+            environments: Vec::new(),
+            host: None,
+            consoles: HashMap::new(),
+        }
+    }
+
     fn new(id: SectionId, headed: bool, groups: Vec<ProcessGroup>) -> Option<Self> {
         Self::with_absent(id, headed, groups, Vec::new())
     }
@@ -122,12 +191,17 @@ impl Section {
         absent: Vec<(Arc<str>, PinnedProcess)>,
     ) -> Option<Self> {
         (!groups.is_empty() || !absent.is_empty()).then(|| Self {
-            id,
-            headed,
-            ruled: false,
             groups,
             absent,
-            consoles: HashMap::new(),
+            ..Self::empty(id, headed)
+        })
+    }
+
+    fn wsl(host: Option<ProcessRow>, environments: Vec<Environment>) -> Option<Self> {
+        (host.is_some() || !environments.is_empty()).then(|| Self {
+            host,
+            environments,
+            ..Self::empty(SectionId::Category(ProcessCategory::Wsl), true)
         })
     }
 }
@@ -146,16 +220,19 @@ fn absent_pins(groups: &[ProcessGroup], pins: &Pins) -> Vec<(Arc<str>, PinnedPro
     absent
 }
 
-fn one_section(groups: Vec<ProcessGroup>, pins: &Pins) -> Vec<Section> {
+fn one_section(groups: Vec<ProcessGroup>, pins: &Pins, wsl: &[WslEnvironment]) -> Vec<Section> {
     let absent = absent_pins(&groups, pins);
     let (pinned, rest): (Vec<_>, Vec<_>) = groups.into_iter().partition(|group| is_pinned(group, pins));
-    let mut sections: Vec<Section> = [
-        Section::with_absent(SectionId::Pinned, false, pinned, absent),
-        Section::new(SectionId::Category(ProcessCategory::ORDER[0]), false, rest),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
+    let rest_id = SectionId::Category(ProcessCategory::ORDER[0]);
+    let mut rest = Section::new(rest_id, false, rest);
+    let environments = environments_of(wsl);
+    if !environments.is_empty() {
+        rest.get_or_insert_with(|| Section::empty(rest_id, false)).environments = environments;
+    }
+    let mut sections: Vec<Section> = [Section::with_absent(SectionId::Pinned, false, pinned, absent), rest]
+        .into_iter()
+        .flatten()
+        .collect();
     if let [pinned, _] = sections.as_mut_slice() {
         pinned.ruled = true;
     }
@@ -164,15 +241,18 @@ fn one_section(groups: Vec<ProcessGroup>, pins: &Pins) -> Vec<Section> {
 
 #[cfg(test)]
 pub(crate) fn split_by_category(groups: Vec<ProcessGroup>) -> Vec<Section> {
-    split_keeping(groups, &Pins::new(), None)
+    split_keeping(groups, &Pins::new(), &[], None)
 }
 
 fn split_keeping(
     groups: Vec<ProcessGroup>,
     pins: &Pins,
+    wsl: &[WslEnvironment],
     keep: Option<(u32, SectionId)>,
 ) -> Vec<Section> {
     let absent = absent_pins(&groups, pins);
+    let (hosts, groups): (Vec<_>, Vec<_>) = groups.into_iter().partition(is_wsl_host);
+    let mut wsl_section = Section::wsl(hosts.into_iter().next().map(|host| host.leader), environments_of(wsl));
     let mut by_section: HashMap<SectionId, Vec<ProcessGroup>> = HashMap::new();
     for group in groups {
         let id = if is_pinned(&group, pins) {
@@ -193,9 +273,13 @@ fn split_keeping(
     let pinned = by_section.remove(&SectionId::Pinned).unwrap_or_default();
     std::iter::once(Section::with_absent(SectionId::Pinned, true, pinned, absent))
         .chain(
-            ProcessCategory::ORDER
-                .map(SectionId::Category)
-                .map(|id| Section::new(id, true, by_section.remove(&id)?)),
+            ProcessCategory::ORDER.map(|category| match category {
+                ProcessCategory::Wsl => wsl_section.take(),
+                _ => {
+                    let id = SectionId::Category(category);
+                    Section::new(id, true, by_section.remove(&id)?)
+                }
+            }),
         )
         .flatten()
         .collect()
@@ -275,7 +359,18 @@ impl SectionTotals {
         for console in section.consoles.values().flatten() {
             totals.add(console);
         }
-        totals.group_count += section.absent.len();
+        for environment in &section.environments {
+            totals.add(&environment.leader);
+        }
+        totals.group_count += section.absent.len() + section.environments.len();
+        if let Some(host) = &section.host {
+            let group_count = totals.group_count;
+            totals = Self {
+                group_count,
+                ..Self::default()
+            };
+            totals.add(host);
+        }
         totals
     }
 }
@@ -306,10 +401,8 @@ fn children_of(row: &ProcessRow) -> impl Iterator<Item = Child> + '_ {
     windows.chain(services)
 }
 
-fn process_row(row: &ProcessRow, depth: u8, expanded: &ViewState<'_>, section: &Section) -> DisplayRow {
-    let details = children_of(row).next().is_some() || section.consoles.contains_key(&row.pid);
+fn plain_row(row: &ProcessRow, depth: u8) -> DisplayRow {
     DisplayRow {
-        exited: expanded.exited.contains(&row.pid),
         row: row.clone(),
         depth,
         has_children: false,
@@ -318,28 +411,55 @@ fn process_row(row: &ProcessRow, depth: u8, expanded: &ViewState<'_>, section: &
         section: None,
         highlight: None,
         child: None,
-        details,
-        details_expanded: details && expanded.processes.contains(&row.pid),
-        rule_below: false,
-        absent: false,
-    }
-}
-
-fn child_row(row: &ProcessRow, depth: u8, child: Child) -> DisplayRow {
-    DisplayRow {
-        row: row.clone(),
-        depth,
-        has_children: false,
-        is_expanded: false,
-        group_size: 1,
-        section: None,
-        highlight: None,
-        child: Some(child),
         details: false,
         details_expanded: false,
         exited: false,
         rule_below: false,
         absent: false,
+        wsl: None,
+    }
+}
+
+fn process_row(row: &ProcessRow, depth: u8, expanded: &ViewState<'_>, section: &Section) -> DisplayRow {
+    let details = children_of(row).next().is_some() || section.consoles.contains_key(&row.pid);
+    DisplayRow {
+        exited: expanded.exited.contains(&row.pid),
+        details,
+        details_expanded: details && expanded.processes.contains(&row.pid),
+        ..plain_row(row, depth)
+    }
+}
+
+fn child_row(row: &ProcessRow, depth: u8, child: Child) -> DisplayRow {
+    DisplayRow {
+        child: Some(child),
+        ..plain_row(row, depth)
+    }
+}
+
+fn push_environment(out: &mut Vec<DisplayRow>, environment: &Environment, expanded: &ViewState<'_>) {
+    let key = environment.key();
+    let is_expanded = expanded.groups.contains(&key);
+    out.push(DisplayRow {
+        has_children: true,
+        is_expanded,
+        group_size: environment.processes.len(),
+        wsl: Some(WslRow::Environment {
+            key,
+            kind: environment.kind,
+        }),
+        ..plain_row(&environment.leader, 1)
+    });
+    if !is_expanded {
+        return;
+    }
+    for process in &environment.processes {
+        out.push(DisplayRow {
+            wsl: Some(WslRow::Process {
+                global_pid: process.global_pid,
+            }),
+            ..plain_row(&process.row, 2)
+        });
     }
 }
 
@@ -397,6 +517,10 @@ pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>
                     push_with_details(&mut out, process_row(member, 2, expanded, section), section);
                 }
             }
+        }
+
+        for environment in &section.environments {
+            push_environment(&mut out, environment, expanded);
         }
 
         out.extend(section.absent.iter().map(|(name, pin)| DisplayRow::absent(name, pin)));
@@ -464,12 +588,22 @@ pub(crate) fn sort_groups(sections: &mut [Section], order: &Order) {
         for group in &mut section.groups {
             group.members.sort_by(|a, b| compare_rows(order, a, b));
         }
+        section
+            .environments
+            .sort_by(|a, b| compare_rows(order, &a.leader, &b.leader));
+        for environment in &mut section.environments {
+            environment
+                .processes
+                .sort_by(|a, b| compare_rows(order, &a.row, &b.row).then(a.global_pid.cmp(&b.global_pid)));
+        }
     }
 }
 
 pub(crate) struct GroupsCache {
     rows_ptr: *const ProcessRow,
     rows_len: usize,
+    wsl_ptr: *const WslEnvironment,
+    wsl_len: usize,
     exited: Vec<u32>,
     selected: Option<u32>,
     kept: Option<SectionId>,
@@ -485,6 +619,7 @@ pub(crate) struct Grouping<'a> {
     pub(crate) order: &'a Order,
     pub(crate) by_type: bool,
     pub(crate) pins: &'a Pins,
+    pub(crate) wsl: &'a [WslEnvironment],
 }
 
 impl GroupsCache {
@@ -492,6 +627,8 @@ impl GroupsCache {
         Self {
             rows_ptr: std::ptr::null(),
             rows_len: 0,
+            wsl_ptr: std::ptr::null(),
+            wsl_len: 0,
             exited: Vec::new(),
             selected: None,
             kept: None,
@@ -514,12 +651,15 @@ impl GroupsCache {
             order,
             by_type,
             pins,
+            wsl,
         } = grouping;
         let rows_ptr = rows.as_ptr();
         let same_exited = self.exited.len() == exited.len()
             && self.exited.iter().zip(exited).all(|(pid, row)| *pid == row.pid);
         if self.rows_ptr != rows_ptr
             || self.rows_len != rows.len()
+            || self.wsl_ptr != wsl.as_ptr()
+            || self.wsl_len != wsl.len()
             || !same_exited
             || self.selected != selected
             || self.kept != kept
@@ -531,15 +671,17 @@ impl GroupsCache {
             rest.extend(exited.iter().cloned());
             let groups = group_by_name(&rest, selected);
             self.sections = if by_type {
-                split_keeping(groups, pins, selected.zip(kept))
+                split_keeping(groups, pins, wsl, selected.zip(kept))
             } else {
-                one_section(groups, pins)
+                one_section(groups, pins, wsl)
             };
             self.pins.clone_from(pins);
             attach_consoles(&mut self.sections, consoles);
             sort_groups(&mut self.sections, order);
             self.rows_ptr = rows_ptr;
             self.rows_len = rows.len();
+            self.wsl_ptr = wsl.as_ptr();
+            self.wsl_len = wsl.len();
             self.exited = exited.iter().map(|row| row.pid).collect();
             self.selected = selected;
             self.kept = kept;
@@ -571,12 +713,20 @@ pub(crate) struct DisplayRow {
     pub(crate) exited: bool,
     pub(crate) rule_below: bool,
     pub(crate) absent: bool,
+    pub(crate) wsl: Option<WslRow>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) enum WslRow {
+    Environment { key: String, kind: EnvironmentKind },
+    Process { global_pid: u32 },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Selection {
     Process(u32),
     Group(u32),
+    Linux(u32),
 }
 
 fn selected_rows(sections: &[Section], selection: Option<Selection>) -> Vec<ProcessRow> {
@@ -594,6 +744,7 @@ fn selected_rows(sections: &[Section], selection: Option<Selection>) -> Vec<Proc
                         return vec![member.clone()];
                     }
                 }
+                Selection::Linux(_) => return Vec::new(),
             }
         }
         if let Selection::Process(pid) = selection
@@ -615,6 +766,7 @@ pub(crate) struct Held {
 fn section_of(sections: &[Section], selection: Option<Selection>) -> Option<SectionId> {
     let pid = match selection? {
         Selection::Process(pid) | Selection::Group(pid) => pid,
+        Selection::Linux(_) => return None,
     };
     sections
         .iter()
@@ -681,7 +833,7 @@ fn paint_block(block: &mut [DisplayRow]) {
 fn highlight_process(rows: &mut [DisplayRow], pid: u32) {
     let Some(host) = rows
         .iter()
-        .position(|d| d.stands_for_one_process() && d.row.pid == pid)
+        .position(|d| d.stands_for_one_process() && d.wsl.is_none() && d.row.pid == pid)
     else {
         return;
     };
@@ -705,6 +857,13 @@ pub(crate) fn highlight(rows: &mut [DisplayRow], selection: Option<Selection>) {
         highlight_process(rows, pid);
         return;
     }
+    if let Selection::Linux(global_pid) = selection {
+        let wanted = Some(WslRow::Process { global_pid });
+        if let Some(at) = rows.iter().position(|d| d.wsl == wanted) {
+            paint_block(&mut rows[at..=at]);
+        }
+        return;
+    }
     let mut at = 0;
     while at < rows.len() {
         let heading = &rows[at];
@@ -720,6 +879,7 @@ pub(crate) fn highlight(rows: &mut [DisplayRow], selection: Option<Selection>) {
         if let Selection::Group(pid) = selection
             && span[0].section.is_none()
             && !span[0].absent
+            && span[0].wsl.is_none()
             && span[0].row.pid == pid
         {
             paint_block(span);
@@ -763,6 +923,7 @@ impl DisplayRow {
             exited: false,
             rule_below: false,
             absent: false,
+            wsl: None,
         }
     }
 
@@ -796,12 +957,14 @@ impl DisplayRow {
             exited: false,
             rule_below: false,
             absent: true,
+            wsl: None,
         }
     }
 
     pub(crate) fn stands_for_one_process(&self) -> bool {
         !self.absent
             && self.section.is_none()
+            && !matches!(self.wsl, Some(WslRow::Environment { .. }))
             && self.child.as_ref().is_none_or(Child::has_metrics)
             && !(self.has_children && self.is_expanded)
     }
@@ -1511,6 +1674,7 @@ mod tests {
             order,
             by_type,
             pins,
+            wsl: &[],
         }
     }
 
@@ -1771,8 +1935,9 @@ mod tests {
         }
 
         fn show(&mut self, rows: &[ProcessRow], selection: Option<Selection>) -> Vec<DisplayRow> {
-            let pid = selection.map(|s| match s {
-                Selection::Process(pid) | Selection::Group(pid) => pid,
+            let pid = selection.and_then(|s| match s {
+                Selection::Process(pid) | Selection::Group(pid) => Some(pid),
+                Selection::Linux(_) => None,
             });
             let exited_rows = self.held.exited(selection, rows);
             let kept = self.held.section(selection);
@@ -1787,6 +1952,7 @@ mod tests {
                     order: &order,
                     by_type: true,
                     pins: &self.pins,
+                    wsl: &[],
                 },
             );
             self.held.hold(sections, selection);
@@ -1889,4 +2055,161 @@ mod tests {
         assert!(out.iter().filter(|d| d.section.is_some()).all(|d| d.row.pid == 0));
     }
 
+    fn linux(global_pid: u32, local_pid: u32, name: &str) -> WslProcess {
+        WslProcess {
+            global_pid,
+            row: categorised(local_pid, name, ProcessCategory::Wsl),
+        }
+    }
+
+    fn environment(name: &str, kind: EnvironmentKind, processes: Vec<WslProcess>) -> WslEnvironment {
+        WslEnvironment {
+            name: name.into(),
+            kind,
+            processes: Arc::from(processes),
+        }
+    }
+
+    fn ubuntu_and_web() -> Vec<WslEnvironment> {
+        vec![
+            environment(
+                "Ubuntu",
+                EnvironmentKind::CurrentDistro,
+                vec![linux(100, 1, "init"), linux(101, 2, "bash")],
+            ),
+            environment("web", EnvironmentKind::DockerContainer, vec![linux(300, 1, "nginx")]),
+        ]
+    }
+
+    fn vm(pid: u32) -> ProcessRow {
+        let mut vm = categorised(pid, "vmmemWSL", ProcessCategory::WindowsKernel);
+        vm.memory_bytes = 5_000;
+        vm
+    }
+
+    fn wsl_sections_for(rows: &[ProcessRow], by_type: bool, wsl: &[WslEnvironment]) -> Vec<Section> {
+        let pins = Pins::new();
+        let order = cpu_order();
+        let mut cache = GroupsCache::empty();
+        cache.get(rows, &[], Grouping { wsl, ..grouped(by_type, &order, &pins) });
+        cache.sections
+    }
+
+    fn opened(sections: &[Section], keys: &[&str]) -> Vec<DisplayRow> {
+        let groups: HashSet<String> = keys.iter().map(|name| environment_key(name)).collect();
+        flat(sections, &groups, &HashSet::new())
+    }
+
+    fn names(rows: &[DisplayRow]) -> Vec<(u8, &str)> {
+        rows.iter()
+            .filter(|d| d.section.is_none())
+            .map(|d| (d.depth, &*d.row.name))
+            .collect()
+    }
+
+    #[test]
+    fn the_wsl_vm_heads_its_own_section_of_environments() {
+        let rows = vec![row(10, "notepad.exe"), vm(20)];
+
+        let out = opened(&wsl_sections_for(&rows, true, &ubuntu_and_web()), &[]);
+
+        assert_eq!(labels(&out), vec!["app", "wsl"]);
+        assert_eq!(names(&out), vec![(1, "notepad.exe"), (1, "Ubuntu"), (1, "web")]);
+        let heading = out.iter().find(|d| d.section.as_ref().is_some_and(|s| s.id.id() == "wsl")).unwrap();
+        assert_eq!(heading.row.memory_bytes, 5_000, "what the VM costs Windows, not a sum of Linux rows");
+        assert_eq!(heading.row.cpu_percent, 20.0);
+        assert_eq!(heading.group_size, 2);
+    }
+
+    #[test]
+    fn an_open_environment_lists_its_processes_one_level_down_and_no_deeper() {
+        let rows = vec![vm(20)];
+
+        let out = opened(&wsl_sections_for(&rows, true, &ubuntu_and_web()), &["Ubuntu"]);
+
+        assert_eq!(
+            names(&out),
+            vec![(1, "Ubuntu"), (2, "bash"), (2, "init"), (1, "web")],
+            "processes sorted like everything else, all at the depth of a group member"
+        );
+        let ubuntu = out.iter().find(|d| &*d.row.name == "Ubuntu").unwrap();
+        assert!(ubuntu.has_children && ubuntu.is_expanded);
+        assert_eq!(ubuntu.group_size, 2);
+        assert_eq!(ubuntu.row.cpu_percent, 3.0, "an environment sums its processes");
+        assert!(!ubuntu.stands_for_one_process());
+    }
+
+    #[test]
+    fn a_linux_process_is_told_apart_from_a_windows_one_with_the_same_pid() {
+        let rows = vec![categorised(1, "svchost.exe", ProcessCategory::WindowsService), vm(20)];
+        let sections = wsl_sections_for(&rows, true, &ubuntu_and_web());
+
+        let mut windows = opened(&sections, &["Ubuntu"]);
+        highlight(&mut windows, Some(Selection::Process(1)));
+        assert_eq!(highlighted(&windows), vec![(1, 1, Highlight::Whole)]);
+        assert!(windows.iter().filter(|d| d.highlight.is_some()).all(|d| d.wsl.is_none()));
+
+        let mut linux = opened(&sections, &["Ubuntu"]);
+        highlight(&mut linux, Some(Selection::Linux(100)));
+        let lit: Vec<&DisplayRow> = linux.iter().filter(|d| d.highlight.is_some()).collect();
+        assert_eq!(lit.len(), 1);
+        assert_eq!(lit[0].wsl, Some(WslRow::Process { global_pid: 100 }));
+        assert_eq!(lit[0].row.pid, 1, "the row shows the pid its own namespace sees");
+    }
+
+    #[test]
+    fn an_environment_heading_is_never_part_of_a_group_selection() {
+        let sections = wsl_sections_for(&[vm(20)], true, &ubuntu_and_web());
+        let mut out = opened(&sections, &["Ubuntu"]);
+
+        highlight(&mut out, Some(Selection::Group(0)));
+
+        assert!(out.iter().all(|d| d.highlight.is_none()));
+    }
+
+    #[test]
+    fn without_an_agent_the_vm_still_heads_an_empty_wsl_section() {
+        let out = opened(&wsl_sections_for(&[row(10, "notepad.exe"), vm(20)], true, &[]), &[]);
+
+        assert_eq!(labels(&out), vec!["app", "wsl"]);
+        assert_eq!(names(&out), vec![(1, "notepad.exe")]);
+        let heading = out.last().unwrap();
+        assert!(!heading.has_children);
+    }
+
+    #[test]
+    fn without_the_vm_and_its_agent_there_is_no_wsl_section() {
+        let out = opened(&wsl_sections_for(&[row(10, "notepad.exe")], true, &[]), &[]);
+
+        assert_eq!(labels(&out), vec!["app"]);
+    }
+
+    #[test]
+    fn without_grouping_by_type_environments_follow_the_windows_processes() {
+        let rows = vec![row(10, "notepad.exe"), vm(20)];
+
+        let out = opened(&wsl_sections_for(&rows, false, &ubuntu_and_web()), &[]);
+
+        assert!(out.iter().all(|d| d.section.is_none()));
+        assert_eq!(
+            names(&out),
+            vec![(1, "vmmemWSL"), (1, "notepad.exe"), (1, "Ubuntu"), (1, "web")],
+            "with no heading to carry it, the VM stays a process of its own"
+        );
+    }
+
+    #[test]
+    fn an_environment_collapses_and_its_section_persists_under_its_own_id() {
+        let sections = wsl_sections_for(&[vm(20)], true, &ubuntu_and_web());
+        let collapsed: HashSet<SectionId> = [SectionId::Category(ProcessCategory::Wsl)].into_iter().collect();
+
+        let out = flat(&sections, &HashSet::new(), &collapsed);
+
+        assert_eq!(labels(&out), vec!["wsl"]);
+        assert!(names(&out).is_empty());
+        assert_eq!(
+            SectionId::from_id("wsl"),
+            Some(SectionId::Category(ProcessCategory::Wsl))
+        );
+    }
 }

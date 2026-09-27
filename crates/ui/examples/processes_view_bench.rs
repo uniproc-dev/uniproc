@@ -68,6 +68,7 @@ fn state(rows: Rc<[ProcessRow]>) -> ProcessesState {
         sort_column: ProcessColumn::Cpu,
         descending: true,
         agent_state: AgentConnectionState::Connected,
+        ..ProcessesState::default()
     }
 }
 

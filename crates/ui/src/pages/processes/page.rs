@@ -8,7 +8,7 @@ use amethystate::{Field, ReactiveMap};
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::processes::{
     ColumnConfig, Deselect, PinnedProcess, ProcessColumn, ProcessRow, ProcessesState, RunProcessCommand,
-    RunWindowCommand, Select, Sort, Terminate,
+    RunWindowCommand, Select, SelectLinux, Sort, Terminate,
 };
 use guicons::icon;
 use guinea::prelude::{Dispatch, Load};
@@ -25,7 +25,7 @@ use super::components::columns::{build_columns, ColumnInputs, GroupByType, NameC
 use super::components::context_menu::{context_menu, MenuCommand, MenuInputs, MenuTarget, OpenMenu};
 use super::components::grouping::{
     flatten_for_display, highlight, keep_group_place, Child, DisplayRow, Grouping, GroupsCache, Pins,
-    Held, Order, SectionId, Selection, ViewState,
+    Held, Order, SectionId, Selection, ViewState, WslRow,
 };
 use super::components::overlay::disconnected_overlay;
 use super::marks::ProcessesMark;
@@ -57,23 +57,26 @@ pub enum ProcessesMsg {
 
 enum Press {
     Toggle(SectionId),
+    Expand(String),
     Select(Selection),
     Nothing,
 }
 
 impl Press {
     fn of(d: &DisplayRow) -> Self {
-        match &d.section {
-            Some(section) => Self::Toggle(section.id),
-            None if d.absent => Self::Nothing,
-            None if d.has_children => Self::Select(Selection::Group(d.row.pid)),
-            None => Self::Select(Selection::Process(d.row.pid)),
+        match (&d.section, &d.wsl) {
+            (Some(section), _) => Self::Toggle(section.id),
+            (None, Some(WslRow::Environment { key, .. })) => Self::Expand(key.clone()),
+            (None, Some(WslRow::Process { global_pid })) => Self::Select(Selection::Linux(*global_pid)),
+            (None, None) if d.absent => Self::Nothing,
+            (None, None) if d.has_children => Self::Select(Selection::Group(d.row.pid)),
+            (None, None) => Self::Select(Selection::Process(d.row.pid)),
         }
     }
 }
 
 fn menu_target(d: &DisplayRow) -> Option<MenuTarget> {
-    if d.section.is_some() {
+    if d.section.is_some() || d.wsl.is_some() {
         return None;
     }
     if d.absent {
@@ -267,6 +270,10 @@ impl ProcessesPage {
                         .row(pid)
                         .map(|r| l10n.processes_selected_exited(r.name.to_string(), r.pid as i64))
                 })
+                .or_else(|| {
+                    let linux = state.linux_process(state.selected_linux?)?;
+                    Some(l10n.processes_selected(linux.row.name.to_string(), linux.row.pid as i64))
+                })
                 .unwrap_or_default(),
         };
 
@@ -340,13 +347,16 @@ impl ProcessesPage {
             column: state.sort_column,
             descending: state.descending,
         };
-        let selection = state.selected.map(|pid| {
-            if self.selected_group == Some(pid) {
-                Selection::Group(pid)
-            } else {
-                Selection::Process(pid)
-            }
-        });
+        let selection = state
+            .selected
+            .map(|pid| {
+                if self.selected_group == Some(pid) {
+                    Selection::Group(pid)
+                } else {
+                    Selection::Process(pid)
+                }
+            })
+            .or(state.selected_linux.map(Selection::Linux));
         let exited_rows = self.held.borrow().exited(selection, rows);
         let kept = self.held.borrow().section(selection);
         let exited: HashSet<u32> = exited_rows.iter().map(|row| row.pid).collect();
@@ -361,6 +371,7 @@ impl ProcessesPage {
                     order: &order,
                     by_type: self.by_type,
                     pins: &pins,
+                    wsl: &state.wsl,
                 },
             );
             self.kept_place
@@ -420,13 +431,19 @@ impl ProcessesPage {
                 Some(Press::Toggle(category)) => {
                     let _ = press_forward.call(ProcessesMsg::ToggleSection(*category));
                 }
+                Some(Press::Expand(key)) => {
+                    let _ = press_forward.call(ProcessesMsg::ToggleGroup(key.clone()));
+                }
                 Some(Press::Select(selection)) => {
-                    let (pid, group) = match *selection {
-                        Selection::Group(pid) => (pid, Some(pid)),
-                        Selection::Process(pid) => (pid, None),
+                    let group = match *selection {
+                        Selection::Group(pid) => Some(pid),
+                        Selection::Process(_) | Selection::Linux(_) => None,
                     };
                     let _ = press_forward.call(ProcessesMsg::SelectGroup(group));
-                    select.emit(Select(pid));
+                    match *selection {
+                        Selection::Group(pid) | Selection::Process(pid) => select.emit(Select(pid)),
+                        Selection::Linux(global_pid) => select.emit(SelectLinux(global_pid)),
+                    }
                 }
                 Some(Press::Nothing) | None => {}
             }

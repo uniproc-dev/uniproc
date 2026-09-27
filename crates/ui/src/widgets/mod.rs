@@ -1,4 +1,5 @@
 pub mod card;
+pub mod distro_icon;
 pub mod metric_chart;
 pub mod page;
 pub mod selection;

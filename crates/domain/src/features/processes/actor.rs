@@ -3,13 +3,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use app_contracts::features::agents::{
-    AgentConnectionState, SignatureStatus, WindowsAction, WindowsActionRequest,
+    AgentConnectionState, RemoteScanResult, SignatureStatus, WindowsAction, WindowsActionRequest,
     WindowsProcessStats, WindowsReport, WindowsReportMessage,
 };
 use app_contracts::features::processes::{
     Deselect, HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessCommand,
-    ProcessRow, ProcessesMsg, ProcessesState, RunProcessCommand, RunWindowCommand, Select, Sort,
-    Terminate,
+    ProcessRow, ProcessesMsg, ProcessesState, RunProcessCommand, RunWindowCommand, Select,
+    SelectLinux, Sort, Terminate, WslEnvironment,
 };
 use app_contracts::features::window::PressedAway;
 use guinea::prelude::*;
@@ -18,17 +18,21 @@ use uuid::Uuid;
 use super::rates::IoRates;
 use super::shell::ShellRequest;
 use super::windows_scan::AppWindows;
+use super::wsl_rows::environments_from_scan;
 
 #[derive(Debug)]
 pub struct ProcessesActor {
     ui_port: Push<ProcessesState>,
     rows: Rc<[ProcessRow]>,
+    wsl: Rc<[WslEnvironment]>,
     machine_summary: MachineSummary,
     sort_column: ProcessColumn,
     descending: bool,
     selected: Option<u32>,
+    selected_linux: Option<u32>,
     agent_state: AgentConnectionState,
     io_rates: IoRates,
+    linux_rates: IoRates,
     windows: fn() -> AppWindows,
     shell: fn(ShellRequest),
     stats: std::cell::RefCell<crate::push_stats::PushStats<(Rc<[ProcessRow]>, MachineSummary, AgentConnectionState)>>,
@@ -42,12 +46,15 @@ impl ProcessesActor {
             windows,
             shell,
             rows: Rc::from(Vec::new()),
+            wsl: Rc::from(Vec::new()),
             machine_summary: MachineSummary::default(),
             agent_state: AgentConnectionState::Disconnected,
             io_rates: IoRates::default(),
+            linux_rates: IoRates::default(),
             sort_column: ProcessColumn::Cpu,
             descending: true,
             selected: None,
+            selected_linux: None,
         }
     }
 
@@ -56,9 +63,24 @@ impl ProcessesActor {
         self.rows.iter().find(|row| row.pid == pid)
     }
 
+    fn select_windows(&mut self, pid: Option<u32>) {
+        self.selected = pid;
+        self.ui_port.send(ProcessesMsg::SetSelected(pid));
+        if self.selected_linux.take().is_some() {
+            self.ui_port.send(ProcessesMsg::SetSelectedLinux(None));
+        }
+    }
+
     fn clear_selection(&mut self) {
-        self.selected = None;
-        self.ui_port.send(ProcessesMsg::SetSelected(None));
+        self.select_windows(None);
+    }
+
+    fn publish_wsl(&mut self, environments: Vec<WslEnvironment>) {
+        if *self.wsl == *environments {
+            return;
+        }
+        self.wsl = Rc::from(environments);
+        self.ui_port.send(ProcessesMsg::SetWsl(self.wsl.clone()));
     }
 
     fn publish_rows(&self) {
@@ -205,8 +227,22 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
 
 actor! {
     ProcessesActor {
-        handlers { Sort, Select, Deselect, Terminate, RunProcessCommand, RunWindowCommand, WindowsReportMessage, PressedAway }
+        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunProcessCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway }
     }
+}
+
+#[handler]
+fn on_linux_scan(this: &mut ProcessesActor, ctx: Context<ProcessesActor, RemoteScanResult>) {
+    let environments = match ctx.msg {
+        RemoteScanResult::Scan(scan) => {
+            environments_from_scan(&scan, &mut this.linux_rates, tokio::time::Instant::now())
+        }
+        RemoteScanResult::Unavailable(_) => {
+            this.linux_rates = IoRates::default();
+            Vec::new()
+        }
+    };
+    this.publish_wsl(environments);
 }
 
 #[handler]
@@ -254,9 +290,16 @@ fn sort(this: &mut ProcessesActor, ctx: Context<ProcessesActor, Sort>) {
 
 #[handler]
 fn select(this: &mut ProcessesActor, ctx: Context<ProcessesActor, Select>) {
-    let msg = ctx.msg;
-    this.selected = Some(msg.0);
-    this.ui_port.send(ProcessesMsg::SetSelected(this.selected));
+    this.select_windows(Some(ctx.msg.0));
+}
+
+#[handler]
+fn select_linux(this: &mut ProcessesActor, ctx: Context<ProcessesActor, SelectLinux>) {
+    if this.selected.take().is_some() {
+        this.ui_port.send(ProcessesMsg::SetSelected(None));
+    }
+    this.selected_linux = Some(ctx.msg.0);
+    this.ui_port.send(ProcessesMsg::SetSelectedLinux(this.selected_linux));
 }
 
 #[handler]

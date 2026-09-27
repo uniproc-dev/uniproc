@@ -64,7 +64,8 @@ mod tests {
     use std::sync::Arc;
 
     use app_contracts::features::agents::{
-        SignatureStatus, WindowsActionRequest, WindowsProcessStats, WindowsReport,
+        AgentConnectionState, EnvironmentKind, LinuxEnvironmentInfo, LinuxProcessStats, RemoteScan,
+        RemoteScanResult, SignatureStatus, WindowsActionRequest, WindowsProcessStats, WindowsReport,
         WindowsReportMessage, WindowsServiceState, WindowsServiceStats,
     };
     use std::time::Duration;
@@ -716,7 +717,7 @@ mod tests {
             remote::actions(),
             [
                 "Command", "Deselect", "Refresh", "RefreshDistros", "RunProcessCommand",
-                "RunWindowCommand", "Select", "SetOpen", "SetWidth", "Sort", "StartInProcess",
+                "RunWindowCommand", "Select", "SelectLinux", "SetOpen", "SetWidth", "Sort", "StartInProcess",
                 "Terminate", "Toggle",
             ]
         );
@@ -1265,5 +1266,116 @@ mod tests {
 
         assert!(!menu_open(&page));
         assert!(labels(&mut page).contains(&"notepad.exe".to_string()));
+    }
+
+    const VM: u32 = 70;
+
+    fn with_vm() -> Vec<WindowsProcessStats> {
+        let mut rows = machine();
+        rows.push(process(VM, "vmmemWSL", 1.5));
+        rows
+    }
+
+    fn linux(global_pid: u32, local_pid: u32, name: &str) -> LinuxProcessStats {
+        LinuxProcessStats {
+            global_pid,
+            local_pid,
+            mnt_ns: 1,
+            pid_ns: 1,
+            name: name.into(),
+            ..Default::default()
+        }
+    }
+
+    fn linux_report(h: &Harness) {
+        h.publish(RemoteScanResult::Scan(RemoteScan {
+            schema_id: "wsl",
+            processes: vec![linux(NOTEPAD, 1, "init"), linux(90, 2, "bash")],
+            machine: Default::default(),
+            environments: vec![LinuxEnvironmentInfo {
+                mnt_ns: 1,
+                pid_ns: 1,
+                kind: EnvironmentKind::CurrentDistro,
+                name: "Ubuntu".into(),
+            }],
+            docker_containers: Vec::new(),
+        }))
+        .settle();
+    }
+
+    fn wsl_page(h: &Harness) -> Mounted<'_, Processes> {
+        let mut page = mount(h);
+        report(h, with_vm());
+        linux_report(h);
+        page.settle();
+        page
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn wsl_is_a_section_headed_by_the_vm_whose_distributions_open_to_their_processes(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = wsl_page(h);
+
+        let all = labels(&mut page);
+        let at = all.iter().position(|label| label == "WSL (1)").unwrap_or_else(|| panic!("{all:?}"));
+        assert_eq!(all[at + 1], "Ubuntu (2)", "{all:?}");
+        assert!(!all.iter().any(|label| label.starts_with("vmmemWSL")), "the VM is the heading: {all:?}");
+
+        select(&mut page, "Ubuntu (2)");
+        let all = labels(&mut page);
+        let at = position(&mut page, "Ubuntu (2)").unwrap();
+        assert_eq!(all[at + 1..at + 3], ["bash".to_string(), "init".to_string()], "{all:?}");
+        assert_eq!(h.state::<ProcessesState>().selected, None, "a distribution opens, it is not selected");
+        assert_eq!(h.state::<ProcessesState>().selected_linux, None);
+
+        select(&mut page, "Ubuntu (2)");
+        assert!(!labels(&mut page).contains(&"init".to_string()));
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_linux_process_is_selected_apart_from_the_windows_process_with_its_pid(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = wsl_page(h);
+        select(&mut page, "Ubuntu (2)");
+
+        right_click(&mut page, "init");
+        let state = h.state::<ProcessesState>();
+        assert_eq!((state.selected, state.selected_linux), (None, Some(NOTEPAD)));
+        assert_eq!(marked_selected(&mut page), ["init"]);
+        assert!(!menu_open(&page), "nothing to do to a Linux process yet");
+        assert!(!end_task_enabled(&page));
+        assert!(
+            page.find_text("Selected: \u{2068}init\u{2069} | PID \u{2068}1\u{2069}").is_some(),
+            "{:#?}",
+            page.tree()
+        );
+
+        select(&mut page, "notepad.exe");
+        let state = h.state::<ProcessesState>();
+        assert_eq!((state.selected, state.selected_linux), (Some(NOTEPAD), None));
+        assert_eq!(marked_selected(&mut page), ["notepad.exe"]);
+
+        select(&mut page, "bash");
+        h.publish(PressedAway).settle();
+        page.settle();
+        let state = h.state::<ProcessesState>();
+        assert_eq!((state.selected, state.selected_linux), (None, None));
+        assert_eq!(marked_selected(&mut page), Vec::<String>::new());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_lost_linux_agent_leaves_the_vm_heading_alone(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = wsl_page(h);
+
+        h.publish(RemoteScanResult::Unavailable(AgentConnectionState::Disconnected)).settle();
+        page.settle();
+
+        let all = labels(&mut page);
+        assert!(all.contains(&"WSL (0)".to_string()), "{all:?}");
+        assert!(!all.iter().any(|label| label.starts_with("Ubuntu")), "{all:?}");
     }
 }

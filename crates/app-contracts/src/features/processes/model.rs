@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+use crate::features::agents::EnvironmentKind;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ColumnConfig {
     pub width: u64,
@@ -28,6 +30,7 @@ pub enum ProcessCategory {
     App,
     BackgroundMicrosoft,
     BackgroundThirdParty,
+    Wsl,
     WindowsService,
     WindowsKernel,
 }
@@ -52,9 +55,10 @@ impl ProcessCategory {
         }
     }
 
-    pub const ORDER: [Self; 5] = [
+    pub const ORDER: [Self; 6] = [
         Self::App,
         Self::BackgroundThirdParty,
+        Self::Wsl,
         Self::BackgroundMicrosoft,
         Self::WindowsService,
         Self::WindowsKernel,
@@ -64,6 +68,7 @@ impl ProcessCategory {
         match self {
             Self::App => "app",
             Self::BackgroundThirdParty => "background-third-party",
+            Self::Wsl => "wsl",
             Self::BackgroundMicrosoft => "background-microsoft",
             Self::WindowsService => "windows-service",
             Self::WindowsKernel => "windows-kernel",
@@ -75,7 +80,7 @@ impl ProcessCategory {
     }
 
     pub fn takes_actions(self) -> bool {
-        self != Self::WindowsKernel
+        !matches!(self, Self::WindowsKernel | Self::Wsl)
     }
 }
 
@@ -135,6 +140,19 @@ pub struct ProcessRow {
     pub category: ProcessCategory,
     pub services: Option<Arc<[HostedService]>>,
     pub windows: Option<Arc<[ProcessWindow]>>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct WslProcess {
+    pub global_pid: u32,
+    pub row: ProcessRow,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct WslEnvironment {
+    pub name: Arc<str>,
+    pub kind: EnvironmentKind,
+    pub processes: Arc<[WslProcess]>,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]

@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use app_contracts::features::agents::EnvironmentKind;
 use app_contracts::features::processes::{
     HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessRow, ProcessWindow,
 };
@@ -14,6 +15,7 @@ use windows_reactor::{
 use crate::format;
 use crate::l10n::L10n;
 use crate::theme::{accent_color, opacity, radius, size, space, Palette};
+use crate::widgets::distro_icon::distro_icon;
 use crate::widgets::separator;
 use crate::widgets::table_cell::{self, metric_cell, Heat, Highlight, Metric};
 use crate::widgets::text::{body_strong, caption, text};
@@ -22,7 +24,7 @@ use guinea::winui::MarkExt;
 
 use super::super::marks::ProcessesMark;
 use super::column_layout::ColumnLayout;
-use super::grouping::{is_service_host, Child, DisplayRow, ProcessName, SectionId, SectionRow};
+use super::grouping::{is_service_host, Child, DisplayRow, ProcessName, SectionId, SectionRow, WslRow};
 
 struct Hit;
 
@@ -269,11 +271,14 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
 
     let chevron = if d.has_children {
         let toggle = cell.actions.toggle_group.clone();
-        let group = d.row.name.clone();
+        let group = match &d.wsl {
+            Some(WslRow::Environment { key, .. }) => key.clone(),
+            _ => d.row.name.to_string(),
+        };
         chevron_slot(
             expand_chevron(d.is_expanded),
             Some(Callback::new(move |()| {
-                let _ = toggle.call(group.to_string());
+                let _ = toggle.call(group.clone());
             })),
             row_height(d),
         )
@@ -312,13 +317,22 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
         Some(owner) if !d.has_children && d.child.is_none() => {
             format!("{owner} — {}", d.row.display_name)
         }
+        _ if d.row.display_name.is_empty() && d.wsl.is_some() => cell.l10n.processes_wsl_other(),
         _ => d.row.display_name.to_string(),
+    };
+    let icon = match &d.wsl {
+        Some(WslRow::Environment { kind: EnvironmentKind::DockerContainer, .. }) => {
+            icon!(docker).size(size::Icon).build_element()
+        }
+        Some(WslRow::Environment { .. }) => distro_icon(&d.row.name),
+        Some(WslRow::Process { .. }) => icon!(proc_regular).size(size::Icon).build_element(),
+        None => process_icon(&cell.actions.icons, &d.row),
     };
 
     let line = name_line(NameLine {
         indent: indent(d.depth),
         chevron,
-        icon: Some(process_icon(&cell.actions.icons, &d.row)),
+        icon: Some(icon),
         label: table_cell::cell_text(label)
             .vertical_alignment(VerticalAlignment::Center)
             .into(),
@@ -695,6 +709,7 @@ pub(crate) fn category_label(l10n: &L10n, category: ProcessCategory) -> String {
     match category {
         ProcessCategory::App => l10n.processes_category_app(),
         ProcessCategory::BackgroundThirdParty => l10n.processes_category_background_third_party(),
+        ProcessCategory::Wsl => l10n.processes_category_wsl(),
         ProcessCategory::BackgroundMicrosoft => l10n.processes_category_background_microsoft(),
         ProcessCategory::WindowsService => l10n.processes_category_windows_service(),
         ProcessCategory::WindowsKernel => l10n.processes_category_windows_kernel(),
