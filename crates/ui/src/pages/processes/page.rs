@@ -54,6 +54,8 @@ pub enum ProcessesMsg {
     MenuAnchor { x: f64, y: f64 },
     MenuFor(Option<MenuTarget>),
     MenuDismiss,
+    ColumnMenu,
+    ToggleColumn(ProcessColumn),
 }
 
 enum Press {
@@ -119,6 +121,7 @@ pub struct ProcessesPage {
     held: RefCell<Held>,
     icons: Rc<context::IconCache>,
     menu_anchor: Option<(f64, f64)>,
+    pending_menu: Option<MenuTarget>,
     menu: Option<OpenMenu>,
 }
 
@@ -192,6 +195,7 @@ impl ProcessesPage {
             held: RefCell::new(Held::default()),
             icons: Rc::new(context::IconCache::new()),
             menu_anchor: None,
+            pending_menu: None,
             menu: None,
         }
     }
@@ -226,7 +230,7 @@ impl ProcessesPage {
             ProcessesMsg::SelectGroup(pid) => self.selected_group = pid,
             ProcessesMsg::MenuAnchor { x, y } => {
                 self.menu_anchor = Some((x, y));
-                self.menu = None;
+                self.menu = self.pending_menu.take().map(|target| OpenMenu { x, y, target });
             }
             ProcessesMsg::MenuFor(target) => {
                 if let Some((x, y)) = self.menu_anchor.take() {
@@ -235,8 +239,11 @@ impl ProcessesPage {
             }
             ProcessesMsg::MenuDismiss => {
                 self.menu_anchor = None;
+                self.pending_menu = None;
                 self.menu = None;
             }
+            ProcessesMsg::ColumnMenu => self.pending_menu = Some(MenuTarget::Columns),
+            ProcessesMsg::ToggleColumn(column) => self.layout.toggle(column),
         }
     }
 
@@ -500,6 +507,7 @@ impl ProcessesPage {
                 l10n,
                 palette,
                 pinned,
+                columns: self.layout.columns().iter().map(|c| (c.column, c.visible)).collect(),
                 on_command: Callback::new(move |command: MenuCommand| {
                     match command {
                         MenuCommand::TogglePin => {
@@ -515,6 +523,9 @@ impl ProcessesPage {
                         MenuCommand::Window { handle, command } => {
                             command_dispatch.emit(RunWindowCommand { handle, command })
                         }
+                        MenuCommand::ToggleColumn(column) => {
+                            let _ = command_forward.call(ProcessesMsg::ToggleColumn(column));
+                        }
                     }
                     let _ = command_forward.call(ProcessesMsg::MenuDismiss);
                 }),
@@ -524,6 +535,7 @@ impl ProcessesPage {
             })
         });
 
+        let header_forward = forward.clone();
         let columns = build_columns(ColumnInputs {
             layout: &self.layout,
             machine: state.machine_summary().cloned(),
@@ -534,6 +546,9 @@ impl ProcessesPage {
             descending: state.descending,
             palette,
             l10n,
+            header_menu: Callback::new(move |()| {
+                let _ = header_forward.call(ProcessesMsg::ColumnMenu);
+            }),
         });
 
         let sort = dispatch.clone();

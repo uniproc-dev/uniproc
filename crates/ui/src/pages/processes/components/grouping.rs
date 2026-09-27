@@ -559,6 +559,12 @@ fn compare_by(column: ProcessColumn, a: &ProcessRow, b: &ProcessRow) -> Ordering
             .chars()
             .flat_map(char::to_lowercase)
             .cmp(b.display_name.chars().flat_map(char::to_lowercase)),
+        ProcessColumn::Pid => a.pid.cmp(&b.pid),
+        ProcessColumn::ProcessName => a
+            .name
+            .chars()
+            .flat_map(char::to_lowercase)
+            .cmp(b.name.chars().flat_map(char::to_lowercase)),
         ProcessColumn::Cpu => tenths(a.cpu_percent).cmp(&tenths(b.cpu_percent)),
         ProcessColumn::Memory => sorted_memory(a).cmp(&sorted_memory(b)),
         ProcessColumn::Disk => a.disk_bytes.cmp(&b.disk_bytes),

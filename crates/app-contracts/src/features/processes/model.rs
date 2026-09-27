@@ -89,6 +89,8 @@ impl ProcessCategory {
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug, Hash, serde::Deserialize)]
 pub enum ProcessColumn {
     Name,
+    Pid,
+    ProcessName,
     Cpu,
     Memory,
     Net,
@@ -96,16 +98,42 @@ pub enum ProcessColumn {
 }
 
 impl ProcessColumn {
-    pub const ALL: [Self; 5] = [Self::Name, Self::Cpu, Self::Memory, Self::Net, Self::Disk];
+    pub const ALL: [Self; 7] = [
+        Self::Name,
+        Self::Pid,
+        Self::ProcessName,
+        Self::Cpu,
+        Self::Memory,
+        Self::Net,
+        Self::Disk,
+    ];
 
     pub fn id(self) -> &'static str {
         match self {
             Self::Name => "name",
+            Self::Pid => "pid",
+            Self::ProcessName => "process_name",
             Self::Cpu => "cpu",
             Self::Memory => "memory",
             Self::Net => "net",
             Self::Disk => "disk",
         }
+    }
+
+    pub fn default_config(self) -> ColumnConfig {
+        let (width, visible) = match self {
+            Self::Name => (280, true),
+            Self::Pid => (80, false),
+            Self::ProcessName => (160, false),
+            Self::Cpu => (120, true),
+            Self::Memory => (140, true),
+            Self::Net | Self::Disk => (110, true),
+        };
+        ColumnConfig { width, visible }
+    }
+
+    pub fn sorts_ascending_first(self) -> bool {
+        matches!(self, Self::Name | Self::Pid | Self::ProcessName)
     }
 
     pub fn from_mark(name: &str) -> Option<Self> {

@@ -279,7 +279,7 @@ fn sort(this: &mut ProcessesActor, ctx: Context<ProcessesActor, Sort>) {
     if this.sort_column == msg.0 {
         this.descending = !this.descending;
     } else {
-        this.descending = msg.0 != ProcessColumn::Name;
+        this.descending = !msg.0.sorts_ascending_first();
         this.sort_column = msg.0;
     }
     this.ui_port.send(ProcessesMsg::SetSort {

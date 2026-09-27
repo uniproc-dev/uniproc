@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use app_contracts::features::processes::{
-    PinnedProcess, ProcessCommand, ProcessRow, ProcessWindow, WindowCommand,
+    PinnedProcess, ProcessColumn, ProcessCommand, ProcessRow, ProcessWindow, WindowCommand,
 };
 use guicons::icon;
 use windows_reactor::{
@@ -13,6 +13,7 @@ use windows_reactor::{
 use guinea::winui::MarkExt;
 
 use super::super::marks::ProcessesMark;
+use super::columns::column_label;
 use crate::l10n::L10n;
 use crate::theme::{radius, size, space, Palette};
 use crate::widgets::separator;
@@ -33,6 +34,7 @@ pub enum MenuTarget {
     Group { leader: ProcessRow },
     Window { window: ProcessWindow },
     Absent { image: ProcessRow },
+    Columns,
 }
 
 impl MenuTarget {
@@ -46,7 +48,7 @@ impl MenuTarget {
                     display_name: row.display_name.to_string(),
                 },
             )),
-            Self::Window { .. } => None,
+            Self::Window { .. } | Self::Columns => None,
         }
     }
 
@@ -71,6 +73,7 @@ pub(crate) enum MenuCommand {
     EndTask,
     Process(ProcessCommand),
     Window { handle: isize, command: WindowCommand },
+    ToggleColumn(ProcessColumn),
 }
 
 struct Entry {
@@ -223,6 +226,33 @@ fn window_lines(handle: isize, l10n: &L10n) -> Vec<Line> {
     ]
 }
 
+fn column_mark(column: ProcessColumn) -> Option<ProcessesMark> {
+    match column {
+        ProcessColumn::Name => None,
+        ProcessColumn::Pid => Some(ProcessesMark::MenuColumnPid),
+        ProcessColumn::ProcessName => Some(ProcessesMark::MenuColumnProcessName),
+        ProcessColumn::Cpu => Some(ProcessesMark::MenuColumnCpu),
+        ProcessColumn::Memory => Some(ProcessesMark::MenuColumnMemory),
+        ProcessColumn::Net => Some(ProcessesMark::MenuColumnNet),
+        ProcessColumn::Disk => Some(ProcessesMark::MenuColumnDisk),
+    }
+}
+
+fn column_lines(columns: &[(ProcessColumn, bool)], l10n: &L10n) -> Vec<Line> {
+    columns
+        .iter()
+        .filter_map(|&(column, visible)| {
+            let mark = column_mark(column)?;
+            let icon = if visible {
+                icon!(checkmark).size(size::Icon).build_element()
+            } else {
+                Border::new().width(size::Icon).height(size::Icon).into()
+            };
+            Some(entry(mark, icon, column_label(l10n, column), MenuCommand::ToggleColumn(column)))
+        })
+        .collect()
+}
+
 fn line_view(line: Line, on_command: &Callback<MenuCommand>, palette: Palette) -> View {
     match line {
         Line::Separator => separator(palette)
@@ -255,6 +285,7 @@ pub(crate) struct MenuInputs<'a> {
     pub(crate) l10n: &'a L10n,
     pub(crate) palette: Palette,
     pub(crate) pinned: bool,
+    pub(crate) columns: Vec<(ProcessColumn, bool)>,
     pub(crate) on_command: Callback<MenuCommand>,
     pub(crate) on_dismiss: Callback<()>,
 }
@@ -264,6 +295,7 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
         l10n,
         palette,
         pinned,
+        columns,
         on_command,
         on_dismiss,
     } = inputs;
@@ -272,6 +304,7 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
         MenuTarget::Group { leader } => group_lines(leader, pinned, l10n),
         MenuTarget::Window { window } => window_lines(window.handle, l10n),
         MenuTarget::Absent { image } => group_lines(image, pinned, l10n),
+        MenuTarget::Columns => column_lines(&columns, l10n),
     };
 
     let items = View::keyed_fragment(

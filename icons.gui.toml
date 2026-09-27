@@ -25,6 +25,9 @@ iconify = "fluent:pin-24-regular"
 [pin-off]
 iconify = "fluent:pin-off-24-regular"
 
+[checkmark]
+iconify = "fluent:checkmark-24-regular"
+
 [chevron-up-regular]
 iconify = "fluent:chevron-up-24-regular"
 

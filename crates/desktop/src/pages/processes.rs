@@ -76,7 +76,7 @@ mod tests {
 
     use app_contracts::features::processes::{
         Deselect, PinnedProcess, ProcessColumn, ProcessCommand, ProcessesState, RunProcessCommand,
-        Terminate, WindowCommand,
+        Sort, Terminate, WindowCommand,
     };
     use guinea::prelude::GlobalEventBus;
     use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
@@ -1186,6 +1186,73 @@ mod tests {
 
         let all = labels(&mut page);
         assert!(!all.iter().any(|label| label.starts_with("Pinned") || label.starts_with("notepad")), "{all:?}");
+    }
+
+    fn column_menu(page: &mut Mounted<'_, Processes>) {
+        page.send(ProcessesMsg::ColumnMenu);
+        page.send(ProcessesMsg::MenuAnchor { x: 40.0, y: 10.0 });
+        page.settle();
+    }
+
+    fn pid_shown() -> Option<bool> {
+        ProcessesSettings::new().unwrap().columns().configs().get("pid").map(|config| config.visible)
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn pid_and_process_name_come_from_the_header_menu(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        let notepad = |page: &mut Mounted<'_, Processes>| page.item_where(|item| label(item) == "notepad.exe").tree();
+        assert!(notepad(&mut page).find(ProcessColumn::Pid).is_none(), "PID is hidden until asked for");
+        assert!(notepad(&mut page).find(ProcessColumn::ProcessName).is_none());
+
+        column_menu(&mut page);
+        assert!(menu_open(&page), "{:#?}", page.tree());
+        assert!(page.find(ProcessesMark::MenuPin).is_none(), "the header menu is not a process menu");
+        page.click(ProcessesMark::MenuColumnPid).settle();
+        page.settle();
+        column_menu(&mut page);
+        page.click(ProcessesMark::MenuColumnProcessName).settle();
+        page.settle();
+
+        assert!(!menu_open(&page));
+        let row = notepad(&mut page);
+        assert_eq!(cell(&row, ProcessColumn::Pid), NOTEPAD.to_string());
+        assert_eq!(cell(&row, ProcessColumn::ProcessName), "notepad.exe");
+        let group = page.item_where(|item| label(item) == "chrome.exe (3)").tree();
+        assert_eq!(cell(&group, ProcessColumn::Pid), "", "a group of three has no single PID");
+        assert_eq!(cell(&group, ProcessColumn::ProcessName), "chrome.exe");
+        assert_eq!(pid_shown(), Some(true), "the choice is kept in the settings");
+
+        column_menu(&mut page);
+        page.click(ProcessesMark::MenuColumnPid).settle();
+        page.settle();
+        assert!(notepad(&mut page).find(ProcessColumn::Pid).is_none());
+        assert_eq!(pid_shown(), Some(false));
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn sorting_by_pid_starts_with_the_lowest(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        column_menu(&mut page);
+        page.click(ProcessesMark::MenuColumnPid).settle();
+        page.settle();
+        toggle_group_by_type(&mut page);
+
+        h.dispatch::<ProcessesState>().emit(Sort(ProcessColumn::Pid));
+        page.settle();
+        assert!(!h.state::<ProcessesState>().descending);
+
+        let pids: Vec<u32> = page
+            .items()
+            .iter()
+            .filter_map(|item| cell(item, ProcessColumn::Pid).parse().ok())
+            .collect();
+        assert!(pids.len() > 2, "{pids:?}");
+        assert!(pids.is_sorted(), "{pids:?}");
     }
 
     fn pin_from_menu(page: &mut Mounted<'_, Processes>, wanted: &str, mark: ProcessesMark) {

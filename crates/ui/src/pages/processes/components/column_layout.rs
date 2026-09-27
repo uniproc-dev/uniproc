@@ -56,7 +56,30 @@ impl ColumnLayout {
         self.configs
             .as_ref()
             .and_then(|configs| configs.get(column.id()))
-            .unwrap_or_default()
+            .unwrap_or_else(|| column.default_config())
+    }
+
+    pub(crate) fn toggle(&mut self, column: ProcessColumn) {
+        let config = self.config(column);
+        self.store(column, ColumnConfig {
+            visible: !config.visible,
+            ..config
+        });
+    }
+
+    fn store(&self, column: ProcessColumn, config: ColumnConfig) {
+        let Some(configs) = &self.configs else {
+            return;
+        };
+        let id = column.id();
+        let result = if configs.contains_key(id) {
+            configs.update(id, &config)
+        } else {
+            configs.insert(id.to_string(), &config)
+        };
+        if let Err(err) = result {
+            tracing::warn!(column = id, ?err, "column config write failed");
+        }
     }
 
     pub(crate) fn columns(&self) -> Vec<ColumnState> {
@@ -81,22 +104,10 @@ impl ColumnLayout {
             tracing::warn!(column = drag.column, "resize of a column this page does not know");
             return;
         };
-        let Some(configs) = &self.configs else {
-            return;
-        };
         let width = drag.width.round().max(0.0) as u64;
-        let config = ColumnConfig {
+        self.store(column, ColumnConfig {
             width,
             ..self.config(column)
-        };
-        let id = column.id();
-        let result = if configs.contains_key(id) {
-            configs.update(id, &config)
-        } else {
-            configs.insert(id.to_string(), &config)
-        };
-        if let Err(err) = result {
-            tracing::warn!(column = id, ?err, "column width write failed");
-        }
+        });
     }
 }

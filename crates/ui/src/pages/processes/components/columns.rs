@@ -260,6 +260,19 @@ fn header_frame() -> Grid {
         .height(size::TableHeader)
 }
 
+fn with_column_menu(menu: &Callback<()>, header: impl Into<View>) -> View {
+    let menu = menu.clone();
+    Border::new()
+        .background(Hit::Transparent)
+        .on_pointer_pressed(Callback::new(move |pointer: PointerEventInfo| {
+            if pointer.is_right_button_pressed {
+                let _ = menu.call(());
+            }
+        }))
+        .content(header.into())
+        .into()
+}
+
 fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
     if let Some(section) = &d.section {
         return section_name_cell(cell, d, section);
@@ -477,8 +490,9 @@ fn group_by_type_toggle(group_by_type: &GroupByType) -> View {
         .into()
 }
 
-fn name_header(label: String, sorted: Option<bool>, group_by_type: &GroupByType, palette: Palette) -> View {
-    header_frame().children((
+fn name_header(label: String, place: &Place, group_by_type: &GroupByType) -> View {
+    let (sorted, palette) = (place.sorted, place.palette);
+    with_column_menu(&place.menu, header_frame().children((
         sort_mark(sorted),
         caption(label)
             .foreground(palette.tertiary_text)
@@ -490,16 +504,12 @@ fn name_header(label: String, sorted: Option<bool>, group_by_type: &GroupByType,
                 0.0,
             )),
         group_by_type_toggle(group_by_type),
-    ))
+    )))
 }
 
-fn metric_header(
-    label: String,
-    value: String,
-    sorted: Option<bool>,
-    palette: Palette,
-) -> View {
-    header_frame().children((
+fn metric_header(label: String, value: String, place: &Place) -> View {
+    let (sorted, palette) = (place.sorted, place.palette);
+    with_column_menu(&place.menu, header_frame().children((
         sort_mark(sorted),
         StackPanel::new()
             .horizontal_alignment(HorizontalAlignment::Right)
@@ -516,26 +526,99 @@ fn metric_header(
                     .text_trimming(TextTrimming::CharacterEllipsis)
                     .horizontal_alignment(HorizontalAlignment::Right),
             )),
-    ))
+    )))
 }
 
-#[derive(Clone, Copy)]
+fn text_header(label: String, place: &Place, align: HorizontalAlignment) -> View {
+    with_column_menu(&place.menu, header_frame().children((
+        sort_mark(place.sorted),
+        caption(label)
+            .foreground(place.palette.tertiary_text)
+            .text_wrapping(TextWrapping::NoWrap)
+            .text_trimming(TextTrimming::CharacterEllipsis)
+            .horizontal_alignment(align)
+            .vertical_alignment(VerticalAlignment::Bottom)
+            .margin(Thickness::xy(space::Cell, 0.0)),
+    )))
+}
+
+#[derive(Clone)]
 struct Place {
     width: f64,
     min_width: f64,
     sorted: Option<bool>,
     palette: Palette,
+    menu: Callback<()>,
 }
 
 type Column = ColumnSpec<DisplayRow, ProcessColumn>;
 
+fn pid_value(d: &DisplayRow) -> Option<String> {
+    if d.section.is_some() || d.absent {
+        return None;
+    }
+    match (&d.wsl, &d.child) {
+        (Some(WslRow::Environment { .. }), _) => None,
+        (Some(WslRow::Process { .. }), _) => Some(d.row.pid.to_string()),
+        (None, Some(Child::Window(_) | Child::Service(_))) => None,
+        (None, _) if d.has_children => None,
+        (None, _) => Some(d.row.pid.to_string()),
+    }
+}
+
+fn process_name_value(d: &DisplayRow) -> Option<String> {
+    if d.section.is_some() {
+        return None;
+    }
+    match (&d.wsl, &d.child) {
+        (Some(WslRow::Environment { .. }), _) => None,
+        (None, Some(Child::Window(_) | Child::Service(_))) => None,
+        _ => Some(d.row.name.to_string()),
+    }
+}
+
+fn text_column<F>(id: ProcessColumn, label: String, place: Place, align: HorizontalAlignment, value: F) -> Column
+where
+    F: Fn(&DisplayRow) -> Option<String> + 'static,
+{
+    let (width, min_width, palette) = (place.width, place.min_width, place.palette);
+    let header = move || text_header(label.clone(), &place, align);
+    ColumnSpec::new_with_header(id, header, width, move |d: &DisplayRow| {
+        let text: View = match value(d) {
+            Some(value) => table_cell::cell_text(value)
+                .horizontal_alignment(align)
+                .vertical_alignment(VerticalAlignment::Center)
+                .margin(Thickness::xy(space::Cell, 0.0))
+                .into(),
+            None => View::empty(),
+        };
+        Grid::new()
+            .height(row_height(d))
+            .children((text, rule_below(d, palette)))
+            .into()
+    })
+    .min_width(min_width)
+    .flush()
+    .sortable()
+}
+
+pub(crate) fn column_label(l10n: &L10n, column: ProcessColumn) -> String {
+    match column {
+        ProcessColumn::Name => l10n.processes_col_name(),
+        ProcessColumn::Pid => l10n.processes_col_pid(),
+        ProcessColumn::ProcessName => l10n.processes_col_process_name(),
+        ProcessColumn::Cpu => l10n.processes_col_cpu(),
+        ProcessColumn::Memory => l10n.processes_col_memory(),
+        ProcessColumn::Net => l10n.processes_col_net(),
+        ProcessColumn::Disk => l10n.processes_col_disk(),
+    }
+}
+
 fn name_column(place: Place, actions: NameCellActions, group_by_type: GroupByType, l10n: L10n) -> Column {
     let header_l10n = l10n.clone();
-    let (sorted, palette) = (place.sorted, place.palette);
-    let header = move || {
-        name_header(header_l10n.processes_col_name(), sorted, &group_by_type, palette)
-    };
-    ColumnSpec::new_with_header(ProcessColumn::Name, header, place.width, move |d: &DisplayRow| {
+    let (width, min_width, palette) = (place.width, place.min_width, place.palette);
+    let header = move || name_header(header_l10n.processes_col_name(), &place, &group_by_type);
+    ColumnSpec::new_with_header(ProcessColumn::Name, header, width, move |d: &DisplayRow| {
         let cell = NameCell {
             actions: &actions,
             l10n: &l10n,
@@ -543,7 +626,7 @@ fn name_column(place: Place, actions: NameCellActions, group_by_type: GroupByTyp
         };
         name_cell(&cell, d)
     })
-    .min_width(place.min_width)
+    .min_width(min_width)
     .flush()
     .sortable()
 }
@@ -572,9 +655,9 @@ where
         heat,
         threshold,
     } = column;
-    let (sorted, palette) = (place.sorted, place.palette);
-    let header = move || metric_header(label.clone(), total.clone(), sorted, palette);
-    ColumnSpec::new_with_header(id, header, place.width, move |d: &DisplayRow| {
+    let (width, min_width, palette) = (place.width, place.min_width, place.palette);
+    let header = move || metric_header(label.clone(), total.clone(), &place);
+    ColumnSpec::new_with_header(id, header, width, move |d: &DisplayRow| {
         if d.absent || d.child.as_ref().is_some_and(|child| !child.has_metrics()) {
             return Grid::new()
                 .height(row_height(d))
@@ -607,7 +690,7 @@ where
             cell
         }
     })
-    .min_width(place.min_width)
+    .min_width(min_width)
     .flush()
     .sortable()
 }
@@ -626,6 +709,7 @@ pub(crate) struct ColumnInputs<'a> {
     pub(crate) descending: bool,
     pub(crate) palette: Palette,
     pub(crate) l10n: &'a L10n,
+    pub(crate) header_menu: Callback<()>,
 }
 
 pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
@@ -639,6 +723,7 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
         descending,
         palette,
         l10n,
+        header_menu,
     } = inputs;
 
     let net_max = rows.iter().map(|r| r.net_bytes).max().unwrap_or(0).max(1) as f32;
@@ -667,11 +752,26 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                 min_width: column.min_width,
                 sorted: (sort_column == column.column).then_some(descending),
                 palette,
+                menu: header_menu.clone(),
             };
             match column.column {
                 ProcessColumn::Name => {
                     name_column(place, actions.clone(), group_by_type.clone(), l10n.clone())
                 }
+                ProcessColumn::Pid => text_column(
+                    ProcessColumn::Pid,
+                    l10n.processes_col_pid(),
+                    place,
+                    HorizontalAlignment::Right,
+                    pid_value,
+                ),
+                ProcessColumn::ProcessName => text_column(
+                    ProcessColumn::ProcessName,
+                    l10n.processes_col_process_name(),
+                    place,
+                    HorizontalAlignment::Left,
+                    process_name_value,
+                ),
                 ProcessColumn::Cpu => metric_column(MetricColumn {
                     id: ProcessColumn::Cpu,
                     label: l10n.processes_col_cpu(),

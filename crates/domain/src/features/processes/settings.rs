@@ -29,6 +29,8 @@ pub struct ProcessesGroupingSettings {
 pub struct ProcessesColumnsSettings {
     #[amestate(default = {
         "name": ColumnConfig { width: 280, visible: true },
+        "pid": ColumnConfig { width: 80, visible: false },
+        "process_name": ColumnConfig { width: 160, visible: false },
         "cpu": ColumnConfig { width: 120, visible: true },
         "memory": ColumnConfig { width: 140, visible: true },
         "net": ColumnConfig { width: 110, visible: true },
