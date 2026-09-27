@@ -57,12 +57,18 @@ impl Reports {
             .enumerate()
             .filter_map(|(row, (&pid, &sequence_number))| {
                 let key = (pid, sequence_number);
-                let cpu_time = at(&columns.cpu_user_time, row) + at(&columns.cpu_kernel_time, row);
+                let cpu_time = read(&columns.cpu_user_time, row)
+                    .zip(read(&columns.cpu_kernel_time, row))
+                    .map(|(user, kernel)| user.saturating_add(kernel));
                 let before = self.cpu_times.get(&key).copied();
-                cpu_times.insert(key, cpu_time);
+                if let Some(cpu_time) = cpu_time {
+                    cpu_times.insert(key, cpu_time);
+                }
                 let passport = self.passports.get(&key)?;
                 Some(WindowsProcessStats {
-                    cpu_percent: before.map_or(0.0, |before| share(cpu_time.saturating_sub(before), elapsed)),
+                    cpu_percent: before
+                        .zip(cpu_time)
+                        .map_or(0.0, |(before, now)| share(now.saturating_sub(before), elapsed)),
                     working_set_bytes: at(&columns.working_set, row),
                     commit_bytes: at(&columns.commit, row),
                     peak_working_set_bytes: at(&columns.peak_working_set, row),
@@ -125,8 +131,16 @@ fn key(info: &api::ProcessInfo) -> Key {
     (info.pid, info.sequence_number)
 }
 
-fn at<T: Copy + Default>(column: &Option<Arc<[T]>>, row: usize) -> T {
-    column.as_deref().and_then(|values| values.get(row)).copied().unwrap_or_default()
+fn read(column: &Option<Arc<[u64]>>, row: usize) -> Option<u64> {
+    column
+        .as_deref()
+        .and_then(|values| values.get(row))
+        .copied()
+        .filter(|value| *value != api::NO_DATA_U64)
+}
+
+fn at(column: &Option<Arc<[u64]>>, row: usize) -> u64 {
+    read(column, row).unwrap_or_default()
 }
 
 fn total(cpu: &api::MachineCpu) -> u64 {
@@ -405,6 +419,19 @@ mod tests {
         assert_eq!(first.machine.cpu_percent, 0.0);
         assert_eq!(second.processes[0].cpu_percent, 25.0);
         assert_eq!(second.machine.cpu_percent, 40.0);
+    }
+
+    #[test]
+    fn a_row_marked_as_no_data_reads_as_nothing_rather_than_the_maximum() {
+        let mut reports = Reports::default();
+        let list = snapshot(1, vec![info(7, "a.exe", &[])]);
+        let mut unread = sample(&[row(7, api::NO_DATA_U64)], 10_000, 0);
+        unread.columns.working_set = Some(Arc::from([api::NO_DATA_U64]));
+        let first = reports.report(&list, &unread);
+        let second = reports.report(&list, &sample(&[row(7, 500)], 11_000, 0));
+
+        assert_eq!(first.processes[0].working_set_bytes, 0);
+        assert_eq!(second.processes[0].cpu_percent, 0.0);
     }
 
     #[test]
