@@ -7,6 +7,7 @@ processes-not-running = Not running
 processes-selected = Selected: { $name } | PID { $pid }
 processes-selected-exited = Selected: { $name } | PID { $pid } | Exited
 processes-selected-group = Selected: { $name } | Group ({ $count })
+processes-selected-linux = Selected: { $name } | PID { $pid } | { $environment }
 
 processes-menu-pin = Pin
 processes-menu-unpin = Unpin

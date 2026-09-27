@@ -271,8 +271,17 @@ impl ProcessesPage {
                         .map(|r| l10n.processes_selected_exited(r.name.to_string(), r.pid as i64))
                 })
                 .or_else(|| {
-                    let linux = state.linux_process(state.selected_linux?)?;
-                    Some(l10n.processes_selected(linux.row.name.to_string(), linux.row.pid as i64))
+                    let (environment, linux) = state.linux_process(state.selected_linux?)?;
+                    let environment = if environment.name.is_empty() {
+                        l10n.processes_wsl_namespace(environment.pid_ns.to_string())
+                    } else {
+                        environment.name.to_string()
+                    };
+                    Some(l10n.processes_selected_linux(
+                        linux.row.name.to_string(),
+                        linux.row.pid as i64,
+                        environment,
+                    ))
                 })
                 .unwrap_or_default(),
         };

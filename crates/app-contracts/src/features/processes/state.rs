@@ -45,11 +45,11 @@ impl ProcessesState {
         self.machine_summary.ready()
     }
 
-    pub fn linux_process(&self, global_pid: u32) -> Option<&WslProcess> {
-        self.wsl
-            .iter()
-            .flat_map(|environment| environment.processes.iter())
-            .find(|process| process.global_pid == global_pid)
+    pub fn linux_process(&self, global_pid: u32) -> Option<(&WslEnvironment, &WslProcess)> {
+        self.wsl.iter().find_map(|environment| {
+            let process = environment.processes.iter().find(|p| p.global_pid == global_pid)?;
+            Some((environment, process))
+        })
     }
 }
 

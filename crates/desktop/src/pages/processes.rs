@@ -1424,7 +1424,7 @@ mod tests {
         assert!(!menu_open(&page), "nothing to do to a Linux process yet");
         assert!(!end_task_enabled(&page));
         assert!(
-            page.find_text("Selected: \u{2068}init\u{2069} | PID \u{2068}1\u{2069}").is_some(),
+            page.find_text("Selected: \u{2068}init\u{2069} | PID \u{2068}1\u{2069} | \u{2068}Ubuntu\u{2069}").is_some(),
             "{:#?}",
             page.tree()
         );
