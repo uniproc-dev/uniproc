@@ -33,7 +33,7 @@ mod windows {
         println!("== windows agent ==");
 
         let started = Instant::now();
-        let handle = WindowsClient::connect(CONNECT_TIMEOUT)
+        let handle = WindowsClient::connect(CONNECT_TIMEOUT, || Duration::from_secs(1))
             .await
             .context("connect failed - is uniproc-windows-agent running (as admin)?")?;
         println!("connect: ok ({} ms)", started.elapsed().as_millis());
@@ -41,6 +41,7 @@ mod windows {
         let latency = WindowsBackend::ping(&handle).await.context("ping failed")?;
         println!("ping via AgentBackend: {latency} ms");
 
+        get_report(&handle).await?;
         let report = get_report(&handle).await?;
         print_report(&report);
 
@@ -96,13 +97,13 @@ mod windows {
             m.cpu_percent,
             m.cpu_current_mhz,
             m.cpu_max_mhz,
-            m.used_physical_kb / 1024,
-            m.total_physical_kb / 1024,
+            m.used_physical_bytes() / (1024 * 1024),
+            m.total_physical_bytes / (1024 * 1024),
             m.net_rx_bytes,
             m.net_tx_bytes,
         );
 
-        assert!(m.total_physical_kb > 0, "total physical memory decoded as 0");
+        assert!(m.total_physical_bytes > 0, "total physical memory decoded as 0");
         assert!(!report.processes.is_empty(), "no processes in the report");
 
         let enriched: Vec<&WindowsProcessStats> = report

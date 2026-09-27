@@ -193,7 +193,7 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
         .map(|p| ProcessRow {
             pid: p.pid,
             cpu_percent: p.cpu_percent,
-            memory_bytes: p.memory_kb() * 1024,
+            memory_bytes: p.memory_bytes(),
             disk_bytes: p.disk_read_bytes + p.disk_write_bytes,
             net_bytes: p.net_rx_bytes + p.net_tx_bytes,
 
@@ -261,8 +261,8 @@ fn on_windows_report(this: &mut ProcessesActor, msg: WindowsReportMessage) {
         cpu_percent: machine.cpu_percent,
         cpu_current_mhz: machine.cpu_current_mhz,
         cpu_max_mhz: machine.cpu_max_mhz,
-        memory_used_bytes: machine.used_physical_kb * 1024,
-        memory_total_bytes: machine.total_physical_kb * 1024,
+        memory_used_bytes: machine.used_physical_bytes(),
+        memory_total_bytes: machine.total_physical_bytes,
     };
 
     let windows = (this.windows)();

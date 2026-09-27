@@ -36,9 +36,9 @@ mod bench {
     use super::{ALLOCATIONS, BYTES};
     use anyhow::Context;
     use app_contracts::features::processes::ProcessRow;
-    use domain::features::agents::windows_report::Reports;
+    use domain::features::agents::windows_report::{self, Reports};
     use domain::features::processes::{rows_from_report, windows_scan};
-    use uniproc_windows_agent::remote::Remote;
+    use uniproc_windows_agent::agent::Agent;
     use std::rc::Rc;
     use std::sync::atomic::Ordering;
     use std::time::{Duration, Instant};
@@ -95,16 +95,18 @@ mod bench {
     }
 
     pub async fn run() -> anyhow::Result<()> {
-        let remote = Remote::connect(Duration::from_secs(5))
+        let agent = Agent::remote(Duration::from_secs(5))
             .await
             .context("connect failed - is uniproc-windows-agent running?")?;
-        let snapshot = remote
+        let mut sampler = agent.subscribe(windows_report::spec(Duration::from_secs(1))).await?;
+        let sample = sampler.next().await?;
+        let snapshot = agent
             .snapshot()
             .await?
-            .context("the process list kept moving under the metrics")?;
+            .context("the process list kept moving under the states")?;
 
         let mut reports = Reports::default();
-        let report = reports.report(&snapshot);
+        let report = reports.report(&snapshot, &sample);
         let windowed = windows_scan::app_windows();
         println!(
             "live: {} passports, {} metric rows, {} app-window pids, {} rounds per stage\n",
@@ -114,7 +116,7 @@ mod bench {
             ROUNDS,
         );
 
-        let joined = measure(|| (), |()| reports.report(&snapshot));
+        let joined = measure(|| (), |()| reports.report(&snapshot, &sample));
         let scanned = measure(|| (), |()| windows_scan::app_windows());
         let mapped = measure(|| (), |()| rows_from_report(&report, &windowed));
         let published = measure(

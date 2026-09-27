@@ -1,35 +1,89 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use app_contracts::features::agents::{
     ProcessPriority, SignatureStatus, WindowsAction, WindowsMachineStats, WindowsProcessStats,
     WindowsReport, WindowsServiceState, WindowsServiceStats,
 };
-use uniproc_windows_agent::api;
+use uniproc_windows_agent::api::{self, MachineMetrics, MetricSpec, ProcessMetric};
+
+type Key = (u32, u64);
+
+pub fn spec(interval: Duration) -> MetricSpec {
+    MetricSpec {
+        interval,
+        processes: [
+            ProcessMetric::CpuUserTime,
+            ProcessMetric::CpuKernelTime,
+            ProcessMetric::WorkingSet,
+            ProcessMetric::PeakWorkingSet,
+            ProcessMetric::PrivateWorkingSet,
+            ProcessMetric::Commit,
+            ProcessMetric::DiskReadOps,
+            ProcessMetric::DiskWriteOps,
+            ProcessMetric::DiskReadBytes,
+            ProcessMetric::DiskWriteBytes,
+            ProcessMetric::NetRxBytes,
+            ProcessMetric::NetTxBytes,
+        ]
+        .into_iter()
+        .collect(),
+        machine: MachineMetrics::all(),
+    }
+}
 
 #[derive(Default)]
 pub struct Reports {
     processes: Option<api::Tagged<Arc<[api::ProcessInfo]>>>,
-    passports: HashMap<u32, WindowsProcessStats>,
+    passports: HashMap<Key, WindowsProcessStats>,
     services: Option<(u64, Vec<WindowsServiceStats>)>,
+    cpu_times: HashMap<Key, u64>,
+    machine_cpu: Option<api::MachineCpu>,
 }
 
 impl Reports {
-    pub fn report(&mut self, snapshot: &api::Snapshot) -> WindowsReport {
+    pub fn report(&mut self, snapshot: &api::Snapshot, sample: &api::Sample) -> WindowsReport {
         self.keep_passports(&snapshot.processes);
         self.keep_services(&snapshot.services);
 
-        let processes = snapshot
-            .metrics
+        let elapsed = machine_time(self.machine_cpu, sample.machine.cpu);
+        let columns = &sample.columns;
+        let mut cpu_times = HashMap::with_capacity(sample.pids.len());
+        let processes = sample
+            .pids
             .iter()
-            .filter_map(|metrics| {
-                let passport = self.passports.get(&metrics.pid)?;
-                Some(with_metrics(passport.clone(), metrics))
+            .zip(sample.sequence_numbers.iter())
+            .enumerate()
+            .filter_map(|(row, (&pid, &sequence_number))| {
+                let key = (pid, sequence_number);
+                let cpu_time = at(&columns.cpu_user_time, row) + at(&columns.cpu_kernel_time, row);
+                let before = self.cpu_times.get(&key).copied();
+                cpu_times.insert(key, cpu_time);
+                let passport = self.passports.get(&key)?;
+                Some(WindowsProcessStats {
+                    cpu_percent: before.map_or(0.0, |before| share(cpu_time.saturating_sub(before), elapsed)),
+                    working_set_bytes: at(&columns.working_set, row),
+                    commit_bytes: at(&columns.commit, row),
+                    peak_working_set_bytes: at(&columns.peak_working_set, row),
+                    private_working_set_bytes: at(&columns.private_working_set, row),
+                    disk_read_bytes: at(&columns.disk_read_bytes, row),
+                    disk_write_bytes: at(&columns.disk_write_bytes, row),
+                    disk_read_iops: at(&columns.disk_read_ops, row),
+                    disk_write_iops: at(&columns.disk_write_ops, row),
+                    net_rx_bytes: at(&columns.net_rx_bytes, row),
+                    net_tx_bytes: at(&columns.net_tx_bytes, row),
+                    ..passport.clone()
+                })
             })
             .collect();
+        self.cpu_times = cpu_times;
+
+        let machine = machine(&sample.machine, self.machine_cpu);
+        self.machine_cpu = sample.machine.cpu;
 
         WindowsReport {
-            machine: machine(&snapshot.machine),
+            machine,
             processes,
             services: self.services.as_ref().map(|(_, services)| services.clone()).unwrap_or_default(),
         }
@@ -39,10 +93,10 @@ impl Reports {
         if self.processes.as_ref().is_some_and(|held| held.etag == processes.etag) {
             return;
         }
-        let before: HashMap<u32, &api::ProcessInfo> = self
+        let before: HashMap<Key, &api::ProcessInfo> = self
             .processes
             .as_ref()
-            .map(|held| held.value.iter().map(|info| (info.pid, info)).collect())
+            .map(|held| held.value.iter().map(|info| (key(info), info)).collect())
             .unwrap_or_default();
 
         let mut held = std::mem::take(&mut self.passports);
@@ -51,9 +105,9 @@ impl Reports {
             .iter()
             .map(|info| {
                 let kept = held
-                    .remove(&info.pid)
-                    .filter(|_| before.get(&info.pid).is_some_and(|was| *was == info));
-                (info.pid, kept.unwrap_or_else(|| passport(info)))
+                    .remove(&key(info))
+                    .filter(|_| before.get(&key(info)).is_some_and(|was| *was == info));
+                (key(info), kept.unwrap_or_else(|| passport(info)))
             })
             .collect();
         self.processes = Some(processes.clone());
@@ -65,6 +119,41 @@ impl Reports {
         }
         self.services = Some((services.etag, services.value.iter().map(service).collect()));
     }
+}
+
+fn key(info: &api::ProcessInfo) -> Key {
+    (info.pid, info.sequence_number)
+}
+
+fn at<T: Copy + Default>(column: &Option<Arc<[T]>>, row: usize) -> T {
+    column.as_deref().and_then(|values| values.get(row)).copied().unwrap_or_default()
+}
+
+fn total(cpu: &api::MachineCpu) -> u64 {
+    cpu.kernel_time + cpu.user_time
+}
+
+fn machine_time(before: Option<api::MachineCpu>, now: Option<api::MachineCpu>) -> u64 {
+    match (before, now) {
+        (Some(before), Some(now)) => total(&now).saturating_sub(total(&before)),
+        _ => 0,
+    }
+}
+
+fn share(part: u64, whole: u64) -> f32 {
+    if whole == 0 {
+        return 0.0;
+    }
+    (part as f64 / whole as f64 * 100.0).min(100.0) as f32
+}
+
+fn busy(before: Option<api::MachineCpu>, now: Option<api::MachineCpu>) -> f32 {
+    let (Some(before), Some(now)) = (before, now) else {
+        return 0.0;
+    };
+    let whole = total(&now).saturating_sub(total(&before));
+    let idle = now.idle_time.saturating_sub(before.idle_time);
+    share(whole.saturating_sub(idle), whole)
 }
 
 fn passport(info: &api::ProcessInfo) -> WindowsProcessStats {
@@ -87,37 +176,23 @@ fn passport(info: &api::ProcessInfo) -> WindowsProcessStats {
     }
 }
 
-fn with_metrics(passport: WindowsProcessStats, m: &api::ProcessMetrics) -> WindowsProcessStats {
-    WindowsProcessStats {
-        cpu_percent: m.cpu_percent,
-        working_set_kb: m.working_set_kb,
-        private_bytes_kb: m.private_bytes_kb,
-        peak_working_set_kb: m.peak_working_set_kb,
-        private_working_set_kb: m.private_working_set_kb,
-        disk_read_bytes: m.disk_read_bytes,
-        disk_write_bytes: m.disk_write_bytes,
-        disk_read_iops: m.disk_read_iops,
-        disk_write_iops: m.disk_write_iops,
-        net_rx_bytes: m.net_rx_bytes,
-        net_tx_bytes: m.net_tx_bytes,
-        ..passport
-    }
-}
-
-fn machine(m: &api::MachineStats) -> WindowsMachineStats {
+fn machine(sample: &api::MachineSample, before: Option<api::MachineCpu>) -> WindowsMachineStats {
+    let cpu = sample.cpu.unwrap_or_default();
+    let memory = sample.memory.unwrap_or_default();
+    let disk = sample.disk.unwrap_or_default();
+    let network = sample.network.unwrap_or_default();
     WindowsMachineStats {
-        total_physical_kb: m.total_physical_kb,
-        available_physical_kb: m.available_physical_kb,
-        used_physical_kb: m.used_physical_kb,
-        cpu_percent: m.cpu_percent,
-        cpu_max_mhz: m.cpu_max_mhz,
-        cpu_current_mhz: m.cpu_current_mhz,
-        disk_read_bytes: m.disk_read_bytes,
-        disk_write_bytes: m.disk_write_bytes,
-        disk_read_iops: m.disk_read_iops,
-        disk_write_iops: m.disk_write_iops,
-        net_rx_bytes: m.net_rx_bytes,
-        net_tx_bytes: m.net_tx_bytes,
+        total_physical_bytes: memory.total_physical,
+        available_physical_bytes: memory.available_physical,
+        cpu_percent: busy(before, sample.cpu),
+        cpu_max_mhz: cpu.max_mhz.into(),
+        cpu_current_mhz: cpu.current_mhz.into(),
+        disk_read_bytes: disk.read_bytes,
+        disk_write_bytes: disk.write_bytes,
+        disk_read_iops: disk.read_ops,
+        disk_write_iops: disk.write_ops,
+        net_rx_bytes: network.rx_bytes,
+        net_tx_bytes: network.tx_bytes,
     }
 }
 
@@ -193,30 +268,63 @@ pub fn code(result: anyhow::Result<api::CommandResult>) -> u32 {
 mod tests {
     use super::*;
 
+    fn sequence(pid: u32) -> u64 {
+        u64::from(pid) * 10
+    }
+
     fn info(pid: u32, name: &str, cmdline: &[&str]) -> api::ProcessInfo {
         api::ProcessInfo {
             pid,
+            sequence_number: sequence(pid),
             name: name.to_string(),
             cmdline: cmdline.iter().map(|arg| arg.to_string()).collect(),
             ..api::ProcessInfo::default()
         }
     }
 
-    fn metrics(pid: u32, cpu_percent: f32, disk_read_bytes: u64) -> api::ProcessMetrics {
-        api::ProcessMetrics {
-            pid,
-            cpu_percent,
-            disk_read_bytes,
-            ..api::ProcessMetrics::default()
+    fn snapshot(etag: u64, infos: Vec<api::ProcessInfo>) -> api::Snapshot {
+        api::Snapshot {
+            services: api::Tagged { etag: 1, value: Arc::from([]) },
+            processes: api::Tagged { etag, value: Arc::from(infos) },
+            states: api::Tagged { etag: 1, value: api::ProcessStates::default() },
         }
     }
 
-    fn snapshot(etag: u64, infos: Vec<api::ProcessInfo>, metrics: Vec<api::ProcessMetrics>) -> api::Snapshot {
-        api::Snapshot {
-            machine: api::MachineStats::default(),
-            services: api::Tagged { etag: 1, value: Arc::from([]) },
-            processes: api::Tagged { etag, value: Arc::from(infos) },
-            metrics,
+    struct Row {
+        pid: u32,
+        sequence_number: u64,
+        cpu_time: u64,
+        disk_read_bytes: u64,
+    }
+
+    fn row(pid: u32, cpu_time: u64) -> Row {
+        Row {
+            pid,
+            sequence_number: sequence(pid),
+            cpu_time,
+            disk_read_bytes: 0,
+        }
+    }
+
+    fn sample(rows: &[Row], machine_time: u64, idle_time: u64) -> api::Sample {
+        api::Sample {
+            pids: rows.iter().map(|r| r.pid).collect(),
+            sequence_numbers: rows.iter().map(|r| r.sequence_number).collect(),
+            columns: api::Columns {
+                cpu_user_time: Some(rows.iter().map(|r| r.cpu_time).collect()),
+                cpu_kernel_time: Some(rows.iter().map(|_| 0).collect()),
+                disk_read_bytes: Some(rows.iter().map(|r| r.disk_read_bytes).collect()),
+                ..api::Columns::default()
+            },
+            machine: api::MachineSample {
+                cpu: Some(api::MachineCpu {
+                    kernel_time: machine_time,
+                    idle_time,
+                    ..api::MachineCpu::default()
+                }),
+                ..api::MachineSample::default()
+            },
+            ..api::Sample::default()
         }
     }
 
@@ -224,11 +332,10 @@ mod tests {
     fn a_passport_keeps_the_first_argument_and_the_console_host() {
         let mut console = info(7, "app.exe", &[r"C:\app.exe", "--flag"]);
         console.console_host_pid = 40;
-        let report = Reports::default().report(&snapshot(
-            1,
-            vec![console, info(8, "idle", &[])],
-            vec![metrics(7, 0.0, 0), metrics(8, 0.0, 0)],
-        ));
+        let report = Reports::default().report(
+            &snapshot(1, vec![console, info(8, "idle", &[])]),
+            &sample(&[row(7, 0), row(8, 0)], 0, 0),
+        );
 
         assert_eq!(&*report.processes[0].first_arg, r"C:\app.exe");
         assert_eq!(report.processes[0].console_host_pid, 40);
@@ -236,27 +343,28 @@ mod tests {
     }
 
     #[test]
-    fn metrics_join_their_passports_by_pid() {
-        let report = Reports::default().report(&snapshot(
-            1,
-            vec![info(7, "a.exe", &[]), info(9, "b.exe", &[])],
-            vec![metrics(9, 2.5, 100), metrics(7, 1.0, 50)],
-        ));
+    fn rows_join_their_passports_by_pid_and_sequence_number() {
+        let mut read = row(9, 0);
+        read.disk_read_bytes = 100;
+        let report = Reports::default().report(
+            &snapshot(1, vec![info(7, "a.exe", &[]), info(9, "b.exe", &[])]),
+            &sample(&[read, row(7, 0)], 0, 0),
+        );
 
         let by_pid = |pid: u32| report.processes.iter().find(|r| r.pid == pid).unwrap();
         assert_eq!(&*by_pid(9).name, "b.exe");
-        assert_eq!(by_pid(9).cpu_percent, 2.5);
         assert_eq!(by_pid(9).disk_read_bytes, 100);
         assert_eq!(&*by_pid(7).name, "a.exe");
     }
 
     #[test]
-    fn a_metric_without_a_passport_is_dropped_rather_than_named_wrong() {
-        let report = Reports::default().report(&snapshot(
-            1,
-            vec![info(7, "a.exe", &[])],
-            vec![metrics(7, 1.0, 0), metrics(99, 5.0, 0)],
-        ));
+    fn a_row_without_its_passport_is_dropped_rather_than_named_wrong() {
+        let mut reused = row(8, 0);
+        reused.sequence_number += 1;
+        let report = Reports::default().report(
+            &snapshot(1, vec![info(7, "a.exe", &[]), info(8, "b.exe", &[])]),
+            &sample(&[row(7, 0), reused, row(99, 0)], 0, 0),
+        );
 
         assert_eq!(report.processes.iter().map(|r| r.pid).collect::<Vec<_>>(), vec![7]);
     }
@@ -264,23 +372,51 @@ mod tests {
     #[test]
     fn an_unchanged_process_keeps_its_strings_across_list_changes() {
         let mut reports = Reports::default();
-        let first = reports.report(&snapshot(1, vec![info(7, "a.exe", &[])], vec![metrics(7, 0.0, 0)]));
-        let second = reports.report(&snapshot(
-            2,
-            vec![info(7, "a.exe", &[]), info(8, "b.exe", &[])],
-            vec![metrics(7, 3.0, 0), metrics(8, 0.0, 0)],
-        ));
+        let first = reports.report(&snapshot(1, vec![info(7, "a.exe", &[])]), &sample(&[row(7, 0)], 0, 0));
+        let second = reports.report(
+            &snapshot(2, vec![info(7, "a.exe", &[]), info(8, "b.exe", &[])]),
+            &sample(&[row(7, 0), row(8, 0)], 0, 0),
+        );
 
         assert!(Arc::ptr_eq(&first.processes[0].name, &second.processes[0].name));
-        assert_eq!(second.processes[0].cpu_percent, 3.0);
     }
 
     #[test]
     fn a_reused_pid_gets_the_new_process_strings() {
         let mut reports = Reports::default();
-        reports.report(&snapshot(1, vec![info(7, "a.exe", &[])], vec![metrics(7, 0.0, 0)]));
-        let reused = reports.report(&snapshot(2, vec![info(7, "b.exe", &[])], vec![metrics(7, 0.0, 0)]));
+        reports.report(&snapshot(1, vec![info(7, "a.exe", &[])]), &sample(&[row(7, 0)], 0, 0));
+        let mut reborn = info(7, "b.exe", &[]);
+        reborn.sequence_number += 1;
+        let mut reused = row(7, 0);
+        reused.sequence_number += 1;
+        let report = reports.report(&snapshot(2, vec![reborn]), &sample(&[reused], 0, 0));
 
-        assert_eq!(&*reused.processes[0].name, "b.exe");
+        assert_eq!(&*report.processes[0].name, "b.exe");
+    }
+
+    #[test]
+    fn cpu_is_the_share_of_machine_time_between_two_samples() {
+        let mut reports = Reports::default();
+        let list = snapshot(1, vec![info(7, "a.exe", &[])]);
+        let first = reports.report(&list, &sample(&[row(7, 1_000)], 10_000, 4_000));
+        let second = reports.report(&list, &sample(&[row(7, 1_250)], 11_000, 4_600));
+
+        assert_eq!(first.processes[0].cpu_percent, 0.0);
+        assert_eq!(first.machine.cpu_percent, 0.0);
+        assert_eq!(second.processes[0].cpu_percent, 25.0);
+        assert_eq!(second.machine.cpu_percent, 40.0);
+    }
+
+    #[test]
+    fn a_process_seen_for_the_first_time_has_no_cpu_yet() {
+        let mut reports = Reports::default();
+        reports.report(&snapshot(1, vec![info(7, "a.exe", &[])]), &sample(&[row(7, 0)], 10_000, 0));
+        let report = reports.report(
+            &snapshot(2, vec![info(7, "a.exe", &[]), info(8, "b.exe", &[])]),
+            &sample(&[row(7, 0), row(8, 900_000)], 11_000, 0),
+        );
+
+        let by_pid = |pid: u32| report.processes.iter().find(|r| r.pid == pid).unwrap();
+        assert_eq!(by_pid(8).cpu_percent, 0.0);
     }
 }

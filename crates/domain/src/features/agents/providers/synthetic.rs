@@ -14,7 +14,7 @@ const UNIQUE_VARIABLE: &str = "UNIPROC_SYNTHETIC_UNIQUE";
 const JITTER_VARIABLE: &str = "UNIPROC_SYNTHETIC_JITTER";
 const DEFAULT_PROCESSES: usize = 400;
 const SERVICES: usize = 250;
-const TOTAL_KB: u64 = 32 * 1024 * 1024;
+const TOTAL_BYTES: u64 = 32 * 1024 * 1024 * 1024;
 
 pub fn requested() -> Option<usize> {
     let value = std::env::var(VARIABLE).ok()?;
@@ -93,8 +93,8 @@ fn report(executables: &[Arc<str>], processes: usize, unique: bool, tick: u64) -
                 name,
                 first_arg: path.clone(),
                 cpu_percent: wave(seed, tick, 400) as f32 / 40.0,
-                working_set_kb: 4_096 + wave(seed, tick, 200_000),
-                private_working_set_kb: 2_048 + wave(seed, tick, 150_000),
+                working_set_bytes: (4_096 + wave(seed, tick, 200_000)) * 1024,
+                private_working_set_bytes: (2_048 + wave(seed, tick, 150_000)) * 1024,
                 disk_read_bytes: wave(seed + 1, tick, 90_000),
                 disk_write_bytes: wave(seed + 2, tick, 40_000),
                 net_rx_bytes: wave(seed + 3, tick, 60_000),
@@ -129,12 +129,11 @@ fn report(executables: &[Arc<str>], processes: usize, unique: bool, tick: u64) -
         })
         .collect();
 
-    let used_kb = TOTAL_KB / 3 + wave(7, tick, TOTAL_KB / 4);
+    let used = TOTAL_BYTES / 3 + wave(7, tick, TOTAL_BYTES / 4);
     WindowsReport {
         machine: WindowsMachineStats {
-            total_physical_kb: TOTAL_KB,
-            available_physical_kb: TOTAL_KB - used_kb,
-            used_physical_kb: used_kb,
+            total_physical_bytes: TOTAL_BYTES,
+            available_physical_bytes: TOTAL_BYTES - used,
             cpu_percent: wave(11, tick, 1_000) as f32 / 10.0,
             cpu_max_mhz: 4_800,
             cpu_current_mhz: 3_000 + wave(13, tick, 1_800),

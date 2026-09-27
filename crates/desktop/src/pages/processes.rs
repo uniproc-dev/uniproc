@@ -142,7 +142,7 @@ mod tests {
             pid,
             name: name.into(),
             cpu_percent: cpu,
-            private_working_set_kb: 1_000 * u64::from(pid),
+            private_working_set_bytes: 1_024_000 * u64::from(pid),
             signature: SignatureStatus::ThirdParty,
             ..Default::default()
         }

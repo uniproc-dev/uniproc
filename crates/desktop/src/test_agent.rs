@@ -50,9 +50,10 @@ pub fn in_process_actions() -> Vec<WindowsAction> {
 struct FakeInProcess;
 
 impl InProcessAgent for FakeInProcess {
-    fn report(&self) -> WindowsReport {
+    fn report(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<Option<WindowsReport>>> {
         IN_PROCESS_REPORTS.fetch_add(1, Ordering::SeqCst);
-        REPORT.lock().unwrap().clone().unwrap_or_default()
+        let report = REPORT.lock().unwrap().clone().unwrap_or_default();
+        Box::pin(async { Ok(Some(report)) })
     }
 
     fn act(self: Arc<Self>, action: WindowsAction) -> BoxFuture<'static, u32> {

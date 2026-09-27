@@ -54,8 +54,8 @@ fn on_windows_report(this: &mut MetricsActor, msg: WindowsReportMessage) {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    let memory_percent = if machine.total_physical_kb > 0 {
-        (machine.used_physical_kb as f32 / machine.total_physical_kb as f32) * 100.0
+    let memory_percent = if machine.total_physical_bytes > 0 {
+        (machine.used_physical_bytes() as f32 / machine.total_physical_bytes as f32) * 100.0
     } else {
         0.0
     };
@@ -65,8 +65,8 @@ fn on_windows_report(this: &mut MetricsActor, msg: WindowsReportMessage) {
         cpu_percent: machine.cpu_percent,
         cpu_current_mhz: machine.cpu_current_mhz,
         cpu_max_mhz: machine.cpu_max_mhz,
-        memory_used_bytes: machine.used_physical_kb * 1024,
-        memory_total_bytes: machine.total_physical_kb * 1024,
+        memory_used_bytes: machine.used_physical_bytes(),
+        memory_total_bytes: machine.total_physical_bytes,
     };
     this.publish();
 }

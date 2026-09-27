@@ -1,14 +1,16 @@
 use crate::features::agents::actor::{GenericAgentActor, Init, Ping};
 use crate::features::agents::backend::AgentBackend;
 use crate::features::agents::settings::AgentSettings;
-use crate::features::agents::windows_report::{self, Reports};
+use crate::features::agents::windows_feed::WindowsFeed;
+use crate::features::settings::settings::GeneralSettings;
 use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, ScanTick, WindowsAction, WindowsActionRequest,
-    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsReportMessage,
+    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsReport, WindowsReportMessage,
 };
+use app_contracts::features::settings::UpdateInterval;
 use guinea::prelude::*;
 use guinea::ratelimit;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::instrument;
 use uniproc_protocol::WINDOWS_AGENT_SERVICE;
@@ -27,8 +29,7 @@ fn agent_service() -> String {
 
 #[derive(Clone)]
 pub struct WindowsClient {
-    agent: Agent,
-    reports: Arc<Mutex<Reports>>,
+    feed: Arc<WindowsFeed>,
 }
 
 impl std::fmt::Debug for WindowsClient {
@@ -38,28 +39,26 @@ impl std::fmt::Debug for WindowsClient {
 }
 
 impl WindowsClient {
-    pub async fn connect(give_up_after: Duration) -> anyhow::Result<Self> {
+    pub async fn connect(
+        give_up_after: Duration,
+        interval: impl Fn() -> Duration + Send + Sync + 'static,
+    ) -> anyhow::Result<Self> {
         let remote = Remote::connect_to(&agent_service(), give_up_after).await?;
         Ok(Self {
-            agent: Agent::Remote(remote),
-            reports: Arc::default(),
+            feed: Arc::new(WindowsFeed::new(Agent::Remote(remote), interval)),
         })
     }
 
     pub async fn ping(&self) -> anyhow::Result<()> {
-        self.agent.ping().await
+        self.feed.agent().ping().await
     }
 
-    pub async fn report(&self) -> anyhow::Result<Option<app_contracts::features::agents::WindowsReport>> {
-        let Some(snapshot) = self.agent.snapshot().await? else {
-            return Ok(None);
-        };
-        let mut reports = self.reports.lock().unwrap_or_else(PoisonError::into_inner);
-        Ok(Some(reports.report(&snapshot)))
+    pub async fn report(&self) -> anyhow::Result<Option<WindowsReport>> {
+        self.feed.report().await
     }
 
     pub async fn act(&self, action: WindowsAction) -> u32 {
-        windows_report::code(self.agent.run(windows_report::command(action)).await)
+        self.feed.act(action).await
     }
 }
 
@@ -73,7 +72,8 @@ impl AgentBackend for WindowsBackend {
     const NAME: &'static str = "Windows";
 
     async fn connect(timeout: u64) -> anyhow::Result<Self::Client> {
-        WindowsClient::connect(Duration::from_secs(timeout)).await
+        let interval = GeneralSettings::new()?.update_interval_ms();
+        WindowsClient::connect(Duration::from_secs(timeout), move || UpdateInterval::clamp(interval.get())).await
     }
 
     async fn ping(client: &Self::Client) -> anyhow::Result<i32> {

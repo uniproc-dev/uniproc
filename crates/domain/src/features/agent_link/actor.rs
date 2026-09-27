@@ -121,10 +121,17 @@ fn on_in_process_started(this: &mut AgentLinkActor, InProcessStarted(started): I
 }
 
 #[handler]
-fn on_scan_tick(this: &AgentLinkActor, _msg: ScanTick) {
-    if let Some(agent) = &this.in_process {
-        GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(agent.report())));
-    }
+fn on_scan_tick(this: &AgentLinkActor, _msg: ScanTick, cx: Cx) {
+    let Some(agent) = this.in_process.clone() else {
+        return;
+    };
+    cx.spawn_bg_detached(async move {
+        match agent.report().await {
+            Ok(Some(report)) => GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(report))),
+            Ok(None) => tracing::debug!("process list kept moving under the states, skipping this scan"),
+            Err(error) => tracing::warn!(%error, "in-process agent did not report"),
+        }
+    });
 }
 
 #[handler]

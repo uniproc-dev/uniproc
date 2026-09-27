@@ -28,9 +28,8 @@ pub enum ProcessPriority {
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct WindowsMachineStats {
-    pub total_physical_kb: u64,
-    pub available_physical_kb: u64,
-    pub used_physical_kb: u64,
+    pub total_physical_bytes: u64,
+    pub available_physical_bytes: u64,
     pub cpu_percent: f32,
     pub cpu_max_mhz: u64,
     pub cpu_current_mhz: u64,
@@ -55,10 +54,10 @@ pub struct WindowsProcessStats {
     pub package_full_name: Arc<str>,
     pub package_relative_app_id: Arc<str>,
     pub cpu_percent: f32,
-    pub working_set_kb: u64,
-    pub private_bytes_kb: u64,
-    pub peak_working_set_kb: u64,
-    pub private_working_set_kb: u64,
+    pub working_set_bytes: u64,
+    pub commit_bytes: u64,
+    pub peak_working_set_bytes: u64,
+    pub private_working_set_bytes: u64,
 
     pub disk_read_bytes: u64,
     pub disk_write_bytes: u64,
@@ -77,12 +76,18 @@ pub struct WindowsProcessStats {
     pub console_host_pid: u32,
 }
 
+impl WindowsMachineStats {
+    pub fn used_physical_bytes(&self) -> u64 {
+        self.total_physical_bytes.saturating_sub(self.available_physical_bytes)
+    }
+}
+
 impl WindowsProcessStats {
-    pub fn memory_kb(&self) -> u64 {
-        if self.private_working_set_kb > 0 {
-            self.private_working_set_kb
+    pub fn memory_bytes(&self) -> u64 {
+        if self.private_working_set_bytes > 0 {
+            self.private_working_set_bytes
         } else {
-            self.working_set_kb
+            self.working_set_bytes
         }
     }
 }

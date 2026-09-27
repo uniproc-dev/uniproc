@@ -3245,8 +3245,8 @@ checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "uniproc-agent-kit"
-version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-agent-kit?tag=v0.1.0#1982d5dfaccb87a7bab803fa241c1769e8eb96ba"
+version = "0.1.2"
+source = "git+https://github.com/uniproc-dev/uniproc-agent-kit?tag=v0.1.2#61c754bb2d4c8175d85b4cc895b61ad3008984e0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -3257,8 +3257,8 @@ dependencies = [
 
 [[package]]
 name = "uniproc-protocol"
-version = "0.11.0"
-source = "git+https://github.com/uniproc-dev/uniproc-protocol?tag=v0.11.0#c81dbf402757c1be2c4b903357ab02cc9ccd4adb"
+version = "0.12.0"
+source = "git+https://github.com/uniproc-dev/uniproc-protocol?tag=v0.12.0#4e610110b245ef49bef588f770abd8d2349751fc"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -3268,7 +3268,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-agent"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.8.0#297cfcf34d7f83e9486ba10e4574f87049d65e65"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.9.0#335fc69eb282fb12ec933aa78a1abe21c0352ce9"
 dependencies = [
  "anyhow",
  "capnp",
@@ -3289,13 +3289,12 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-core"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.8.0#297cfcf34d7f83e9486ba10e4574f87049d65e65"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.9.0#335fc69eb282fb12ec933aa78a1abe21c0352ce9"
 dependencies = [
  "amethystate",
  "anyhow",
  "binrw",
  "crossbeam-channel",
- "dashmap",
  "fxhash",
  "ntapi",
  "parking_lot",
