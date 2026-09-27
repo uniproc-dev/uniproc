@@ -1346,6 +1346,21 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_wsl_heading_carries_the_notes_on_how_it_is_shown(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = wsl_page(h);
+
+        let items = page.items();
+        let with_notes: Vec<String> = items
+            .iter()
+            .filter(|item| item.find(ProcessesMark::WslNotes).is_some())
+            .map(label)
+            .collect();
+        assert_eq!(with_notes, ["WSL (1)"]);
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
     fn an_environment_chevron_leaves_the_press_to_its_row_so_it_toggles_once(h: &mut Harness) {
         let _store = start(h);
         let h = &*h;

@@ -6,6 +6,7 @@ pub enum ProcessesMark {
     Exited,
     NotRunning,
     PinnedRule,
+    WslNotes,
     Menu,
     MenuPin,
     MenuUnpin,
