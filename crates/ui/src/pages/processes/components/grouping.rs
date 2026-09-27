@@ -104,16 +104,27 @@ pub(crate) struct Section {
     headed: bool,
     ruled: bool,
     groups: Vec<ProcessGroup>,
+    absent: Vec<Arc<str>>,
     consoles: HashMap<u32, Vec<ProcessRow>>,
 }
 
 impl Section {
     fn new(id: SectionId, headed: bool, groups: Vec<ProcessGroup>) -> Option<Self> {
-        (!groups.is_empty()).then(|| Self {
+        Self::with_absent(id, headed, groups, Vec::new())
+    }
+
+    fn with_absent(
+        id: SectionId,
+        headed: bool,
+        groups: Vec<ProcessGroup>,
+        absent: Vec<Arc<str>>,
+    ) -> Option<Self> {
+        (!groups.is_empty() || !absent.is_empty()).then(|| Self {
             id,
             headed,
             ruled: false,
             groups,
+            absent,
             consoles: HashMap::new(),
         })
     }
@@ -123,10 +134,21 @@ fn is_pinned(group: &ProcessGroup, pins: &HashSet<Arc<str>>) -> bool {
     pins.contains(&group.leader.name)
 }
 
+fn absent_pins(groups: &[ProcessGroup], pins: &HashSet<Arc<str>>) -> Vec<Arc<str>> {
+    let mut absent: Vec<Arc<str>> = pins
+        .iter()
+        .filter(|pin| !groups.iter().any(|group| group.leader.name == **pin))
+        .cloned()
+        .collect();
+    absent.sort_by_key(|name| name.to_lowercase());
+    absent
+}
+
 fn one_section(groups: Vec<ProcessGroup>, pins: &HashSet<Arc<str>>) -> Vec<Section> {
+    let absent = absent_pins(&groups, pins);
     let (pinned, rest): (Vec<_>, Vec<_>) = groups.into_iter().partition(|group| is_pinned(group, pins));
     let mut sections: Vec<Section> = [
-        Section::new(SectionId::Pinned, false, pinned),
+        Section::with_absent(SectionId::Pinned, false, pinned, absent),
         Section::new(SectionId::Category(ProcessCategory::ORDER[0]), false, rest),
     ]
     .into_iter()
@@ -148,6 +170,7 @@ fn split_keeping(
     pins: &HashSet<Arc<str>>,
     keep: Option<(u32, SectionId)>,
 ) -> Vec<Section> {
+    let absent = absent_pins(&groups, pins);
     let mut by_section: HashMap<SectionId, Vec<ProcessGroup>> = HashMap::new();
     for group in groups {
         let id = if is_pinned(&group, pins) {
@@ -165,9 +188,14 @@ fn split_keeping(
         by_section.entry(id).or_default().push(group);
     }
 
-    std::iter::once(SectionId::Pinned)
-        .chain(ProcessCategory::ORDER.map(SectionId::Category))
-        .filter_map(|id| Section::new(id, true, by_section.remove(&id)?))
+    let pinned = by_section.remove(&SectionId::Pinned).unwrap_or_default();
+    std::iter::once(Section::with_absent(SectionId::Pinned, true, pinned, absent))
+        .chain(
+            ProcessCategory::ORDER
+                .map(SectionId::Category)
+                .map(|id| Section::new(id, true, by_section.remove(&id)?)),
+        )
+        .flatten()
         .collect()
 }
 
@@ -245,6 +273,7 @@ impl SectionTotals {
         for console in section.consoles.values().flatten() {
             totals.add(console);
         }
+        totals.group_count += section.absent.len();
         totals
     }
 }
@@ -290,6 +319,7 @@ fn process_row(row: &ProcessRow, depth: u8, expanded: &ViewState<'_>, section: &
         details,
         details_expanded: details && expanded.processes.contains(&row.pid),
         rule_below: false,
+        absent: false,
     }
 }
 
@@ -307,6 +337,7 @@ fn child_row(row: &ProcessRow, depth: u8, child: Child) -> DisplayRow {
         details_expanded: false,
         exited: false,
         rule_below: false,
+        absent: false,
     }
 }
 
@@ -365,6 +396,8 @@ pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>
                 }
             }
         }
+
+        out.extend(section.absent.iter().map(|name| DisplayRow::absent(name)));
 
         if section.ruled
             && let Some(last) = out.last_mut()
@@ -535,6 +568,7 @@ pub(crate) struct DisplayRow {
     pub(crate) details_expanded: bool,
     pub(crate) exited: bool,
     pub(crate) rule_below: bool,
+    pub(crate) absent: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -683,6 +717,7 @@ pub(crate) fn highlight(rows: &mut [DisplayRow], selection: Option<Selection>) {
         let span = &mut rows[at..=at + members];
         if let Selection::Group(pid) = selection
             && span[0].section.is_none()
+            && !span[0].absent
             && span[0].row.pid == pid
         {
             paint_block(span);
@@ -725,11 +760,46 @@ impl DisplayRow {
             details_expanded: false,
             exited: false,
             rule_below: false,
+            absent: false,
+        }
+    }
+
+    fn absent(name: &Arc<str>) -> Self {
+        Self {
+            row: ProcessRow {
+                pid: 0,
+                name: name.clone(),
+                display_name: name.clone(),
+                cpu_percent: 0.0,
+                memory_bytes: 0,
+                disk_bytes: 0,
+                net_bytes: 0,
+                exe_path: "".into(),
+                package_full_name: "".into(),
+                owner: None,
+                owner_pid: None,
+                category: ProcessCategory::App,
+                services: None,
+                windows: None,
+            },
+            depth: 1,
+            has_children: false,
+            is_expanded: false,
+            group_size: 1,
+            section: None,
+            highlight: None,
+            child: None,
+            details: false,
+            details_expanded: false,
+            exited: false,
+            rule_below: false,
+            absent: true,
         }
     }
 
     pub(crate) fn stands_for_one_process(&self) -> bool {
-        self.section.is_none()
+        !self.absent
+            && self.section.is_none()
             && self.child.as_ref().is_none_or(Child::has_metrics)
             && !(self.has_children && self.is_expanded)
     }
@@ -1590,6 +1660,47 @@ mod tests {
             ruled(&with_open(&untyped_pinned(&rows, &["notepad.exe", "zeta"]), &[])),
             Vec::<u32>::new()
         );
+    }
+
+    fn absent(rows: &[DisplayRow]) -> Vec<&str> {
+        rows.iter().filter(|d| d.absent).map(|d| &*d.row.name).collect()
+    }
+
+    #[test]
+    fn a_pin_that_is_not_running_stays_in_the_pinned_section() {
+        let rows = vec![row(10, "notepad.exe"), row(30, "agent.exe")];
+
+        let out = with_open(&pinned_sections_for(&rows, true, &["agent.exe", "Zed.exe", "cargo.exe"]), &[]);
+
+        assert_eq!(labels(&out), vec!["pinned", "app"]);
+        assert_eq!(absent(&out), vec!["cargo.exe", "Zed.exe"]);
+        let heading = out.iter().find(|d| d.section.is_some()).unwrap();
+        assert_eq!(heading.group_size, 3, "the heading counts what is not running too");
+        let pinned: Vec<&str> = out.iter().skip(1).take(3).map(|d| &*d.row.name).collect();
+        assert_eq!(pinned, vec!["agent.exe", "cargo.exe", "Zed.exe"], "running first");
+    }
+
+    #[test]
+    fn without_grouping_by_type_a_pin_that_is_not_running_sits_above_the_rule() {
+        let rows = vec![row(10, "notepad.exe")];
+
+        let out = with_open(&untyped_pinned(&rows, &["agent.exe"]), &[]);
+
+        assert_eq!(absent(&out), vec!["agent.exe"]);
+        assert!(out[0].absent && out[0].rule_below, "{:?}", ruled(&out));
+        assert_eq!(out[1].row.pid, 10);
+    }
+
+    #[test]
+    fn a_pin_that_is_not_running_is_never_part_of_a_selection() {
+        let rows = vec![row(10, "notepad.exe")];
+        let mut out = with_open(&pinned_sections_for(&rows, true, &["agent.exe"]), &[]);
+        assert!(!out.iter().find(|d| d.absent).unwrap().stands_for_one_process());
+
+        highlight(&mut out, Some(Selection::Process(0)));
+        highlight(&mut out, Some(Selection::Group(0)));
+
+        assert!(out.iter().all(|d| d.highlight.is_none()));
     }
 
     #[test]

@@ -51,6 +51,11 @@ impl ProcessesActor {
         }
     }
 
+    fn selected_row(&self) -> Option<&ProcessRow> {
+        let pid = self.selected?;
+        self.rows.iter().find(|row| row.pid == pid)
+    }
+
     fn clear_selection(&mut self) {
         self.selected = None;
         self.ui_port.send(ProcessesMsg::SetSelected(None));
@@ -266,21 +271,22 @@ fn on_pressed_away(this: &mut ProcessesActor, _ctx: Context<ProcessesActor, Pres
 
 #[handler]
 fn terminate(this: &mut ProcessesActor, _ctx: Context<ProcessesActor, Terminate>) {
-    let Some(pid) = this.selected else {
+    let Some(row) = this.selected_row() else {
         return;
     };
+    if !row.category.takes_actions() {
+        tracing::debug!(pid = row.pid, "a kernel process is not ended");
+        return;
+    }
     GlobalEventBus::publish(WindowsActionRequest::new(
         Uuid::new_v4(),
-        WindowsAction::Kill { pid },
+        WindowsAction::Kill { pid: row.pid },
     ));
 }
 
 #[handler]
 fn run_process_command(this: &mut ProcessesActor, ctx: Context<ProcessesActor, RunProcessCommand>) {
-    let Some(row) = this
-        .selected
-        .and_then(|pid| this.rows.iter().find(|row| row.pid == pid))
-    else {
+    let Some(row) = this.selected_row() else {
         return;
     };
     let pid = row.pid;
@@ -290,7 +296,11 @@ fn run_process_command(this: &mut ProcessesActor, ctx: Context<ProcessesActor, R
         _ => None,
     };
     if let Some(action) = action {
-        GlobalEventBus::publish(WindowsActionRequest::new(Uuid::new_v4(), action));
+        if row.category.takes_actions() {
+            GlobalEventBus::publish(WindowsActionRequest::new(Uuid::new_v4(), action));
+        } else {
+            tracing::debug!(pid, "a kernel process is not suspended or resumed");
+        }
         return;
     }
     let request = match ctx.msg.0 {

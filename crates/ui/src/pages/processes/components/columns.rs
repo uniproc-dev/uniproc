@@ -291,13 +291,18 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
         chevron_slot(View::empty(), None, row_height(d))
     };
 
-    let count = if d.exited {
-        caption(cell.l10n.processes_exited())
-            .mark(ProcessesMark::Exited)
+    let note = |mark: ProcessesMark, label: String| -> View {
+        caption(label)
+            .mark(mark)
             .foreground(cell.palette.tertiary_text)
             .vertical_alignment(VerticalAlignment::Center)
             .margin(Thickness::new(space::Control, 0.0, 0.0, 0.0))
             .into()
+    };
+    let count = if d.absent {
+        note(ProcessesMark::NotRunning, cell.l10n.processes_not_running())
+    } else if d.exited {
+        note(ProcessesMark::Exited, cell.l10n.processes_exited())
     } else if d.has_children {
         group_count(d.group_size, cell.palette)
     } else {
@@ -320,7 +325,7 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
         count,
     });
 
-    let line: View = if d.exited {
+    let line: View = if d.exited || d.absent {
         Border::new().opacity(opacity::Stopped).content(line).into()
     } else {
         line
@@ -534,7 +539,7 @@ where
     let (sorted, palette) = (place.sorted, place.palette);
     let header = move || metric_header(label.clone(), total.clone(), sorted, palette);
     ColumnSpec::new_with_header(id, header, place.width, move |d: &DisplayRow| {
-        if d.child.as_ref().is_some_and(|child| !child.has_metrics()) {
+        if d.absent || d.child.as_ref().is_some_and(|child| !child.has_metrics()) {
             return Grid::new()
                 .height(row_height(d))
                 .children((rule_below(d, palette),))

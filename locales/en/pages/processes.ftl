@@ -3,6 +3,7 @@ processes-agent-gave-up = Can't reach the agent. Still trying.
 processes-failed = Failed to load processes: { $error }
 processes-status = Processes: { $count }
 processes-exited = Exited
+processes-not-running = Not running
 processes-selected = Selected: { $name } | PID { $pid }
 processes-selected-exited = Selected: { $name } | PID { $pid } | Exited
 processes-selected-group = Selected: { $name } | Group ({ $count })

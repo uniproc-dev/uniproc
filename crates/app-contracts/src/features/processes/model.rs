@@ -67,6 +67,10 @@ impl ProcessCategory {
     pub fn from_id(id: &str) -> Option<Self> {
         Self::ORDER.into_iter().find(|c| c.id() == id)
     }
+
+    pub fn takes_actions(self) -> bool {
+        self != Self::WindowsKernel
+    }
 }
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug, Hash, serde::Deserialize)]

@@ -70,7 +70,14 @@ mod tests {
     use std::time::Duration;
 
     use app_contracts::features::agent_link::AgentLinkState;
-    use app_contracts::features::processes::{Deselect, ProcessColumn, ProcessesState, WindowCommand};
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    use app_contracts::features::processes::{
+        Deselect, ProcessColumn, ProcessCommand, ProcessesState, RunProcessCommand, Terminate,
+        WindowCommand,
+    };
+    use guinea::prelude::GlobalEventBus;
     use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
     use app_contracts::features::services::{ServiceColumn, ServicesState};
     use guinea::core::remote;
@@ -1083,6 +1090,79 @@ mod tests {
 
         select(&mut page, "notepad.exe");
         assert!(!menu_open(&page), "a later selection does not bring the old menu back");
+    }
+
+    const KERNEL: u32 = 4;
+
+    fn with_kernel() -> Vec<WindowsProcessStats> {
+        let mut system = process(KERNEL, "System", 0.4);
+        system.is_kernel_process = true;
+        system.signature = SignatureStatus::Microsoft;
+        let mut rows = machine();
+        rows.push(system);
+        rows
+    }
+
+    fn disabled(page: &Mounted<'_, Processes>, mark: ProcessesMark) -> bool {
+        let node = page.find(mark).unwrap_or_else(|| panic!("{mark:?} is on the page"));
+        page.property(node, PropertyId::ButtonIsEnabled) == Some(&PropertyValue::Bool(false))
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_kernel_process_offers_nothing_to_do_to_it(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        report(h, with_kernel());
+        page.settle();
+        let asked = Rc::new(Cell::new(0));
+        let counted = asked.clone();
+        let _watch = GlobalEventBus::subscribe_fn(move |_: WindowsActionRequest| counted.set(counted.get() + 1));
+
+        right_click(&mut page, "System");
+        assert_eq!(h.state::<ProcessesState>().selected, Some(KERNEL));
+        assert!(!end_task_enabled(&page));
+        for mark in [ProcessesMark::MenuEndTask, ProcessesMark::MenuSuspend, ProcessesMark::MenuResume] {
+            assert!(disabled(&page, mark), "{mark:?}");
+        }
+        assert!(!disabled(&page, ProcessesMark::MenuPin));
+
+        let dispatch = h.dispatch::<ProcessesState>();
+        dispatch.emit(Terminate);
+        dispatch.emit(RunProcessCommand(ProcessCommand::Suspend));
+        page.settle();
+        assert_eq!(asked.get(), 0, "the actor refuses what the buttons do not offer");
+
+        select(&mut page, "notepad.exe");
+        assert!(end_task_enabled(&page));
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_pin_that_is_not_running_stays_until_unpinned(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        pin_from_menu(&mut page, "notepad.exe", ProcessesMark::MenuPin);
+        select(&mut page, "chrome.exe (3)");
+
+        report(h, without(&[NOTEPAD]));
+        page.settle();
+
+        let all = labels(&mut page);
+        assert_eq!(all[..2], ["Pinned (1)".to_string(), "notepad.exe Not running".to_string()], "{all:?}");
+        let selected = h.state::<ProcessesState>().selected;
+        page.item_where(|item| label(item) == "notepad.exe Not running").click_here();
+        page.settle();
+        assert_eq!(h.state::<ProcessesState>().selected, selected, "a placeholder is not selected");
+
+        right_click(&mut page, "notepad.exe Not running");
+        assert!(menu_open(&page), "{:#?}", page.tree());
+        assert!(page.find(ProcessesMark::MenuEndTask).is_none());
+        page.click(ProcessesMark::MenuUnpin).settle();
+        page.settle();
+
+        let all = labels(&mut page);
+        assert!(!all.iter().any(|label| label.starts_with("Pinned") || label.starts_with("notepad")), "{all:?}");
     }
 
     fn pin_from_menu(page: &mut Mounted<'_, Processes>, wanted: &str, mark: ProcessesMark) {

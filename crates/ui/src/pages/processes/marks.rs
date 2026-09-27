@@ -4,6 +4,7 @@ pub enum ProcessesMark {
     GroupByType,
     Chevron,
     Exited,
+    NotRunning,
     PinnedRule,
     Menu,
     MenuPin,

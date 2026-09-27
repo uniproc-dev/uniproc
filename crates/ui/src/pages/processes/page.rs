@@ -58,12 +58,14 @@ pub enum ProcessesMsg {
 enum Press {
     Toggle(SectionId),
     Select(Selection),
+    Nothing,
 }
 
 impl Press {
     fn of(d: &DisplayRow) -> Self {
         match &d.section {
             Some(section) => Self::Toggle(section.id),
+            None if d.absent => Self::Nothing,
             None if d.has_children => Self::Select(Selection::Group(d.row.pid)),
             None => Self::Select(Selection::Process(d.row.pid)),
         }
@@ -73,6 +75,11 @@ impl Press {
 fn menu_target(d: &DisplayRow) -> Option<MenuTarget> {
     if d.section.is_some() {
         return None;
+    }
+    if d.absent {
+        return Some(MenuTarget::Absent {
+            name: d.row.name.clone(),
+        });
     }
     match &d.child {
         Some(Child::Window(window)) => Some(MenuTarget::Window {
@@ -267,7 +274,7 @@ impl ProcessesPage {
                     ProcessesMark::EndTask,
                     l10n.processes_end_task(),
                     Some(icon!(prohibited).size(size::CommandIcon).build_element()),
-                    live.is_some(),
+                    live.is_some_and(|row| row.category.takes_actions()),
                     move || terminate.emit(Terminate),
                 )),
             ));
@@ -406,7 +413,7 @@ impl ProcessesPage {
                     let _ = press_forward.call(ProcessesMsg::SelectGroup(group));
                     select.emit(Select(pid));
                 }
-                None => {}
+                Some(Press::Nothing) | None => {}
             }
             let target = at.and_then(|at| targets.get(at)).cloned().flatten();
             let _ = press_forward.call(ProcessesMsg::MenuFor(target));

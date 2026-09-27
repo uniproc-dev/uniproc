@@ -30,12 +30,14 @@ pub enum MenuTarget {
     Process(ProcessRow),
     Group { leader: ProcessRow },
     Window { window: ProcessWindow },
+    Absent { name: Arc<str> },
 }
 
 impl MenuTarget {
     pub(crate) fn pin_key(&self) -> Option<Arc<str>> {
         match self {
             Self::Process(row) | Self::Group { leader: row } => Some(row.name.clone()),
+            Self::Absent { name } => Some(name.clone()),
             Self::Window { .. } => None,
         }
     }
@@ -79,14 +81,15 @@ fn entry(mark: ProcessesMark, icon: View, label: String, command: MenuCommand) -
     })
 }
 
-fn needs_path(line: Line, row: &ProcessRow) -> Line {
+fn enabled_if(line: Line, enabled: bool) -> Line {
     match line {
-        Line::Entry(entry) => Line::Entry(Entry {
-            enabled: !row.exe_path.is_empty(),
-            ..entry
-        }),
+        Line::Entry(entry) => Line::Entry(Entry { enabled, ..entry }),
         Line::Separator => Line::Separator,
     }
+}
+
+fn needs_path(line: Line, row: &ProcessRow) -> Line {
+    enabled_if(line, !row.exe_path.is_empty())
 }
 
 fn file_lines(row: &ProcessRow, l10n: &L10n) -> Vec<Line> {
@@ -144,28 +147,32 @@ fn group_lines(leader: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
 }
 
 fn process_lines(row: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
+    let actions = row.category.takes_actions();
     let mut lines = Vec::from(pin_lines(pinned, l10n));
-    lines.extend([
-        entry(
-            ProcessesMark::MenuEndTask,
-            icon!(prohibited).size(size::Icon).build_element(),
-            l10n.processes_menu_end_task(),
-            MenuCommand::EndTask,
-        ),
-        entry(
-            ProcessesMark::MenuSuspend,
-            icon!(pause).size(size::Icon).build_element(),
-            l10n.processes_menu_suspend(),
-            MenuCommand::Process(ProcessCommand::Suspend),
-        ),
-        entry(
-            ProcessesMark::MenuResume,
-            icon!(play).size(size::Icon).build_element(),
-            l10n.processes_menu_resume(),
-            MenuCommand::Process(ProcessCommand::Resume),
-        ),
-        Line::Separator,
-    ]);
+    lines.extend(
+        [
+            entry(
+                ProcessesMark::MenuEndTask,
+                icon!(prohibited).size(size::Icon).build_element(),
+                l10n.processes_menu_end_task(),
+                MenuCommand::EndTask,
+            ),
+            entry(
+                ProcessesMark::MenuSuspend,
+                icon!(pause).size(size::Icon).build_element(),
+                l10n.processes_menu_suspend(),
+                MenuCommand::Process(ProcessCommand::Suspend),
+            ),
+            entry(
+                ProcessesMark::MenuResume,
+                icon!(play).size(size::Icon).build_element(),
+                l10n.processes_menu_resume(),
+                MenuCommand::Process(ProcessCommand::Resume),
+            ),
+        ]
+        .map(|line| enabled_if(line, actions)),
+    );
+    lines.push(Line::Separator);
     lines.extend(file_lines(row, l10n));
     lines
 }
@@ -249,6 +256,10 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
         MenuTarget::Process(row) => process_lines(row, pinned, l10n),
         MenuTarget::Group { leader } => group_lines(leader, pinned, l10n),
         MenuTarget::Window { window } => window_lines(window.handle, l10n),
+        MenuTarget::Absent { .. } => {
+            let [pin, _] = pin_lines(pinned, l10n);
+            vec![pin]
+        }
     };
 
     let items = View::keyed_fragment(
