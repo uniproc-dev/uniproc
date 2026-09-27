@@ -8,7 +8,7 @@ use guicons::icon;
 use guinea_widgets::table::ColumnSpec;
 use windows_reactor::{
     Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, CornerRadius, EncodedImage, Grid,
-    GridChildExt, GridLength, HorizontalAlignment, Image, LayoutControl, Orientation, PointerEventInfo,
+    GridChildExt, GridLength, HorizontalAlignment, Image, LayoutControl, PointerEventInfo,
     ResourceOverrides, StackPanel, TextTrimming, TextWrapping, ThemeBrush, Thickness, Tooltip, TooltipExt,
     VerticalAlignment, View,
 };
@@ -410,49 +410,33 @@ fn window_name_cell(cell: &NameCell<'_>, d: &DisplayRow, window: &ProcessWindow)
     name_row(d, line, cell.palette)
 }
 
-struct Notes;
-
-#[expect(non_upper_case_globals)]
-impl Notes {
-    const Icon: f64 = size::Icon - 2.0;
-}
-
-fn wsl_notes(l10n: &L10n) -> View {
+fn wsl_notes(l10n: &L10n) -> Tooltip {
     let note = |line: String| -> View { text(line).text_wrapping(TextWrapping::Wrap).into() };
-    let notes = StackPanel::new().spacing(space::Compact).children((
+    Tooltip::rich(StackPanel::new().spacing(space::Compact).children((
         note(l10n.processes_wsl_note_heading()),
         note(l10n.processes_wsl_note_rows()),
         note(l10n.processes_wsl_note_memory()),
-    ));
-    Border::new()
-        .mark(ProcessesMark::WslNotes)
-        .background(Hit::Transparent)
-        .vertical_alignment(VerticalAlignment::Center)
-        .margin(Thickness::new(space::Control, 0.0, 0.0, 0.0))
-        .content(icon!(question).size(Notes::Icon).build_element())
-        .tooltip_with(Tooltip::rich(notes))
+    )))
 }
 
 fn section_name_cell(cell: &NameCell<'_>, d: &DisplayRow, section: &SectionRow) -> View {
-    let count = group_count(d.group_size, cell.palette);
-    let count = if section.id == SectionId::Category(ProcessCategory::Wsl) {
-        StackPanel::new()
-            .orientation(Orientation::Horizontal)
-            .children((count, wsl_notes(cell.l10n)))
-            .into()
+    let label = body_strong(section_label(cell.l10n, section.id))
+        .text_wrapping(TextWrapping::NoWrap)
+        .text_trimming(TextTrimming::CharacterEllipsis)
+        .vertical_alignment(VerticalAlignment::Center);
+    let label: View = if section.id == SectionId::Category(ProcessCategory::Wsl) {
+        label
+            .mark(ProcessesMark::WslNotes)
+            .tooltip_with(wsl_notes(cell.l10n))
     } else {
-        count
+        label.into()
     };
     let line = name_line(NameLine {
         indent: 0.0,
         chevron: chevron_slot(expand_chevron(d.is_expanded), None, row_height(d)),
         icon: None,
-        label: body_strong(section_label(cell.l10n, section.id))
-            .text_wrapping(TextWrapping::NoWrap)
-            .text_trimming(TextTrimming::CharacterEllipsis)
-            .vertical_alignment(VerticalAlignment::Center)
-            .into(),
-        count,
+        label,
+        count: group_count(d.group_size, cell.palette),
     });
 
     Grid::new()
