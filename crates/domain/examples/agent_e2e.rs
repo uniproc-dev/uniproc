@@ -1,8 +1,11 @@
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let probe_wsl = std::env::args().any(|arg| arg == "--wsl");
+    let wsl_only = std::env::args().any(|arg| arg == "--wsl-only");
+    let probe_wsl = wsl_only || std::env::args().any(|arg| arg == "--wsl");
 
-    windows::probe().await?;
+    if !wsl_only {
+        windows::probe().await?;
+    }
 
     if probe_wsl {
         println!();
@@ -316,6 +319,20 @@ mod wsl {
                         e.kind, e.mnt_ns, e.pid_ns, procs, e.name
                     );
                 }
+                let homeless: Vec<_> = report
+                    .processes
+                    .iter()
+                    .filter(|p| !report.environments.iter().any(|e| e.pid_ns == p.pid_ns))
+                    .collect();
+                println!("  in no environment: {}", homeless.len());
+                for p in homeless.iter().take(15) {
+                    println!(
+                        "    pid={:<6} local={:<6} mnt_ns={} pid_ns={} {:?}",
+                        p.global_pid, p.local_pid, p.mnt_ns, p.pid_ns, p.name
+                    );
+                }
+                let unnamed = report.processes.iter().filter(|p| p.name.is_empty()).count();
+                println!("  unnamed processes: {unnamed}");
                 Ok(())
             }
             _ => bail!("agent answered getReport with the wrong reply"),

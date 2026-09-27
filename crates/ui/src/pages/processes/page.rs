@@ -24,7 +24,7 @@ use super::components::column_layout::ColumnLayout;
 use super::components::columns::{build_columns, ColumnInputs, GroupByType, NameCellActions};
 use super::components::context_menu::{context_menu, MenuCommand, MenuInputs, MenuTarget, OpenMenu};
 use super::components::grouping::{
-    flatten_for_display, highlight, keep_group_place, Child, DisplayRow, Grouping, GroupsCache, Pins,
+    environment_key, flatten_for_display, highlight, keep_group_place, Child, DisplayRow, Grouping, GroupsCache, Pins,
     Held, Order, SectionId, Selection, ViewState, WslRow,
 };
 use super::components::overlay::disconnected_overlay;
@@ -66,7 +66,7 @@ impl Press {
     fn of(d: &DisplayRow) -> Self {
         match (&d.section, &d.wsl) {
             (Some(section), _) => Self::Toggle(section.id),
-            (None, Some(WslRow::Environment { key, .. })) => Self::Expand(key.clone()),
+            (None, Some(WslRow::Environment { pid_ns, .. })) => Self::Expand(environment_key(*pid_ns)),
             (None, Some(WslRow::Process { global_pid })) => Self::Select(Selection::Linux(*global_pid)),
             (None, None) if d.absent => Self::Nothing,
             (None, None) if d.has_children => Self::Select(Selection::Group(d.row.pid)),

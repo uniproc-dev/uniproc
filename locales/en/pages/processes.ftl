@@ -23,7 +23,7 @@ processes-menu-close-window = Close window
 
 processes-category-pinned = Pinned
 processes-category-wsl = WSL
-processes-wsl-other = Other namespaces
+processes-wsl-namespace = PID namespace { $id }
 processes-category-background-microsoft = Background processes (Microsoft)
 processes-category-windows-service = Services
 processes-category-windows-kernel = Windows kernel

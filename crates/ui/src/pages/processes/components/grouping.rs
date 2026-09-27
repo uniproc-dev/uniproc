@@ -103,7 +103,7 @@ impl SectionId {
 }
 
 pub(crate) struct Environment {
-    name: Arc<str>,
+    pid_ns: u64,
     kind: EnvironmentKind,
     leader: ProcessRow,
     processes: Vec<WslProcess>,
@@ -129,20 +129,16 @@ impl Environment {
             windows: None,
         };
         Self {
-            name: environment.name.clone(),
+            pid_ns: environment.pid_ns,
             kind: environment.kind,
             leader,
             processes,
         }
     }
-
-    fn key(&self) -> String {
-        environment_key(&self.name)
-    }
 }
 
-pub(crate) fn environment_key(name: &str) -> String {
-    format!("wsl/{name}")
+pub(crate) fn environment_key(pid_ns: u64) -> String {
+    format!("wsl/{pid_ns}")
 }
 
 fn environments_of(wsl: &[WslEnvironment]) -> Vec<Environment> {
@@ -438,14 +434,13 @@ fn child_row(row: &ProcessRow, depth: u8, child: Child) -> DisplayRow {
 }
 
 fn push_environment(out: &mut Vec<DisplayRow>, environment: &Environment, expanded: &ViewState<'_>) {
-    let key = environment.key();
-    let is_expanded = expanded.groups.contains(&key);
+    let is_expanded = expanded.groups.contains(&environment_key(environment.pid_ns));
     out.push(DisplayRow {
         has_children: true,
         is_expanded,
         group_size: environment.processes.len(),
         wsl: Some(WslRow::Environment {
-            key,
+            pid_ns: environment.pid_ns,
             kind: environment.kind,
         }),
         ..plain_row(&environment.leader, 1)
@@ -718,7 +713,7 @@ pub(crate) struct DisplayRow {
 
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) enum WslRow {
-    Environment { key: String, kind: EnvironmentKind },
+    Environment { pid_ns: u64, kind: EnvironmentKind },
     Process { global_pid: u32 },
 }
 
@@ -2062,8 +2057,12 @@ mod tests {
         }
     }
 
-    fn environment(name: &str, kind: EnvironmentKind, processes: Vec<WslProcess>) -> WslEnvironment {
+    const UBUNTU: u64 = 11;
+    const WEB: u64 = 33;
+
+    fn environment(pid_ns: u64, name: &str, kind: EnvironmentKind, processes: Vec<WslProcess>) -> WslEnvironment {
         WslEnvironment {
+            pid_ns,
             name: name.into(),
             kind,
             processes: Arc::from(processes),
@@ -2073,11 +2072,12 @@ mod tests {
     fn ubuntu_and_web() -> Vec<WslEnvironment> {
         vec![
             environment(
+                UBUNTU,
                 "Ubuntu",
                 EnvironmentKind::CurrentDistro,
                 vec![linux(100, 1, "init"), linux(101, 2, "bash")],
             ),
-            environment("web", EnvironmentKind::DockerContainer, vec![linux(300, 1, "nginx")]),
+            environment(WEB, "web", EnvironmentKind::DockerContainer, vec![linux(300, 1, "nginx")]),
         ]
     }
 
@@ -2095,8 +2095,8 @@ mod tests {
         cache.sections
     }
 
-    fn opened(sections: &[Section], keys: &[&str]) -> Vec<DisplayRow> {
-        let groups: HashSet<String> = keys.iter().map(|name| environment_key(name)).collect();
+    fn opened(sections: &[Section], open: &[u64]) -> Vec<DisplayRow> {
+        let groups: HashSet<String> = open.iter().map(|pid_ns| environment_key(*pid_ns)).collect();
         flat(sections, &groups, &HashSet::new())
     }
 
@@ -2125,7 +2125,7 @@ mod tests {
     fn an_open_environment_lists_its_processes_one_level_down_and_no_deeper() {
         let rows = vec![vm(20)];
 
-        let out = opened(&wsl_sections_for(&rows, true, &ubuntu_and_web()), &["Ubuntu"]);
+        let out = opened(&wsl_sections_for(&rows, true, &ubuntu_and_web()), &[UBUNTU]);
 
         assert_eq!(
             names(&out),
@@ -2140,16 +2140,29 @@ mod tests {
     }
 
     #[test]
+    fn environments_nothing_names_open_one_at_a_time() {
+        let unnamed = |pid_ns, global_pid, name| {
+            environment(pid_ns, "", EnvironmentKind::Unknown, vec![linux(global_pid, 1, name)])
+        };
+        let sections = wsl_sections_for(&[vm(20)], true, &[unnamed(7, 700, "one"), unnamed(8, 800, "two")]);
+
+        let out = opened(&sections, &[7]);
+
+        let open: Vec<&str> = out.iter().filter(|d| d.depth == 2).map(|d| &*d.row.name).collect();
+        assert_eq!(open, vec!["one"]);
+    }
+
+    #[test]
     fn a_linux_process_is_told_apart_from_a_windows_one_with_the_same_pid() {
         let rows = vec![categorised(1, "svchost.exe", ProcessCategory::WindowsService), vm(20)];
         let sections = wsl_sections_for(&rows, true, &ubuntu_and_web());
 
-        let mut windows = opened(&sections, &["Ubuntu"]);
+        let mut windows = opened(&sections, &[UBUNTU]);
         highlight(&mut windows, Some(Selection::Process(1)));
         assert_eq!(highlighted(&windows), vec![(1, 1, Highlight::Whole)]);
         assert!(windows.iter().filter(|d| d.highlight.is_some()).all(|d| d.wsl.is_none()));
 
-        let mut linux = opened(&sections, &["Ubuntu"]);
+        let mut linux = opened(&sections, &[UBUNTU]);
         highlight(&mut linux, Some(Selection::Linux(100)));
         let lit: Vec<&DisplayRow> = linux.iter().filter(|d| d.highlight.is_some()).collect();
         assert_eq!(lit.len(), 1);
@@ -2160,7 +2173,7 @@ mod tests {
     #[test]
     fn an_environment_heading_is_never_part_of_a_group_selection() {
         let sections = wsl_sections_for(&[vm(20)], true, &ubuntu_and_web());
-        let mut out = opened(&sections, &["Ubuntu"]);
+        let mut out = opened(&sections, &[UBUNTU]);
 
         highlight(&mut out, Some(Selection::Group(0)));
 

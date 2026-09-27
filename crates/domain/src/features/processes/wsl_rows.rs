@@ -29,39 +29,65 @@ fn counted_row(p: &LinuxProcessStats) -> ProcessRow {
     }
 }
 
-fn home_of(p: &LinuxProcessStats, environments: &[LinuxEnvironmentInfo]) -> Option<usize> {
-    environments
-        .iter()
-        .position(|e| e.mnt_ns == p.mnt_ns && e.pid_ns == p.pid_ns)
-        .or_else(|| environments.iter().position(|e| e.pid_ns == p.pid_ns))
+fn names(kind: EnvironmentKind) -> bool {
+    matches!(kind, EnvironmentKind::CurrentDistro | EnvironmentKind::DockerContainer)
+}
+
+struct Home {
+    pid_ns: u64,
+    name: Arc<str>,
+    kind: EnvironmentKind,
+    processes: Vec<WslProcess>,
+}
+
+fn home_for(homes: &mut Vec<Home>, pid_ns: u64) -> &mut Home {
+    let at = match homes.iter().position(|home| home.pid_ns == pid_ns) {
+        Some(at) => at,
+        None => {
+            homes.push(Home {
+                pid_ns,
+                name: Arc::from(""),
+                kind: EnvironmentKind::Unknown,
+                processes: Vec::new(),
+            });
+            homes.len() - 1
+        }
+    };
+    &mut homes[at]
+}
+
+fn name_home(homes: &mut Vec<Home>, environment: &LinuxEnvironmentInfo) {
+    let home = home_for(homes, environment.pid_ns);
+    if names(environment.kind) && !names(home.kind) {
+        home.name = Arc::from(environment.name.as_str());
+        home.kind = environment.kind;
+    }
 }
 
 pub fn environments_from_scan(scan: &RemoteScan, rates: &mut IoRates, now: Instant) -> Vec<WslEnvironment> {
     let mut rows: Vec<ProcessRow> = scan.processes.iter().map(counted_row).collect();
     rates.apply(&mut rows, now);
 
-    let mut homes: Vec<Vec<WslProcess>> = vec![Vec::new(); scan.environments.len() + 1];
-    let elsewhere = scan.environments.len();
+    let mut homes: Vec<Home> = Vec::new();
+    for environment in &scan.environments {
+        name_home(&mut homes, environment);
+    }
     for (p, row) in scan.processes.iter().zip(rows) {
         let local_pid = if p.local_pid == 0 { p.global_pid } else { p.local_pid };
-        homes[home_of(p, &scan.environments).unwrap_or(elsewhere)].push(WslProcess {
+        home_for(&mut homes, p.pid_ns).processes.push(WslProcess {
             global_pid: p.global_pid,
             row: ProcessRow { pid: local_pid, ..row },
         });
     }
 
-    let named = scan
-        .environments
-        .iter()
-        .map(|e| (Arc::from(e.name.as_str()), e.kind))
-        .chain(std::iter::once((Arc::from(""), EnvironmentKind::Unknown)));
-    named
-        .zip(homes)
-        .filter(|(_, processes)| !processes.is_empty())
-        .map(|((name, kind), processes)| WslEnvironment {
-            name,
-            kind,
-            processes: Arc::from(processes),
+    homes
+        .into_iter()
+        .filter(|home| !home.processes.is_empty())
+        .map(|home| WslEnvironment {
+            pid_ns: home.pid_ns,
+            name: home.name,
+            kind: home.kind,
+            processes: Arc::from(home.processes),
         })
         .collect()
 }
@@ -136,21 +162,41 @@ mod tests {
     }
 
     #[test]
-    fn a_service_with_its_own_mounts_stays_in_its_distribution() {
+    fn services_with_their_own_mounts_stay_in_their_distribution() {
         let report = scan(
-            vec![process(100, 1, (1, 1), "init"), process(150, 50, (9, 1), "systemd-resolved")],
-            vec![environment((1, 1), EnvironmentKind::CurrentDistro, "Ubuntu")],
+            vec![
+                process(90, 1, (8, 1), "init"),
+                process(100, 2, (1, 1), "systemd"),
+                process(150, 50, (9, 1), "systemd-resolved"),
+                process(160, 60, (10, 1), "cupsd"),
+            ],
+            vec![
+                environment((8, 1), EnvironmentKind::Unknown, ""),
+                environment((1, 1), EnvironmentKind::CurrentDistro, "Ubuntu"),
+                environment((9, 1), EnvironmentKind::Unknown, ""),
+                environment((10, 1), EnvironmentKind::Unknown, ""),
+            ],
         );
 
         let environments = environments_from_scan(&report, &mut IoRates::default(), Instant::now());
 
-        assert_eq!(layout(&environments), vec![("Ubuntu", vec![(100, 1), (150, 50)])]);
+        assert_eq!(
+            layout(&environments),
+            vec![("Ubuntu", vec![(90, 1), (100, 2), (150, 50), (160, 60)])],
+            "the agent reports every private mount namespace; one pid namespace is one environment"
+        );
+        assert_eq!(environments[0].kind, EnvironmentKind::CurrentDistro);
+        assert_eq!(environments[0].pid_ns, 1);
     }
 
     #[test]
-    fn processes_of_no_known_environment_are_gathered_last_and_empty_ones_are_dropped() {
+    fn a_pid_namespace_nothing_names_stays_apart_and_empty_ones_are_dropped() {
         let report = scan(
-            vec![process(2, 2, (7, 7), "kthreadd"), process(100, 1, (1, 1), "init")],
+            vec![
+                process(2, 2, (7, 7), "kthreadd"),
+                process(3, 3, (6, 7), "kworker"),
+                process(100, 1, (1, 1), "init"),
+            ],
             vec![
                 environment((1, 1), EnvironmentKind::CurrentDistro, "Ubuntu"),
                 environment((5, 5), EnvironmentKind::DockerContainer, "stopped"),
@@ -159,7 +205,11 @@ mod tests {
 
         let environments = environments_from_scan(&report, &mut IoRates::default(), Instant::now());
 
-        assert_eq!(layout(&environments), vec![("Ubuntu", vec![(100, 1)]), ("", vec![(2, 2)])]);
+        assert_eq!(
+            layout(&environments),
+            vec![("Ubuntu", vec![(100, 1)]), ("", vec![(2, 2), (3, 3)])]
+        );
+        assert_eq!(environments[1].pid_ns, 7);
     }
 
     #[test]

@@ -1276,28 +1276,35 @@ mod tests {
         rows
     }
 
-    fn linux(global_pid: u32, local_pid: u32, name: &str) -> LinuxProcessStats {
+    fn linux(global_pid: u32, local_pid: u32, mnt_ns: u64, name: &str) -> LinuxProcessStats {
         LinuxProcessStats {
             global_pid,
             local_pid,
-            mnt_ns: 1,
+            mnt_ns,
             pid_ns: 1,
             name: name.into(),
             ..Default::default()
         }
     }
 
+    fn mounts(mnt_ns: u64, kind: EnvironmentKind, name: &str) -> LinuxEnvironmentInfo {
+        LinuxEnvironmentInfo {
+            mnt_ns,
+            pid_ns: 1,
+            kind,
+            name: name.into(),
+        }
+    }
+
     fn linux_report(h: &Harness) {
         h.publish(RemoteScanResult::Scan(RemoteScan {
             schema_id: "wsl",
-            processes: vec![linux(NOTEPAD, 1, "init"), linux(90, 2, "bash")],
+            processes: vec![linux(NOTEPAD, 1, 1, "init"), linux(90, 2, 1, "bash"), linux(95, 3, 2, "cupsd")],
             machine: Default::default(),
-            environments: vec![LinuxEnvironmentInfo {
-                mnt_ns: 1,
-                pid_ns: 1,
-                kind: EnvironmentKind::CurrentDistro,
-                name: "Ubuntu".into(),
-            }],
+            environments: vec![
+                mounts(2, EnvironmentKind::Unknown, ""),
+                mounts(1, EnvironmentKind::CurrentDistro, "Ubuntu"),
+            ],
             docker_containers: Vec::new(),
         }))
         .settle();
@@ -1319,17 +1326,22 @@ mod tests {
 
         let all = labels(&mut page);
         let at = all.iter().position(|label| label == "WSL (1)").unwrap_or_else(|| panic!("{all:?}"));
-        assert_eq!(all[at + 1], "Ubuntu (2)", "{all:?}");
+        assert_eq!(all[at + 1], "Ubuntu (3)", "a service with private mounts is Ubuntu's: {all:?}");
+        assert!(all[at + 2].starts_with("Background processes (Microsoft)"), "nothing else in the section: {all:?}");
         assert!(!all.iter().any(|label| label.starts_with("vmmemWSL")), "the VM is the heading: {all:?}");
 
-        select(&mut page, "Ubuntu (2)");
+        select(&mut page, "Ubuntu (3)");
         let all = labels(&mut page);
-        let at = position(&mut page, "Ubuntu (2)").unwrap();
-        assert_eq!(all[at + 1..at + 3], ["bash".to_string(), "init".to_string()], "{all:?}");
+        let at = position(&mut page, "Ubuntu (3)").unwrap();
+        assert_eq!(
+            all[at + 1..at + 4],
+            ["bash".to_string(), "cupsd".to_string(), "init".to_string()],
+            "{all:?}"
+        );
         assert_eq!(h.state::<ProcessesState>().selected, None, "a distribution opens, it is not selected");
         assert_eq!(h.state::<ProcessesState>().selected_linux, None);
 
-        select(&mut page, "Ubuntu (2)");
+        select(&mut page, "Ubuntu (3)");
         assert!(!labels(&mut page).contains(&"init".to_string()));
     }
 
@@ -1338,7 +1350,7 @@ mod tests {
         let _store = start(h);
         let h = &*h;
         let mut page = wsl_page(h);
-        select(&mut page, "Ubuntu (2)");
+        select(&mut page, "Ubuntu (3)");
 
         right_click(&mut page, "init");
         let state = h.state::<ProcessesState>();

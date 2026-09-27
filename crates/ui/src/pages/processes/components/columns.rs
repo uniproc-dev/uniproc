@@ -24,7 +24,9 @@ use guinea::winui::MarkExt;
 
 use super::super::marks::ProcessesMark;
 use super::column_layout::ColumnLayout;
-use super::grouping::{is_service_host, Child, DisplayRow, ProcessName, SectionId, SectionRow, WslRow};
+use super::grouping::{
+    environment_key, is_service_host, Child, DisplayRow, ProcessName, SectionId, SectionRow, WslRow,
+};
 
 struct Hit;
 
@@ -272,7 +274,7 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
     let chevron = if d.has_children {
         let toggle = cell.actions.toggle_group.clone();
         let group = match &d.wsl {
-            Some(WslRow::Environment { key, .. }) => key.clone(),
+            Some(WslRow::Environment { pid_ns, .. }) => environment_key(*pid_ns),
             _ => d.row.name.to_string(),
         };
         chevron_slot(
@@ -313,11 +315,13 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
     } else {
         View::empty()
     };
-    let label = match &d.row.owner {
-        Some(owner) if !d.has_children && d.child.is_none() => {
+    let label = match (&d.row.owner, &d.wsl) {
+        (Some(owner), _) if !d.has_children && d.child.is_none() => {
             format!("{owner} — {}", d.row.display_name)
         }
-        _ if d.row.display_name.is_empty() && d.wsl.is_some() => cell.l10n.processes_wsl_other(),
+        (_, Some(WslRow::Environment { pid_ns, .. })) if d.row.display_name.is_empty() => {
+            cell.l10n.processes_wsl_namespace(pid_ns.to_string())
+        }
         _ => d.row.display_name.to_string(),
     };
     let icon = match &d.wsl {

@@ -150,6 +150,7 @@ pub struct WslProcess {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct WslEnvironment {
+    pub pid_ns: u64,
     pub name: Arc<str>,
     pub kind: EnvironmentKind,
     pub processes: Arc<[WslProcess]>,
