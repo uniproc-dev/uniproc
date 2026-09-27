@@ -796,6 +796,7 @@ dependencies = [
  "guinea-meta-build",
  "guinea-plugin-devtools",
  "guinea-plugin-l10n",
+ "guinea-plugin-single-instance",
  "guinea-plugin-store",
  "guinea-widgets",
  "tempfile",

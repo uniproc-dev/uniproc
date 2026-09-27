@@ -13,6 +13,7 @@ amethystate = { workspace = true }
 guinea-plugin-store = { workspace = true }
 guinea-plugin-l10n = { workspace = true }
 guinea-plugin-devtools = { workspace = true }
+guinea-plugin-single-instance = { workspace = true }
 guinea-widgets = { workspace = true }
 anyhow = { workspace = true }
 uuid = { workspace = true }

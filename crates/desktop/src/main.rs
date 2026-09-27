@@ -31,6 +31,7 @@ fn main() -> anyhow::Result<()> {
 
     let app = GuineaApp::new()
         .meta(guinea::app_meta!())
+        .plugin(guinea_plugin_single_instance::SingleInstancePlugin::new())
         .plugin(guinea_plugin_store::StorePlugin::for_app(
             meta::APP_NAME,
             "settings",
