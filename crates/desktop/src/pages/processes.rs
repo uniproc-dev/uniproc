@@ -1345,11 +1345,27 @@ mod tests {
         assert!(!labels(&mut page).contains(&"init".to_string()));
     }
 
+    fn is_reserve(node: &Node) -> bool {
+        node.id.as_deref() == Some(guinea::Mark::name(&ProcessesMark::StatusReserve))
+    }
+
+    fn shown_texts(node: &Node, out: &mut Vec<String>) {
+        if is_reserve(node) {
+            return;
+        }
+        if let Some(text) = &node.text {
+            out.push(text.clone());
+        }
+        for child in &node.children {
+            shown_texts(child, out);
+        }
+    }
+
     fn status(page: &Mounted<'_, Processes>) -> String {
         let tree = page.tree();
         let bar = tree.find(PageMark::Status).expect("the page has a status bar");
         let mut said = Vec::new();
-        texts(bar, &mut said);
+        shown_texts(bar, &mut said);
         said.join(" ").replace(['\u{2068}', '\u{2069}'], "")
     }
 
@@ -1386,24 +1402,25 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
-    fn every_status_count_sits_in_a_slot_of_its_own_width(h: &mut Harness) {
+    fn every_status_part_reserves_room_for_its_widest_count(h: &mut Harness) {
         let _store = start(h);
         let h = &*h;
-        let mut page = mount(h);
+        let page = mount(h);
         let tree = page.tree();
         let bar = tree.find(PageMark::Status).expect("the page has a status bar");
-        let mut counts = Vec::new();
-        marked(bar, ProcessesMark::StatusCount, &mut counts);
+        let mut reserves = Vec::new();
+        marked(bar, ProcessesMark::StatusReserve, &mut reserves);
 
-        let slots: Vec<Option<PropertyValue>> = counts
+        let widest: Vec<String> = reserves
             .iter()
-            .map(|count| page.at(count.at).property(PropertyId::MinWidth).cloned())
+            .map(|reserve| reserve.text.clone().unwrap_or_default().replace(['\u{2068}', '\u{2069}'], ""))
             .collect();
 
-        assert_eq!(slots.len(), 5, "{bar:#?}");
-        assert!(slots.iter().all(Option::is_some), "a count without a slot moves what follows it: {slots:?}");
-        assert_ne!(slots[4], slots[0], "the total gets room for one digit more");
-        assert!(slots[..4].windows(2).all(|pair| pair[0] == pair[1]), "{slots:?}");
+        assert_eq!(
+            widest,
+            ["888 apps", "888 background", "888 services", "888 kernel", "8888 processes"],
+            "a count that grows must not push its neighbours"
+        );
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

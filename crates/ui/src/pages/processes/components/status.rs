@@ -18,11 +18,11 @@ impl Share {
     const Radius: f64 = Self::Height / 2.0;
     const Swatch: f64 = 8.0;
     const SwatchRadius: f64 = 2.0;
-    const Digit: f64 = 8.0;
-    const Total: f64 = Self::Digit * 4.0;
-    const Part: f64 = Self::Digit * 3.0;
-    const Gap: f64 = 4.0;
+    const Gap: f64 = 6.0;
     const Between: f64 = 14.0;
+    const PartDigits: usize = 3;
+    const TotalDigits: usize = 4;
+    const WidestDigit: char = '8';
 }
 
 pub(crate) struct StatusCounts {
@@ -43,18 +43,33 @@ struct Part {
     count: usize,
     color: Color,
     label: String,
+    widest_label: String,
+}
+
+fn widest(digits: usize) -> usize {
+    Share::WidestDigit
+        .to_string()
+        .repeat(digits)
+        .parse()
+        .unwrap_or(usize::MAX)
 }
 
 fn parts(counts: &StatusCounts, l10n: &L10n, palette: Palette) -> Vec<Part> {
-    let part = |count: usize, color, label| Part { count, color, label };
+    let many = widest(Share::PartDigits) as i64;
+    let part = |count: usize, color, label: &dyn Fn(i64) -> String| Part {
+        count,
+        color,
+        label: label(count as i64),
+        widest_label: label(many),
+    };
     let mut parts = vec![
-        part(counts.apps, palette.share_apps, l10n.processes_status_apps(counts.apps as i64)),
-        part(counts.background, palette.share_background, l10n.processes_status_background()),
-        part(counts.services, palette.share_services, l10n.processes_status_services(counts.services as i64)),
-        part(counts.kernel, palette.share_kernel, l10n.processes_status_kernel()),
+        part(counts.apps, palette.share_apps, &|n| l10n.processes_status_apps(n)),
+        part(counts.background, palette.share_background, &|_| l10n.processes_status_background()),
+        part(counts.services, palette.share_services, &|n| l10n.processes_status_services(n)),
+        part(counts.kernel, palette.share_kernel, &|_| l10n.processes_status_kernel()),
     ];
     if counts.linux > 0 {
-        parts.push(part(counts.linux, palette.share_wsl, l10n.processes_status_wsl()));
+        parts.push(part(counts.linux, palette.share_wsl, &|_| l10n.processes_status_wsl()));
     }
     parts
 }
@@ -82,34 +97,28 @@ fn share_bar(parts: &[Part]) -> View {
         .collect();
     Grid::new()
         .height(Share::Height)
-        .margin(Thickness::new(0.0, 0.0, 0.0, space::Compact))
+        .margin(Thickness::new(0.0, space::Compact, 0.0, space::Compact))
         .columns(shown.iter().map(|part| GridLength::Star(part.count as f64)))
         .children((keyed(segments),))
         .into()
 }
 
-fn count(n: usize, slot: f64, palette: Palette) -> View {
-    Border::new()
-        .mark(ProcessesMark::StatusCount)
-        .min_width(slot)
-        .content(
-            text(n.to_string())
+fn reserved(shown: String, widest: String, palette: Palette) -> View {
+    Grid::new()
+        .horizontal_alignment(HorizontalAlignment::Left)
+        .children((
+            text(widest).mark(ProcessesMark::StatusReserve).opacity(0.0),
+            text(shown)
                 .foreground(palette.secondary_text)
-                .horizontal_alignment(HorizontalAlignment::Right),
-        )
-        .into()
-}
-
-fn label(label: String, palette: Palette) -> View {
-    text(label)
-        .foreground(palette.secondary_text)
-        .margin(Thickness::new(Share::Gap, 0.0, 0.0, 0.0))
+                .horizontal_alignment(HorizontalAlignment::Left),
+        ))
         .into()
 }
 
 fn legend_item(part: &Part, palette: Palette) -> View {
     StackPanel::new()
         .orientation(Orientation::Horizontal)
+        .spacing(Share::Gap)
         .children((
             Border::new()
                 .width(Share::Swatch)
@@ -117,8 +126,11 @@ fn legend_item(part: &Part, palette: Palette) -> View {
                 .corner_radius(Share::SwatchRadius)
                 .background(part.color)
                 .vertical_alignment(VerticalAlignment::Center),
-            count(part.count, Share::Part, palette),
-            label(part.label.clone(), palette),
+            reserved(
+                format!("{} {}", part.count, part.label),
+                format!("{} {}", widest(Share::PartDigits), part.widest_label),
+                palette,
+            ),
         ))
         .into()
 }
@@ -126,18 +138,17 @@ fn legend_item(part: &Part, palette: Palette) -> View {
 pub(crate) fn status_bar(counts: &StatusCounts, l10n: &L10n, palette: Palette) -> View {
     let parts = parts(counts, l10n, palette);
     let total = counts.total();
+    let most = widest(Share::TotalDigits);
     let legend = StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(Share::Between)
         .grid_column(0)
         .children((keyed(parts.iter().map(|part| legend_item(part, palette)).collect()),));
-    let total = StackPanel::new()
-        .orientation(Orientation::Horizontal)
-        .grid_column(2)
-        .children((
-            count(total, Share::Total, palette),
-            label(l10n.processes_status_processes(total as i64), palette),
-        ));
+    let total = Border::new().grid_column(2).content(reserved(
+        format!("{total} {}", l10n.processes_status_processes(total as i64)),
+        format!("{most} {}", l10n.processes_status_processes(most as i64)),
+        palette,
+    ));
 
     StackPanel::new()
         .children((

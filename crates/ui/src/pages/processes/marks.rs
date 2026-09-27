@@ -7,7 +7,7 @@ pub enum ProcessesMark {
     NotRunning,
     PinnedRule,
     WslNotes,
-    StatusCount,
+    StatusReserve,
     StatusShare,
     Menu,
     MenuPin,
