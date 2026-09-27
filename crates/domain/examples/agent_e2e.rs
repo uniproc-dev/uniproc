@@ -338,8 +338,13 @@ rm -f /tmp/uniproc-probe
             .spawn()
             .context("wsl.exe did not start the load")?;
 
-        tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-        let early = report(handle).await?;
+        let mut early = report(handle).await?;
+        while ["yes", "python3", "curl"].iter().any(|name| started(&early, &before, name).is_none())
+            && began.elapsed() < std::time::Duration::from_secs(LOAD_SECS - 2)
+        {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            early = report(handle).await?;
+        }
         tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
         let late = report(handle).await?;
         load.wait()?;

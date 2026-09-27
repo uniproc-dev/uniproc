@@ -894,11 +894,11 @@ dependencies = [
  "futures",
  "guinea",
  "guinea-widgets",
- "ogurpchik",
+ "ogurpchik 0.7.0",
  "serde",
  "tokio",
  "tracing",
- "uniproc-protocol",
+ "uniproc-protocol 0.11.0",
  "uniproc-windows-agent",
  "uuid",
  "windows",
@@ -1453,7 +1453,7 @@ dependencies = [
  "capnp-rpc",
  "capnpc",
  "getrandom 0.4.3",
- "ogurpchik",
+ "ogurpchik 0.6.4",
  "serde",
  "serde_json",
 ]
@@ -1506,7 +1506,7 @@ dependencies = [
  "guinea-core",
  "guinea-devtools-protocol",
  "guinea-plugin-single-instance",
- "ogurpchik",
+ "ogurpchik 0.6.4",
  "puffin_http",
  "tracing",
 ]
@@ -2157,6 +2157,35 @@ dependencies = [
 name = "ogurpchik"
 version = "0.6.4"
 source = "git+https://github.com/uniproc-dev/oguRPChik?tag=v0.6.4#9c167c1e367473b7569570de91b19dfef635eede"
+dependencies = [
+ "base64",
+ "binrw",
+ "capnp",
+ "capnp-rpc",
+ "compio",
+ "ed25519-dalek",
+ "error-stack",
+ "futures",
+ "getrandom 0.4.3",
+ "hmac",
+ "libc 1.0.0-alpha.4",
+ "rustix",
+ "serde",
+ "serde_json",
+ "sha2",
+ "socket2",
+ "tracing",
+ "uuid",
+ "widestring",
+ "winapi",
+ "windows",
+ "winreg",
+]
+
+[[package]]
+name = "ogurpchik"
+version = "0.7.0"
+source = "git+https://github.com/uniproc-dev/oguRPChik?tag=v0.7.0#113ecb9c4f04efc1fd5af6b08e28b7a96f4ce67c"
 dependencies = [
  "base64",
  "binrw",
@@ -3305,6 +3334,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "uniproc-protocol"
+version = "0.11.0"
+source = "git+https://github.com/uniproc-dev/uniproc-protocol?tag=v0.11.0#c81dbf402757c1be2c4b903357ab02cc9ccd4adb"
+dependencies = [
+ "capnp",
+ "capnp-rpc",
+ "capnpc",
+]
+
+[[package]]
 name = "uniproc-windows-agent"
 version = "0.1.0"
 source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.7.1#dbd2f54ba113c67c5cd1de765f8a06c5ac78bdc3"
@@ -3316,10 +3355,10 @@ dependencies = [
  "crossbeam-channel",
  "futures",
  "ntapi",
- "ogurpchik",
+ "ogurpchik 0.6.4",
  "parking_lot",
  "tracing",
- "uniproc-protocol",
+ "uniproc-protocol 0.10.0",
  "uniproc-windows-core",
  "windows",
 ]

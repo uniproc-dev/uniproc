@@ -10,7 +10,7 @@ use app_contracts::features::agents::{
 };
 use guinea::prelude::*;
 use guinea::ratelimit;
-use ogurpchik::auth::handshake::{HandshakeMode, SchemaId, authenticate_client};
+use ogurpchik::auth::handshake::{HandshakeMode, Protocol, authenticate_client};
 use ogurpchik::endpoint::Endpoint;
 use ogurpchik::rpc::{RpcSession, Side, spawn_session};
 use std::io::Write;
@@ -21,10 +21,17 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use tracing::instrument;
 use uniproc_protocol::linux_capnp::linux_agent;
-use uniproc_protocol::{LINUX_SCHEMA_ID, WSL_AGENT_VSOCK_PORT};
+use uniproc_protocol::{LINUX_PROTOCOL, WSL_AGENT_VSOCK_PORT};
 use uuid::Uuid;
 
 const SCHEMA_ID: &str = "wsl";
+
+const LINUX: Protocol = Protocol::new(
+    LINUX_PROTOCOL.id,
+    LINUX_PROTOCOL.major,
+    LINUX_PROTOCOL.minor,
+    LINUX_PROTOCOL.patch,
+);
 
 struct HostStub;
 impl linux_agent::Server for HostStub {}
@@ -133,7 +140,7 @@ impl RpcService for WslRpc {
         authenticate_client(
             &mut conn,
             &HandshakeMode::hmac(secret.into_bytes()),
-            SchemaId(LINUX_SCHEMA_ID),
+            LINUX,
         )
             .await
             .map_err(|e| anyhow!("{e:#}"))?;
