@@ -422,7 +422,7 @@ fn wsl_notes(l10n: &L10n) -> View {
         .background(Hit::Transparent)
         .vertical_alignment(VerticalAlignment::Center)
         .margin(Thickness::new(space::Control, 0.0, 0.0, 0.0))
-        .content(icon!(info).size(size::Chevron).build_element())
+        .content(icon!(question).size(size::Chevron).build_element())
         .tooltip_with(Tooltip::rich(notes))
 }
 

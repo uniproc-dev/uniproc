@@ -22,6 +22,9 @@ file = "arrow-up-regular.svg"
 [pin]
 iconify = "fluent:pin-24-regular"
 
+[question]
+iconify = "fluent:question-circle-24-regular"
+
 [pin-off]
 iconify = "fluent:pin-off-24-regular"
 
