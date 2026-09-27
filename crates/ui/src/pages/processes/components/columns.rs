@@ -191,7 +191,7 @@ fn runs_from_package(exe_path: &str, package_full_name: &str) -> bool {
     exe_path.to_ascii_lowercase().contains(&folder)
 }
 
-pub(crate) fn process_icon(icons: &context::IconCache, row: &ProcessRow) -> View {
+fn process_icon(icons: &context::IconCache, row: &ProcessRow) -> View {
     if is_service_host(row) {
         return icon!(gears).size(size::Icon).build_element();
     }
@@ -207,7 +207,7 @@ pub(crate) fn process_icon(icons: &context::IconCache, row: &ProcessRow) -> View
     }
 }
 
-pub(crate) fn window_icon(icons: &context::IconCache, window: &ProcessWindow, owner: &ProcessRow) -> View {
+fn window_icon(icons: &context::IconCache, window: &ProcessWindow, owner: &ProcessRow) -> View {
     match icons.window_icon(window.handle) {
         Some(png) => png_icon(png),
         None => process_icon(icons, owner),

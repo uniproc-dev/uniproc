@@ -77,12 +77,10 @@ fn menu_target(d: &DisplayRow) -> Option<MenuTarget> {
     match &d.child {
         Some(Child::Window(window)) => Some(MenuTarget::Window {
             window: window.clone(),
-            owner: d.row.clone(),
         }),
         Some(Child::Service(_)) => None,
         Some(Child::Console) | None if d.has_children => Some(MenuTarget::Group {
             leader: d.row.clone(),
-            count: d.group_size,
         }),
         Some(Child::Console) | None => Some(MenuTarget::Process(d.row.clone())),
     }
@@ -434,7 +432,6 @@ impl ProcessesPage {
             let pin_key = menu.target.pin_key();
             let pinned = pin_key.as_ref().is_some_and(|key| pins.contains(key));
             context_menu(menu, MenuInputs {
-                icons: &self.icons,
                 l10n,
                 palette,
                 pinned,

@@ -5,24 +5,22 @@ use guicons::icon;
 use windows_reactor::{
     Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, CornerRadius,
     Grid, GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation,
-    PointerEventInfo, StackPanel, TextTrimming, Thickness, VerticalAlignment, View,
+    PointerEventInfo, StackPanel, Thickness, VerticalAlignment, View,
 };
 
 use guinea::winui::MarkExt;
 
 use super::super::marks::ProcessesMark;
-use super::columns::{process_icon, window_icon};
 use crate::l10n::L10n;
 use crate::theme::{radius, size, space, Palette};
 use crate::widgets::separator;
-use crate::widgets::text::{body_strong, caption, text};
+use crate::widgets::text::text;
 
 struct Menu;
 
 #[expect(non_upper_case_globals)]
 impl Menu {
     const Width: f64 = 248.0;
-    const HeaderIcon: f64 = 24.0;
     const ShadowDrop: f64 = 2.0;
     const Backdrop: Color = Color::argb(0, 0, 0, 0);
 }
@@ -30,14 +28,14 @@ impl Menu {
 #[derive(Clone, PartialEq, Debug)]
 pub enum MenuTarget {
     Process(ProcessRow),
-    Group { leader: ProcessRow, count: usize },
-    Window { window: ProcessWindow, owner: ProcessRow },
+    Group { leader: ProcessRow },
+    Window { window: ProcessWindow },
 }
 
 impl MenuTarget {
     pub(crate) fn pin_key(&self) -> Option<Arc<str>> {
         match self {
-            Self::Process(row) | Self::Group { leader: row, .. } => Some(row.name.clone()),
+            Self::Process(row) | Self::Group { leader: row } => Some(row.name.clone()),
             Self::Window { .. } => None,
         }
     }
@@ -203,31 +201,6 @@ fn window_lines(handle: isize, l10n: &L10n) -> Vec<Line> {
     ]
 }
 
-fn header(icon: View, title: String, subtitle: String, palette: Palette) -> View {
-    Grid::new()
-        .columns([GridLength::Auto, GridLength::Star(1.0)])
-        .margin(Thickness::xy(space::Control, space::Control))
-        .children((
-            Border::new()
-                .grid_column(0)
-                .width(Menu::HeaderIcon)
-                .height(Menu::HeaderIcon)
-                .vertical_alignment(VerticalAlignment::Center)
-                .content(icon),
-            StackPanel::new()
-                .grid_column(1)
-                .margin(Thickness::new(space::Header, 0.0, 0.0, 0.0))
-                .vertical_alignment(VerticalAlignment::Center)
-                .children((
-                    body_strong(title).text_trimming(TextTrimming::CharacterEllipsis),
-                    caption(subtitle)
-                        .foreground(palette.secondary_text)
-                        .text_trimming(TextTrimming::CharacterEllipsis),
-                )),
-        ))
-        .into()
-}
-
 fn line_view(line: Line, on_command: &Callback<MenuCommand>, palette: Palette) -> View {
     match line {
         Line::Separator => separator(palette)
@@ -257,7 +230,6 @@ fn line_view(line: Line, on_command: &Callback<MenuCommand>, palette: Palette) -
 }
 
 pub(crate) struct MenuInputs<'a> {
-    pub(crate) icons: &'a context::IconCache,
     pub(crate) l10n: &'a L10n,
     pub(crate) palette: Palette,
     pub(crate) pinned: bool,
@@ -267,41 +239,16 @@ pub(crate) struct MenuInputs<'a> {
 
 pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
     let MenuInputs {
-        icons,
         l10n,
         palette,
         pinned,
         on_command,
         on_dismiss,
     } = inputs;
-    let (head, lines) = match &menu.target {
-        MenuTarget::Process(row) => (
-            header(
-                process_icon(icons, row),
-                row.display_name.to_string(),
-                l10n.processes_menu_process(row.name.to_string(), row.pid as i64),
-                palette,
-            ),
-            process_lines(row, pinned, l10n),
-        ),
-        MenuTarget::Group { leader, count } => (
-            header(
-                process_icon(icons, leader),
-                leader.display_name.to_string(),
-                l10n.processes_menu_group(leader.name.to_string(), *count as i64),
-                palette,
-            ),
-            group_lines(leader, pinned, l10n),
-        ),
-        MenuTarget::Window { window, owner } => (
-            header(
-                window_icon(icons, window, owner),
-                window.title.to_string(),
-                l10n.processes_menu_process(owner.name.to_string(), owner.pid as i64),
-                palette,
-            ),
-            window_lines(window.handle, l10n),
-        ),
+    let lines = match &menu.target {
+        MenuTarget::Process(row) => process_lines(row, pinned, l10n),
+        MenuTarget::Group { leader } => group_lines(leader, pinned, l10n),
+        MenuTarget::Window { window } => window_lines(window.handle, l10n),
     };
 
     let items = View::keyed_fragment(
@@ -310,11 +257,6 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
             .map(|line| line_view(line, &on_command, palette))
             .enumerate()
             .map(|(at, view)| KeyedView::new(at, view)),
-    );
-    let items = (
-        head,
-        separator(palette).margin(Thickness::xy(0.0, space::Compact)),
-        items,
     );
 
     let card = Border::new()
@@ -327,7 +269,7 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
         .border_thickness(Thickness::uniform(space::Hairline))
         .corner_radius(radius::Overlay)
         .padding(Thickness::uniform(space::Compact))
-        .content(StackPanel::new().children(items));
+        .content(StackPanel::new().children((items,)));
 
     let shadow = Border::new()
         .grid_row(1)

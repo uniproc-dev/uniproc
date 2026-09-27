@@ -7,8 +7,6 @@ processes-selected = Selected: { $name } | PID { $pid }
 processes-selected-exited = Selected: { $name } | PID { $pid } | Exited
 processes-selected-group = Selected: { $name } | Group ({ $count })
 
-processes-menu-process = { $name } | PID { $pid }
-processes-menu-group = { $name } | Group ({ $count })
 processes-menu-pin = Pin
 processes-menu-unpin = Unpin
 processes-menu-end-task = End task

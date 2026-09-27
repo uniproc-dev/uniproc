@@ -906,11 +906,6 @@ mod tests {
         right_click(&mut page, "notepad.exe");
         assert!(menu_open(&page), "{:#?}", page.tree());
         assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
-        assert!(
-            page.find_text(&format!("\u{2068}notepad.exe\u{2069} | PID \u{2068}{NOTEPAD}\u{2069}")).is_some(),
-            "{:#?}",
-            page.tree()
-        );
 
         let suspend = page.click(ProcessesMark::MenuSuspend);
         suspend.settle();
