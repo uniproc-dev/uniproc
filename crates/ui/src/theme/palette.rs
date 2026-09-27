@@ -17,6 +17,11 @@ pub struct Palette {
     pub menu_fill: Color,
     pub menu_stroke: Color,
     pub menu_shadow: Color,
+    pub share_apps: Color,
+    pub share_background: Color,
+    pub share_services: Color,
+    pub share_kernel: Color,
+    pub share_wsl: Color,
 }
 
 impl Palette {
@@ -37,6 +42,11 @@ impl Palette {
                 menu_fill: Color::argb(255, 0x2C, 0x2C, 0x2C),
                 menu_stroke: Color::argb(26, 255, 255, 255),
                 menu_shadow: Color::argb(72, 0, 0, 0),
+                share_apps: Color::argb(255, 0x4C, 0xC2, 0xFF),
+                share_background: Color::argb(255, 0x6C, 0xCB, 0x5F),
+                share_services: Color::argb(255, 0xB4, 0xA0, 0xFF),
+                share_kernel: Color::argb(255, 0x9E, 0x9E, 0x9E),
+                share_wsl: Color::argb(255, 0xFF, 0x9A, 0x5C),
             },
             ColorScheme::Light => Self {
                 heat_muted: Color::argb(255, 110, 110, 110),
@@ -53,6 +63,11 @@ impl Palette {
                 menu_fill: Color::argb(255, 0xF9, 0xF9, 0xF9),
                 menu_stroke: Color::argb(15, 0, 0, 0),
                 menu_shadow: Color::argb(28, 0, 0, 0),
+                share_apps: Color::argb(255, 0x00, 0x5F, 0xB8),
+                share_background: Color::argb(255, 0x0F, 0x7B, 0x0F),
+                share_services: Color::argb(255, 0x6B, 0x4F, 0xBB),
+                share_kernel: Color::argb(255, 0x6E, 0x6E, 0x6E),
+                share_wsl: Color::argb(255, 0xC2, 0x4E, 0x00),
             },
         }
     }

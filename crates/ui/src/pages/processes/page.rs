@@ -327,24 +327,22 @@ impl ProcessesPage {
         page_frame(
             header,
             body,
-            self.status(state, l10n, palette),
+            Self::status(state, l10n, palette),
             palette,
             Some(blank),
         )
     }
 
-    fn status(&self, state: &ProcessesState, l10n: &L10n, palette: Palette) -> View {
+    fn status(state: &ProcessesState, l10n: &L10n, palette: Palette) -> View {
         let of = |wanted: &[ProcessCategory]| {
             state.rows().iter().filter(|row| wanted.contains(&row.category)).count()
         };
         let counts = StatusCounts {
-            total: state.total(),
             apps: of(&[ProcessCategory::App]),
             background: of(&[ProcessCategory::BackgroundThirdParty, ProcessCategory::BackgroundMicrosoft]),
             services: of(&[ProcessCategory::WindowsService]),
             kernel: of(&[ProcessCategory::WindowsKernel]),
             linux: state.wsl.iter().map(|environment| environment.processes.len()).sum(),
-            pinned: self.pins.as_ref().map_or(0, |pins| pins.entries().count()),
         };
         status_bar(&counts, l10n, palette)
     }

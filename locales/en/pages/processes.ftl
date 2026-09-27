@@ -15,8 +15,7 @@ processes-status-services = { $count ->
    *[other] services
     }
 processes-status-kernel = kernel
-processes-status-wsl = in WSL
-processes-status-pinned = pinned
+processes-status-wsl = WSL
 processes-exited = Exited
 processes-not-running = Not running
 processes-selected = Selected: { $name } | PID { $pid }

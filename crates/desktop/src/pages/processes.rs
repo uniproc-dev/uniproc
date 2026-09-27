@@ -1358,17 +1358,22 @@ mod tests {
         let _store = start(h);
         let h = &*h;
         let mut page = mount(h);
-        assert_eq!(status(&page), "9 processes · 1 app · 7 background · 1 service · 0 kernel");
+        assert_eq!(status(&page), "1 app 7 background 1 service 0 kernel 9 processes");
+        assert_eq!(shares(&page), 3, "no segment for an empty part");
 
         report(h, with_vm());
         linux_report(h);
-        pin_from_menu(&mut page, "notepad.exe", ProcessesMark::MenuPin);
         page.settle();
 
-        assert_eq!(
-            status(&page),
-            "10 processes · 1 app · 8 background · 1 service · 0 kernel · 3 in WSL · 1 pinned"
-        );
+        assert_eq!(status(&page), "1 app 8 background 1 service 0 kernel 3 WSL 13 processes");
+        assert_eq!(shares(&page), 4);
+    }
+
+    fn shares(page: &Mounted<'_, Processes>) -> usize {
+        let tree = page.tree();
+        let mut found = Vec::new();
+        marked(tree.find(PageMark::Status).expect("a status bar"), ProcessesMark::StatusShare, &mut found);
+        found.len()
     }
 
     fn marked<'a>(node: &'a Node, mark: ProcessesMark, out: &mut Vec<&'a Node>) {
@@ -1397,8 +1402,8 @@ mod tests {
 
         assert_eq!(slots.len(), 5, "{bar:#?}");
         assert!(slots.iter().all(Option::is_some), "a count without a slot moves what follows it: {slots:?}");
-        assert_ne!(slots[0], slots[1], "the total gets room for one digit more");
-        assert!(slots[1..].windows(2).all(|pair| pair[0] == pair[1]), "{slots:?}");
+        assert_ne!(slots[4], slots[0], "the total gets room for one digit more");
+        assert!(slots[..4].windows(2).all(|pair| pair[0] == pair[1]), "{slots:?}");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

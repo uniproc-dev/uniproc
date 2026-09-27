@@ -8,6 +8,7 @@ pub enum ProcessesMark {
     PinnedRule,
     WslNotes,
     StatusCount,
+    StatusShare,
     Menu,
     MenuPin,
     MenuUnpin,
