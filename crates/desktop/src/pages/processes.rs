@@ -1415,10 +1415,10 @@ mod tests {
         let all = labels(&mut page);
         let at = position(&mut page, "vmmemWSL").unwrap();
         assert_eq!(all[at + 1], "Ubuntu (3)", "{all:?}");
-        assert_ne!(
+        assert_eq!(
             name_inset(&mut page, "Ubuntu (3)"),
-            name_inset(&mut page, "vmmemWSL"),
-            "a distribution is set in under the VM"
+            name_inset(&mut page, "notepad.exe"),
+            "a distribution sits level with the VM and every other process"
         );
         assert_eq!(marked_selected(&mut page), ["vmmemWSL"], "the VM is selected alone");
 

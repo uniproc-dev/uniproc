@@ -540,7 +540,7 @@ fn push_with_details(out: &mut Vec<DisplayRow>, host: DisplayRow, section: &Sect
     }
     if section.hosts_environments(row.pid) {
         for environment in &section.environments {
-            push_environment(out, environment, expanded, depth);
+            push_environment(out, environment, expanded, depth - 1);
         }
     }
 }
@@ -2374,7 +2374,8 @@ pub(crate) mod tests {
         );
         assert_eq!(
             names(&open),
-            vec![(1, "vmmemWSL"), (2, "Ubuntu"), (3, "bash"), (3, "init"), (2, "web"), (1, "notepad.exe")]
+            vec![(1, "vmmemWSL"), (1, "Ubuntu"), (2, "bash"), (2, "init"), (1, "web"), (1, "notepad.exe")],
+            "the environments sit level with the VM, as they do under the section heading"
         );
 
         let mut selected = open.clone();
