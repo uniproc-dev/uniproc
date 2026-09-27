@@ -232,8 +232,8 @@ actor! {
 }
 
 #[handler]
-fn on_linux_scan(this: &mut ProcessesActor, ctx: Context<ProcessesActor, RemoteScanResult>) {
-    let environments = match ctx.msg {
+fn on_linux_scan(this: &mut ProcessesActor, msg: RemoteScanResult) {
+    let environments = match msg {
         RemoteScanResult::Scan(scan) => {
             environments_from_scan(&scan, &mut this.linux_rates, tokio::time::Instant::now())
         }
@@ -246,8 +246,7 @@ fn on_linux_scan(this: &mut ProcessesActor, ctx: Context<ProcessesActor, RemoteS
 }
 
 #[handler]
-fn on_windows_report(this: &mut ProcessesActor, ctx: Context<ProcessesActor, WindowsReportMessage>) {
-    let msg = ctx.msg;
+fn on_windows_report(this: &mut ProcessesActor, msg: WindowsReportMessage) {
     let report = match msg {
         WindowsReportMessage::Report(report) => report,
         WindowsReportMessage::Unavailable(state) => {
@@ -274,8 +273,7 @@ fn on_windows_report(this: &mut ProcessesActor, ctx: Context<ProcessesActor, Win
 }
 
 #[handler]
-fn sort(this: &mut ProcessesActor, ctx: Context<ProcessesActor, Sort>) {
-    let msg = ctx.msg;
+fn sort(this: &mut ProcessesActor, msg: Sort) {
     if this.sort_column == msg.0 {
         this.descending = !this.descending;
     } else {
@@ -289,31 +287,31 @@ fn sort(this: &mut ProcessesActor, ctx: Context<ProcessesActor, Sort>) {
 }
 
 #[handler]
-fn select(this: &mut ProcessesActor, ctx: Context<ProcessesActor, Select>) {
-    this.select_windows(Some(ctx.msg.0));
+fn select(this: &mut ProcessesActor, Select(pid): Select) {
+    this.select_windows(Some(pid));
 }
 
 #[handler]
-fn select_linux(this: &mut ProcessesActor, ctx: Context<ProcessesActor, SelectLinux>) {
+fn select_linux(this: &mut ProcessesActor, SelectLinux(key): SelectLinux) {
     if this.selected.take().is_some() {
         this.ui_port.send(ProcessesMsg::SetSelected(None));
     }
-    this.selected_linux = Some(ctx.msg.0);
+    this.selected_linux = Some(key);
     this.ui_port.send(ProcessesMsg::SetSelectedLinux(this.selected_linux));
 }
 
 #[handler]
-fn deselect(this: &mut ProcessesActor, _ctx: Context<ProcessesActor, Deselect>) {
+fn deselect(this: &mut ProcessesActor, _msg: Deselect) {
     this.clear_selection();
 }
 
 #[handler]
-fn on_pressed_away(this: &mut ProcessesActor, _ctx: Context<ProcessesActor, PressedAway>) {
+fn on_pressed_away(this: &mut ProcessesActor, _msg: PressedAway) {
     this.clear_selection();
 }
 
 #[handler]
-fn terminate(this: &mut ProcessesActor, _ctx: Context<ProcessesActor, Terminate>) {
+fn terminate(this: &mut ProcessesActor, _msg: Terminate) {
     let Some(row) = this.selected_row() else {
         return;
     };
@@ -328,12 +326,12 @@ fn terminate(this: &mut ProcessesActor, _ctx: Context<ProcessesActor, Terminate>
 }
 
 #[handler]
-fn run_process_command(this: &mut ProcessesActor, ctx: Context<ProcessesActor, RunProcessCommand>) {
+fn run_process_command(this: &mut ProcessesActor, RunProcessCommand(command): RunProcessCommand) {
     let Some(row) = this.selected_row() else {
         return;
     };
     let pid = row.pid;
-    let action = match ctx.msg.0 {
+    let action = match command {
         ProcessCommand::Suspend => Some(WindowsAction::Suspend { pid }),
         ProcessCommand::Resume => Some(WindowsAction::Resume { pid }),
         _ => None,
@@ -346,7 +344,7 @@ fn run_process_command(this: &mut ProcessesActor, ctx: Context<ProcessesActor, R
         }
         return;
     }
-    if let Some(request) = image_request(ctx.msg.0, &row.exe_path, &row.name) {
+    if let Some(request) = image_request(command, &row.exe_path, &row.name) {
         (this.shell)(request);
     }
 }
@@ -361,8 +359,7 @@ fn image_request(command: ProcessCommand, exe_path: &Arc<str>, name: &Arc<str>) 
 }
 
 #[handler]
-fn run_image_command(this: &mut ProcessesActor, ctx: Context<ProcessesActor, RunImageCommand>) {
-    let msg = ctx.msg;
+fn run_image_command(this: &mut ProcessesActor, msg: RunImageCommand) {
     let exe_path: Arc<str> = Arc::from(msg.exe_path);
     let name: Arc<str> = Arc::from(msg.name);
     if let Some(request) = image_request(msg.command, &exe_path, &name) {
@@ -371,8 +368,7 @@ fn run_image_command(this: &mut ProcessesActor, ctx: Context<ProcessesActor, Run
 }
 
 #[handler]
-fn run_window_command(this: &mut ProcessesActor, ctx: Context<ProcessesActor, RunWindowCommand>) {
-    let msg = ctx.msg;
+fn run_window_command(this: &mut ProcessesActor, msg: RunWindowCommand) {
     (this.shell)(ShellRequest::Window {
         handle: msg.handle,
         command: msg.command,

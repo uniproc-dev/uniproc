@@ -82,8 +82,7 @@ actor! {
 }
 
 #[handler]
-fn on_windows_report(this: &mut ServicesActor, ctx: Context<ServicesActor, WindowsReportMessage>) {
-    let msg = ctx.msg;
+fn on_windows_report(this: &mut ServicesActor, msg: WindowsReportMessage) {
     let WindowsReportMessage::Report(report) = msg else {
         return;
     };
@@ -102,8 +101,7 @@ fn on_windows_report(this: &mut ServicesActor, ctx: Context<ServicesActor, Windo
 }
 
 #[handler]
-fn sort(this: &mut ServicesActor, ctx: Context<ServicesActor, Sort>) {
-    let msg = ctx.msg;
+fn sort(this: &mut ServicesActor, msg: Sort) {
     if this.sort_column == msg.0 {
         this.descending = !this.descending;
     } else {
@@ -119,25 +117,23 @@ fn sort(this: &mut ServicesActor, ctx: Context<ServicesActor, Sort>) {
 }
 
 #[handler]
-fn select(this: &mut ServicesActor, ctx: Context<ServicesActor, Select>) {
-    let msg = ctx.msg;
-    this.selected = Some(msg.0.clone());
-    this.ui_port.send(ServicesMsg::SetSelected(Some(msg.0)));
+fn select(this: &mut ServicesActor, Select(name): Select) {
+    this.selected = Some(name.clone());
+    this.ui_port.send(ServicesMsg::SetSelected(Some(name)));
 }
 
 #[handler]
-fn deselect(this: &mut ServicesActor, _ctx: Context<ServicesActor, Deselect>) {
+fn deselect(this: &mut ServicesActor, _msg: Deselect) {
     this.selected = None;
     this.ui_port.send(ServicesMsg::SetSelected(None));
 }
 
 #[handler]
-fn command(this: &mut ServicesActor, ctx: Context<ServicesActor, Command>) {
-    let msg = ctx.msg;
+fn command(this: &mut ServicesActor, Command(kind): Command) {
     let Some(name) = this.selected.clone() else {
         return;
     };
-    let action = match msg.0 {
+    let action = match kind {
         ServiceActionKind::Start => WindowsAction::ServiceStart { name },
         ServiceActionKind::Stop => WindowsAction::ServiceStop { name },
         ServiceActionKind::Pause => WindowsAction::ServicePause { name },

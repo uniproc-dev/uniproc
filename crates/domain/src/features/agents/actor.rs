@@ -82,10 +82,10 @@ impl<B: AgentBackend> GenericAgentActor<B> {
         }
     }
 
-    fn spawn_connect(&mut self, ctx: &Context<Self>) {
+    fn spawn_connect(&mut self, cx: &Cx<Self>) {
         self.attempt_started = Some(tokio::time::Instant::now());
         let timeout = self.attempt_secs.get().max(1);
-        ctx.spawn_bg(async move {
+        cx.spawn_bg(async move {
             match B::connect(timeout).await {
                 Ok(client) => ConnectResult(Some(client)),
                 Err(err) => {
@@ -117,7 +117,7 @@ actor! {
 }
 
 #[handler]
-fn on_in_process<B: AgentBackend>(this: &mut GenericAgentActor<B>, _ctx: Context<GenericAgentActor<B>, WindowsAgentInProcess>) {
+fn on_in_process<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: WindowsAgentInProcess) {
     info!("[{}] the in-process agent took over, going dormant", B::NAME);
     this.dormant = true;
     this.client = None;
@@ -125,19 +125,19 @@ fn on_in_process<B: AgentBackend>(this: &mut GenericAgentActor<B>, _ctx: Context
 }
 
 #[handler]
-fn on_state_request<B: AgentBackend>(this: &GenericAgentActor<B>, _ctx: Context<GenericAgentActor<B>, AgentStateRequest>) {
+fn on_state_request<B: AgentBackend>(this: &GenericAgentActor<B>, _msg: AgentStateRequest) {
     this.publish_state(None);
 }
 
 #[handler]
-fn init<B: AgentBackend>(this: &GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, Init>) {
+fn init<B: AgentBackend>(this: &GenericAgentActor<B>, _msg: Init, cx: Cx) {
     info!("[{}] Actor init", B::NAME);
     this.publish_state(None);
-    ctx.addr().send(StartConnect);
+    cx.addr().send(StartConnect);
 }
 
 #[handler]
-fn start_connect<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, StartConnect>) {
+fn start_connect<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: StartConnect, cx: Cx) {
     if this.dormant {
         return;
     }
@@ -145,20 +145,20 @@ fn start_connect<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<
         && t.to == AgentConnectionState::Connecting
     {
         this.publish_state(None);
-        this.spawn_connect(&ctx.detach());
+        this.spawn_connect(&cx.detach());
     }
 }
 
 #[handler]
 fn on_connect_result<B: AgentBackend>(
     this: &mut GenericAgentActor<B>,
-    ctx: Context<GenericAgentActor<B>, ConnectResult<B::Client>>,
+    ConnectResult(client): ConnectResult<B::Client>,
+    cx: Cx,
 ) {
     if this.dormant {
         return;
     }
-    let addr = ctx.addr();
-    let ConnectResult(client) = ctx.msg;
+    let addr = cx.addr();
     match client {
         Some(client) => {
             if this.apply(ConnectionEvent::ConnectSucceeded).is_some() {
@@ -185,7 +185,7 @@ fn on_connect_result<B: AgentBackend>(
 }
 
 #[handler]
-fn ping<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, Ping>) {
+fn ping<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Ping, cx: Cx) {
     if !matches!(this.connection.state(), AgentConnectionState::Connected) || this.ping_in_flight {
         return;
     }
@@ -193,7 +193,7 @@ fn ping<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<GenericAg
         return;
     };
     this.ping_in_flight = true;
-    ctx.spawn_bg(async move {
+    cx.spawn_bg(async move {
         match B::ping(&client).await {
             Ok(ms) => PingResult(Some(ms)),
             Err(err) => {
@@ -205,19 +205,19 @@ fn ping<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<GenericAg
 }
 
 #[handler]
-fn on_ping_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, PingResult>) {
+fn on_ping_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, PingResult(ms): PingResult, cx: Cx) {
     if !this.ping_in_flight {
         return;
     }
     this.ping_in_flight = false;
-    match ctx.msg.0 {
+    match ms {
         Some(ms) => this.publish_state(Some(ms)),
-        None => ctx.addr().send(ConnectionLost),
+        None => cx.addr().send(ConnectionLost),
     }
 }
 
 #[handler]
-fn perform_scan_tick<B: AgentBackend>(this: &GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, ScanTick>) {
+fn perform_scan_tick<B: AgentBackend>(this: &GenericAgentActor<B>, _msg: ScanTick, cx: Cx) {
     if this.dormant || !matches!(this.connection.state(), AgentConnectionState::Connected) {
         return;
     }
@@ -227,7 +227,7 @@ fn perform_scan_tick<B: AgentBackend>(this: &GenericAgentActor<B>, ctx: Context<
         return;
     };
 
-    ctx.spawn_bg(async move {
+    cx.spawn_bg(async move {
         match B::perform_scan(&client).await {
             Ok(()) => ScanResult(true),
             Err(err) => {
@@ -239,10 +239,10 @@ fn perform_scan_tick<B: AgentBackend>(this: &GenericAgentActor<B>, ctx: Context<
 }
 
 #[handler]
-fn on_scan_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, ScanResult>) {
+fn on_scan_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, ScanResult(ok): ScanResult, cx: Cx) {
     const FAILURES_BEFORE_GIVING_UP: u32 = 3;
 
-    if ctx.msg.0 {
+    if ok {
         this.failed_scans = 0;
         return;
     }
@@ -251,7 +251,7 @@ fn on_scan_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context
     if this.failed_scans >= FAILURES_BEFORE_GIVING_UP {
         warn!("[{}] {} scans in a row failed, treating the agent as gone", B::NAME, this.failed_scans);
         this.failed_scans = 0;
-        ctx.addr().send(ConnectionLost);
+        cx.addr().send(ConnectionLost);
     }
 }
 
@@ -265,7 +265,7 @@ async fn schedule_retry<B: AgentBackend>(ctx: AsyncContext<GenericAgentActor<B>>
 }
 
 #[handler]
-fn on_retry_elapsed<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, RetryTimerElapsed>) {
+fn on_retry_elapsed<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: RetryTimerElapsed, cx: Cx) {
     if this.dormant {
         return;
     }
@@ -273,12 +273,12 @@ fn on_retry_elapsed<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Conte
         && t.to == AgentConnectionState::Connecting
     {
         this.publish_state(None);
-        this.spawn_connect(&ctx.detach());
+        this.spawn_connect(&cx.detach());
     }
 }
 
 #[handler]
-fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Context<GenericAgentActor<B>, ConnectionLost>) {
+fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: ConnectionLost, cx: Cx) {
     if this.dormant {
         return;
     }
@@ -290,7 +290,7 @@ fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Con
     this.ping_in_flight = false;
     this.failed_scans = 0;
     this.publish_state(None);
-    ctx.addr().send(StartConnect);
+    cx.addr().send(StartConnect);
 }
 
 mod windows {
@@ -302,19 +302,19 @@ mod windows {
     #[handler]
     fn handle_windows_action(
         this: &GenericAgentActor<WindowsBackend>,
-        ctx: Context<GenericAgentActor<WindowsBackend>, WindowsActionRequest>,
+        msg: WindowsActionRequest,
+        cx: Cx,
     ) {
         if this.dormant {
             return;
         }
-        let msg = ctx.msg.clone();
         let Some(client) = this.client.clone() else {
             error!("Dropping {:?}: not connected to the agent", msg.action);
             return;
         };
 
         let correlation_id = msg.correlation_id;
-        ctx.spawn_bg_detached(async move {
+        cx.spawn_bg_detached(async move {
             let code = client.act(msg.action).await;
             GlobalEventBus::publish(WindowsActionResponse::new(correlation_id, code));
         });

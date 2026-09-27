@@ -78,8 +78,8 @@ actor! {
 }
 
 #[handler]
-fn on_windows_agent(this: &mut AgentLinkActor, ctx: Context<AgentLinkActor, WindowsAgentRuntimeEvent>) {
-    let state = ctx.msg.state;
+fn on_windows_agent(this: &mut AgentLinkActor, msg: WindowsAgentRuntimeEvent) {
+    let state = msg.state;
     if this.last == Some(state) {
         return;
     }
@@ -88,20 +88,20 @@ fn on_windows_agent(this: &mut AgentLinkActor, ctx: Context<AgentLinkActor, Wind
 }
 
 #[handler]
-fn start_in_process(this: &mut AgentLinkActor, ctx: Context<AgentLinkActor, StartInProcess>) {
+fn start_in_process(this: &mut AgentLinkActor, _msg: StartInProcess, cx: Cx) {
     if this.starting || this.in_process.is_some() {
         return;
     }
     this.starting = true;
     this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Starting));
     let start = this.start_in_process;
-    ctx.spawn_bg(async move { InProcessStarted(start().await) });
+    cx.spawn_bg(async move { InProcessStarted(start().await) });
 }
 
 #[handler]
-fn on_in_process_started(this: &mut AgentLinkActor, ctx: Context<AgentLinkActor, InProcessStarted>) {
+fn on_in_process_started(this: &mut AgentLinkActor, InProcessStarted(started): InProcessStarted) {
     this.starting = false;
-    match ctx.msg.0 {
+    match started {
         Ok(agent) => {
             tracing::info!("in-process agent started");
             this.in_process = Some(agent);
@@ -121,26 +121,25 @@ fn on_in_process_started(this: &mut AgentLinkActor, ctx: Context<AgentLinkActor,
 }
 
 #[handler]
-fn on_scan_tick(this: &AgentLinkActor, _ctx: Context<AgentLinkActor, ScanTick>) {
+fn on_scan_tick(this: &AgentLinkActor, _msg: ScanTick) {
     if let Some(agent) = &this.in_process {
         GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(agent.report())));
     }
 }
 
 #[handler]
-fn on_action(this: &AgentLinkActor, ctx: Context<AgentLinkActor, WindowsActionRequest>) {
+fn on_action(this: &AgentLinkActor, request: WindowsActionRequest, cx: Cx) {
     let Some(agent) = this.in_process.clone() else {
         return;
     };
-    let request = ctx.msg.clone();
-    ctx.spawn_bg_detached(async move {
+    cx.spawn_bg_detached(async move {
         let code = agent.act(request.action).await;
         GlobalEventBus::publish(WindowsActionResponse::new(request.correlation_id, code));
     });
 }
 
 #[handler]
-fn on_state_request(this: &AgentLinkActor, _ctx: Context<AgentLinkActor, AgentStateRequest>) {
+fn on_state_request(this: &AgentLinkActor, _msg: AgentStateRequest) {
     if this.in_process.is_some() {
         this.announce_in_process();
     }
@@ -155,6 +154,6 @@ async fn offer_in_process_later(ctx: AsyncContext<AgentLinkActor>, _msg: OfferIn
 }
 
 #[handler]
-fn in_process_offer_due(this: &AgentLinkActor, _ctx: Context<AgentLinkActor, InProcessOfferDue>) {
+fn in_process_offer_due(this: &AgentLinkActor, _msg: InProcessOfferDue) {
     this.ui_port.send(AgentLinkMsg::OfferInProcess);
 }

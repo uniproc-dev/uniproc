@@ -45,8 +45,7 @@ actor! {
 }
 
 #[handler]
-fn on_windows_report(this: &mut MetricsActor, ctx: Context<MetricsActor, WindowsReportMessage>) {
-    let msg = ctx.msg;
+fn on_windows_report(this: &mut MetricsActor, msg: WindowsReportMessage) {
     let WindowsReportMessage::Report(report) = msg else {
         return;
     };

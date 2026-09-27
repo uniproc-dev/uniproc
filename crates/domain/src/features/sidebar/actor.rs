@@ -33,25 +33,25 @@ actor! {
 }
 
 #[handler]
-fn toggle(this: &mut SidebarActor, _ctx: Context<SidebarActor, Toggle>) {
+fn toggle(this: &mut SidebarActor, _msg: Toggle) {
     let open = !this.settings.open().get();
     let _ = this.settings.open().set(open);
     this.publish();
 }
 
 #[handler]
-fn set_open(this: &mut SidebarActor, ctx: Context<SidebarActor, SetOpen>) {
-    let _ = this.settings.open().set(ctx.msg.0);
+fn set_open(this: &mut SidebarActor, SetOpen(open): SetOpen) {
+    let _ = this.settings.open().set(open);
     this.publish();
 }
 
 #[handler]
-fn set_width(this: &mut SidebarActor, ctx: Context<SidebarActor, SetWidth>) {
-    let _ = this.settings.width().set(ctx.msg.0);
+fn set_width(this: &mut SidebarActor, SetWidth(width): SetWidth) {
+    let _ = this.settings.width().set(width);
     this.publish();
 }
 
 #[handler]
-fn refresh(this: &SidebarActor, _ctx: Context<SidebarActor, Refresh>) {
+fn refresh(this: &SidebarActor, _msg: Refresh) {
     this.publish();
 }

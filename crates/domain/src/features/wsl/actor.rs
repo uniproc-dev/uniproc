@@ -144,8 +144,7 @@ async fn handle_refresh(ctx: AsyncContext<WslActor>, _: RefreshDistros) {
 }
 
 #[handler]
-fn on_scan_result(this: &mut WslActor, ctx: Context<WslActor, ScanResult>) {
-    let msg = ctx.msg;
+fn on_scan_result(this: &mut WslActor, msg: ScanResult) {
     let ScanResult::Distros(mut distros) = msg else {
         return;
     };
@@ -156,8 +155,7 @@ fn on_scan_result(this: &mut WslActor, ctx: Context<WslActor, ScanResult>) {
 }
 
 #[handler]
-fn on_remote_scan(this: &mut WslActor, ctx: Context<WslActor, RemoteScanResult>) {
-    let msg = ctx.msg;
+fn on_remote_scan(this: &mut WslActor, msg: RemoteScanResult) {
     match msg {
         RemoteScanResult::Scan(scan) => {
             let sample = CpuSample {
