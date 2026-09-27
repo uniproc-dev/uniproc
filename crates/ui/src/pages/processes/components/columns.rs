@@ -350,7 +350,7 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
     };
 
     let depth = match d.wsl {
-        Some(WslRow::Process { .. }) => 1,
+        Some(WslRow::Process { .. }) => d.depth.saturating_sub(1),
         _ => d.depth,
     };
     let line = name_line(NameLine {

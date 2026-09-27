@@ -190,6 +190,7 @@ pub(crate) struct Section {
     absent: Vec<(Arc<str>, PinnedProcess)>,
     environments: Vec<Environment>,
     host: Option<ProcessRow>,
+    environments_under: Option<u32>,
     consoles: HashMap<u32, Vec<ProcessRow>>,
 }
 
@@ -205,8 +206,13 @@ impl Section {
             absent: Vec::new(),
             environments: Vec::new(),
             host: None,
+            environments_under: None,
             consoles: HashMap::new(),
         }
+    }
+
+    fn hosts_environments(&self, pid: u32) -> bool {
+        self.environments_under == Some(pid) && !self.environments.is_empty()
     }
 
     fn new(id: SectionId, headed: bool, groups: Vec<ProcessGroup>) -> Option<Self> {
@@ -253,15 +259,36 @@ fn one_section(groups: Vec<ProcessGroup>, pins: &Pins, wsl: &[WslEnvironment]) -
     let absent = absent_pins(&groups, pins);
     let (pinned, rest): (Vec<_>, Vec<_>) = groups.into_iter().partition(|group| is_pinned(group, pins));
     let rest_id = SectionId::Category(ProcessCategory::ORDER[0]);
-    let mut rest = Section::new(rest_id, false, rest);
+    let mut sections: Vec<Section> = [
+        Section::with_absent(SectionId::Pinned, false, pinned, absent),
+        Section::new(rest_id, false, rest),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
     let environments = environments_of(wsl);
     if !environments.is_empty() {
-        rest.get_or_insert_with(|| Section::empty(rest_id, false)).environments = environments;
+        let host = sections.iter().enumerate().find_map(|(at, section)| {
+            section
+                .groups
+                .iter()
+                .find(|group| is_wsl_host(group) && group.members.len() == 1)
+                .map(|group| (at, group.leader.pid))
+        });
+        let section = match host {
+            Some((at, pid)) => {
+                sections[at].environments_under = Some(pid);
+                &mut sections[at]
+            }
+            None => {
+                if !sections.last().is_some_and(|section| section.id == rest_id) {
+                    sections.push(Section::empty(rest_id, false));
+                }
+                sections.last_mut().expect("the rest was just made sure of")
+            }
+        };
+        section.environments = environments;
     }
-    let mut sections: Vec<Section> = [Section::with_absent(SectionId::Pinned, false, pinned, absent), rest]
-        .into_iter()
-        .flatten()
-        .collect();
     if let [pinned, _] = sections.as_mut_slice() {
         pinned.ruled = true;
     }
@@ -454,7 +481,9 @@ fn plain_row(row: &ProcessRow, depth: u8) -> DisplayRow {
 }
 
 fn process_row(row: &ProcessRow, depth: u8, expanded: &ViewState<'_>, section: &Section) -> DisplayRow {
-    let details = children_of(row).next().is_some() || section.consoles.contains_key(&row.pid);
+    let details = children_of(row).next().is_some()
+        || section.consoles.contains_key(&row.pid)
+        || section.hosts_environments(row.pid);
     DisplayRow {
         exited: expanded.exited.contains(&row.pid),
         details,
@@ -470,7 +499,7 @@ fn child_row(row: &ProcessRow, depth: u8, child: Child) -> DisplayRow {
     }
 }
 
-fn push_environment(out: &mut Vec<DisplayRow>, environment: &Environment, expanded: &ViewState<'_>) {
+fn push_environment(out: &mut Vec<DisplayRow>, environment: &Environment, expanded: &ViewState<'_>, depth: u8) {
     let is_expanded = expanded.groups.contains(&environment_key(environment.pid_ns));
     out.push(DisplayRow {
         has_children: true,
@@ -480,7 +509,7 @@ fn push_environment(out: &mut Vec<DisplayRow>, environment: &Environment, expand
             pid_ns: environment.pid_ns,
             kind: environment.kind,
         }),
-        ..plain_row(&environment.leader, 1)
+        ..plain_row(&environment.leader, depth)
     });
     if !is_expanded {
         return;
@@ -490,12 +519,12 @@ fn push_environment(out: &mut Vec<DisplayRow>, environment: &Environment, expand
             wsl: Some(WslRow::Process {
                 global_pid: process.global_pid,
             }),
-            ..plain_row(&process.row, 2)
+            ..plain_row(&process.row, depth + 1)
         });
     }
 }
 
-fn push_with_details(out: &mut Vec<DisplayRow>, host: DisplayRow, section: &Section) {
+fn push_with_details(out: &mut Vec<DisplayRow>, host: DisplayRow, section: &Section, expanded: &ViewState<'_>) {
     let open = host.details_expanded;
     let depth = host.depth + 1;
     let row = host.row.clone();
@@ -508,6 +537,11 @@ fn push_with_details(out: &mut Vec<DisplayRow>, host: DisplayRow, section: &Sect
     }
     for console in section.consoles.get(&row.pid).into_iter().flatten() {
         out.push(child_row(console, depth, Child::Console));
+    }
+    if section.hosts_environments(row.pid) {
+        for environment in &section.environments {
+            push_environment(out, environment, expanded, depth);
+        }
     }
 }
 
@@ -529,7 +563,7 @@ pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>
 
         for group in &section.groups {
             if group.members.len() == 1 {
-                push_with_details(&mut out, process_row(&group.leader, 1, expanded, section), section);
+                push_with_details(&mut out, process_row(&group.leader, 1, expanded, section), section, expanded);
                 continue;
             }
 
@@ -546,13 +580,15 @@ pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>
 
             if is_expanded {
                 for member in &group.members {
-                    push_with_details(&mut out, process_row(member, 2, expanded, section), section);
+                    push_with_details(&mut out, process_row(member, 2, expanded, section), section, expanded);
                 }
             }
         }
 
-        for environment in &section.environments {
-            push_environment(&mut out, environment, expanded);
+        if section.environments_under.is_none() {
+            for environment in &section.environments {
+                push_environment(&mut out, environment, expanded, 1);
+            }
         }
 
         out.extend(section.absent.iter().map(|(name, pin)| DisplayRow::absent(name, pin)));
@@ -2315,17 +2351,46 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn without_grouping_by_type_environments_follow_the_windows_processes() {
+    fn without_grouping_by_type_the_vm_opens_to_its_environments() {
         let rows = vec![row(10, "notepad.exe"), vm(20)];
+        let sections = wsl_sections_for(&rows, false, &ubuntu_and_web());
 
-        let out = opened(&wsl_sections_for(&rows, false, &ubuntu_and_web()), &[]);
+        let closed = opened(&sections, &[]);
+        assert!(closed.iter().all(|d| d.section.is_none()));
+        assert_eq!(names(&closed), vec![(1, "vmmemWSL"), (1, "notepad.exe")]);
+        let vm_row = &closed[0];
+        assert!(vm_row.details && !vm_row.details_expanded, "the VM carries a chevron");
+        assert!(vm_row.stands_for_one_process(), "and is still selected as the process it is");
 
-        assert!(out.iter().all(|d| d.section.is_none()));
-        assert_eq!(
-            names(&out),
-            vec![(1, "vmmemWSL"), (1, "notepad.exe"), (1, "Ubuntu"), (1, "web")],
-            "with no heading to carry it, the VM stays a process of its own"
+        let groups: HashSet<String> = [environment_key(UBUNTU)].into_iter().collect();
+        let open = flatten_for_display(
+            &sections,
+            &ViewState {
+                groups: &groups,
+                processes: &[20].into_iter().collect(),
+                collapsed_sections: &HashSet::new(),
+                exited: &HashSet::new(),
+            },
         );
+        assert_eq!(
+            names(&open),
+            vec![(1, "vmmemWSL"), (2, "Ubuntu"), (3, "bash"), (3, "init"), (2, "web"), (1, "notepad.exe")]
+        );
+
+        let mut selected = open.clone();
+        highlight(&mut selected, Some(Selection::Process(20)));
+        assert_eq!(
+            selected.iter().filter(|d| d.highlight.is_some()).count(),
+            1,
+            "selecting the VM does not take its environments with it"
+        );
+    }
+
+    #[test]
+    fn without_grouping_by_type_or_the_vm_environments_follow_the_windows_processes() {
+        let out = opened(&wsl_sections_for(&[row(10, "notepad.exe")], false, &ubuntu_and_web()), &[]);
+
+        assert_eq!(names(&out), vec![(1, "notepad.exe"), (1, "Ubuntu"), (1, "web")]);
     }
 
     #[test]

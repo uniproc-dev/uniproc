@@ -1400,6 +1400,41 @@ mod tests {
         assert!(!labels(&mut page).contains(&"init".to_string()));
     }
 
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn without_grouping_by_type_the_vm_opens_to_its_distributions(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = wsl_page(h);
+        toggle_group_by_type(&mut page);
+
+        let closed = labels(&mut page);
+        assert!(closed.contains(&"vmmemWSL".to_string()), "{closed:?}");
+        assert!(!closed.contains(&"Ubuntu (3)".to_string()), "{closed:?}");
+
+        open(&mut page, "vmmemWSL");
+        let all = labels(&mut page);
+        let at = position(&mut page, "vmmemWSL").unwrap();
+        assert_eq!(all[at + 1], "Ubuntu (3)", "{all:?}");
+        assert_ne!(
+            name_inset(&mut page, "Ubuntu (3)"),
+            name_inset(&mut page, "vmmemWSL"),
+            "a distribution is set in under the VM"
+        );
+        assert_eq!(marked_selected(&mut page), ["vmmemWSL"], "the VM is selected alone");
+
+        select(&mut page, "Ubuntu (3)");
+        let all = labels(&mut page);
+        assert_eq!(all[at + 2..at + 5], ["bash".to_string(), "cupsd".to_string(), "init".to_string()], "{all:?}");
+        assert_eq!(
+            name_inset(&mut page, "init"),
+            name_inset(&mut page, "Ubuntu (3)"),
+            "Linux processes stay flush with their distribution"
+        );
+
+        open(&mut page, "vmmemWSL");
+        assert!(!labels(&mut page).contains(&"Ubuntu (3)".to_string()));
+    }
+
     fn is_reserve(node: &Node) -> bool {
         node.id.as_deref() == Some(guinea::Mark::name(&ProcessesMark::StatusReserve))
     }
