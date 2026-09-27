@@ -23,7 +23,7 @@ file = "arrow-up-regular.svg"
 iconify = "fluent:pin-24-regular"
 
 [question]
-iconify = "fluent:question-24-regular"
+iconify = "mdi:help"
 
 [pin-off]
 iconify = "fluent:pin-off-24-regular"
