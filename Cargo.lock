@@ -894,11 +894,11 @@ dependencies = [
  "futures",
  "guinea",
  "guinea-widgets",
- "ogurpchik 0.7.0",
+ "ogurpchik",
  "serde",
  "tokio",
  "tracing",
- "uniproc-protocol 0.11.0",
+ "uniproc-protocol",
  "uniproc-windows-agent",
  "uuid",
  "windows",
@@ -1453,7 +1453,7 @@ dependencies = [
  "capnp-rpc",
  "capnpc",
  "getrandom 0.4.3",
- "ogurpchik 0.7.0",
+ "ogurpchik",
  "serde",
  "serde_json",
 ]
@@ -1506,7 +1506,7 @@ dependencies = [
  "guinea-core",
  "guinea-devtools-protocol",
  "guinea-plugin-single-instance",
- "ogurpchik 0.7.0",
+ "ogurpchik",
  "puffin_http",
  "tracing",
 ]
@@ -2151,35 +2151,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "ogurpchik"
-version = "0.6.4"
-source = "git+https://github.com/uniproc-dev/oguRPChik?tag=v0.6.4#9c167c1e367473b7569570de91b19dfef635eede"
-dependencies = [
- "base64",
- "binrw",
- "capnp",
- "capnp-rpc",
- "compio",
- "ed25519-dalek",
- "error-stack",
- "futures",
- "getrandom 0.4.3",
- "hmac",
- "libc 1.0.0-alpha.4",
- "rustix",
- "serde",
- "serde_json",
- "sha2",
- "socket2",
- "tracing",
- "uuid",
- "widestring",
- "winapi",
- "windows",
- "winreg",
 ]
 
 [[package]]
@@ -3324,13 +3295,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
-name = "uniproc-protocol"
-version = "0.10.0"
-source = "git+https://github.com/uniproc-dev/uniproc-protocol?tag=v0.10.0#031769efeccbb25518f39f86ec8a7f8997eef51e"
+name = "uniproc-agent-kit"
+version = "0.1.0"
+source = "git+https://github.com/uniproc-dev/uniproc-agent-kit?tag=v0.1.0#1982d5dfaccb87a7bab803fa241c1769e8eb96ba"
 dependencies = [
- "capnp",
- "capnp-rpc",
- "capnpc",
+ "anyhow",
+ "crossbeam-channel",
+ "futures-channel",
+ "futures-core",
+ "getrandom 0.3.4",
 ]
 
 [[package]]
@@ -3346,7 +3319,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-agent"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.7.1#dbd2f54ba113c67c5cd1de765f8a06c5ac78bdc3"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.8.0#297cfcf34d7f83e9486ba10e4574f87049d65e65"
 dependencies = [
  "anyhow",
  "capnp",
@@ -3355,10 +3328,11 @@ dependencies = [
  "crossbeam-channel",
  "futures",
  "ntapi",
- "ogurpchik 0.6.4",
+ "ogurpchik",
  "parking_lot",
  "tracing",
- "uniproc-protocol 0.10.0",
+ "uniproc-agent-kit",
+ "uniproc-protocol",
  "uniproc-windows-core",
  "windows",
 ]
@@ -3366,7 +3340,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-core"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.7.1#dbd2f54ba113c67c5cd1de765f8a06c5ac78bdc3"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.8.0#297cfcf34d7f83e9486ba10e4574f87049d65e65"
 dependencies = [
  "amethystate",
  "anyhow",
@@ -3374,12 +3348,12 @@ dependencies = [
  "crossbeam-channel",
  "dashmap",
  "fxhash",
- "getrandom 0.3.4",
  "ntapi",
  "parking_lot",
  "roxmltree",
  "serde",
  "tracing",
+ "uniproc-agent-kit",
  "windows",
 ]
 
