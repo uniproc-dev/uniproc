@@ -40,4 +40,7 @@ pub struct ProcessesColumnsSettings {
         "disk": ColumnConfig { width: 110, visible: true },
     })]
     configs: ReactiveMap<String, ColumnConfig>,
+
+    #[amestate(default = {})]
+    order: ReactiveMap<String, u32>,
 }

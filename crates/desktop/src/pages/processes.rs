@@ -18,6 +18,7 @@ fn open_settings() -> Option<ProcessesSettingsMaps> {
         .ok()?;
     Some(ProcessesSettingsMaps {
         columns: settings.columns().configs().clone(),
+        column_order: settings.columns().order().clone(),
         collapsed_sections: settings.grouping().collapsed_sections().clone(),
         pins: settings.grouping().pins().clone(),
         group_by_type: settings.grouping().by_type().clone(),
@@ -1649,6 +1650,40 @@ mod tests {
         let all = labels(&mut page);
         assert!(all.contains(&"WSL (0)".to_string()), "{all:?}");
         assert!(!all.iter().any(|label| label.starts_with("Ubuntu")), "{all:?}");
+    }
+
+    fn shown_columns(page: &mut Mounted<'_, Processes>) -> Vec<ProcessColumn> {
+        let row = page.item_where(|item| label(item) == "notepad.exe").tree();
+        let mut slots: Vec<(i32, ProcessColumn)> = ProcessColumn::ALL
+            .into_iter()
+            .filter_map(|column| {
+                let cell = row.find(column)?;
+                match page.property(cell.at, PropertyId::GridColumn) {
+                    Some(PropertyValue::I32(slot)) => Some((*slot, column)),
+                    _ => None,
+                }
+            })
+            .collect();
+        slots.sort_by_key(|(slot, _)| *slot);
+        slots.into_iter().map(|(_, column)| column).collect()
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_column_dragged_along_the_header_moves_and_stays_there(h: &mut Harness) {
+        use ProcessColumn::*;
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        assert_eq!(shown_columns(&mut page), [Name, Cpu, Memory, Net, Disk]);
+
+        let order = [Name, Memory, Cpu, Net, Disk].map(|column| guinea::Mark::name(&column)).to_vec();
+        page.send(ProcessesMsg::Reordered(guinea_widgets::table::Reordered { order }));
+        page.settle();
+
+        assert_eq!(shown_columns(&mut page), [Name, Memory, Cpu, Net, Disk]);
+        let ranks = ProcessesSettings::new().unwrap().columns().order();
+        assert_eq!(ranks.get("memory"), Some(1));
+        assert_eq!(ranks.get("cpu"), Some(2));
     }
 
     const APPS: SectionId = SectionId::Category(ProcessCategory::App);

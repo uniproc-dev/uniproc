@@ -13,7 +13,7 @@ use app_contracts::features::processes::{
 use guicons::icon;
 use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
-use guinea_widgets::table::{table, Look, Resized, SortState};
+use guinea_widgets::table::{table, Look, Reordered, Resized, SortState};
 use windows_reactor::{
     Border, Callback, ChildrenControl, ContentControl, Grid, GridChildExt, GridLength, LayoutControl,
     PointerEventInfo, Orientation, StackPanel,
@@ -39,6 +39,7 @@ use crate::widgets::text::text;
 
 pub struct ProcessesSettingsMaps {
     pub columns: ReactiveMap<String, ColumnConfig>,
+    pub column_order: ReactiveMap<String, u32>,
     pub collapsed_sections: ReactiveMap<String, bool>,
     pub group_by_type: Field<bool>,
     pub pins: ReactiveMap<String, PinnedProcess>,
@@ -47,6 +48,7 @@ pub struct ProcessesSettingsMaps {
 
 pub enum ProcessesMsg {
     Resized(Resized),
+    Reordered(Reordered),
     ToggleGroup(String),
     ToggleProcess(u32),
     ToggleSection(SectionId),
@@ -179,15 +181,16 @@ fn toggle_pin(map: Option<&ReactiveMap<String, PinnedProcess>>, name: String, pi
 
 impl ProcessesPage {
     pub fn new(settings: Option<ProcessesSettingsMaps>) -> Self {
-        let (columns, collapsed_sections, pins, by_type_setting, section_ranks) = match settings {
+        let (columns, column_order, collapsed_sections, pins, by_type_setting, section_ranks) = match settings {
             Some(maps) => (
                 Some(maps.columns),
+                Some(maps.column_order),
                 Some(maps.collapsed_sections),
                 Some(maps.pins),
                 Some(maps.group_by_type),
                 Some(maps.section_order),
             ),
-            None => (None, None, None, None, None),
+            None => (None, None, None, None, None, None),
         };
         let section_order = section_ranks
             .as_ref()
@@ -200,7 +203,7 @@ impl ProcessesPage {
             pins,
             by_type: by_type_setting.as_ref().is_none_or(Field::get),
             by_type_setting,
-            layout: ColumnLayout::new(columns),
+            layout: ColumnLayout::new(columns, column_order),
             groups: RefCell::new(GroupsCache::empty()),
             kept_place: Cell::new(None),
             selected_group: None,
@@ -264,6 +267,7 @@ impl ProcessesPage {
     pub fn update(&mut self, message: ProcessesMsg) {
         match message {
             ProcessesMsg::Resized(drag) => self.layout.resize(drag),
+            ProcessesMsg::Reordered(moved) => self.layout.reorder(moved),
             ProcessesMsg::ToggleGroup(name) => {
                 if !self.expanded_groups.remove(&name) {
                     self.expanded_groups.insert(name);
@@ -625,6 +629,7 @@ impl ProcessesPage {
         });
 
         let sort = dispatch.clone();
+        let reorder_forward = forward.clone();
         let resize_forward = forward;
 
         let table = table(display_rows, columns)
@@ -648,6 +653,10 @@ impl ProcessesPage {
             .widths(self.layout.widths())
             .on_resize(move |drag: Resized| {
                 let _ = resize_forward.call(ProcessesMsg::Resized(drag));
+            })
+            .order(self.layout.order())
+            .on_reorder(move |moved: Reordered| {
+                let _ = reorder_forward.call(ProcessesMsg::Reordered(moved));
             })
             .sort(
                 SortState {
