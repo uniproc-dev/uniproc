@@ -1669,6 +1669,8 @@ mod tests {
     }
 
     fn release_over(page: &mut Mounted<'_, Processes>, heading: &str) {
+        page.send(ProcessesMsg::Section(SectionGesture::Lost));
+        page.settle();
         page.send(ProcessesMsg::Section(SectionGesture::Release));
         page.settle();
         select(page, heading);
@@ -1727,11 +1729,16 @@ mod tests {
         drag(&mut page, APPS, 10_000.0);
         page.send(ProcessesMsg::Section(SectionGesture::Lost));
         page.settle();
-        assert!(page.find(ProcessesMark::DropLine).is_none());
-        page.send(ProcessesMsg::Section(SectionGesture::Release));
+        assert!(page.find(ProcessesMark::DropLine).is_none(), "a lost pointer shows no gap");
+        page.send(ProcessesMsg::Section(SectionGesture::Move { at: -10_000.0 }));
         page.settle();
+        assert!(page.find(ProcessesMark::DropLine).is_none(), "and no longer follows the pointer");
         assert_eq!(sections(&mut page), before);
         assert_eq!(kept_rank(ProcessCategory::App), None);
+
+        drag(&mut page, APPS, 2.0);
+        release_over(&mut page, &before[0].clone());
+        assert_eq!(sections(&mut page), before, "the next grab starts afresh");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

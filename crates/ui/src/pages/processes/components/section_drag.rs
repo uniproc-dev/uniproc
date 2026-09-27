@@ -23,6 +23,7 @@ pub(crate) struct Grab {
     from: f64,
     at: f64,
     offset: f64,
+    held: bool,
 }
 
 impl Grab {
@@ -32,11 +33,18 @@ impl Grab {
             from: at,
             at,
             offset,
+            held: true,
         }
     }
 
     pub(crate) fn follow(&mut self, at: f64) {
-        self.at = at;
+        if self.held {
+            self.at = at;
+        }
+    }
+
+    pub(crate) fn let_go(&mut self) {
+        self.held = false;
     }
 
     pub(crate) fn moved(&self) -> bool {
@@ -97,7 +105,7 @@ pub(crate) fn placement(rows: &[DisplayRow], grab: &Grab) -> Option<Placement> {
 }
 
 pub(crate) fn mark(rows: &mut [DisplayRow], grab: &Grab, placement: Option<Placement>) {
-    if !grab.moved() {
+    if !grab.moved() || !grab.held {
         return;
     }
     let heading = |d: &DisplayRow, id: SectionId| d.section.as_ref().is_some_and(|section| section.id == id);

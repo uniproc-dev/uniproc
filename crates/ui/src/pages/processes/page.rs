@@ -241,7 +241,11 @@ impl ProcessesPage {
                     self.move_section(grab.section, placement);
                 }
             }
-            SectionGesture::Lost => self.grab = None,
+            SectionGesture::Lost => {
+                if let Some(grab) = &mut self.grab {
+                    grab.let_go();
+                }
+            }
         }
     }
 
