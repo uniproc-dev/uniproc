@@ -35,13 +35,10 @@ async fn main() -> anyhow::Result<()> {
 mod bench {
     use super::{ALLOCATIONS, BYTES};
     use anyhow::Context;
-    use app_contracts::features::agents::WindowsReport;
     use app_contracts::features::processes::ProcessRow;
-    use uniproc_protocol::windows_capnp::windows_agent;
-    use domain::features::agents::decode;
-    use domain::features::agents::providers::windows::WindowsRpc;
-    use domain::features::agents::rpc::RpcService;
+    use domain::features::agents::windows_report::Reports;
     use domain::features::processes::{rows_from_report, windows_scan};
+    use uniproc_windows_agent::remote::Remote;
     use std::rc::Rc;
     use std::sync::atomic::Ordering;
     use std::time::{Duration, Instant};
@@ -98,45 +95,26 @@ mod bench {
     }
 
     pub async fn run() -> anyhow::Result<()> {
-        let session = WindowsRpc::connect(5)
+        let remote = Remote::connect(Duration::from_secs(5))
             .await
             .context("connect failed - is uniproc-windows-agent running?")?;
-        let passports = session.remote().get_processes_request().send().promise.await?;
-        let processes = decode::windows_processes(passports.get()?.get_processes()?)?;
-        let metrics = session.remote().get_process_metrics_request().send().promise.await?;
+        let snapshot = remote
+            .snapshot()
+            .await?
+            .context("the process list kept moving under the metrics")?;
 
-        let mut copy = capnp::message::Builder::new_default();
-        copy.set_root(metrics.get()?)?;
-        let words = capnp::serialize::write_message_to_words(&copy);
-        let options = capnp::message::ReaderOptions {
-            traversal_limit_in_words: None,
-            ..Default::default()
-        };
-        let fresh = || {
-            capnp::serialize::read_message_from_flat_slice(&mut &words[..], options)
-                .expect("read the copied metrics")
-        };
-        let join = |message: &capnp::message::Reader<capnp::serialize::BufferSegments<&[u8]>>| {
-            let root = message
-                .get_root::<windows_agent::get_process_metrics_results::Reader>()
-                .expect("metrics root");
-            decode::join_metrics(&processes, root.get_metrics().expect("metrics"))
-        };
-
-        let report = WindowsReport {
-            processes: join(&fresh()),
-            ..WindowsReport::default()
-        };
+        let mut reports = Reports::default();
+        let report = reports.report(&snapshot);
         let windowed = windows_scan::app_windows();
         println!(
             "live: {} passports, {} metric rows, {} app-window pids, {} rounds per stage\n",
-            processes.len(),
+            snapshot.processes.value.len(),
             report.processes.len(),
             windowed.len(),
             ROUNDS,
         );
 
-        let joined = measure(fresh, |message| join(&message));
+        let joined = measure(|| (), |()| reports.report(&snapshot));
         let scanned = measure(|| (), |()| windows_scan::app_windows());
         let mapped = measure(|| (), |()| rows_from_report(&report, &windowed));
         let published = measure(

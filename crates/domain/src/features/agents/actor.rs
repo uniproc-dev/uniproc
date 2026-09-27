@@ -295,7 +295,7 @@ fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, ctx: Con
 
 mod windows {
     use super::*;
-    use crate::features::agents::providers::windows::{WindowsBackend, WindowsReply, WindowsRequest};
+    use crate::features::agents::providers::windows::WindowsBackend;
     use app_contracts::features::agents::{WindowsActionRequest, WindowsActionResponse};
     use tracing::error;
 
@@ -315,13 +315,8 @@ mod windows {
 
         let correlation_id = msg.correlation_id;
         ctx.spawn_bg_detached(async move {
-            match client.call(WindowsRequest::Action(msg.action)).await {
-                Ok(WindowsReply::Code(code)) => {
-                    GlobalEventBus::publish(WindowsActionResponse::new(correlation_id, code));
-                }
-                Ok(_) => error!("Agent answered an action with something else"),
-                Err(err) => error!("Action call failed: {err}"),
-            }
+            let code = client.act(msg.action).await;
+            GlobalEventBus::publish(WindowsActionResponse::new(correlation_id, code));
         });
     }
 }

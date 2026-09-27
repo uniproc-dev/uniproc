@@ -24,24 +24,16 @@ mod windows {
         ProcessPriority, SignatureStatus, WindowsAction, WindowsProcessStats, WindowsReport,
     };
     use domain::features::agents::backend::AgentBackend;
-    use domain::features::agents::providers::windows::{
-        WindowsBackend, WindowsReply, WindowsRequest, WindowsRpc,
-    };
-    use domain::features::agents::rpc::{RpcHandle, RpcService};
+    use domain::features::agents::providers::windows::{WindowsBackend, WindowsClient};
     use std::time::{Duration, Instant};
-    use uniproc_protocol::meta_capnp::ResponseStatus;
 
-    const CONNECT_TIMEOUT_SECS: u64 = 5;
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
     pub async fn probe() -> anyhow::Result<()> {
         println!("== windows agent ==");
 
-        std::thread::spawn(etag_probe)
-            .join()
-            .map_err(|_| anyhow::anyhow!("etag probe panicked"))??;
-
         let started = Instant::now();
-        let handle = RpcHandle::<WindowsRpc>::connect(CONNECT_TIMEOUT_SECS)
+        let handle = WindowsClient::connect(CONNECT_TIMEOUT)
             .await
             .context("connect failed - is uniproc-windows-agent running (as admin)?")?;
         println!("connect: ok ({} ms)", started.elapsed().as_millis());
@@ -59,44 +51,7 @@ mod windows {
         Ok(())
     }
 
-    const ETAG_ATTEMPTS: usize = 5;
-
-    fn etag_probe() -> anyhow::Result<()> {
-        compio::runtime::Runtime::new()?.block_on(async {
-            let session = WindowsRpc::connect(CONNECT_TIMEOUT_SECS).await?;
-            let client = session.remote();
-
-            for attempt in 1..=ETAG_ATTEMPTS {
-                let first = client.get_services_request().send().promise.await?;
-                let etag = first.get()?.get_meta()?.get_etag();
-                let mut again = client.get_services_request();
-                again.get().init_meta().set_if_none_match(etag);
-                let again = again.send().promise.await?;
-                if matches!(again.get()?.get_meta()?.get_status(), Ok(ResponseStatus::NotModified)) {
-                    println!("etag: getServices NotModified on attempt {attempt} (etag {etag})");
-                    break;
-                }
-                if attempt == ETAG_ATTEMPTS {
-                    bail!("getServices never answered NotModified to its own etag");
-                }
-            }
-
-            for attempt in 1..=ETAG_ATTEMPTS {
-                let first = client.get_processes_request().send().promise.await?;
-                let etag = first.get()?.get_meta()?.get_etag();
-                let mut again = client.get_processes_request();
-                again.get().init_meta().set_if_none_match(etag);
-                let again = again.send().promise.await?;
-                if matches!(again.get()?.get_meta()?.get_status(), Ok(ResponseStatus::NotModified)) {
-                    println!("etag: getProcesses NotModified on attempt {attempt} (etag {etag})");
-                    return Ok(());
-                }
-            }
-            bail!("getProcesses never answered NotModified to its own etag")
-        })
-    }
-
-    async fn action_probe(handle: &RpcHandle<WindowsRpc>) -> anyhow::Result<()> {
+    async fn action_probe(handle: &WindowsClient) -> anyhow::Result<()> {
         let mut child = std::process::Command::new("ping")
             .args(["-n", "60", "127.0.0.1"])
             .stdout(std::process::Stdio::null())
@@ -104,10 +59,10 @@ mod windows {
             .context("spawn a throwaway ping")?;
         let pid = child.id();
 
-        let priority = action(handle, WindowsAction::SetPriority { pid, priority: ProcessPriority::BelowNormal }).await?;
+        let priority = handle.act(WindowsAction::SetPriority { pid, priority: ProcessPriority::BelowNormal }).await;
         println!("action: setPriority(BelowNormal) on throwaway pid {pid} -> code {priority}");
 
-        let kill = action(handle, WindowsAction::Kill { pid }).await?;
+        let kill = handle.act(WindowsAction::Kill { pid }).await;
         tokio::time::sleep(Duration::from_millis(300)).await;
         let exited = child.try_wait()?.is_some();
         println!("action: kill on throwaway pid {pid} -> code {kill}, exited: {exited}");
@@ -116,32 +71,22 @@ mod windows {
             bail!("the agent answered kill with {kill} but the process is still running");
         }
 
-        let missing = action(handle, WindowsAction::Kill { pid }).await?;
+        let missing = handle.act(WindowsAction::Kill { pid }).await;
         println!("action: kill on the same, now gone pid -> code {missing}");
         Ok(())
     }
 
-    async fn action(handle: &RpcHandle<WindowsRpc>, action: WindowsAction) -> anyhow::Result<u32> {
-        match handle.call(WindowsRequest::Action(action)).await? {
-            WindowsReply::Code(code) => Ok(code),
-            _ => bail!("agent answered an action with the wrong reply"),
-        }
-    }
-
-    async fn get_report(handle: &RpcHandle<WindowsRpc>) -> anyhow::Result<WindowsReport> {
+    async fn get_report(handle: &WindowsClient) -> anyhow::Result<WindowsReport> {
         let started = Instant::now();
-        match handle.call(WindowsRequest::Scan).await? {
-            WindowsReply::Report(Some(report)) => {
-                println!(
-                    "scan: {} processes joined in {} ms",
-                    report.processes.len(),
-                    started.elapsed().as_millis()
-                );
-                Ok(report)
-            }
-            WindowsReply::Report(None) => bail!("the process list kept moving under the metrics"),
-            _ => bail!("agent answered a scan with the wrong reply"),
-        }
+        let Some(report) = handle.report().await? else {
+            bail!("the process list kept moving under the metrics");
+        };
+        println!(
+            "scan: {} processes joined in {} ms",
+            report.processes.len(),
+            started.elapsed().as_millis()
+        );
+        Ok(report)
     }
 
     fn print_report(report: &WindowsReport) {
@@ -190,16 +135,16 @@ mod windows {
         }
     }
 
-    async fn concurrency_probe(handle: &RpcHandle<WindowsRpc>) -> anyhow::Result<()> {
+    async fn concurrency_probe(handle: &WindowsClient) -> anyhow::Result<()> {
         let report_handle = handle.clone();
-        let report = tokio::spawn(async move { report_handle.call(WindowsRequest::Scan).await });
+        let report = tokio::spawn(async move { report_handle.report().await });
 
         let ping_handle = handle.clone();
         let pings = tokio::spawn(async move {
             let mut worst = Duration::ZERO;
             for _ in 0..15 {
                 let started = Instant::now();
-                if ping_handle.call(WindowsRequest::Ping).await.is_ok() {
+                if ping_handle.ping().await.is_ok() {
                     worst = worst.max(started.elapsed());
                 }
                 tokio::time::sleep(Duration::from_millis(20)).await;
@@ -213,11 +158,11 @@ mod windows {
         Ok(())
     }
 
-    async fn teardown_probe(handle: RpcHandle<WindowsRpc>) -> anyhow::Result<()> {
+    async fn teardown_probe(handle: WindowsClient) -> anyhow::Result<()> {
         let orphan = handle.clone();
         drop(handle);
 
-        orphan.call(WindowsRequest::Ping).await.context("clone stopped working after a sibling dropped")?;
+        orphan.ping().await.context("clone stopped working after a sibling dropped")?;
 
         drop(orphan);
         tokio::time::sleep(Duration::from_millis(100)).await;

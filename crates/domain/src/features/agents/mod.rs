@@ -5,6 +5,7 @@ pub mod decode;
 pub mod providers;
 pub mod rpc;
 pub mod settings;
+pub mod windows_report;
 
 use std::time::Duration;
 
