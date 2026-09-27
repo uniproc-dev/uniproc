@@ -180,14 +180,11 @@ mod tests {
     use std::time::Duration;
 
     use guinea::app::Harness;
-    use guinea::feature::Segment;
-    use guinea::winui::harness::Mounted;
-    use guinea::winui::{page, Page, PageCx};
+    use guinea::winui::harness::{Mounted, Node};
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
     use uuid::Uuid;
-    use windows_reactor::TextBlock;
 
     use app_contracts::features::agent_link::InProcess;
     use app_contracts::features::agents::{
@@ -198,38 +195,21 @@ mod tests {
     use super::*;
     use crate::test_agent;
 
-    #[derive(Default)]
-    pub struct ShellProbe;
-
-    #[page]
-    impl Page for ShellProbe {
-        type Params = ();
-        type Installs = AgentLinkFeature;
-        type Message = ();
-
-        fn install(ctx: &FeatureInitContext, _params: &()) -> anyhow::Result<AgentLinkFeature> {
-            ctx.install(&AgentLinkDeps {
-                start_in_process: test_agent::start_in_process,
-            })
-        }
-
-        fn update(&mut self, _message: (), _cx: &mut UpdateCx<'_, Self>) {}
-
-        fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
-            let (link, dispatch) = cx.use_reducer::<AgentLinkState, _>();
-            let l10n = ui::l10n::use_tr(cx);
-            splash(&link, &dispatch, &l10n, Palette::of(ColorScheme::Dark))
-                .unwrap_or_else(|| TextBlock::new().text("shell").into())
-        }
+    fn mount(h: &Harness) -> Mounted<'_, ShellLayout> {
+        Mounted::<ShellLayout>::mount_at(&h.segment(), crate::routes::ShellLayoutParams::default(), Route::Processes {})
+            .unwrap()
     }
 
-    impl Segment for ShellProbe {
-        type Installs = AgentLinkFeature;
-        type Above = ();
-    }
-
-    fn splash_shown(page: &Mounted<'_, ShellProbe>) -> bool {
+    fn splash_shown(page: &Mounted<'_, ShellLayout>) -> bool {
         page.find(ui::SplashMark::Splash).is_some()
+    }
+
+    fn has_kind(node: &Node, kind: &str) -> bool {
+        node.kind == kind || node.children.iter().any(|child| has_kind(child, kind))
+    }
+
+    fn content_shown(page: &Mounted<'_, ShellLayout>) -> bool {
+        has_kind(&page.tree(), "NavigationView")
     }
 
     fn agent(h: &Harness) -> AgentConnectionState {
@@ -244,11 +224,14 @@ mod tests {
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
             .unwrap()
             .feature(test_agent::FakeAgentFeature)
-            .unwrap();
+            .unwrap()
+            .provide(AgentLinkDeps {
+                start_in_process: test_agent::start_in_process,
+            });
         dir
     }
 
-    fn after(h: &Harness, page: &mut Mounted<'_, ShellProbe>, seconds: u64) {
+    fn after(h: &Harness, page: &mut Mounted<'_, ShellLayout>, seconds: u64) {
         h.advance(Duration::from_secs(seconds));
         page.settle();
     }
@@ -257,7 +240,7 @@ mod tests {
     fn the_splash_gives_up_after_five_attempts_and_keeps_trying(h: &mut Harness) {
         let _store = start(h, false);
         let h = &*h;
-        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+        let mut page = mount(h);
         assert!(splash_shown(&page), "{:#?}", page.tree());
         assert_eq!(test_agent::connects(), 1);
 
@@ -280,10 +263,10 @@ mod tests {
         test_agent::set_up(true);
         after(h, &mut page, 3);
         assert!(!splash_shown(&page), "{:#?}", page.tree());
-        assert!(page.find_text("shell").is_some(), "{:#?}", page.tree());
+        assert!(content_shown(&page), "{:#?}", page.tree());
     }
 
-    fn unreachable_line(page: &Mounted<'_, ShellProbe>) -> Option<String> {
+    fn unreachable_line(page: &Mounted<'_, ShellLayout>) -> Option<String> {
         page.tree()
             .find(ui::SplashMark::Unreachable)
             .and_then(|node| node.text.clone())
@@ -293,7 +276,7 @@ mod tests {
     fn the_splash_names_the_service_it_cannot_reach(h: &mut Harness) {
         let _store = start(h, false);
         let h = &*h;
-        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+        let mut page = mount(h);
 
         after(h, &mut page, 9);
         assert_ne!(agent(h), AgentConnectionState::GaveUp);
@@ -319,9 +302,9 @@ mod tests {
     fn the_splash_is_gone_as_soon_as_the_agent_answers(h: &mut Harness) {
         let _store = start(h, true);
         let h = &*h;
-        let page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+        let page = mount(h);
 
-        assert!(page.find_text("shell").is_some(), "{:#?}", page.tree());
+        assert!(content_shown(&page), "{:#?}", page.tree());
         assert_eq!(test_agent::connects(), 1);
     }
 
@@ -329,13 +312,13 @@ mod tests {
         h.state::<AgentLinkState>().in_process
     }
 
-    fn in_process_error(page: &Mounted<'_, ShellProbe>) -> Option<String> {
+    fn in_process_error(page: &Mounted<'_, ShellLayout>) -> Option<String> {
         page.tree()
             .find(ui::SplashMark::InProcessError)
             .and_then(|node| node.text.clone())
     }
 
-    fn start_in_process(page: &mut Mounted<'_, ShellProbe>) {
+    fn start_in_process(page: &mut Mounted<'_, ShellLayout>) {
         page.click(ui::SplashMark::OpenInProcess).settle();
         page.settle();
     }
@@ -344,7 +327,7 @@ mod tests {
     fn the_splash_offers_the_monitor_in_process_after_five_seconds(h: &mut Harness) {
         let _store = start(h, false);
         let h = &*h;
-        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+        let mut page = mount(h);
 
         after(h, &mut page, 4);
         assert!(page.find(ui::SplashMark::OpenInProcess).is_none(), "not offered yet");
@@ -362,7 +345,7 @@ mod tests {
         let _store = start(h, false);
         test_agent::set_elevated(true);
         let h = &*h;
-        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+        let mut page = mount(h);
 
         after(h, &mut page, 5);
         start_in_process(&mut page);
@@ -371,7 +354,7 @@ mod tests {
         assert_eq!(in_process(h), InProcess::Running);
         assert_eq!(agent(h), AgentConnectionState::Connected);
         assert!(!splash_shown(&page), "{:#?}", page.tree());
-        assert!(page.find_text("shell").is_some(), "{:#?}", page.tree());
+        assert!(content_shown(&page), "{:#?}", page.tree());
 
         let connects = test_agent::connects();
         after(h, &mut page, 15);
@@ -402,7 +385,7 @@ mod tests {
     fn the_monitor_in_process_needs_an_elevated_uniproc(h: &mut Harness) {
         let _store = start(h, false);
         let h = &*h;
-        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+        let mut page = mount(h);
 
         after(h, &mut page, 5);
         assert_eq!(in_process_error(&page), None);
@@ -433,7 +416,7 @@ mod tests {
     fn the_service_still_wins_after_the_monitor_in_process_was_refused(h: &mut Harness) {
         let _store = start(h, false);
         let h = &*h;
-        let mut page = Mounted::<ShellProbe>::mount(&h.segment(), ()).unwrap();
+        let mut page = mount(h);
 
         after(h, &mut page, 5);
         start_in_process(&mut page);

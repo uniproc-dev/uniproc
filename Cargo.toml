@@ -17,15 +17,15 @@ members = [
 
 [workspace.dependencies]
 # --- guinea ---
-guinea = { git = "https://github.com/uniproc-dev/guinea", tag = "v0.13.3" }
-guinea-meta-build = { git = "https://github.com/uniproc-dev/guinea", tag = "v0.13.3" }
+guinea = { git = "https://github.com/uniproc-dev/guinea", tag = "v0.13.4" }
+guinea-meta-build = { git = "https://github.com/uniproc-dev/guinea", tag = "v0.13.4" }
 
-guinea-plugin-store = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.24" }
-guinea-plugin-l10n = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.24", features = ["winui"] }
-guinea-plugin-devtools = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.24" }
-guinea-plugin-single-instance = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.24" }
-guinea-widgets = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.24" }
-guinea-plugin-l10n-build = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.24" }
+guinea-plugin-store = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.25" }
+guinea-plugin-l10n = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.25", features = ["winui"] }
+guinea-plugin-devtools = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.25" }
+guinea-plugin-single-instance = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.25" }
+guinea-widgets = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.25" }
+guinea-plugin-l10n-build = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.25" }
 
 # --- guicons ---
 guicons = "0.6.0"
