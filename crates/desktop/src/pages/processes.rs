@@ -725,8 +725,8 @@ mod tests {
             remote::actions(),
             [
                 "Command", "Deselect", "Refresh", "RefreshDistros", "RunImageCommand", "RunProcessCommand",
-                "RunWindowCommand", "Select", "SelectLinux", "SetOpen", "SetWidth", "Sort", "StartInProcess",
-                "Terminate", "Toggle",
+                "RunWindowCommand", "Select", "SelectLinux", "SetOpen", "SetStartPage", "SetTheme",
+                "SetUpdateInterval", "SetWidth", "Sort", "StartInProcess", "Terminate", "Toggle",
             ]
         );
         assert_eq!(
@@ -736,6 +736,7 @@ mod tests {
                 "PressedAway",
                 "RemoteScanResult",
                 "ScanTick",
+                "UpdateIntervalChanged",
                 "WindowsActionRequest",
                 "WindowsActionResponse",
                 "WindowsAgentInProcess",

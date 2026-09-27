@@ -37,6 +37,15 @@ iconify = "fluent:chevron-down-24-regular"
 [chevron-right-regular]
 iconify = "fluent:chevron-right-24-regular"
 
+[color]
+iconify = "fluent:color-24-regular"
+
+[start-page]
+iconify = "fluent:window-text-20-regular"
+
+[top-speed]
+iconify = "fluent:top-speed-24-regular"
+
 [coin]
 iconify = "fluent-color:coin-multiple-24"
 paint = "none"

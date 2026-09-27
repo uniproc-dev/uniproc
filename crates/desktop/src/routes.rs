@@ -1,7 +1,7 @@
 use guinea::prelude::*;
 
 use crate::layouts::{ShellLayout, TabsLayout};
-use crate::pages::{Processes, Services, Wsl};
+use crate::pages::{Processes, Services, Settings, Wsl};
 
 routes! {
     Route {
@@ -10,6 +10,7 @@ routes! {
                 page(Processes)
                 page(Services)
                 page(Wsl)
+                page(Settings)
             }
         }
     }

@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use app_contracts::features::agents::{
     AgentConnectionState, SignatureStatus, WindowsAgentRuntimeEvent, WindowsMachineStats,
@@ -8,7 +7,7 @@ use app_contracts::features::agents::{
 };
 use guinea::prelude::*;
 
-use crate::features::agents::settings::AgentSettings;
+use crate::features::settings::settings::GeneralSettings;
 
 const VARIABLE: &str = "UNIPROC_SYNTHETIC_AGENT";
 const UNIQUE_VARIABLE: &str = "UNIPROC_SYNTHETIC_UNIQUE";
@@ -23,8 +22,7 @@ pub fn requested() -> Option<usize> {
 }
 
 pub fn install(app: &mut FeatureBuilder, processes: usize) -> anyhow::Result<()> {
-    let settings = AgentSettings::new()?;
-    let interval = Duration::from_millis(settings.scan_interval_ms().get());
+    let interval = GeneralSettings::new()?.update_interval();
     let executables = executables();
     let unique = std::env::var_os(UNIQUE_VARIABLE).is_some();
     let jitter: usize = std::env::var(JITTER_VARIABLE)

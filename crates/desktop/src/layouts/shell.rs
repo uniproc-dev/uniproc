@@ -1,10 +1,12 @@
 use app_contracts::features::agent_link::{AgentLinkState, StartInProcess};
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::metrics::MetricsState;
+use app_contracts::features::settings::{AppTheme, SettingsState};
 use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarState};
 use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
 use domain::features::agents::providers::windows::AGENT_SERVICE_DISPLAY_NAME;
 use domain::features::metrics::MetricsFeature;
+use domain::features::settings::SettingsFeature;
 use domain::features::sidebar::SidebarFeature;
 use guinea::feature::FeatureInitContext;
 use guinea::prelude::Dispatch;
@@ -12,9 +14,9 @@ use ui::l10n::L10n;
 use ui::theme::Palette;
 use guinea::winui::{layout, Layout, LayoutCx, UpdateCx, UseNavigate, UseRoute};
 use guinea_widgets::chart::Chart;
-use windows_reactor::{Callback, ColorScheme, View, WindowBackdrop, WindowVisuals};
+use windows_reactor::{Callback, ColorScheme, View, WindowBackdrop, WindowTheme, WindowVisuals};
 
-use crate::pages::{Processes, Services, Wsl};
+use crate::pages::{Processes, Services, Settings, Wsl};
 use crate::route_memory;
 use crate::routes::Route;
 
@@ -49,6 +51,14 @@ pub struct ShellLayout {
     memory_chart: Chart,
 }
 
+fn window_theme(theme: AppTheme) -> WindowTheme {
+    match theme {
+        AppTheme::System => WindowTheme::System,
+        AppTheme::Light => WindowTheme::Light,
+        AppTheme::Dark => WindowTheme::Dark,
+    }
+}
+
 fn icon_theme(scheme: ColorScheme) -> guicons::Theme {
     match scheme {
         ColorScheme::Dark => guicons::Theme::Dark,
@@ -65,12 +75,12 @@ pub enum ShellMsg {
 #[layout]
 impl Layout for ShellLayout {
     type Params = crate::routes::ShellLayoutParams;
-    type Installs = (SidebarFeature, MetricsFeature, AgentLinkFeature);
+    type Installs = (SidebarFeature, MetricsFeature, AgentLinkFeature, SettingsFeature);
     type Message = ShellMsg;
 
     fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
         let link = ctx.require_or_default::<AgentLinkDeps>();
-        Ok((ctx.install(&())?, ctx.install(&())?, ctx.install(&link)?))
+        Ok((ctx.install(&())?, ctx.install(&())?, ctx.install(&link)?, ctx.install(&())?))
     }
 
     fn init(_ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
@@ -103,10 +113,12 @@ impl Layout for ShellLayout {
     fn view(&self, cx: &mut LayoutCx<'_, Self>) -> View {
         let on_scheme = cx.on(ShellMsg::Scheme);
         cx.on_color_scheme(on_scheme);
+        let (settings, _) = cx.use_reducer::<SettingsState, _>();
         cx.window_visuals(
             WindowVisuals::new()
                 .client_size(WINDOW_WIDTH, WINDOW_HEIGHT)
-                .backdrop(WindowBackdrop::Mica),
+                .backdrop(WindowBackdrop::Mica)
+                .theme(window_theme(settings.theme)),
         );
 
         let current = cx.use_route::<Route>();
@@ -127,6 +139,8 @@ impl Layout for ShellLayout {
             "wsl"
         } else if cx.child_is::<Processes>() {
             "processes"
+        } else if cx.child_is::<Settings>() {
+            "settings"
         } else {
             ""
         };
@@ -135,6 +149,7 @@ impl Layout for ShellLayout {
             Some("processes") => nav.to(Route::Processes {}),
             Some("services") => nav.to(Route::Services {}),
             Some("wsl") => nav.to(Route::Wsl {}),
+            Some("settings") => nav.to(Route::Settings {}),
             _ => {}
         });
         let on_resize = cx.on(ShellMsg::Resize);
