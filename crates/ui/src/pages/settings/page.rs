@@ -7,8 +7,8 @@ use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    ChildrenControl, ComboBox, ContentControl, LayoutControl, Orientation, ScrollViewer, Slider, StackPanel,
-    Thickness, VerticalAlignment, View,
+    ChildrenControl, ComboBox, ContentControl, LayoutControl, NumberBox, Orientation, ScrollViewer, Slider,
+    StackPanel, Thickness, VerticalAlignment, View,
 };
 
 use super::components::setting_card::{setting_card, SettingCard, SettingCardSize};
@@ -30,7 +30,7 @@ struct Control;
 impl Control {
     const ChoiceWidth: f64 = 180.0;
     const SliderWidth: f64 = 200.0;
-    const ValueWidth: f64 = 56.0;
+    const ValueWidth: f64 = 88.0;
 }
 
 struct Layout;
@@ -42,16 +42,6 @@ impl Layout {
 
     fn section_header() -> Thickness {
         Thickness::new(1.0, 30.0, 0.0, 6.0)
-    }
-}
-
-pub fn update_interval_label(l10n: &L10n, interval: Duration) -> String {
-    let ms = interval.as_millis();
-    if ms < 1000 {
-        l10n.settings_update_speed_ms(ms as i64)
-    } else {
-        let seconds = format!("{:.1}", interval.as_secs_f64());
-        l10n.settings_update_speed_seconds(seconds.trim_end_matches(".0").to_string())
     }
 }
 
@@ -126,6 +116,20 @@ fn start_page_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
 fn update_speed_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let dispatch = dispatch.clone();
     let millis = |interval: Duration| interval.as_millis() as f64;
+    let typed = dispatch.clone();
+    let value = NumberBox::new()
+        .mark(SettingsMark::UpdateSpeedValue)
+        .width(Control::ValueWidth)
+        .minimum(millis(UpdateInterval::Min))
+        .maximum(millis(UpdateInterval::Max))
+        .value(state.update_interval_ms as f64)
+        .vertical_alignment(VerticalAlignment::Center)
+        .on_value_changed(move |value: Option<f64>| {
+            if let Some(value) = value {
+                typed.emit(SetUpdateInterval(value.round() as u64));
+            }
+        });
+    let unit = text(l10n.settings_update_speed_unit()).vertical_alignment(VerticalAlignment::Center);
     let slider = Slider::new()
         .mark(SettingsMark::UpdateSpeed)
         .width(Control::SliderWidth)
@@ -137,14 +141,10 @@ fn update_speed_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
         .on_value_changed(move |value: f64| {
             dispatch.emit(SetUpdateInterval(value.round() as u64));
         });
-    let value = text(update_interval_label(l10n, Duration::from_millis(state.update_interval_ms)))
-        .mark(SettingsMark::UpdateSpeedValue)
-        .width(Control::ValueWidth)
-        .vertical_alignment(VerticalAlignment::Center);
     let control = StackPanel::new()
         .orientation(Orientation::Horizontal)
-        .spacing(space::Header)
-        .children((slider, value));
+        .spacing(space::Control)
+        .children((value, unit, slider.margin(Thickness::new(space::Header, 0.0, 0.0, 0.0))));
     setting_card(
         SettingCard {
             icon: icon!(top_speed).size(SettingCardSize::Icon).build(),

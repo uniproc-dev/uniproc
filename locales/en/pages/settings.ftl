@@ -17,5 +17,4 @@ settings-start-page-wsl = WSL
 
 settings-update-speed = Real time update speed
 settings-update-speed-description = Choose how often to update the system resource usage report
-settings-update-speed-ms = { $ms } ms
-settings-update-speed-seconds = { $seconds } s
+settings-update-speed-unit = ms

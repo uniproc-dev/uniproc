@@ -64,8 +64,8 @@ mod tests {
         page.property(node, property).cloned().unwrap_or_else(|| panic!("{mark:?} has no {property:?}"))
     }
 
-    fn shown_interval(page: &Mounted<'_, Settings>) -> Option<String> {
-        page.tree().find(SettingsMark::UpdateSpeedValue).and_then(|node| node.text.clone())
+    fn shown_interval(page: &Mounted<'_, Settings>) -> PropertyValue {
+        value(page, SettingsMark::UpdateSpeedValue, PropertyId::NumberBoxValue)
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -79,7 +79,7 @@ mod tests {
         assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::SliderValue), PropertyValue::F64(1500.0));
         assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::SliderMinimum), PropertyValue::F64(100.0));
         assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::SliderMaximum), PropertyValue::F64(5000.0));
-        assert_eq!(shown_interval(&page).as_deref(), Some("\u{2068}1.5\u{2069} s"));
+        assert_eq!(shown_interval(&page), PropertyValue::OptionalF64(Some(1500.0)));
         assert!(page.find_text("Use system setting").is_none(), "a closed choice shows no list");
     }
 
@@ -98,7 +98,7 @@ mod tests {
         assert_eq!(value(&page, SettingsMark::Theme, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(2)));
         assert_eq!(value(&page, SettingsMark::StartPage, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(3)));
         assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::SliderValue), PropertyValue::F64(300.0));
-        assert_eq!(shown_interval(&page).as_deref(), Some("\u{2068}300\u{2069} ms"));
+        assert_eq!(shown_interval(&page), PropertyValue::OptionalF64(Some(300.0)));
 
         let stored = GeneralSettings::new().unwrap();
         assert_eq!(stored.theme_choice(), AppTheme::Dark);
@@ -117,7 +117,7 @@ mod tests {
         assert!(first.chain().published::<UpdateIntervalChanged>(), "{:#?}", first.chain());
         page.settle();
         assert_eq!(h.state::<SettingsState>().update_interval_ms, 5_000);
-        assert_eq!(shown_interval(&page).as_deref(), Some("\u{2068}5\u{2069} s"));
+        assert_eq!(shown_interval(&page), PropertyValue::OptionalF64(Some(5000.0)));
 
         let again = h.act::<SettingsState>(SetUpdateInterval(5_000));
         again.settle();
