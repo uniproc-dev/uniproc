@@ -3,7 +3,7 @@ use windows_reactor::{
     Thickness, VerticalAlignment, View,
 };
 
-use crate::theme::{space, Palette};
+use crate::theme::{radius, space, Palette};
 use crate::widgets::card::card;
 use crate::widgets::text::{caption, text};
 
@@ -30,6 +30,7 @@ pub(crate) fn setting_card(setting: SettingCard, palette: Palette) -> View {
         ));
 
     card()
+        .corner_radius(radius::Control)
         .padding(Thickness::xy(space::Card, space::Header))
         .content(
             Grid::new()

@@ -151,7 +151,7 @@ pub fn settings_view(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
     );
     let general = section(
         l10n.settings_section_general(),
-        StackPanel::new().spacing(space::Compact).children((
+        StackPanel::new().spacing(space::Control).children((
             start_page_card(state, dispatch, l10n, palette),
             update_speed_card(state, dispatch, l10n, palette),
         )),
