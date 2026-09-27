@@ -180,7 +180,7 @@ mod tests {
     use std::time::Duration;
 
     use guinea::app::Harness;
-    use guinea::winui::harness::{Mounted, Node};
+    use guinea::winui::harness::{Mounted, Outlet};
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
@@ -204,12 +204,8 @@ mod tests {
         page.find(ui::SplashMark::Splash).is_some()
     }
 
-    fn has_kind(node: &Node, kind: &str) -> bool {
-        node.kind == kind || node.children.iter().any(|child| has_kind(child, kind))
-    }
-
     fn content_shown(page: &Mounted<'_, ShellLayout>) -> bool {
-        has_kind(&page.tree(), "NavigationView")
+        page.find(Outlet).is_some()
     }
 
     fn agent(h: &Harness) -> AgentConnectionState {
@@ -264,6 +260,18 @@ mod tests {
         after(h, &mut page, 3);
         assert!(!splash_shown(&page), "{:#?}", page.tree());
         assert!(content_shown(&page), "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_settings_item_opens_the_settings_page(h: &mut Harness) {
+        let _store = start(h, true);
+        let h = &*h;
+        let mut page = mount(h);
+
+        page.click_text("Settings").settle();
+        page.settle();
+
+        assert_eq!(page.navigated::<Route>(), [Route::Settings {}]);
     }
 
     fn unreachable_line(page: &Mounted<'_, ShellLayout>) -> Option<String> {
