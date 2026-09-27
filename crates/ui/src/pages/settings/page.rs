@@ -144,7 +144,7 @@ fn update_speed_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
     let control = StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(space::Control)
-        .children((value, unit, slider.margin(Thickness::new(space::Header, 0.0, 0.0, 0.0))));
+        .children((slider.margin(Thickness::new(0.0, 0.0, space::Header, 0.0)), value, unit));
     setting_card(
         SettingCard {
             icon: icon!(top_speed).size(SettingCardSize::Icon).build(),
