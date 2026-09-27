@@ -28,6 +28,7 @@ use super::components::grouping::{
     Held, Order, SectionId, Selection, ViewState, WslRow,
 };
 use super::components::overlay::disconnected_overlay;
+use super::components::status::{status_bar, StatusCounts};
 use super::marks::ProcessesMark;
 use crate::l10n::L10n;
 use crate::theme::{radius, size, space, Palette};
@@ -326,32 +327,26 @@ impl ProcessesPage {
         page_frame(
             header,
             body,
-            self.status(state, l10n),
+            self.status(state, l10n, palette),
             palette,
             Some(blank),
         )
     }
 
-    fn status(&self, state: &ProcessesState, l10n: &L10n) -> String {
+    fn status(&self, state: &ProcessesState, l10n: &L10n, palette: Palette) -> View {
         let of = |wanted: &[ProcessCategory]| {
-            state.rows().iter().filter(|row| wanted.contains(&row.category)).count() as i64
+            state.rows().iter().filter(|row| wanted.contains(&row.category)).count()
         };
-        let mut parts = vec![l10n.processes_status(
-            state.total() as i64,
-            of(&[ProcessCategory::App]),
-            of(&[ProcessCategory::BackgroundThirdParty, ProcessCategory::BackgroundMicrosoft]),
-            of(&[ProcessCategory::WindowsService]),
-            of(&[ProcessCategory::WindowsKernel]),
-        )];
-        let linux: usize = state.wsl.iter().map(|environment| environment.processes.len()).sum();
-        if linux > 0 {
-            parts.push(l10n.processes_status_wsl(linux as i64));
-        }
-        let pinned = self.pins.as_ref().map_or(0, |pins| pins.entries().count());
-        if pinned > 0 {
-            parts.push(l10n.processes_status_pinned(pinned as i64));
-        }
-        parts.join(" · ")
+        let counts = StatusCounts {
+            total: state.total(),
+            apps: of(&[ProcessCategory::App]),
+            background: of(&[ProcessCategory::BackgroundThirdParty, ProcessCategory::BackgroundMicrosoft]),
+            services: of(&[ProcessCategory::WindowsService]),
+            kernel: of(&[ProcessCategory::WindowsKernel]),
+            linux: state.wsl.iter().map(|environment| environment.processes.len()).sum(),
+            pinned: self.pins.as_ref().map_or(0, |pins| pins.entries().count()),
+        };
+        status_bar(&counts, l10n, palette)
     }
 
     fn table(

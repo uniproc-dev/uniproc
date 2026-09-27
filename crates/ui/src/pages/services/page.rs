@@ -11,7 +11,7 @@ use super::components::columns::build_columns;
 use super::marks::ServicesMark;
 use crate::l10n::L10n;
 use crate::theme::{space, Palette};
-use crate::widgets::page::{command_button, loading, page_frame, page_title};
+use crate::widgets::page::{command_button, loading, page_frame, page_title, status_text};
 use crate::widgets::text::text;
 
 pub enum ServicesMsg {
@@ -110,7 +110,7 @@ impl ServicesPage {
         page_frame(
             header,
             body,
-            l10n.services_status(state.total() as i64),
+            status_text(l10n.services_status(state.total() as i64), palette),
             palette,
             None,
         )

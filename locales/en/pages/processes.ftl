@@ -1,18 +1,22 @@
 processes-connecting = Connecting...
 processes-agent-gave-up = Can't reach the agent. Still trying.
 processes-failed = Failed to load processes: { $error }
-processes-status = { $count ->
-    [one] { $count } process
-   *[other] { $count } processes
-    } · { $apps ->
-    [one] { $apps } app
-   *[other] { $apps } apps
-    } · { $background } background · { $services ->
-    [one] { $services } service
-   *[other] { $services } services
-    } · { $kernel } kernel
-processes-status-wsl = WSL { $count }
-processes-status-pinned = { $count } pinned
+processes-status-processes = { $count ->
+    [one] process
+   *[other] processes
+    }
+processes-status-apps = { $count ->
+    [one] app
+   *[other] apps
+    }
+processes-status-background = background
+processes-status-services = { $count ->
+    [one] service
+   *[other] services
+    }
+processes-status-kernel = kernel
+processes-status-wsl = in WSL
+processes-status-pinned = pinned
 processes-exited = Exited
 processes-not-running = Not running
 processes-selected = Selected: { $name } | PID { $pid }

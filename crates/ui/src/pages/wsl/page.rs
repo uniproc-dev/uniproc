@@ -6,7 +6,7 @@ use windows_reactor::{Callback, View};
 use super::components::columns::build_columns;
 use crate::l10n::L10n;
 use crate::theme::Palette;
-use crate::widgets::page::{loading, page_frame, page_title};
+use crate::widgets::page::{loading, page_frame, page_title, status_text};
 use crate::widgets::text::text;
 
 pub enum WslMsg {
@@ -49,7 +49,7 @@ impl WslPage {
         page_frame(
             page_title(l10n.wsl_title()),
             body,
-            l10n.wsl_status(state.total() as i64, state.running() as i64),
+            status_text(l10n.wsl_status(state.total() as i64, state.running() as i64), palette),
             palette,
             None,
         )

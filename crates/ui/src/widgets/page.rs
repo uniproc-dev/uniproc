@@ -26,6 +26,10 @@ impl Blank {
     const Hit: Color = Color::argb(0, 0, 0, 0);
 }
 
+pub fn status_text(status: impl Into<String>, palette: Palette) -> View {
+    text(status).foreground(palette.secondary_text).into()
+}
+
 fn on_blank(on_blank: &Option<Callback<()>>) -> Option<Callback<PointerEventInfo>> {
     on_blank.clone().map(|on_blank| {
         Callback::new(move |_: PointerEventInfo| {
@@ -37,7 +41,7 @@ fn on_blank(on_blank: &Option<Callback<()>>) -> Option<Callback<PointerEventInfo
 pub fn page_frame(
     header: impl Into<View>,
     body: impl Into<View>,
-    status: impl Into<String>,
+    status: impl Into<View>,
     palette: Palette,
     blank: Option<Callback<()>>,
 ) -> View {
@@ -60,7 +64,7 @@ pub fn page_frame(
         Some(released) => status_bar.background(Blank::Hit).on_pointer_released(released),
         None => status_bar,
     }
-    .content(text(status).foreground(palette.secondary_text));
+    .content(status);
 
     let content_card = card().grid_row(1).content(
         Grid::new()

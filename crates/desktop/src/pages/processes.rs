@@ -1367,8 +1367,38 @@ mod tests {
 
         assert_eq!(
             status(&page),
-            "10 processes · 1 app · 8 background · 1 service · 0 kernel · WSL 3 · 1 pinned"
+            "10 processes · 1 app · 8 background · 1 service · 0 kernel · 3 in WSL · 1 pinned"
         );
+    }
+
+    fn marked<'a>(node: &'a Node, mark: ProcessesMark, out: &mut Vec<&'a Node>) {
+        if node.id.as_deref() == Some(guinea::Mark::name(&mark)) {
+            out.push(node);
+        }
+        for child in &node.children {
+            marked(child, mark, out);
+        }
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn every_status_count_sits_in_a_slot_of_its_own_width(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        let tree = page.tree();
+        let bar = tree.find(PageMark::Status).expect("the page has a status bar");
+        let mut counts = Vec::new();
+        marked(bar, ProcessesMark::StatusCount, &mut counts);
+
+        let slots: Vec<Option<PropertyValue>> = counts
+            .iter()
+            .map(|count| page.at(count.at).property(PropertyId::MinWidth).cloned())
+            .collect();
+
+        assert_eq!(slots.len(), 5, "{bar:#?}");
+        assert!(slots.iter().all(Option::is_some), "a count without a slot moves what follows it: {slots:?}");
+        assert_ne!(slots[0], slots[1], "the total gets room for one digit more");
+        assert!(slots[1..].windows(2).all(|pair| pair[0] == pair[1]), "{slots:?}");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
