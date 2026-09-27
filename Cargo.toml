@@ -19,12 +19,12 @@ members = [
 # --- guinea ---
 guinea = { git = "https://github.com/uniproc-dev/guinea", tag = "v0.11.5" }
 
-guinea-plugin-store = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.17" }
-guinea-plugin-l10n = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.17", features = ["winui"] }
-guinea-plugin-devtools = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.17" }
-guinea-plugin-single-instance = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.17" }
-guinea-widgets = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.17" }
-guinea-plugin-l10n-build = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.17" }
+guinea-plugin-store = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.18" }
+guinea-plugin-l10n = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.18", features = ["winui"] }
+guinea-plugin-devtools = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.18" }
+guinea-plugin-single-instance = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.18" }
+guinea-widgets = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.18" }
+guinea-plugin-l10n-build = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.10.18" }
 
 # --- guinea-meta ---
 guinea-meta-build = { git = "https://github.com/uniproc-dev/guinea-meta", tag = "v0.1.0" }
