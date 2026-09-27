@@ -41,7 +41,7 @@ fn main() -> anyhow::Result<()> {
     let app = if std::env::var_os("UNIPROC_NO_DEVTOOLS").is_some() {
         app
     } else {
-        app.plugin(guinea_plugin_devtools::DevToolsPlugin::new())
+        app.plugin(guinea_plugin_devtools::DevToolsPlugin::new().launch(true))
     };
 
     let app = app.feature(domain::features::agents::AgentsFeature);

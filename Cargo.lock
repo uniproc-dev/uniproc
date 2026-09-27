@@ -1445,8 +1445,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-devtools-protocol"
-version = "0.10.15"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
+version = "0.10.16"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.16#19ec96e268d182ee1e5a410c68305addbf0c129c"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -1494,8 +1494,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-devtools"
-version = "0.10.15"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
+version = "0.10.16"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.16#19ec96e268d182ee1e5a410c68305addbf0c129c"
 dependencies = [
  "anyhow",
  "capnp",
@@ -1504,6 +1504,7 @@ dependencies = [
  "guinea",
  "guinea-core",
  "guinea-devtools-protocol",
+ "guinea-plugin-single-instance",
  "ogurpchik",
  "puffin_http",
  "tracing",
@@ -1511,8 +1512,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-l10n"
-version = "0.10.15"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
+version = "0.10.16"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.16#19ec96e268d182ee1e5a410c68305addbf0c129c"
 dependencies = [
  "anyhow",
  "fluent-bundle",
@@ -1527,8 +1528,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-l10n-build"
-version = "0.10.15"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
+version = "0.10.16"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.16#19ec96e268d182ee1e5a410c68305addbf0c129c"
 dependencies = [
  "fluent-syntax",
  "proc-macro2",
@@ -1538,9 +1539,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "guinea-plugin-single-instance"
+version = "0.10.16"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.16#19ec96e268d182ee1e5a410c68305addbf0c129c"
+dependencies = [
+ "anyhow",
+ "guinea",
+ "tracing",
+]
+
+[[package]]
 name = "guinea-plugin-store"
 version = "0.22.0"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.16#19ec96e268d182ee1e5a410c68305addbf0c129c"
 dependencies = [
  "amethystate",
  "anyhow",
@@ -1585,8 +1596,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-widgets"
-version = "0.10.15"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.15#a14b1c1e089a222f80fef3be205c50f025f52e18"
+version = "0.10.16"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.16#19ec96e268d182ee1e5a410c68305addbf0c129c"
 dependencies = [
  "guinea-mark",
  "tracing",
@@ -2898,7 +2909,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
