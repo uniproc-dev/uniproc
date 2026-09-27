@@ -11,9 +11,9 @@ use windows_reactor::{
     Thickness, VerticalAlignment, View,
 };
 
-use super::components::setting_card::{setting_card, SettingCard};
+use super::components::setting_card::{setting_card, SettingCard, SettingCardSize};
 use crate::l10n::L10n;
-use crate::theme::{size, space, Palette};
+use crate::theme::{space, Palette};
 use crate::widgets::text::{body_strong, subtitle, text};
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
@@ -31,6 +31,18 @@ impl Control {
     const ChoiceWidth: f64 = 180.0;
     const SliderWidth: f64 = 200.0;
     const ValueWidth: f64 = 56.0;
+}
+
+struct Layout;
+
+#[expect(non_upper_case_globals)]
+impl Layout {
+    const MaxWidth: f64 = 1064.0;
+    const CardSpacing: f64 = 4.0;
+
+    fn section_header() -> Thickness {
+        Thickness::new(1.0, 30.0, 0.0, 6.0)
+    }
 }
 
 pub fn update_interval_label(l10n: &L10n, interval: Duration) -> String {
@@ -61,8 +73,8 @@ fn start_page_label(l10n: &L10n, page: StartPage) -> String {
 }
 
 fn section(title: String, cards: impl Into<View>) -> View {
-    let header = body_strong(title).margin(Thickness::new(0.0, space::Section, 0.0, space::Control));
-    StackPanel::new().spacing(space::Compact).children((header, cards)).into()
+    let header = body_strong(title).margin(Layout::section_header());
+    StackPanel::new().children((header, cards)).into()
 }
 
 fn theme_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
@@ -79,7 +91,7 @@ fn theme_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: 
         });
     setting_card(
         SettingCard {
-            icon: icon!(color).size(size::CommandIcon).build(),
+            icon: icon!(color).size(SettingCardSize::Icon).build(),
             title: l10n.settings_theme(),
             description: l10n.settings_theme_description(),
             control: choice.into(),
@@ -102,7 +114,7 @@ fn start_page_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
         });
     setting_card(
         SettingCard {
-            icon: icon!(start_page).size(size::CommandIcon).build(),
+            icon: icon!(start_page).size(SettingCardSize::Icon).build(),
             title: l10n.settings_start_page(),
             description: l10n.settings_start_page_description(),
             control: choice.into(),
@@ -135,7 +147,7 @@ fn update_speed_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
         .children((slider, value));
     setting_card(
         SettingCard {
-            icon: icon!(top_speed).size(size::CommandIcon).build(),
+            icon: icon!(top_speed).size(SettingCardSize::Icon).build(),
             title: l10n.settings_update_speed(),
             description: l10n.settings_update_speed_description(),
             control: control.into(),
@@ -151,7 +163,7 @@ pub fn settings_view(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
     );
     let general = section(
         l10n.settings_section_general(),
-        StackPanel::new().spacing(space::Control).children((
+        StackPanel::new().spacing(Layout::CardSpacing).children((
             start_page_card(state, dispatch, l10n, palette),
             update_speed_card(state, dispatch, l10n, palette),
         )),
@@ -160,7 +172,8 @@ pub fn settings_view(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
     ScrollViewer::new()
         .content(
             StackPanel::new()
-                .margin(Thickness::xy(space::Section, space::Card))
+                .max_width(Layout::MaxWidth)
+                .margin(Thickness::new(space::Page, space::Section, space::Page, space::Page))
                 .children((subtitle(l10n.settings_title()), appearance, general)),
         )
         .into()
