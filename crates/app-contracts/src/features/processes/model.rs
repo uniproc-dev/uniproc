@@ -17,6 +17,12 @@ impl Default for ColumnConfig {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PinnedProcess {
+    pub exe_path: String,
+    pub package_full_name: String,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum ProcessCategory {
     App,

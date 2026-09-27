@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use app_contracts::features::processes::{ProcessCommand, ProcessRow, ProcessWindow, WindowCommand};
+use app_contracts::features::processes::{
+    PinnedProcess, ProcessCommand, ProcessRow, ProcessWindow, WindowCommand,
+};
 use guicons::icon;
 use windows_reactor::{
     Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, CornerRadius,
@@ -34,10 +36,16 @@ pub enum MenuTarget {
 }
 
 impl MenuTarget {
-    pub(crate) fn pin_key(&self) -> Option<Arc<str>> {
+    pub(crate) fn pin(&self) -> Option<(Arc<str>, PinnedProcess)> {
         match self {
-            Self::Process(row) | Self::Group { leader: row } => Some(row.name.clone()),
-            Self::Absent { name } => Some(name.clone()),
+            Self::Process(row) | Self::Group { leader: row } => Some((
+                row.name.clone(),
+                PinnedProcess {
+                    exe_path: row.exe_path.to_string(),
+                    package_full_name: row.package_full_name.to_string(),
+                },
+            )),
+            Self::Absent { name } => Some((name.clone(), PinnedProcess::default())),
             Self::Window { .. } => None,
         }
     }

@@ -1,5 +1,5 @@
 use amethystate::{ReactiveMap, amethystate};
-use app_contracts::features::processes::ColumnConfig;
+use app_contracts::features::processes::{ColumnConfig, PinnedProcess};
 
 #[amethystate(prefix = "processes")]
 pub struct ProcessesSettings {
@@ -19,7 +19,7 @@ pub struct ProcessesGroupingSettings {
     collapsed_sections: ReactiveMap<String, bool>,
 
     #[amestate(default = {})]
-    pinned: ReactiveMap<String, bool>,
+    pins: ReactiveMap<String, PinnedProcess>,
 
     #[amestate(default = true)]
     by_type: bool,

@@ -17,7 +17,7 @@ fn open_settings() -> Option<ProcessesSettingsMaps> {
     Some(ProcessesSettingsMaps {
         columns: settings.columns().configs().clone(),
         collapsed_sections: settings.grouping().collapsed_sections().clone(),
-        pinned: settings.grouping().pinned().clone(),
+        pins: settings.grouping().pins().clone(),
         group_by_type: settings.grouping().by_type().clone(),
     })
 }
@@ -74,8 +74,8 @@ mod tests {
     use std::rc::Rc;
 
     use app_contracts::features::processes::{
-        Deselect, ProcessColumn, ProcessCommand, ProcessesState, RunProcessCommand, Terminate,
-        WindowCommand,
+        Deselect, PinnedProcess, ProcessColumn, ProcessCommand, ProcessesState, RunProcessCommand,
+        Terminate, WindowCommand,
     };
     use guinea::prelude::GlobalEventBus;
     use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
@@ -97,6 +97,7 @@ mod tests {
     use super::*;
 
     const NOTEPAD: u32 = 10;
+    const NOTEPAD_PATH: &str = r"C:\Windows\notepad.exe";
     const CHROME: [u32; 3] = [21, 22, 23];
     const SVCHOST: u32 = 30;
     const CMD: u32 = 40;
@@ -147,9 +148,12 @@ mod tests {
         let mut broker = process(BROKER, "RuntimeBroker.exe", 0.3);
         broker.signature = SignatureStatus::Microsoft;
 
+        let mut notepad = process(NOTEPAD, "notepad.exe", 5.0);
+        notepad.image_path = NOTEPAD_PATH.into();
+
         vec![
             broker,
-            process(NOTEPAD, "notepad.exe", 5.0),
+            notepad,
             process(CHROME[0], "chrome.exe", 3.0),
             process(CHROME[1], "chrome.exe", 2.0),
             process(CHROME[2], "chrome.exe", 1.0),
@@ -1171,8 +1175,8 @@ mod tests {
         page.settle();
     }
 
-    fn pin_kept(name: &str) -> Option<bool> {
-        ProcessesSettings::new().unwrap().grouping().pinned().get(&name.to_string())
+    fn pin_kept(name: &str) -> Option<PinnedProcess> {
+        ProcessesSettings::new().unwrap().grouping().pins().get(&name.to_string())
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -1185,7 +1189,11 @@ mod tests {
         let all = labels(&mut page);
         assert_eq!(all[..2], ["Pinned (1)".to_string(), "notepad.exe".to_string()], "{all:?}");
         assert_eq!(all.iter().filter(|label| *label == "notepad.exe").count(), 1, "{all:?}");
-        assert_eq!(pin_kept("notepad.exe"), Some(true), "the pin is kept in the settings");
+        assert_eq!(
+            pin_kept("notepad.exe").map(|pin| pin.exe_path),
+            Some(NOTEPAD_PATH.to_string()),
+            "the pin is kept in the settings with the path its icon comes from"
+        );
 
         right_click(&mut page, "notepad.exe");
         assert!(page.find(ProcessesMark::MenuPin).is_none(), "a pinned process offers Unpin");

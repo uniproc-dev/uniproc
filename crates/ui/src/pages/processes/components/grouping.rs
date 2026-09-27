@@ -1,5 +1,5 @@
 use app_contracts::features::processes::{
-    HostedService, ProcessCategory, ProcessColumn, ProcessRow, ProcessWindow,
+    HostedService, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessWindow,
 };
 
 use crate::widgets::table_cell::Highlight;
@@ -104,9 +104,11 @@ pub(crate) struct Section {
     headed: bool,
     ruled: bool,
     groups: Vec<ProcessGroup>,
-    absent: Vec<Arc<str>>,
+    absent: Vec<(Arc<str>, PinnedProcess)>,
     consoles: HashMap<u32, Vec<ProcessRow>>,
 }
+
+pub(crate) type Pins = HashMap<Arc<str>, PinnedProcess>;
 
 impl Section {
     fn new(id: SectionId, headed: bool, groups: Vec<ProcessGroup>) -> Option<Self> {
@@ -117,7 +119,7 @@ impl Section {
         id: SectionId,
         headed: bool,
         groups: Vec<ProcessGroup>,
-        absent: Vec<Arc<str>>,
+        absent: Vec<(Arc<str>, PinnedProcess)>,
     ) -> Option<Self> {
         (!groups.is_empty() || !absent.is_empty()).then(|| Self {
             id,
@@ -130,21 +132,21 @@ impl Section {
     }
 }
 
-fn is_pinned(group: &ProcessGroup, pins: &HashSet<Arc<str>>) -> bool {
-    pins.contains(&group.leader.name)
+fn is_pinned(group: &ProcessGroup, pins: &Pins) -> bool {
+    pins.contains_key(&group.leader.name)
 }
 
-fn absent_pins(groups: &[ProcessGroup], pins: &HashSet<Arc<str>>) -> Vec<Arc<str>> {
-    let mut absent: Vec<Arc<str>> = pins
+fn absent_pins(groups: &[ProcessGroup], pins: &Pins) -> Vec<(Arc<str>, PinnedProcess)> {
+    let mut absent: Vec<(Arc<str>, PinnedProcess)> = pins
         .iter()
-        .filter(|pin| !groups.iter().any(|group| group.leader.name == **pin))
-        .cloned()
+        .filter(|(name, _)| !groups.iter().any(|group| group.leader.name == **name))
+        .map(|(name, pin)| (name.clone(), pin.clone()))
         .collect();
-    absent.sort_by_key(|name| name.to_lowercase());
+    absent.sort_by_key(|(name, _)| name.to_lowercase());
     absent
 }
 
-fn one_section(groups: Vec<ProcessGroup>, pins: &HashSet<Arc<str>>) -> Vec<Section> {
+fn one_section(groups: Vec<ProcessGroup>, pins: &Pins) -> Vec<Section> {
     let absent = absent_pins(&groups, pins);
     let (pinned, rest): (Vec<_>, Vec<_>) = groups.into_iter().partition(|group| is_pinned(group, pins));
     let mut sections: Vec<Section> = [
@@ -162,12 +164,12 @@ fn one_section(groups: Vec<ProcessGroup>, pins: &HashSet<Arc<str>>) -> Vec<Secti
 
 #[cfg(test)]
 pub(crate) fn split_by_category(groups: Vec<ProcessGroup>) -> Vec<Section> {
-    split_keeping(groups, &HashSet::new(), None)
+    split_keeping(groups, &Pins::new(), None)
 }
 
 fn split_keeping(
     groups: Vec<ProcessGroup>,
-    pins: &HashSet<Arc<str>>,
+    pins: &Pins,
     keep: Option<(u32, SectionId)>,
 ) -> Vec<Section> {
     let absent = absent_pins(&groups, pins);
@@ -397,7 +399,7 @@ pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>
             }
         }
 
-        out.extend(section.absent.iter().map(|name| DisplayRow::absent(name)));
+        out.extend(section.absent.iter().map(|(name, pin)| DisplayRow::absent(name, pin)));
 
         if section.ruled
             && let Some(last) = out.last_mut()
@@ -473,7 +475,7 @@ pub(crate) struct GroupsCache {
     kept: Option<SectionId>,
     order: Order,
     by_type: bool,
-    pins: HashSet<Arc<str>>,
+    pins: Pins,
     sections: Vec<Section>,
 }
 
@@ -482,7 +484,7 @@ pub(crate) struct Grouping<'a> {
     pub(crate) kept: Option<SectionId>,
     pub(crate) order: &'a Order,
     pub(crate) by_type: bool,
-    pub(crate) pins: &'a HashSet<Arc<str>>,
+    pub(crate) pins: &'a Pins,
 }
 
 impl GroupsCache {
@@ -495,7 +497,7 @@ impl GroupsCache {
             kept: None,
             order: Order::default(),
             by_type: true,
-            pins: HashSet::new(),
+            pins: Pins::new(),
             sections: Vec::new(),
         }
     }
@@ -764,7 +766,7 @@ impl DisplayRow {
         }
     }
 
-    fn absent(name: &Arc<str>) -> Self {
+    fn absent(name: &Arc<str>, pin: &PinnedProcess) -> Self {
         Self {
             row: ProcessRow {
                 pid: 0,
@@ -774,8 +776,8 @@ impl DisplayRow {
                 memory_bytes: 0,
                 disk_bytes: 0,
                 net_bytes: 0,
-                exe_path: "".into(),
-                package_full_name: "".into(),
+                exe_path: pin.exe_path.as_str().into(),
+                package_full_name: pin.package_full_name.as_str().into(),
                 owner: None,
                 owner_pid: None,
                 category: ProcessCategory::App,
@@ -1502,7 +1504,7 @@ mod tests {
         console
     }
 
-    fn grouped<'a>(by_type: bool, order: &'a Order, pins: &'a HashSet<Arc<str>>) -> Grouping<'a> {
+    fn grouped<'a>(by_type: bool, order: &'a Order, pins: &'a Pins) -> Grouping<'a> {
         Grouping {
             selected: None,
             kept: None,
@@ -1513,7 +1515,10 @@ mod tests {
     }
 
     fn pinned_sections_for(rows: &[ProcessRow], by_type: bool, pins: &[&str]) -> Vec<Section> {
-        let pins: HashSet<Arc<str>> = pins.iter().map(|name| Arc::from(*name)).collect();
+        let pins: Pins = pins
+            .iter()
+            .map(|name| (Arc::from(*name), PinnedProcess::default()))
+            .collect();
         let mut cache = GroupsCache::empty();
         cache.get(rows, &[], grouped(by_type, &cpu_order(), &pins));
         cache.sections
@@ -1681,6 +1686,23 @@ mod tests {
     }
 
     #[test]
+    fn a_pin_that_is_not_running_keeps_the_path_it_was_pinned_with() {
+        let pin = PinnedProcess {
+            exe_path: r"C:\tools\agent.exe".into(),
+            package_full_name: String::new(),
+        };
+        let pins: Pins = [(Arc::from("agent.exe"), pin)].into_iter().collect();
+        let order = cpu_order();
+        let mut cache = GroupsCache::empty();
+        cache.get(&[row(10, "notepad.exe")], &[], grouped(true, &order, &pins));
+
+        let out = with_open(&cache.sections, &[]);
+        let placeholder = out.iter().find(|d| d.absent).unwrap();
+
+        assert_eq!(&*placeholder.row.exe_path, r"C:\tools\agent.exe");
+    }
+
+    #[test]
     fn without_grouping_by_type_a_pin_that_is_not_running_sits_above_the_rule() {
         let rows = vec![row(10, "notepad.exe")];
 
@@ -1723,7 +1745,7 @@ mod tests {
         let selected = Some(Selection::Group(30));
         screen.show(&rows, selected);
 
-        screen.pins.insert("agent.exe".into());
+        screen.pins.insert("agent.exe".into(), PinnedProcess::default());
         let pinned = screen.show(&rows, selected);
         assert_eq!(labels(&pinned), vec!["pinned", "app"]);
         assert_eq!(process_pids(&pinned), vec![30, 10]);
@@ -1736,7 +1758,7 @@ mod tests {
     struct Screen {
         cache: GroupsCache,
         held: Held,
-        pins: HashSet<Arc<str>>,
+        pins: Pins,
     }
 
     impl Screen {
@@ -1744,7 +1766,7 @@ mod tests {
             Self {
                 cache: GroupsCache::empty(),
                 held: Held::default(),
-                pins: HashSet::new(),
+                pins: Pins::new(),
             }
         }
 
