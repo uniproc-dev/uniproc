@@ -1,7 +1,9 @@
 use app_contracts::features::processes::ProcessesState;
+use app_contracts::features::window::PressedAway;
 use domain::features::processes::settings::ProcessesSettings;
 use domain::features::processes::{ProcessesDeps, ProcessesFeature};
 use guinea::feature::FeatureInitContext;
+use guinea::prelude::GlobalEventBus;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::pages::processes::{ProcessesMsg, ProcessesPage, ProcessesSettingsMaps};
 use ui::theme::{scheme_context, Palette};
@@ -47,6 +49,12 @@ impl Page for Processes {
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ProcessesMsg| message);
+        let away = forward.clone();
+        cx.use_effect_guard("uniproc::processes::menu_closes_on_press_away", (), move || {
+            GlobalEventBus::subscribe_fn(move |_: PressedAway| {
+                let _ = away.call(ProcessesMsg::MenuDismiss);
+            })
+        });
         let dismiss = forward.clone();
         let selected = state.selected;
         cx.use_effect("uniproc::processes::menu_needs_a_selection", selected, move || {
@@ -1230,6 +1238,27 @@ mod tests {
         page.settle();
         assert!(notepad(&mut page).find(ProcessColumn::Pid).is_none());
         assert_eq!(pid_shown(), Some(false));
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_press_away_closes_the_header_menu(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        assert_eq!(h.state::<ProcessesState>().selected, None);
+
+        column_menu(&mut page);
+        assert!(menu_open(&page), "{:#?}", page.tree());
+        h.publish(PressedAway).settle();
+        page.settle();
+        assert!(!menu_open(&page), "{:#?}", page.tree());
+
+        select(&mut page, "notepad.exe");
+        column_menu(&mut page);
+        assert!(menu_open(&page), "{:#?}", page.tree());
+        h.publish(PressedAway).settle();
+        page.settle();
+        assert!(!menu_open(&page), "with a selection too");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
