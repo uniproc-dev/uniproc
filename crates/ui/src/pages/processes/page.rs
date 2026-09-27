@@ -25,9 +25,10 @@ use super::components::columns::{build_columns, ColumnInputs, GroupByType, NameC
 use super::components::context_menu::{context_menu, MenuCommand, MenuInputs, MenuTarget, OpenMenu};
 use super::components::grouping::{
     environment_key, flatten_for_display, highlight, keep_group_place, Child, DisplayRow, Grouping, GroupsCache, Pins,
-    Held, Order, SectionId, Selection, ViewState, WslRow,
+    Held, Order, SectionId, SectionOrder, Selection, ViewState, WslRow,
 };
 use super::components::overlay::disconnected_overlay;
+use super::components::section_drag::{self, Grab, Placement, SectionGesture};
 use super::components::status::{status_bar, StatusCounts};
 use super::marks::ProcessesMark;
 use crate::l10n::L10n;
@@ -41,6 +42,7 @@ pub struct ProcessesSettingsMaps {
     pub collapsed_sections: ReactiveMap<String, bool>,
     pub group_by_type: Field<bool>,
     pub pins: ReactiveMap<String, PinnedProcess>,
+    pub section_order: ReactiveMap<String, u32>,
 }
 
 pub enum ProcessesMsg {
@@ -48,6 +50,7 @@ pub enum ProcessesMsg {
     ToggleGroup(String),
     ToggleProcess(u32),
     ToggleSection(SectionId),
+    Section(SectionGesture),
     TogglePin(Arc<str>, PinnedProcess),
     ToggleGroupByType,
     SelectGroup(Option<u32>),
@@ -123,6 +126,11 @@ pub struct ProcessesPage {
     menu_anchor: Option<(f64, f64)>,
     pending_menu: Option<MenuTarget>,
     menu: Option<OpenMenu>,
+    section_order: SectionOrder,
+    section_ranks: Option<ReactiveMap<String, u32>>,
+    grab: Option<Grab>,
+    placement: Cell<Option<Placement>>,
+    dropped: Option<SectionId>,
 }
 
 impl Default for ProcessesPage {
@@ -171,15 +179,20 @@ fn toggle_pin(map: Option<&ReactiveMap<String, PinnedProcess>>, name: String, pi
 
 impl ProcessesPage {
     pub fn new(settings: Option<ProcessesSettingsMaps>) -> Self {
-        let (columns, collapsed_sections, pins, by_type_setting) = match settings {
+        let (columns, collapsed_sections, pins, by_type_setting, section_ranks) = match settings {
             Some(maps) => (
                 Some(maps.columns),
                 Some(maps.collapsed_sections),
                 Some(maps.pins),
                 Some(maps.group_by_type),
+                Some(maps.section_order),
             ),
-            None => (None, None, None, None),
+            None => (None, None, None, None, None),
         };
+        let section_order = section_ranks
+            .as_ref()
+            .map(|ranks| SectionOrder::ranked(|id| ranks.get(&id.id().to_string())))
+            .unwrap_or_default();
         Self {
             expanded_groups: HashSet::new(),
             expanded_processes: HashSet::new(),
@@ -197,6 +210,50 @@ impl ProcessesPage {
             menu_anchor: None,
             pending_menu: None,
             menu: None,
+            section_order,
+            section_ranks,
+            grab: None,
+            placement: Cell::new(None),
+            dropped: None,
+        }
+    }
+
+    fn section_gesture(&mut self, gesture: SectionGesture) {
+        match gesture {
+            SectionGesture::Grab { section, at, offset } => {
+                self.dropped = None;
+                self.grab = Some(Grab::new(section, at, offset));
+            }
+            SectionGesture::Move { at } => {
+                if let Some(grab) = &mut self.grab {
+                    grab.follow(at);
+                }
+            }
+            SectionGesture::Release => {
+                let Some(grab) = self.grab.take() else {
+                    return;
+                };
+                if !grab.moved() {
+                    return;
+                }
+                self.dropped = Some(grab.section);
+                if let Some(placement) = self.placement.take() {
+                    self.move_section(grab.section, placement);
+                }
+            }
+            SectionGesture::Lost => self.grab = None,
+        }
+    }
+
+    fn move_section(&mut self, section: SectionId, placement: Placement) {
+        self.section_order = self.section_order.moved(section, placement.before);
+        let Some(ranks) = &self.section_ranks else {
+            return;
+        };
+        for (rank, id) in self.section_order.ids().iter().enumerate() {
+            if let Err(err) = ranks.insert(id.id().to_string(), &(rank as u32)) {
+                tracing::warn!(section = id.id(), ?err, "section order write failed");
+            }
         }
     }
 
@@ -214,10 +271,12 @@ impl ProcessesPage {
                 }
             }
             ProcessesMsg::ToggleSection(section) => {
-                if self.menu_anchor.take().is_none() {
+                let dropped = self.dropped.take() == Some(section);
+                if self.menu_anchor.take().is_none() && !dropped {
                     toggle_key(self.collapsed_sections.as_ref(), section.id().to_string())
                 }
             }
+            ProcessesMsg::Section(gesture) => self.section_gesture(gesture),
             ProcessesMsg::TogglePin(name, pin) => toggle_pin(self.pins.as_ref(), name.to_string(), pin),
             ProcessesMsg::ToggleGroupByType => {
                 self.by_type = !self.by_type;
@@ -401,6 +460,7 @@ impl ProcessesPage {
                     by_type: self.by_type,
                     pins: &pins,
                     wsl: &state.wsl,
+                    section_order: &self.section_order,
                 },
             );
             self.kept_place
@@ -416,6 +476,11 @@ impl ProcessesPage {
                 },
             );
             highlight(&mut display_rows, selection);
+            let placement = self.grab.and_then(|grab| section_drag::placement(&display_rows, &grab));
+            self.placement.set(placement);
+            if let Some(grab) = &self.grab {
+                section_drag::mark(&mut display_rows, grab, placement);
+            }
             display_rows
         };
         if let Some(Selection::Group(pid)) = selection {
@@ -430,6 +495,7 @@ impl ProcessesPage {
         let toggle_forward = forward.clone();
         let process_forward = forward.clone();
         let by_type_forward = forward.clone();
+        let gesture_forward = forward.clone();
         let group_by_type = GroupByType {
             on: self.by_type,
             toggle: Callback::new(move |()| {
@@ -443,6 +509,9 @@ impl ProcessesPage {
             }),
             toggle_process: Callback::new(move |pid: u32| {
                 let _ = process_forward.call(ProcessesMsg::ToggleProcess(pid));
+            }),
+            section_gesture: Callback::new(move |gesture: SectionGesture| {
+                let _ = gesture_forward.call(ProcessesMsg::Section(gesture));
             }),
         };
 

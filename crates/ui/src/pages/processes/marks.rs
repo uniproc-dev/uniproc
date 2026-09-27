@@ -6,6 +6,8 @@ pub enum ProcessesMark {
     Exited,
     NotRunning,
     PinnedRule,
+    SectionGrip,
+    DropLine,
     WslNotes,
     StatusReserve,
     StatusShare,

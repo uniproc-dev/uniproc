@@ -4,6 +4,7 @@ use app_contracts::features::processes::{
     WslEnvironment, WslProcess,
 };
 
+use crate::theme::size;
 use crate::widgets::table_cell::Highlight;
 
 pub(crate) struct ProcessName;
@@ -99,6 +100,38 @@ impl SectionId {
             return Some(Self::Pinned);
         }
         ProcessCategory::from_id(id).map(Self::Category)
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) struct SectionOrder(Vec<SectionId>);
+
+impl Default for SectionOrder {
+    fn default() -> Self {
+        Self::ranked(|_| None)
+    }
+}
+
+impl SectionOrder {
+    pub(crate) fn ranked(rank: impl Fn(SectionId) -> Option<u32>) -> Self {
+        let mut ids: Vec<SectionId> = std::iter::once(SectionId::Pinned)
+            .chain(ProcessCategory::ORDER.map(SectionId::Category))
+            .collect();
+        ids.sort_by_key(|id| rank(*id).unwrap_or(u32::MAX));
+        Self(ids)
+    }
+
+    pub(crate) fn ids(&self) -> &[SectionId] {
+        &self.0
+    }
+
+    pub(crate) fn moved(&self, section: SectionId, before: Option<SectionId>) -> Self {
+        let mut ids: Vec<SectionId> = self.0.iter().copied().filter(|id| *id != section).collect();
+        let at = before
+            .and_then(|before| ids.iter().position(|id| *id == before))
+            .unwrap_or(ids.len());
+        ids.insert(at, section);
+        Self(ids)
     }
 }
 
@@ -237,7 +270,7 @@ fn one_section(groups: Vec<ProcessGroup>, pins: &Pins, wsl: &[WslEnvironment]) -
 
 #[cfg(test)]
 pub(crate) fn split_by_category(groups: Vec<ProcessGroup>) -> Vec<Section> {
-    split_keeping(groups, &Pins::new(), &[], None)
+    split_keeping(groups, &Pins::new(), &[], None, &SectionOrder::default())
 }
 
 fn split_keeping(
@@ -245,8 +278,9 @@ fn split_keeping(
     pins: &Pins,
     wsl: &[WslEnvironment],
     keep: Option<(u32, SectionId)>,
+    order: &SectionOrder,
 ) -> Vec<Section> {
-    let absent = absent_pins(&groups, pins);
+    let mut absent = absent_pins(&groups, pins);
     let (hosts, groups): (Vec<_>, Vec<_>) = groups.into_iter().partition(is_wsl_host);
     let mut wsl_section = Section::wsl(hosts.into_iter().next().map(|host| host.leader), environments_of(wsl));
     let mut by_section: HashMap<SectionId, Vec<ProcessGroup>> = HashMap::new();
@@ -266,18 +300,19 @@ fn split_keeping(
         by_section.entry(id).or_default().push(group);
     }
 
-    let pinned = by_section.remove(&SectionId::Pinned).unwrap_or_default();
-    std::iter::once(Section::with_absent(SectionId::Pinned, true, pinned, absent))
-        .chain(
-            ProcessCategory::ORDER.map(|category| match category {
-                ProcessCategory::Wsl => wsl_section.take(),
-                _ => {
-                    let id = SectionId::Category(category);
-                    Section::new(id, true, by_section.remove(&id)?)
-                }
-            }),
-        )
-        .flatten()
+    order
+        .ids()
+        .iter()
+        .filter_map(|id| match id {
+            SectionId::Pinned => Section::with_absent(
+                *id,
+                true,
+                by_section.remove(id).unwrap_or_default(),
+                std::mem::take(&mut absent),
+            ),
+            SectionId::Category(ProcessCategory::Wsl) => wsl_section.take(),
+            SectionId::Category(_) => Section::new(*id, true, by_section.remove(id)?),
+        })
         .collect()
 }
 
@@ -413,6 +448,8 @@ fn plain_row(row: &ProcessRow, depth: u8) -> DisplayRow {
         rule_below: false,
         absent: false,
         wsl: None,
+        lifted: false,
+        drop_edge: None,
     }
 }
 
@@ -611,6 +648,7 @@ pub(crate) struct GroupsCache {
     order: Order,
     by_type: bool,
     pins: Pins,
+    section_order: SectionOrder,
     sections: Vec<Section>,
 }
 
@@ -621,6 +659,7 @@ pub(crate) struct Grouping<'a> {
     pub(crate) by_type: bool,
     pub(crate) pins: &'a Pins,
     pub(crate) wsl: &'a [WslEnvironment],
+    pub(crate) section_order: &'a SectionOrder,
 }
 
 impl GroupsCache {
@@ -636,6 +675,7 @@ impl GroupsCache {
             order: Order::default(),
             by_type: true,
             pins: Pins::new(),
+            section_order: SectionOrder::default(),
             sections: Vec::new(),
         }
     }
@@ -653,6 +693,7 @@ impl GroupsCache {
             by_type,
             pins,
             wsl,
+            section_order,
         } = grouping;
         let rows_ptr = rows.as_ptr();
         let same_exited = self.exited.len() == exited.len()
@@ -667,16 +708,18 @@ impl GroupsCache {
             || self.order != *order
             || self.by_type != by_type
             || self.pins != *pins
+            || self.section_order != *section_order
         {
             let (mut rest, consoles) = detach_consoles(rows);
             rest.extend(exited.iter().cloned());
             let groups = group_by_name(&rest, selected);
             self.sections = if by_type {
-                split_keeping(groups, pins, wsl, selected.zip(kept))
+                split_keeping(groups, pins, wsl, selected.zip(kept), section_order)
             } else {
                 one_section(groups, pins, wsl)
             };
             self.pins.clone_from(pins);
+            self.section_order.clone_from(section_order);
             attach_consoles(&mut self.sections, consoles);
             sort_groups(&mut self.sections, order);
             self.rows_ptr = rows_ptr;
@@ -715,6 +758,14 @@ pub(crate) struct DisplayRow {
     pub(crate) rule_below: bool,
     pub(crate) absent: bool,
     pub(crate) wsl: Option<WslRow>,
+    pub(crate) lifted: bool,
+    pub(crate) drop_edge: Option<DropEdge>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum DropEdge {
+    Above,
+    Below,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -925,6 +976,8 @@ impl DisplayRow {
             rule_below: false,
             absent: false,
             wsl: None,
+            lifted: false,
+            drop_edge: None,
         }
     }
 
@@ -963,6 +1016,16 @@ impl DisplayRow {
             rule_below: false,
             absent: true,
             wsl: None,
+            lifted: false,
+            drop_edge: None,
+        }
+    }
+
+    pub(crate) fn height(&self) -> f64 {
+        if self.section.is_some() {
+            size::SectionRow
+        } else {
+            size::ProcessRow
         }
     }
 
@@ -1001,8 +1064,16 @@ pub(crate) fn keep_group_place(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    pub(crate) fn heading(id: SectionId) -> DisplayRow {
+        DisplayRow::section(id, SectionTotals::default(), true)
+    }
+
+    pub(crate) fn process(pid: u32) -> DisplayRow {
+        plain_row(&row(pid, "p.exe"), 1)
+    }
 
     fn row(pid: u32, name: &str) -> ProcessRow {
         categorised(pid, name, ProcessCategory::App)
@@ -1672,6 +1743,8 @@ mod tests {
         console
     }
 
+    static DEFAULT_ORDER: std::sync::LazyLock<SectionOrder> = std::sync::LazyLock::new(SectionOrder::default);
+
     fn grouped<'a>(by_type: bool, order: &'a Order, pins: &'a Pins) -> Grouping<'a> {
         Grouping {
             selected: None,
@@ -1680,6 +1753,7 @@ mod tests {
             by_type,
             pins,
             wsl: &[],
+            section_order: &DEFAULT_ORDER,
         }
     }
 
@@ -1691,6 +1765,35 @@ mod tests {
         let mut cache = GroupsCache::empty();
         cache.get(rows, &[], grouped(by_type, &cpu_order(), &pins));
         cache.sections
+    }
+
+    const APPS: SectionId = SectionId::Category(ProcessCategory::App);
+    const KERNEL: SectionId = SectionId::Category(ProcessCategory::WindowsKernel);
+
+    #[test]
+    fn sections_come_in_the_kept_order() {
+        let order = SectionOrder::default().moved(KERNEL, Some(APPS));
+        let rows = [row(1, "a.exe"), categorised(2, "System", ProcessCategory::WindowsKernel)];
+        let ids: Vec<SectionId> = split_keeping(group_by_name(&rows, None), &Pins::new(), &[], None, &order)
+            .iter()
+            .map(|section| section.id)
+            .collect();
+        assert_eq!(ids, [KERNEL, APPS]);
+    }
+
+    #[test]
+    fn a_moved_section_lands_before_the_one_named_or_last() {
+        let last = SectionOrder::default().moved(APPS, None);
+        assert_eq!(last.ids().last(), Some(&APPS));
+        assert_eq!(last.ids().len(), SectionOrder::default().ids().len());
+        let third_party = SectionId::Category(ProcessCategory::BackgroundThirdParty);
+        assert_eq!(last.moved(APPS, Some(third_party)), SectionOrder::default());
+    }
+
+    #[test]
+    fn kept_ranks_order_the_sections_and_the_unranked_follow_in_their_usual_order() {
+        let order = SectionOrder::ranked(|id| (id == KERNEL).then_some(0));
+        assert_eq!(order.ids()[..2], [KERNEL, SectionId::Pinned]);
     }
 
     fn sections_for(rows: &[ProcessRow]) -> Vec<Section> {
@@ -1961,6 +2064,7 @@ mod tests {
                     by_type: true,
                     pins: &self.pins,
                     wsl: &[],
+                    section_order: &DEFAULT_ORDER,
                 },
             );
             self.held.hold(sections, selection);

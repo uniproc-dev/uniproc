@@ -25,7 +25,8 @@ use guinea::winui::MarkExt;
 
 use super::super::marks::ProcessesMark;
 use super::column_layout::ColumnLayout;
-use super::grouping::{is_service_host, Child, DisplayRow, ProcessName, SectionId, SectionRow, WslRow};
+use super::grouping::{is_service_host, Child, DisplayRow, DropEdge, ProcessName, SectionId, SectionRow, WslRow};
+use super::section_drag::SectionGesture;
 
 struct Hit;
 
@@ -39,6 +40,13 @@ struct Header;
 #[expect(non_upper_case_globals)]
 impl Header {
     const Padding: f64 = 8.0;
+}
+
+struct DropLine;
+
+#[expect(non_upper_case_globals)]
+impl DropLine {
+    const Thickness: f64 = 2.0;
 }
 
 struct Cpu;
@@ -98,11 +106,7 @@ fn chevron_slot(content: View, on_press: Option<Callback<()>>, height: f64) -> V
 }
 
 fn row_height(d: &DisplayRow) -> f64 {
-    if d.section.is_some() {
-        size::SectionRow
-    } else {
-        size::ProcessRow
-    }
+    d.height()
 }
 
 fn selection_bar() -> View {
@@ -180,6 +184,7 @@ pub(crate) struct NameCellActions {
     pub(crate) icons: Rc<context::IconCache>,
     pub(crate) toggle_group: Callback<String>,
     pub(crate) toggle_process: Callback<u32>,
+    pub(crate) section_gesture: Callback<SectionGesture>,
 }
 
 fn indent(depth: u8) -> f64 {
@@ -367,15 +372,35 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
     name_row(d, line, cell.palette)
 }
 
-fn rule_below(d: &DisplayRow, palette: Palette) -> View {
-    if d.rule_below {
+fn rules(d: &DisplayRow, palette: Palette) -> View {
+    if !has_rules(d) {
+        return View::empty();
+    }
+    let pinned: View = if d.rule_below {
         separator(palette)
             .mark(ProcessesMark::PinnedRule)
             .vertical_alignment(VerticalAlignment::Bottom)
             .into()
     } else {
         View::empty()
-    }
+    };
+    let drop: View = match d.drop_edge {
+        Some(edge) => Border::new()
+            .mark(ProcessesMark::DropLine)
+            .height(DropLine::Thickness)
+            .background(ThemeBrush::Accent)
+            .vertical_alignment(match edge {
+                DropEdge::Above => VerticalAlignment::Top,
+                DropEdge::Below => VerticalAlignment::Bottom,
+            })
+            .into(),
+        None => View::empty(),
+    };
+    Grid::new().children((pinned, drop)).into()
+}
+
+fn has_rules(d: &DisplayRow) -> bool {
+    d.rule_below || d.drop_edge.is_some()
 }
 
 fn name_row(d: &DisplayRow, line: View, palette: Palette) -> View {
@@ -385,7 +410,7 @@ fn name_row(d: &DisplayRow, line: View, palette: Palette) -> View {
     };
     Grid::new()
         .height(row_height(d))
-        .children((bar, line, rule_below(d, palette)))
+        .children((bar, line, rules(d, palette)))
         .into()
 }
 
@@ -451,11 +476,47 @@ fn section_name_cell(cell: &NameCell<'_>, d: &DisplayRow, section: &SectionRow) 
         label,
         count: group_count(d.group_size, cell.palette),
     });
+    let line: View = if d.lifted {
+        Border::new().opacity(opacity::Stopped).content(line).into()
+    } else {
+        line
+    };
 
-    Grid::new()
-        .height(row_height(d))
-        .children((line,))
+    section_grip(&cell.actions.section_gesture, section.id)
+        .content(
+            Grid::new()
+                .height(row_height(d))
+                .children((line, rules(d, cell.palette))),
+        )
         .into()
+}
+
+fn section_grip(gesture: &Callback<SectionGesture>, section: SectionId) -> Border {
+    let (pressed, moved, released, lost) = (gesture.clone(), gesture.clone(), gesture.clone(), gesture.clone());
+    Border::new()
+        .mark(ProcessesMark::SectionGrip)
+        .background(Hit::Transparent)
+        .capture_pointer_on_press(true)
+        .on_pointer_pressed(move |pointer: PointerEventInfo| {
+            if pointer.is_left_button_pressed {
+                let _ = pressed.call(SectionGesture::Grab {
+                    section,
+                    at: pointer.window_y,
+                    offset: pointer.y,
+                });
+            }
+        })
+        .on_pointer_moved(move |pointer: PointerEventInfo| {
+            if pointer.is_left_button_pressed {
+                let _ = moved.call(SectionGesture::Move { at: pointer.window_y });
+            }
+        })
+        .on_pointer_released(move |_: PointerEventInfo| {
+            let _ = released.call(SectionGesture::Release);
+        })
+        .on_pointer_capture_lost(move || {
+            let _ = lost.call(SectionGesture::Lost);
+        })
 }
 
 fn sort_mark(sorted: Option<bool>) -> View {
@@ -594,7 +655,7 @@ where
         };
         Grid::new()
             .height(row_height(d))
-            .children((text, rule_below(d, palette)))
+            .children((text, rules(d, palette)))
             .into()
     })
     .min_width(min_width)
@@ -661,7 +722,7 @@ where
         if d.absent || d.child.as_ref().is_some_and(|child| !child.has_metrics()) {
             return Grid::new()
                 .height(row_height(d))
-                .children((rule_below(d, palette),))
+                .children((rules(d, palette),))
                 .into();
         }
         let (text, zero) = value(&d.row);
@@ -684,8 +745,8 @@ where
             },
             palette,
         );
-        if d.rule_below {
-            Grid::new().children((cell, rule_below(d, palette))).into()
+        if has_rules(d) {
+            Grid::new().children((cell, rules(d, palette))).into()
         } else {
             cell
         }

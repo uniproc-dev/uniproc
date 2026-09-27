@@ -23,6 +23,9 @@ pub struct ProcessesGroupingSettings {
 
     #[amestate(default = true)]
     by_type: bool,
+
+    #[amestate(default = {})]
+    section_order: ReactiveMap<String, u32>,
 }
 
 #[amethystate]
