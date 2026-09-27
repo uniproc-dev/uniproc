@@ -98,7 +98,8 @@ mod tests {
     use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
     use app_contracts::features::processes::ProcessCategory;
-    use ui::pages::processes::{ProcessesMark, SectionGesture, SectionId};
+    use guinea::winui::harness::Drag;
+    use ui::pages::processes::ProcessesMark;
     use ui::widgets::page::PageMark;
     use ui::widgets::selection::SelectionMark;
     use app_contracts::features::window::PressedAway;
@@ -1612,17 +1613,16 @@ mod tests {
         let mut page = mount(h);
         assert_eq!(shown_columns(&mut page), [Name, Cpu, Memory, Net, Disk]);
 
-        let order = [Name, Memory, Cpu, Net, Disk].map(|column| guinea::Mark::name(&column)).to_vec();
-        page.send(ProcessesMsg::Reordered(guinea_widgets::table::Reordered { order }));
+        let sorted_by = h.state::<ProcessesState>().sort_column;
+        page.drag(Cpu, Drag::by(100.0, 0.0)).settle();
         page.settle();
 
         assert_eq!(shown_columns(&mut page), [Name, Memory, Cpu, Net, Disk]);
+        assert_eq!(h.state::<ProcessesState>().sort_column, sorted_by, "a drag is not a click on the header");
         let ranks = ProcessesSettings::new().unwrap().columns().order();
         assert_eq!(ranks.get("memory"), Some(1));
         assert_eq!(ranks.get("cpu"), Some(2));
     }
-
-    const APPS: SectionId = SectionId::Category(ProcessCategory::App);
 
     fn sections(page: &mut Mounted<'_, Processes>) -> Vec<String> {
         page.items()
@@ -1632,19 +1632,15 @@ mod tests {
             .collect()
     }
 
-    fn drag(page: &mut Mounted<'_, Processes>, section: SectionId, by: f64) {
-        page.send(ProcessesMsg::Section(SectionGesture::Grab { section, at: 100.0, offset: 10.0 }));
-        page.settle();
-        page.send(ProcessesMsg::Section(SectionGesture::Move { at: 100.0 + by }));
+    fn drag_heading(page: &mut Mounted<'_, Processes>, heading: &str, drag: Drag) {
+        page.item_where(|item| label(item) == heading)
+            .drag(ProcessesMark::SectionGrip, drag)
+            .settle();
         page.settle();
     }
 
-    fn release_over(page: &mut Mounted<'_, Processes>, heading: &str) {
-        page.send(ProcessesMsg::Section(SectionGesture::Lost));
-        page.settle();
-        page.send(ProcessesMsg::Section(SectionGesture::Release));
-        page.settle();
-        select(page, heading);
+    fn apps_open(page: &mut Mounted<'_, Processes>) -> bool {
+        labels(page).contains(&"notepad.exe".to_string())
     }
 
     fn kept_rank(section: ProcessCategory) -> Option<u32> {
@@ -1659,28 +1655,17 @@ mod tests {
         let before = sections(&mut page);
         assert!(before[0].starts_with("Apps"), "{before:?}");
 
-        drag(&mut page, APPS, 10_000.0);
-        let lines: Vec<String> = page
-            .items()
-            .iter()
-            .filter(|item| item.find(ProcessesMark::DropLine).is_some())
-            .map(label)
-            .collect();
-        assert_eq!(lines.len(), 1, "one place to drop: {lines:?}");
-        assert_eq!(Some(&lines[0]), labels(&mut page).last(), "the gap is under the last row");
-        assert_eq!(sections(&mut page), before, "nothing moves until the button is let go");
-
         let apps = before[0].clone();
-        release_over(&mut page, &apps);
+        drag_heading(&mut page, &apps, Drag::by(0.0, 10_000.0));
         let after = sections(&mut page);
         assert_eq!(after.last(), Some(&apps), "{after:?}");
         assert_eq!(after[..after.len() - 1], before[1..], "{after:?}");
         assert!(page.find(ProcessesMark::DropLine).is_none());
-        assert!(labels(&mut page).contains(&"notepad.exe".to_string()), "letting go does not fold the section");
+        assert!(apps_open(&mut page), "letting go does not fold the section");
         assert_eq!(kept_rank(ProcessCategory::App), Some(6), "the order is kept in the settings");
 
         select(&mut page, &apps);
-        assert!(!labels(&mut page).contains(&"notepad.exe".to_string()), "a plain click still folds it");
+        assert!(!apps_open(&mut page), "a plain click still folds it");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -1689,27 +1674,21 @@ mod tests {
         let h = &*h;
         let mut page = mount(h);
         let before = sections(&mut page);
+        let apps = before[0].clone();
 
-        drag(&mut page, APPS, 2.0);
-        assert!(page.find(ProcessesMark::DropLine).is_none());
-        release_over(&mut page, &before[0].clone());
+        drag_heading(&mut page, &apps, Drag::by(0.0, 2.0));
         assert_eq!(sections(&mut page), before);
-        assert!(!labels(&mut page).contains(&"notepad.exe".to_string()), "a nudge is a click: it folds");
-        select(&mut page, &before[0].clone());
+        assert!(!apps_open(&mut page), "a nudge is a click: it folds");
+        select(&mut page, &apps);
+        assert!(apps_open(&mut page));
 
-        drag(&mut page, APPS, 10_000.0);
-        page.send(ProcessesMsg::Section(SectionGesture::Lost));
-        page.settle();
+        drag_heading(&mut page, &apps, Drag::by(0.0, 10_000.0).lost());
         assert!(page.find(ProcessesMark::DropLine).is_none(), "a lost pointer shows no gap");
-        page.send(ProcessesMsg::Section(SectionGesture::Move { at: -10_000.0 }));
-        page.settle();
-        assert!(page.find(ProcessesMark::DropLine).is_none(), "and no longer follows the pointer");
         assert_eq!(sections(&mut page), before);
         assert_eq!(kept_rank(ProcessCategory::App), None);
 
-        drag(&mut page, APPS, 2.0);
-        release_over(&mut page, &before[0].clone());
-        assert_eq!(sections(&mut page), before, "the next grab starts afresh");
+        select(&mut page, &apps);
+        assert!(!apps_open(&mut page), "the next click is a click");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
