@@ -410,6 +410,13 @@ fn window_name_cell(cell: &NameCell<'_>, d: &DisplayRow, window: &ProcessWindow)
     name_row(d, line, cell.palette)
 }
 
+struct Notes;
+
+#[expect(non_upper_case_globals)]
+impl Notes {
+    const Icon: f64 = size::Icon - 2.0;
+}
+
 fn wsl_notes(l10n: &L10n) -> View {
     let note = |line: String| -> View { text(line).text_wrapping(TextWrapping::Wrap).into() };
     let notes = StackPanel::new().spacing(space::Compact).children((
@@ -422,7 +429,7 @@ fn wsl_notes(l10n: &L10n) -> View {
         .background(Hit::Transparent)
         .vertical_alignment(VerticalAlignment::Center)
         .margin(Thickness::new(space::Control, 0.0, 0.0, 0.0))
-        .content(icon!(question).size(size::Icon).build_element())
+        .content(icon!(question).size(Notes::Icon).build_element())
         .tooltip_with(Tooltip::rich(notes))
 }
 
