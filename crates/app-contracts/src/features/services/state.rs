@@ -33,21 +33,14 @@ impl ServicesState {
     }
 }
 
-impl Reducer for ServicesState {
-    type Update = ServicesMsg;
-
-    fn reduce(&mut self, update: ServicesMsg) {
-        match update {
-            ServicesMsg::SetRows { rows } => {
-                self.rows = Load::Ready(rows);
-            }
-            ServicesMsg::SetSelected(name) => {
-                self.selected = name;
-            }
-            ServicesMsg::SetSort { column, descending } => {
-                self.sort_column = column;
-                self.descending = descending;
-            }
+#[reducer]
+fn services(this: &mut ServicesState, update: ServicesMsg) {
+    match update {
+        ServicesMsg::SetRows { rows } => this.rows = Load::Ready(rows),
+        ServicesMsg::SetSelected(name) => this.selected = name,
+        ServicesMsg::SetSort { column, descending } => {
+            this.sort_column = column;
+            this.descending = descending;
         }
     }
 }

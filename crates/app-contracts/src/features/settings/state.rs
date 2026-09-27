@@ -20,20 +20,16 @@ impl Default for SettingsState {
     }
 }
 
-impl Reducer for SettingsState {
-    type Update = SettingsMsg;
-
-    fn reduce(&mut self, update: SettingsMsg) {
-        match update {
-            SettingsMsg::Set {
-                theme,
-                start_page,
-                update_interval_ms,
-            } => {
-                self.theme = theme;
-                self.start_page = start_page;
-                self.update_interval_ms = update_interval_ms;
-            }
-        }
-    }
+#[reducer]
+fn settings(
+    this: &mut SettingsState,
+    SettingsMsg::Set {
+        theme,
+        start_page,
+        update_interval_ms,
+    }: SettingsMsg,
+) {
+    this.theme = theme;
+    this.start_page = start_page;
+    this.update_interval_ms = update_interval_ms;
 }

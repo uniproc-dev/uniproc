@@ -28,17 +28,14 @@ impl AgentLinkState {
     }
 }
 
-impl Reducer for AgentLinkState {
-    type Update = AgentLinkMsg;
-
-    fn reduce(&mut self, update: AgentLinkMsg) {
-        match update {
-            AgentLinkMsg::Windows(state) => {
-                self.windows = state;
-                self.ever_connected |= state == AgentConnectionState::Connected;
-            }
-            AgentLinkMsg::OfferInProcess => self.in_process_offered = true,
-            AgentLinkMsg::InProcess(in_process) => self.in_process = in_process,
+#[reducer]
+fn agent_link(this: &mut AgentLinkState, update: AgentLinkMsg) {
+    match update {
+        AgentLinkMsg::Windows(state) => {
+            this.windows = state;
+            this.ever_connected |= state == AgentConnectionState::Connected;
         }
+        AgentLinkMsg::OfferInProcess => this.in_process_offered = true,
+        AgentLinkMsg::InProcess(in_process) => this.in_process = in_process,
     }
 }

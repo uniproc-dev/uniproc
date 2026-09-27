@@ -20,20 +20,16 @@ impl Default for MetricsState {
     }
 }
 
-impl Reducer for MetricsState {
-    type Update = MetricsMsg;
-
-    fn reduce(&mut self, update: MetricsMsg) {
-        match update {
-            MetricsMsg::SetHistory {
-                cpu,
-                memory,
-                machine,
-            } => {
-                self.cpu_history = Load::Ready(cpu);
-                self.memory_history = Load::Ready(memory);
-                self.machine = Load::Ready(machine);
-            }
-        }
-    }
+#[reducer]
+fn metrics(
+    this: &mut MetricsState,
+    MetricsMsg::SetHistory {
+        cpu,
+        memory,
+        machine,
+    }: MetricsMsg,
+) {
+    this.cpu_history = Load::Ready(cpu);
+    this.memory_history = Load::Ready(memory);
+    this.machine = Load::Ready(machine);
 }

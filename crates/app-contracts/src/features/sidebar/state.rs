@@ -17,15 +17,8 @@ impl Default for SidebarState {
     }
 }
 
-impl Reducer for SidebarState {
-    type Update = SidebarMsg;
-
-    fn reduce(&mut self, update: SidebarMsg) {
-        match update {
-            SidebarMsg::Set { open, width } => {
-                self.open = open;
-                self.width = width;
-            }
-        }
-    }
+#[reducer]
+fn sidebar(this: &mut SidebarState, SidebarMsg::Set { open, width }: SidebarMsg) {
+    this.open = open;
+    this.width = width;
 }

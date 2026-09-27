@@ -33,15 +33,8 @@ impl WslState {
     }
 }
 
-impl Reducer for WslState {
-    type Update = WslMsg;
-
-    fn reduce(&mut self, update: WslMsg) {
-        match update {
-            WslMsg::Set { distros, machine } => {
-                self.distros = Load::Ready(distros);
-                self.machine = machine;
-            }
-        }
-    }
+#[reducer]
+fn wsl(this: &mut WslState, WslMsg::Set { distros, machine }: WslMsg) {
+    this.distros = Load::Ready(distros);
+    this.machine = machine;
 }

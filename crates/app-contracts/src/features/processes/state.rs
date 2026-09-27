@@ -53,29 +53,20 @@ impl ProcessesState {
     }
 }
 
-impl Reducer for ProcessesState {
-    type Update = ProcessesMsg;
-
-    fn reduce(&mut self, update: ProcessesMsg) {
-        match update {
-            ProcessesMsg::SetRows { rows, machine, agent_state } => {
-                self.rows = Load::Ready(rows);
-                self.machine_summary = Load::Ready(machine);
-                self.agent_state = agent_state;
-            }
-            ProcessesMsg::SetWsl(environments) => {
-                self.wsl = environments;
-            }
-            ProcessesMsg::SetSelected(pid) => {
-                self.selected = pid;
-            }
-            ProcessesMsg::SetSelectedLinux(global_pid) => {
-                self.selected_linux = global_pid;
-            }
-            ProcessesMsg::SetSort { column, descending } => {
-                self.sort_column = column;
-                self.descending = descending;
-            }
+#[reducer]
+fn processes(this: &mut ProcessesState, update: ProcessesMsg) {
+    match update {
+        ProcessesMsg::SetRows { rows, machine, agent_state } => {
+            this.rows = Load::Ready(rows);
+            this.machine_summary = Load::Ready(machine);
+            this.agent_state = agent_state;
+        }
+        ProcessesMsg::SetWsl(environments) => this.wsl = environments,
+        ProcessesMsg::SetSelected(pid) => this.selected = pid,
+        ProcessesMsg::SetSelectedLinux(global_pid) => this.selected_linux = global_pid,
+        ProcessesMsg::SetSort { column, descending } => {
+            this.sort_column = column;
+            this.descending = descending;
         }
     }
 }
