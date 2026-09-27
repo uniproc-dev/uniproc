@@ -8,7 +8,7 @@ use amethystate::{Field, ReactiveMap};
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::processes::{
     ColumnConfig, Deselect, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState, RunProcessCommand,
-    RunWindowCommand, Select, SelectLinux, Sort, Terminate,
+    RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate,
 };
 use guicons::icon;
 use guinea::prelude::{Dispatch, Load};
@@ -81,9 +81,7 @@ fn menu_target(d: &DisplayRow) -> Option<MenuTarget> {
         return None;
     }
     if d.absent {
-        return Some(MenuTarget::Absent {
-            name: d.row.name.clone(),
-        });
+        return Some(MenuTarget::Absent { image: d.row.clone() });
     }
     match &d.child {
         Some(Child::Window(window)) => Some(MenuTarget::Window {
@@ -494,6 +492,10 @@ impl ProcessesPage {
             let dismiss_forward = forward.clone();
             let pin = menu.target.pin();
             let pinned = pin.as_ref().is_some_and(|(name, _)| pins.contains_key(name));
+            let image = menu
+                .target
+                .image()
+                .map(|image| (image.exe_path.to_string(), image.name.to_string()));
             context_menu(menu, MenuInputs {
                 l10n,
                 palette,
@@ -506,9 +508,10 @@ impl ProcessesPage {
                             }
                         }
                         MenuCommand::EndTask => command_dispatch.emit(Terminate),
-                        MenuCommand::Process(command) => {
-                            command_dispatch.emit(RunProcessCommand(command))
-                        }
+                        MenuCommand::Process(command) => match image.clone() {
+                            Some((exe_path, name)) => command_dispatch.emit(RunImageCommand { command, exe_path, name }),
+                            None => command_dispatch.emit(RunProcessCommand(command)),
+                        },
                         MenuCommand::Window { handle, command } => {
                             command_dispatch.emit(RunWindowCommand { handle, command })
                         }

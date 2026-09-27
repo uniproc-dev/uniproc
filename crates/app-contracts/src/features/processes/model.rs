@@ -20,9 +20,11 @@ impl Default for ColumnConfig {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PinnedProcess {
     pub exe_path: String,
     pub package_full_name: String,
+    pub display_name: String,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]

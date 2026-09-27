@@ -32,21 +32,28 @@ pub enum MenuTarget {
     Process(ProcessRow),
     Group { leader: ProcessRow },
     Window { window: ProcessWindow },
-    Absent { name: Arc<str> },
+    Absent { image: ProcessRow },
 }
 
 impl MenuTarget {
     pub(crate) fn pin(&self) -> Option<(Arc<str>, PinnedProcess)> {
         match self {
-            Self::Process(row) | Self::Group { leader: row } => Some((
+            Self::Process(row) | Self::Group { leader: row } | Self::Absent { image: row } => Some((
                 row.name.clone(),
                 PinnedProcess {
                     exe_path: row.exe_path.to_string(),
                     package_full_name: row.package_full_name.to_string(),
+                    display_name: row.display_name.to_string(),
                 },
             )),
-            Self::Absent { name } => Some((name.clone(), PinnedProcess::default())),
             Self::Window { .. } => None,
+        }
+    }
+
+    pub(crate) fn image(&self) -> Option<&ProcessRow> {
+        match self {
+            Self::Absent { image } => Some(image),
+            _ => None,
         }
     }
 }
@@ -264,10 +271,7 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
         MenuTarget::Process(row) => process_lines(row, pinned, l10n),
         MenuTarget::Group { leader } => group_lines(leader, pinned, l10n),
         MenuTarget::Window { window } => window_lines(window.handle, l10n),
-        MenuTarget::Absent { .. } => {
-            let [pin, _] = pin_lines(pinned, l10n);
-            vec![pin]
-        }
+        MenuTarget::Absent { image } => group_lines(image, pinned, l10n),
     };
 
     let items = View::keyed_fragment(

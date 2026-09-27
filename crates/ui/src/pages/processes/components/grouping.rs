@@ -927,7 +927,11 @@ impl DisplayRow {
             row: ProcessRow {
                 pid: 0,
                 name: name.clone(),
-                display_name: name.clone(),
+                display_name: if pin.display_name.is_empty() {
+                    name.clone()
+                } else {
+                    pin.display_name.as_str().into()
+                },
                 cpu_percent: 0.0,
                 memory_bytes: 0,
                 disk_bytes: 0,
@@ -1849,6 +1853,7 @@ mod tests {
         let pin = PinnedProcess {
             exe_path: r"C:\tools\agent.exe".into(),
             package_full_name: String::new(),
+            display_name: "Build Agent".into(),
         };
         let pins: Pins = [(Arc::from("agent.exe"), pin)].into_iter().collect();
         let order = cpu_order();
@@ -1859,6 +1864,8 @@ mod tests {
         let placeholder = out.iter().find(|d| d.absent).unwrap();
 
         assert_eq!(&*placeholder.row.exe_path, r"C:\tools\agent.exe");
+        assert_eq!(&*placeholder.row.display_name, "Build Agent", "it reads as it did while running");
+        assert_eq!(&*placeholder.row.name, "agent.exe");
     }
 
     #[test]

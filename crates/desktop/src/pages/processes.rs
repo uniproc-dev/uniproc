@@ -716,7 +716,7 @@ mod tests {
         assert_eq!(
             remote::actions(),
             [
-                "Command", "Deselect", "Refresh", "RefreshDistros", "RunProcessCommand",
+                "Command", "Deselect", "Refresh", "RefreshDistros", "RunImageCommand", "RunProcessCommand",
                 "RunWindowCommand", "Select", "SelectLinux", "SetOpen", "SetWidth", "Sort", "StartInProcess",
                 "Terminate", "Toggle",
             ]
@@ -1163,6 +1163,24 @@ mod tests {
         right_click(&mut page, "notepad.exe Not running");
         assert!(menu_open(&page), "{:#?}", page.tree());
         assert!(page.find(ProcessesMark::MenuEndTask).is_none());
+        for mark in [ProcessesMark::MenuOpenFileLocation, ProcessesMark::MenuProperties, ProcessesMark::MenuSearchOnline] {
+            assert!(!disabled(&page, mark), "{mark:?}: the image is still on disk");
+        }
+        page.click(ProcessesMark::MenuOpenFileLocation).settle();
+        page.settle();
+        right_click(&mut page, "notepad.exe Not running");
+        page.click(ProcessesMark::MenuProperties).settle();
+        page.settle();
+        assert_eq!(
+            shell_requests(),
+            [
+                ShellRequest::RevealFile(NOTEPAD_PATH.into()),
+                ShellRequest::FileProperties(NOTEPAD_PATH.into()),
+            ],
+            "a pin that is not running is still an image with a path"
+        );
+
+        right_click(&mut page, "notepad.exe Not running");
         page.click(ProcessesMark::MenuUnpin).settle();
         page.settle();
 

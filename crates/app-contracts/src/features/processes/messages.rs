@@ -53,6 +53,14 @@ pub enum ProcessCommand {
 #[remote(action)]
 pub struct RunProcessCommand(pub ProcessCommand);
 
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct RunImageCommand {
+    pub command: ProcessCommand,
+    pub exe_path: String,
+    pub name: String,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub enum WindowCommand {
     SwitchTo,

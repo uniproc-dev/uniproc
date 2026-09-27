@@ -8,7 +8,7 @@ use app_contracts::features::agents::{
 };
 use app_contracts::features::processes::{
     Deselect, HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessCommand,
-    ProcessRow, ProcessesMsg, ProcessesState, RunProcessCommand, RunWindowCommand, Select,
+    ProcessRow, ProcessesMsg, ProcessesState, RunImageCommand, RunProcessCommand, RunWindowCommand, Select,
     SelectLinux, Sort, Terminate, WslEnvironment,
 };
 use app_contracts::features::window::PressedAway;
@@ -227,7 +227,7 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
 
 actor! {
     ProcessesActor {
-        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunProcessCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway }
+        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway }
     }
 }
 
@@ -346,17 +346,28 @@ fn run_process_command(this: &mut ProcessesActor, ctx: Context<ProcessesActor, R
         }
         return;
     }
-    let request = match ctx.msg.0 {
-        ProcessCommand::OpenFileLocation if !row.exe_path.is_empty() => {
-            ShellRequest::RevealFile(row.exe_path.clone())
-        }
-        ProcessCommand::Properties if !row.exe_path.is_empty() => {
-            ShellRequest::FileProperties(row.exe_path.clone())
-        }
-        ProcessCommand::SearchOnline => ShellRequest::SearchOnline(row.name.clone()),
-        _ => return,
-    };
-    (this.shell)(request);
+    if let Some(request) = image_request(ctx.msg.0, &row.exe_path, &row.name) {
+        (this.shell)(request);
+    }
+}
+
+fn image_request(command: ProcessCommand, exe_path: &Arc<str>, name: &Arc<str>) -> Option<ShellRequest> {
+    match command {
+        ProcessCommand::OpenFileLocation if !exe_path.is_empty() => Some(ShellRequest::RevealFile(exe_path.clone())),
+        ProcessCommand::Properties if !exe_path.is_empty() => Some(ShellRequest::FileProperties(exe_path.clone())),
+        ProcessCommand::SearchOnline => Some(ShellRequest::SearchOnline(name.clone())),
+        _ => None,
+    }
+}
+
+#[handler]
+fn run_image_command(this: &mut ProcessesActor, ctx: Context<ProcessesActor, RunImageCommand>) {
+    let msg = ctx.msg;
+    let exe_path: Arc<str> = Arc::from(msg.exe_path);
+    let name: Arc<str> = Arc::from(msg.name);
+    if let Some(request) = image_request(msg.command, &exe_path, &name) {
+        (this.shell)(request);
+    }
 }
 
 #[handler]
