@@ -41,7 +41,11 @@ mod windows {
         let latency = WindowsBackend::ping(&handle).await.context("ping failed")?;
         println!("ping via AgentBackend: {latency} ms");
 
-        get_report(&handle).await?;
+        let first = get_report(&handle).await?;
+        println!(
+            "  first sample: {} / {} MHz",
+            first.machine.cpu_current_mhz, first.machine.cpu_max_mhz
+        );
         let report = get_report(&handle).await?;
         print_report(&report);
 
