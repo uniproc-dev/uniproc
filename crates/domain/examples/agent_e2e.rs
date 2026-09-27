@@ -236,6 +236,7 @@ mod windows {
 
 mod wsl {
     use anyhow::{Context, bail};
+    use app_contracts::features::agents::{LinuxProcessStats, LinuxReport};
     use domain::features::agents::backend::AgentBackend;
     use domain::features::agents::providers::wsl::{WslBackend, WslReply, WslRequest, WslRpc};
     use domain::features::agents::rpc::RpcHandle;
@@ -250,7 +251,7 @@ mod wsl {
         let agent_path = std::env::var("WSL_AGENT_PATH")
             .unwrap_or_else(|_| "/usr/local/bin/uniproc-agent".to_string());
         println!("launching {agent_path} in {distro}");
-        domain::features::agents::providers::wsl::set_launch_config(distro, agent_path);
+        domain::features::agents::providers::wsl::set_launch_config(distro.clone(), agent_path);
 
         let started = Instant::now();
         let handle = RpcHandle::<WslRpc>::connect(CONNECT_TIMEOUT_SECS)
@@ -333,9 +334,145 @@ mod wsl {
                 }
                 let unnamed = report.processes.iter().filter(|p| p.name.is_empty()).count();
                 println!("  unnamed processes: {unnamed}");
-                Ok(())
             }
             _ => bail!("agent answered getReport with the wrong reply"),
+        }
+
+        load_probe(&handle, &distro).await
+    }
+
+    const LOAD_SECS: u64 = 4;
+    const LOAD: &str = r#"
+timeout 4 yes > /dev/null &
+python3 -c '
+import os, time
+end = time.time() + 4
+with open("/tmp/uniproc-probe", "wb") as f:
+    while time.time() < end:
+        f.write(b"\0" * 1048576)
+        f.flush()
+        os.fsync(f.fileno())
+' &
+curl -sL -o /dev/null --limit-rate 4M --max-time 4 "https://speed.cloudflare.com/__down?bytes=20000000" &
+wait
+rm -f /tmp/uniproc-probe
+"#;
+
+    async fn report(handle: &RpcHandle<WslRpc>) -> anyhow::Result<LinuxReport> {
+        match handle.call(WslRequest::GetReport).await? {
+            WslReply::Report(report) => Ok(report),
+            _ => bail!("agent answered getReport with the wrong reply"),
+        }
+    }
+
+    fn started<'a>(report: &'a LinuxReport, before: &LinuxReport, name: &str) -> Option<&'a LinuxProcessStats> {
+        report.processes.iter().find(|p| {
+            p.name.starts_with(name) && !before.processes.iter().any(|old| old.global_pid == p.global_pid)
+        })
+    }
+
+    fn net(p: &LinuxProcessStats) -> u64 {
+        p.tcp_rx_remote_bytes + p.tcp_tx_remote_bytes + p.udp_rx_remote_bytes + p.udp_tx_remote_bytes
+    }
+
+    fn verdict(label: &str, seen: bool, detail: String, missing: &mut Vec<String>) {
+        println!("  {:<8} {:<34} {detail}", if seen { "ok" } else { "MISSING" }, label);
+        if !seen {
+            missing.push(label.to_string());
+        }
+    }
+
+    async fn load_probe(handle: &RpcHandle<WslRpc>, distro: &str) -> anyhow::Result<()> {
+        println!("\n== wsl load: {LOAD_SECS}s of yes, fsync'd writes, a 4 MB/s download ==");
+        let before = report(handle).await?;
+        let began = Instant::now();
+        let mut load = std::process::Command::new("wsl.exe")
+            .args(["-d", distro, "--", "sh", "-c", LOAD])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .context("wsl.exe did not start the load")?;
+
+        tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+        let early = report(handle).await?;
+        tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+        let late = report(handle).await?;
+        load.wait()?;
+        let after = report(handle).await?;
+        let elapsed = began.elapsed().as_secs_f64();
+
+        let mut missing = Vec::new();
+        let named = |report, name| started(report, &before, name);
+        let cpu = named(&late, "yes").map(|p| p.cpu_percent);
+        verdict(
+            "process cpu (yes)",
+            cpu.is_some_and(|cpu| cpu > 1.0),
+            format!("cpu_percent={cpu:?}"),
+            &mut missing,
+        );
+        let written = named(&early, "python3")
+            .zip(named(&late, "python3"))
+            .map(|(a, b)| b.disk_write_bytes.saturating_sub(a.disk_write_bytes));
+        verdict(
+            "process disk write (python3)",
+            written.is_some_and(|bytes| bytes > 0),
+            format!("+{written:?} bytes in 1.5 s"),
+            &mut missing,
+        );
+        let fetched = named(&early, "curl").zip(named(&late, "curl")).map(|(a, b)| net(b).saturating_sub(net(a)));
+        verdict(
+            "process net remote (curl)",
+            fetched.is_some_and(|bytes| bytes > 0),
+            format!("+{fetched:?} bytes in 1.5 s"),
+            &mut missing,
+        );
+
+        let mut movers: Vec<(u64, u64, &str)> = late
+            .processes
+            .iter()
+            .filter_map(|b| {
+                let a = early.processes.iter().find(|a| a.global_pid == b.global_pid)?;
+                let disk = b.disk_write_bytes.saturating_sub(a.disk_write_bytes);
+                let net = net(b).saturating_sub(net(a));
+                (disk > 0 || net > 0).then_some((disk, net, b.name.as_str()))
+            })
+            .collect();
+        movers.sort_by_key(|(disk, net, _)| std::cmp::Reverse(disk + net));
+        println!("  processes whose disk write or remote net grew in those 1.5 s:");
+        for (disk, net, name) in movers.iter().take(8) {
+            println!("    {name:<20} disk_write +{disk:<12} net +{net}");
+        }
+
+        let (m0, m1) = (&before.machine, &after.machine);
+        let busy = m1.busy_ns.saturating_sub(m0.busy_ns) as f64;
+        let cores = f64::from(m1.cpu_count.max(1));
+        verdict(
+            "machine cpu (busy_ns)",
+            busy > 0.0,
+            format!(
+                "+{busy} ns over {elapsed:.1} s on {} cores = {:.1}%",
+                m1.cpu_count,
+                busy / (elapsed * 1e9 * cores) * 100.0
+            ),
+            &mut missing,
+        );
+        verdict(
+            "machine disk write",
+            m1.disk_write_bytes > m0.disk_write_bytes,
+            format!("+{} bytes", m1.disk_write_bytes.saturating_sub(m0.disk_write_bytes)),
+            &mut missing,
+        );
+        verdict(
+            "machine net remote rx",
+            m1.tcp_rx_remote_bytes > m0.tcp_rx_remote_bytes,
+            format!("+{} bytes", m1.tcp_rx_remote_bytes.saturating_sub(m0.tcp_rx_remote_bytes)),
+            &mut missing,
+        );
+
+        if missing.is_empty() {
+            Ok(())
+        } else {
+            bail!("the agent did not show: {}", missing.join(", "))
         }
     }
 }
