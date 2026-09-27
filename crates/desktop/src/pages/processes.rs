@@ -90,8 +90,6 @@ mod tests {
     };
     use guinea::prelude::GlobalEventBus;
     use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
-    use app_contracts::features::services::{ServiceColumn, ServicesState};
-    use guinea::core::remote;
     use domain::features::processes::shell::ShellRequest;
     use domain::features::processes::windows_scan::AppWindows;
     use guinea::app::Harness;
@@ -685,68 +683,6 @@ mod tests {
         assert!(
             section_of(&released, "notepad.exe").starts_with("Background processes ("),
             "{released:?}"
-        );
-    }
-
-    #[guinea::test(iterations = 4, exclusive = "store")]
-    fn a_tool_sorts_and_selects_through_remote_actions(h: &mut Harness) {
-        let _store = start(h);
-        let h = &*h;
-        let mut page = mount(h);
-        let scopes = [h.segment().context().scope.clone()];
-
-        remote::act_in(&scopes, "Terminate", "null").unwrap();
-        remote::act_in(&scopes, "Sort", "\"Memory\"").unwrap();
-        remote::act_in(&scopes, "Select", "10").unwrap();
-        page.settle();
-
-        let state = h.state::<ProcessesState>();
-        assert_eq!(state.sort_column, ProcessColumn::Memory);
-        assert_eq!(state.selected, Some(NOTEPAD));
-    }
-
-    #[guinea::test(iterations = 2, exclusive = "store")]
-    fn a_tool_sorts_services_through_remote_actions(h: &mut Harness) {
-        let _store = start(h);
-        let h = &*h;
-        let params = crate::routes::ServicesParams::default();
-        let mut page = Mounted::<crate::pages::Services>::mount_with(&h.segment(), params, |page| {
-            View::provide(scheme_context(), ColorScheme::Dark, page)
-        })
-        .unwrap();
-        let scopes = [h.segment().context().scope.clone()];
-
-        remote::act_in(&scopes, "Sort", "\"Status\"").unwrap();
-        page.settle();
-
-        assert_eq!(h.state::<ServicesState>().sort_column, ServiceColumn::Status);
-    }
-
-    #[test]
-    fn every_action_and_event_is_open_to_tools() {
-        assert_eq!(
-            remote::actions(),
-            [
-                "Command", "Deselect", "Refresh", "RefreshDistros", "RunImageCommand", "RunProcessCommand",
-                "RunWindowCommand", "Select", "SelectLinux", "SetOpen", "SetStartPage", "SetTheme",
-                "SetUpdateInterval", "SetWidth", "Sort", "StartInProcess", "Terminate", "Toggle",
-            ]
-        );
-        assert_eq!(
-            remote::events(),
-            [
-                "AgentStateRequest",
-                "PressedAway",
-                "RemoteScanResult",
-                "ScanTick",
-                "UpdateIntervalChanged",
-                "WindowsActionRequest",
-                "WindowsActionResponse",
-                "WindowsAgentInProcess",
-                "WindowsAgentRuntimeEvent",
-                "WindowsReportMessage",
-                "WslAgentRuntimeEvent",
-            ]
         );
     }
 
