@@ -78,7 +78,7 @@ pub fn page_frame(
 
     let cards = Grid::new()
         .rows([GridLength::Auto, GridLength::Star(1.0)])
-        .margin(Thickness::uniform(space::Control))
+        .margin(Thickness::new(0.0, space::Control, space::Control, space::Control))
         .children((header_card, content_card));
 
     let under = match on_blank(&blank) {
