@@ -24,9 +24,7 @@ use guinea::winui::MarkExt;
 
 use super::super::marks::ProcessesMark;
 use super::column_layout::ColumnLayout;
-use super::grouping::{
-    environment_key, is_service_host, Child, DisplayRow, ProcessName, SectionId, SectionRow, WslRow,
-};
+use super::grouping::{is_service_host, Child, DisplayRow, ProcessName, SectionId, SectionRow, WslRow};
 
 struct Hit;
 
@@ -271,12 +269,11 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
         Some(Child::Console) | None => {}
     }
 
-    let chevron = if d.has_children {
+    let chevron = if matches!(d.wsl, Some(WslRow::Environment { .. })) {
+        chevron_slot(expand_chevron(d.is_expanded), None, row_height(d))
+    } else if d.has_children {
         let toggle = cell.actions.toggle_group.clone();
-        let group = match &d.wsl {
-            Some(WslRow::Environment { pid_ns, .. }) => environment_key(*pid_ns),
-            _ => d.row.name.to_string(),
-        };
+        let group = d.row.name.to_string();
         chevron_slot(
             expand_chevron(d.is_expanded),
             Some(Callback::new(move |()| {
@@ -333,8 +330,12 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
         None => process_icon(&cell.actions.icons, &d.row),
     };
 
+    let depth = match d.wsl {
+        Some(WslRow::Process { .. }) => 1,
+        _ => d.depth,
+    };
     let line = name_line(NameLine {
-        indent: indent(d.depth),
+        indent: indent(depth),
         chevron,
         icon: Some(icon),
         label: table_cell::cell_text(label)

@@ -1346,6 +1346,56 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
+    fn an_environment_chevron_leaves_the_press_to_its_row_so_it_toggles_once(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = wsl_page(h);
+        let ubuntu = page.item_where(|item| label(item) == "Ubuntu (3)").tree();
+        assert!(
+            ubuntu.find(ProcessesMark::Chevron).is_none(),
+            "a chevron of its own would toggle on top of the row press and undo it"
+        );
+
+        select(&mut page, "Ubuntu (3)");
+        assert!(labels(&mut page).contains(&"init".to_string()), "{:?}", labels(&mut page));
+
+        select(&mut page, "Ubuntu (3)");
+        assert!(!labels(&mut page).contains(&"init".to_string()), "{:?}", labels(&mut page));
+    }
+
+    fn first_margin(page: &mut Mounted<'_, Processes>, node: &Node) -> Option<PropertyValue> {
+        if let Some(margin) = page.at(node.at).property(PropertyId::Margin) {
+            return Some(margin.clone());
+        }
+        node.children.iter().find_map(|child| first_margin(page, child))
+    }
+
+    fn name_inset(page: &mut Mounted<'_, Processes>, wanted: &str) -> PropertyValue {
+        let item = page.item_where(|item| label(item) == wanted).tree();
+        let cell = item.find(ProcessColumn::Name).expect("a name cell");
+        first_margin(page, cell).unwrap_or_else(|| panic!("{cell:#?}"))
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn linux_processes_sit_flush_with_their_environment(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = wsl_page(h);
+        select(&mut page, "Ubuntu (3)");
+        open(&mut page, "chrome.exe (3)");
+        select(&mut page, "idle.exe");
+
+        let environment = name_inset(&mut page, "Ubuntu (3)");
+        assert_eq!(name_inset(&mut page, "bash"), environment);
+        assert_eq!(name_inset(&mut page, "notepad.exe"), environment);
+        assert_ne!(
+            name_inset(&mut page, "chrome.exe"),
+            environment,
+            "a member of a Windows group is still set in"
+        );
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_linux_process_is_selected_apart_from_the_windows_process_with_its_pid(h: &mut Harness) {
         let _store = start(h);
         let h = &*h;
