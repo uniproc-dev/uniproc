@@ -1345,6 +1345,32 @@ mod tests {
         assert!(!labels(&mut page).contains(&"init".to_string()));
     }
 
+    fn status(page: &Mounted<'_, Processes>) -> String {
+        let tree = page.tree();
+        let bar = tree.find(PageMark::Status).expect("the page has a status bar");
+        let mut said = Vec::new();
+        texts(bar, &mut said);
+        said.join(" ").replace(['\u{2068}', '\u{2069}'], "")
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_status_bar_counts_what_the_table_holds(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        assert_eq!(status(&page), "9 processes · 1 app · 7 background · 1 service · 0 kernel");
+
+        report(h, with_vm());
+        linux_report(h);
+        pin_from_menu(&mut page, "notepad.exe", ProcessesMark::MenuPin);
+        page.settle();
+
+        assert_eq!(
+            status(&page),
+            "10 processes · 1 app · 8 background · 1 service · 0 kernel · WSL 3 · 1 pinned"
+        );
+    }
+
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_wsl_heading_carries_the_notes_on_how_it_is_shown(h: &mut Harness) {
         let _store = start(h);

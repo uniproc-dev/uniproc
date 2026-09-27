@@ -7,7 +7,7 @@ use std::sync::Arc;
 use amethystate::{Field, ReactiveMap};
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::processes::{
-    ColumnConfig, Deselect, PinnedProcess, ProcessColumn, ProcessRow, ProcessesState, RunProcessCommand,
+    ColumnConfig, Deselect, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState, RunProcessCommand,
     RunWindowCommand, Select, SelectLinux, Sort, Terminate,
 };
 use guicons::icon;
@@ -326,10 +326,32 @@ impl ProcessesPage {
         page_frame(
             header,
             body,
-            l10n.processes_status(state.total() as i64),
+            self.status(state, l10n),
             palette,
             Some(blank),
         )
+    }
+
+    fn status(&self, state: &ProcessesState, l10n: &L10n) -> String {
+        let of = |wanted: &[ProcessCategory]| {
+            state.rows().iter().filter(|row| wanted.contains(&row.category)).count() as i64
+        };
+        let mut parts = vec![l10n.processes_status(
+            state.total() as i64,
+            of(&[ProcessCategory::App]),
+            of(&[ProcessCategory::BackgroundThirdParty, ProcessCategory::BackgroundMicrosoft]),
+            of(&[ProcessCategory::WindowsService]),
+            of(&[ProcessCategory::WindowsKernel]),
+        )];
+        let linux: usize = state.wsl.iter().map(|environment| environment.processes.len()).sum();
+        if linux > 0 {
+            parts.push(l10n.processes_status_wsl(linux as i64));
+        }
+        let pinned = self.pins.as_ref().map_or(0, |pins| pins.entries().count());
+        if pinned > 0 {
+            parts.push(l10n.processes_status_pinned(pinned as i64));
+        }
+        parts.join(" · ")
     }
 
     fn table(
