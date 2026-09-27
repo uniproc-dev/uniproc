@@ -1381,8 +1381,8 @@ dependencies = [
 
 [[package]]
 name = "guinea"
-version = "0.13.0"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.0#0c3c9111708586284113526da6d5eec3d85f153d"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 dependencies = [
  "guinea-app",
  "guinea-codegen",
@@ -1395,8 +1395,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-app"
-version = "0.13.0"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.0#0c3c9111708586284113526da6d5eec3d85f153d"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 dependencies = [
  "anyhow",
  "guinea-core",
@@ -1407,10 +1407,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-codegen"
-version = "0.13.0"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.0#0c3c9111708586284113526da6d5eec3d85f153d"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 dependencies = [
- "guinea-core",
  "guinea-meta-build",
  "heck",
  "proc-macro2",
@@ -1423,8 +1422,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-core"
-version = "0.13.0"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.0#0c3c9111708586284113526da6d5eec3d85f153d"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1446,8 +1445,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-devtools-protocol"
-version = "0.10.22"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.22#35303772dcf2c9afd0b0ecc35d887c7035002e56"
+version = "0.10.24"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.24#b81d9fa902865bc5b433eaf4a7bf840f7efad53e"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -1460,8 +1459,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-macros"
-version = "0.13.0"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.0#0c3c9111708586284113526da6d5eec3d85f153d"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 dependencies = [
  "guinea-codegen",
  "guinea-route-dsl",
@@ -1475,28 +1474,28 @@ dependencies = [
 
 [[package]]
 name = "guinea-mark"
-version = "0.13.0"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.0#0c3c9111708586284113526da6d5eec3d85f153d"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 
 [[package]]
 name = "guinea-meta"
-version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/guinea-meta?tag=v0.1.0#c2ed5a9cc5ae531ad624a77acf9d3428e6ee4f39"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 
 [[package]]
 name = "guinea-meta-build"
-version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/guinea-meta?tag=v0.1.0#c2ed5a9cc5ae531ad624a77acf9d3428e6ee4f39"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 dependencies = [
  "serde",
- "toml 0.8.23",
+ "toml 0.9.12+spec-1.1.0",
  "winresource",
 ]
 
 [[package]]
 name = "guinea-plugin-devtools"
-version = "0.10.22"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.22#35303772dcf2c9afd0b0ecc35d887c7035002e56"
+version = "0.10.24"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.24#b81d9fa902865bc5b433eaf4a7bf840f7efad53e"
 dependencies = [
  "anyhow",
  "capnp",
@@ -1513,8 +1512,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-l10n"
-version = "0.10.22"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.22#35303772dcf2c9afd0b0ecc35d887c7035002e56"
+version = "0.10.24"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.24#b81d9fa902865bc5b433eaf4a7bf840f7efad53e"
 dependencies = [
  "anyhow",
  "fluent-bundle",
@@ -1529,8 +1528,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-l10n-build"
-version = "0.10.22"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.22#35303772dcf2c9afd0b0ecc35d887c7035002e56"
+version = "0.10.24"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.24#b81d9fa902865bc5b433eaf4a7bf840f7efad53e"
 dependencies = [
  "fluent-syntax",
  "proc-macro2",
@@ -1541,8 +1540,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-single-instance"
-version = "0.10.22"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.22#35303772dcf2c9afd0b0ecc35d887c7035002e56"
+version = "0.10.24"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.24#b81d9fa902865bc5b433eaf4a7bf840f7efad53e"
 dependencies = [
  "anyhow",
  "guinea",
@@ -1552,7 +1551,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-store"
 version = "0.22.0"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.22#35303772dcf2c9afd0b0ecc35d887c7035002e56"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.24#b81d9fa902865bc5b433eaf4a7bf840f7efad53e"
 dependencies = [
  "amethystate",
  "anyhow",
@@ -1563,8 +1562,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-route-dsl"
-version = "0.13.0"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.0#0c3c9111708586284113526da6d5eec3d85f153d"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1574,8 +1573,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-router"
-version = "0.13.0"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.0#0c3c9111708586284113526da6d5eec3d85f153d"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 dependencies = [
  "anyhow",
  "guinea-app",
@@ -1587,8 +1586,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-trace"
-version = "0.13.0"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.0#0c3c9111708586284113526da6d5eec3d85f153d"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 dependencies = [
  "serde_json",
  "tracing",
@@ -1597,8 +1596,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-widgets"
-version = "0.10.22"
-source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.22#35303772dcf2c9afd0b0ecc35d887c7035002e56"
+version = "0.10.24"
+source = "git+https://github.com/uniproc-dev/guinea-plugins?tag=v0.10.24#b81d9fa902865bc5b433eaf4a7bf840f7efad53e"
 dependencies = [
  "guinea-mark",
  "tracing",
@@ -1609,8 +1608,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-winui"
-version = "0.13.0"
-source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.0#0c3c9111708586284113526da6d5eec3d85f153d"
+version = "0.13.3"
+source = "git+https://github.com/uniproc-dev/guinea?tag=v0.13.3#bccb93803bbc5c894814dc2fd7302063507258de"
 dependencies = [
  "anyhow",
  "guinea-app",
@@ -2325,7 +2324,7 @@ version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e67ba7e9b2b56446f1d419b1d807906278ffa1a658a8a5d8a39dcb1f5a78614f"
 dependencies = [
- "toml_edit 0.25.15+spec-1.1.0",
+ "toml_edit",
 ]
 
 [[package]]
@@ -2724,15 +2723,6 @@ dependencies = [
 
 [[package]]
 name = "serde_spanned"
-version = "0.6.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf41e0cfaf7226dca15e8197172c295a782857fcb97fad1808a166870dee75a3"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "serde_spanned"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6662b5879511e06e8999a8a235d848113e942c9124f211511b16466ee2995f26"
@@ -3004,25 +2994,13 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.8.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc1beb996b9d83529a9e75c17a1686767d148d70663143c7854d8b4a09ced362"
-dependencies = [
- "serde",
- "serde_spanned 0.6.9",
- "toml_datetime 0.6.11",
- "toml_edit 0.22.27",
-]
-
-[[package]]
-name = "toml"
 version = "0.9.12+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf92845e79fc2e2def6a5d828f0801e29a2f8acc037becc5ab08595c7d5e9863"
 dependencies = [
  "indexmap",
  "serde_core",
- "serde_spanned 1.1.1",
+ "serde_spanned",
  "toml_datetime 0.7.5+spec-1.1.0",
  "toml_parser",
  "toml_writer",
@@ -3037,7 +3015,7 @@ checksum = "920602543f0911ab71da12c50d59701da54c196d1a2bf5cb4b75667f137a406a"
 dependencies = [
  "indexmap",
  "serde_core",
- "serde_spanned 1.1.1",
+ "serde_spanned",
  "toml_datetime 1.1.1+spec-1.1.0",
  "toml_parser",
  "toml_writer",
@@ -3051,15 +3029,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f22ba417d437b5fa5dcba6c27dbd6c14f38845315b724d89fed73b7a426451b7"
 dependencies = [
  "smallvec",
-]
-
-[[package]]
-name = "toml_datetime"
-version = "0.6.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22cddaf88f4fbc13c51aebbf5f8eceb5c7c5a9da2ac40a13519eb5b0a0e8f11c"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -3082,20 +3051,6 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.22.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a"
-dependencies = [
- "indexmap",
- "serde",
- "serde_spanned 0.6.9",
- "toml_datetime 0.6.11",
- "toml_write",
- "winnow 0.7.15",
-]
-
-[[package]]
-name = "toml_edit"
 version = "0.25.15+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1340ea94a5856333492c9064b02c778b191dd2c853778d9609debdcdfea3a614"
@@ -3114,12 +3069,6 @@ checksum = "1d38ac1cf9b95face32296c0a3ede1fdc270627c9d9c02a7274dd6d960dc4d56"
 dependencies = [
  "winnow 1.0.4",
 ]
-
-[[package]]
-name = "toml_write"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
 
 [[package]]
 name = "toml_writer"

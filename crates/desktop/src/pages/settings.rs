@@ -35,42 +35,13 @@ mod tests {
     use domain::features::settings::settings::GeneralSettings;
     use domain::features::settings::SettingsFeature;
     use guinea::app::Harness;
-    use guinea::feature::Segment;
     use guinea::winui::harness::{Mounted, PropertyId, PropertyValue};
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
     use ui::pages::settings::SettingsMark;
-    use windows_reactor::{ColorScheme, View};
 
     use super::*;
-
-    #[derive(Default)]
-    pub struct SettingsProbe;
-
-    #[page]
-    impl Page for SettingsProbe {
-        type Params = ();
-        type Installs = SettingsFeature;
-        type Message = ();
-
-        fn install(ctx: &FeatureInitContext, _params: &()) -> anyhow::Result<SettingsFeature> {
-            ctx.install(&())
-        }
-
-        fn update(&mut self, _message: (), _cx: &mut UpdateCx<'_, Self>) {}
-
-        fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
-            let (state, dispatch) = cx.use_reducer::<SettingsState, _>();
-            let l10n = ui::l10n::use_tr(cx);
-            ui::pages::settings::settings_view(&state, &dispatch, &l10n, Palette::of(ColorScheme::Dark))
-        }
-    }
-
-    impl Segment for SettingsProbe {
-        type Installs = SettingsFeature;
-        type Above = ();
-    }
 
     fn start(h: &mut Harness) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
@@ -81,18 +52,19 @@ mod tests {
         dir
     }
 
-    fn mount(h: &Harness) -> Mounted<'_, SettingsProbe> {
-        let mut page = Mounted::<SettingsProbe>::mount(&h.segment(), ()).unwrap();
+    fn mount(h: &Harness) -> Mounted<'_, Settings> {
+        h.install::<SettingsFeature>(&()).unwrap();
+        let mut page = Mounted::<Settings>::mount(&h.child(), crate::routes::SettingsParams::default()).unwrap();
         page.settle();
         page
     }
 
-    fn value(page: &Mounted<'_, SettingsProbe>, mark: SettingsMark, property: PropertyId) -> PropertyValue {
+    fn value(page: &Mounted<'_, Settings>, mark: SettingsMark, property: PropertyId) -> PropertyValue {
         let node = page.find(mark).unwrap_or_else(|| panic!("{mark:?}: {:#?}", page.tree()));
         page.property(node, property).cloned().unwrap_or_else(|| panic!("{mark:?} has no {property:?}"))
     }
 
-    fn shown_interval(page: &Mounted<'_, SettingsProbe>) -> Option<String> {
+    fn shown_interval(page: &Mounted<'_, Settings>) -> Option<String> {
         page.tree().find(SettingsMark::UpdateSpeedValue).and_then(|node| node.text.clone())
     }
 
