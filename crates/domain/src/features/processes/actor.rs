@@ -13,6 +13,7 @@ use app_contracts::features::processes::{
 };
 use app_contracts::features::window::PressedAway;
 use guinea::prelude::*;
+use tracing::instrument;
 use uuid::Uuid;
 
 use super::rates::IoRates;
@@ -83,6 +84,7 @@ impl ProcessesActor {
         self.ui_port.send(ProcessesMsg::SetWsl(self.wsl.clone()));
     }
 
+    #[instrument(skip_all, level = "debug", fields(rows = self.rows.len()))]
     fn publish_rows(&self) {
         self.stats.borrow_mut().note((
             self.rows.clone(),
@@ -133,6 +135,7 @@ fn is_service_host(p: &WindowsProcessStats) -> bool {
     p.name.eq_ignore_ascii_case(SERVICE_HOST)
 }
 
+#[instrument(skip_all, level = "debug", fields(processes = report.processes.len(), services = report.services.len()))]
 pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<ProcessRow> {
     let has_console_hosts = report.processes.iter().any(is_console_host);
     let by_pid: HashMap<u32, &WindowsProcessStats> = if has_console_hosts {

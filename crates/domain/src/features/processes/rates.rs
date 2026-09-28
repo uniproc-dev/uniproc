@@ -16,6 +16,7 @@ fn per_second(now: u64, before: u64, seconds: f64) -> u64 {
 }
 
 impl IoRates {
+    #[tracing::instrument(skip_all, level = "debug", fields(rows = rows.len()))]
     pub fn apply(&mut self, rows: &mut [ProcessRow], now: Instant) {
         let seconds = self
             .at

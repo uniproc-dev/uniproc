@@ -170,6 +170,7 @@ impl AppWindows {
     }
 }
 
+#[tracing::instrument(level = "debug")]
 pub fn app_windows() -> AppWindows {
     taskbar::app_windows()
 }

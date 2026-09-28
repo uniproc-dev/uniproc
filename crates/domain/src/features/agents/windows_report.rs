@@ -42,6 +42,7 @@ pub struct Reports {
 }
 
 impl Reports {
+    #[tracing::instrument(skip_all, level = "debug", fields(full = update.changes.full, passports = update.changes.passports.len(), left = update.changes.left.len()))]
     pub fn report(&mut self, update: &api::Update) -> WindowsReport {
         let api::Update { snapshot, sample, changes } = update;
         self.keep_passports(&snapshot.processes.value, changes);
