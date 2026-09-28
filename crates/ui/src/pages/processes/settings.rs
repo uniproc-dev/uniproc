@@ -29,7 +29,6 @@ impl Layout {
     const ExpanderSpacing: f64 = 4.0;
     const RowMinHeight: f64 = 44.0;
     const HeaderInset: f64 = 12.0;
-    const SwitchContentColumn: f64 = 12.0;
     const Hit: Color = Color::argb(0, 0, 0, 0);
 }
 
@@ -323,7 +322,6 @@ fn shown_switch(
         .on_content(text(""))
         .off_content(text(""))
         .min_width(0.0)
-        .margin(Thickness::new(0.0, 0.0, -Layout::SwitchContentColumn, 0.0))
         .on_toggled(move |on: bool| {
             let _ = shown.call(ProcessesSettingsMsg::ShowColumn(column, on));
         });
