@@ -48,7 +48,7 @@ mod tests {
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
-    use ui::pages::processes::{ProcessesSettingsMark, SectionId};
+    use ui::pages::processes::{Group, ProcessesSettingsMark, SectionId};
 
     use super::*;
 
@@ -61,23 +61,16 @@ mod tests {
         dir
     }
 
-    fn mount_closed(h: &Harness) -> Mounted<'_, ProcessesSettings> {
+    fn mount(h: &Harness) -> Mounted<'_, ProcessesSettings> {
         let params = crate::routes::ProcessesSettingsParams::default();
         let mut page = Mounted::mount_at(&h.child(), params, Route::ProcessesSettings {}).unwrap();
         page.settle();
         page
     }
 
-    fn toggle(page: &mut Mounted<'_, ProcessesSettings>, group: ProcessesSettingsMark) {
-        page.click(group).settle();
-        page.settle();
-    }
-
-    fn mount(h: &Harness) -> Mounted<'_, ProcessesSettings> {
-        let mut page = mount_closed(h);
-        toggle(&mut page, ProcessesSettingsMark::ColumnsGroup);
-        toggle(&mut page, ProcessesSettingsMark::SectionsGroup);
-        page
+    fn expanded(page: &mut Mounted<'_, ProcessesSettings>, group: ProcessesSettingsMark) -> Option<PropertyValue> {
+        let node = page.find(group)?;
+        page.property(node, PropertyId::ExpanderIsExpanded).cloned()
     }
 
     fn marked(node: &Node, wanted: &[&str], out: &mut Vec<String>) {
@@ -132,19 +125,28 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
-    fn the_groups_start_closed_and_open_from_their_headings(h: &mut Harness) {
+    fn the_groups_start_closed_and_stay_as_they_were_left(h: &mut Harness) {
+        use ProcessesSettingsMark::{ColumnsGroup, SectionsGroup};
         let _store = start(h);
         let h = &*h;
-        let mut page = mount_closed(h);
-        assert!(columns(&page).is_empty());
-        assert!(sections(&page).is_empty());
+        let mut page = mount(h);
+        assert_eq!(expanded(&mut page, ColumnsGroup), Some(PropertyValue::Bool(false)));
+        assert_eq!(expanded(&mut page, SectionsGroup), Some(PropertyValue::Bool(false)));
 
-        toggle(&mut page, ProcessesSettingsMark::ColumnsGroup);
-        assert_eq!(columns(&page), names(&ProcessColumn::ALL));
-        assert!(sections(&page).is_empty(), "one group opens on its own");
+        page.send(ProcessesSettingsMsg::Expand(Group::Columns, true));
+        page.settle();
+        page.within(ProcessColumn::Pid).click(ProcessesSettingsMark::Shown).settle();
+        page.settle();
+        assert_eq!(
+            expanded(&mut page, ColumnsGroup),
+            Some(PropertyValue::Bool(true)),
+            "a redraw keeps the group open"
+        );
+        assert_eq!(expanded(&mut page, SectionsGroup), Some(PropertyValue::Bool(false)));
 
-        toggle(&mut page, ProcessesSettingsMark::ColumnsGroup);
-        assert!(columns(&page).is_empty());
+        page.send(ProcessesSettingsMsg::Expand(Group::Columns, false));
+        page.settle();
+        assert_eq!(expanded(&mut page, ColumnsGroup), Some(PropertyValue::Bool(false)));
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

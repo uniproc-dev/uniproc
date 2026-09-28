@@ -4,9 +4,9 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, CornerRadius, Grid,
+    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, Expander, Grid,
     GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation, PointerEventInfo,
-    ResourceOverrides, ScrollViewer, StackPanel, ThemeBrush, Thickness, ToggleSwitch, VerticalAlignment, View,
+    ScrollViewer, StackPanel, ThemeBrush, Thickness, ToggleSwitch, VerticalAlignment, View,
 };
 
 use super::components::column_layout::ColumnLayout;
@@ -16,7 +16,7 @@ use super::components::Step;
 use super::marks::ProcessesSettingsMark;
 use super::page::ProcessesSettingsMaps;
 use crate::l10n::L10n;
-use crate::theme::{radius, size, space, Palette};
+use crate::theme::{size, space, Palette};
 use crate::widgets::page::action_button;
 use crate::widgets::separator;
 use crate::widgets::text::{caption, subtitle, text};
@@ -29,8 +29,6 @@ impl Layout {
     const ExpanderSpacing: f64 = 4.0;
     const RowMinHeight: f64 = 44.0;
     const HeaderInset: f64 = 12.0;
-    const GroupChevron: f64 = 12.0;
-    const CardBorder: f64 = 1.0;
     const SwitchContentColumn: f64 = 12.0;
     const Hit: Color = Color::argb(0, 0, 0, 0);
 }
@@ -67,7 +65,7 @@ pub enum ProcessesSettingsMsg {
     MoveSection(SectionId, Step),
     ResetColumns,
     ResetSections,
-    Toggle(Group),
+    Expand(Group, bool),
     BackHovered(bool),
 }
 
@@ -119,10 +117,9 @@ impl ProcessesSettingsPage {
                     SectionOrder::forget(ranks);
                 }
             }
-            ProcessesSettingsMsg::Toggle(group) => {
-                if let Some(at) = self.open.iter().position(|open| *open == group) {
-                    self.open.remove(at);
-                } else {
+            ProcessesSettingsMsg::Expand(group, open) => {
+                self.open.retain(|kept| *kept != group);
+                if open {
                     self.open.push(group);
                 }
             }
@@ -282,61 +279,21 @@ fn expander(
         description,
         open,
     } = heading;
-    let corners = if open {
-        CornerRadius::new(radius::Control, radius::Control, 0.0, 0.0)
-    } else {
-        CornerRadius::uniform(radius::Control)
-    };
-    let chevron = if open {
-        icon!(chevron_up_regular).size(Layout::GroupChevron).build_element()
-    } else {
-        icon!(chevron_down_regular).size(Layout::GroupChevron).build_element()
-    };
-    let toggle = forward.clone();
-    let header = Button::new()
+    let header = StackPanel::new()
+        .margin(Thickness::xy(0.0, Layout::HeaderInset))
+        .vertical_alignment(VerticalAlignment::Center)
+        .children((text(title), caption(description).foreground(palette.secondary_text)));
+    let expanded = forward.clone();
+    Expander::new()
         .mark(group.mark())
-        .style(ButtonStyle::Subtle)
         .horizontal_alignment(HorizontalAlignment::Stretch)
-        .horizontal_content_alignment(HorizontalAlignment::Stretch)
-        .resource_overrides(
-            ResourceOverrides::new()
-                .set("ButtonPadding", Thickness::xy(space::Card, Layout::HeaderInset))
-                .set("ControlCornerRadius", corners.clone()),
-        )
-        .on_click(move || {
-            let _ = toggle.call(ProcessesSettingsMsg::Toggle(group));
+        .is_expanded(open)
+        .on_is_expanded_changed(move |open: bool| {
+            let _ = expanded.call(ProcessesSettingsMsg::Expand(group, open));
         })
-        .content(
-            Grid::new()
-                .columns([GridLength::Star(1.0), GridLength::Auto])
-                .children((
-                    StackPanel::new()
-                        .grid_column(0)
-                        .vertical_alignment(VerticalAlignment::Center)
-                        .children((text(title), caption(description).foreground(palette.secondary_text))),
-                    Grid::new()
-                        .grid_column(1)
-                        .vertical_alignment(VerticalAlignment::Center)
-                        .children((chevron,)),
-                )),
-        );
-    let head = Border::new()
-        .background(ThemeBrush::CardBackground)
-        .border_brush(ThemeBrush::CardStroke)
-        .border_thickness(Layout::CardBorder)
-        .corner_radius(corners)
-        .content(header);
-    if !open {
-        return head.into();
-    }
-    let body = Border::new()
-        .background(ThemeBrush::CardBackground)
-        .border_brush(ThemeBrush::CardStroke)
-        .border_thickness(Thickness::new(Layout::CardBorder, 0.0, Layout::CardBorder, Layout::CardBorder))
-        .corner_radius(CornerRadius::new(0.0, 0.0, radius::Control, radius::Control))
-        .padding(Thickness::new(space::Card, 0.0, space::Card, space::Control))
-        .content(StackPanel::new().children((View::keyed_fragment(rows), reset)));
-    StackPanel::new().children((head, body)).into()
+        .header(header)
+        .content(StackPanel::new().children((View::keyed_fragment(rows), reset)))
+        .into()
 }
 
 fn shown_switch(
@@ -363,8 +320,8 @@ fn shown_switch(
         .mark(ProcessesSettingsMark::Shown)
         .is_on(visible)
         .is_enabled(enabled)
-        .on_content(View::empty())
-        .off_content(View::empty())
+        .on_content(text(""))
+        .off_content(text(""))
         .min_width(0.0)
         .margin(Thickness::new(0.0, 0.0, -Layout::SwitchContentColumn, 0.0))
         .on_toggled(move |on: bool| {

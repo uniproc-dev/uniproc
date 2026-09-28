@@ -7,7 +7,7 @@ use windows_reactor::{
 use guinea::winui::MarkExt;
 use guinea::Mark;
 
-use crate::theme::{space, Palette};
+use crate::theme::{opacity, space, Palette};
 use crate::widgets::card::card;
 use crate::widgets::separator;
 use crate::widgets::text::{body_large, text};
@@ -162,7 +162,12 @@ fn labelled_button(
             StackPanel::new()
                 .orientation(Orientation::Horizontal)
                 .spacing(space::Control)
-                .children((icon, text(label))),
+                .children((
+                    Border::new()
+                        .opacity(if enabled { 1.0 } else { opacity::Disabled })
+                        .content(icon),
+                    text(label),
+                )),
         ),
         None => button.content(text(label)),
     }
