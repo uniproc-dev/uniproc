@@ -852,8 +852,8 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                     place,
                     value: |r: &ProcessRow| (percent(r.cpu_percent), r.cpu_percent < Cpu::Zero),
                     heat: move |r: &ProcessRow| {
-                        let color = if is_idle(r) { palette.heat_muted } else { accent };
-                        (r.cpu_percent / 100.0, color)
+                        let load = if is_idle(r) { 0.0 } else { r.cpu_percent / 100.0 };
+                        (load, accent)
                     },
                     threshold: Cpu::HeatThreshold,
                 }),
