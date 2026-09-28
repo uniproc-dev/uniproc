@@ -631,6 +631,18 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
+    fn run_new_task_opens_the_run_dialog_without_a_selection(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        page.click(ProcessesMark::RunNewTask).settle();
+        page.settle();
+
+        assert_eq!(shell_requests(), [ShellRequest::RunNewTask]);
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_settings_button_opens_the_processes_settings(h: &mut Harness) {
         let _store = start(h);
         let h = &*h;

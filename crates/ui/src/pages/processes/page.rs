@@ -7,7 +7,8 @@ use std::sync::Arc;
 use amethystate::{Field, ReactiveMap};
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::processes::{
-    ColumnConfig, Deselect, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState, RunProcessCommand,
+    ColumnConfig, Deselect, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState, RunNewTask,
+    RunProcessCommand,
     RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate,
 };
 use guicons::icon;
@@ -16,7 +17,7 @@ use guinea::winui::MarkExt;
 use guinea_widgets::table::{table, Look, Reordered, Resized, SortState};
 use windows_reactor::{
     Border, Callback, ChildrenControl, ContentControl, Grid, GridChildExt, GridLength, LayoutControl,
-    PointerEventInfo, Orientation, StackPanel,
+    PointerEventInfo, Orientation, StackPanel, Thickness,
     VerticalAlignment, View,
 };
 
@@ -36,6 +37,14 @@ use crate::theme::{radius, size, space, Palette};
 use crate::widgets::page::{command_button, icon_button, loading, page_frame, page_title};
 use crate::widgets::selection::SelectionMark;
 use crate::widgets::text::text;
+
+struct Header;
+
+#[expect(non_upper_case_globals)]
+impl Header {
+    const DividerWidth: f64 = 1.0;
+    const DividerHeight: f64 = 20.0;
+}
 
 pub struct ProcessesSettingsMaps {
     pub columns: ReactiveMap<String, ColumnConfig>,
@@ -353,8 +362,16 @@ impl ProcessesPage {
         };
 
         let terminate = dispatch.clone();
+        let run_new_task = dispatch.clone();
         let header = Grid::new()
-            .columns([GridLength::Auto, GridLength::Star(1.0), GridLength::Auto, GridLength::Auto])
+            .columns([
+                GridLength::Auto,
+                GridLength::Star(1.0),
+                GridLength::Auto,
+                GridLength::Auto,
+                GridLength::Auto,
+                GridLength::Auto,
+            ])
             .children((
                 StackPanel::new()
                     .orientation(Orientation::Horizontal)
@@ -366,14 +383,28 @@ impl ProcessesPage {
                             .foreground(palette.secondary_text)
                             .vertical_alignment(VerticalAlignment::Center),
                     )),
-                Border::new().mark(SelectionMark::Keeper).grid_column(2).content(command_button(
+                Border::new().grid_column(2).content(command_button(
+                    ProcessesMark::RunNewTask,
+                    l10n.processes_run_new_task(),
+                    Some(icon!(new_task).size(size::CommandIcon).build_element()),
+                    true,
+                    move || run_new_task.emit(RunNewTask),
+                )),
+                Border::new()
+                    .grid_column(3)
+                    .width(Header::DividerWidth)
+                    .height(Header::DividerHeight)
+                    .margin(Thickness::xy(space::Control, 0.0))
+                    .vertical_alignment(VerticalAlignment::Center)
+                    .background(palette.divider_stroke),
+                Border::new().mark(SelectionMark::Keeper).grid_column(4).content(command_button(
                     ProcessesMark::EndTask,
                     l10n.processes_end_task(),
                     Some(icon!(prohibited).size(size::CommandIcon).build_element()),
                     live.is_some_and(|row| row.category.takes_actions()),
                     move || terminate.emit(Terminate),
                 )),
-                Border::new().grid_column(3).content(icon_button(
+                Border::new().grid_column(5).content(icon_button(
                     ProcessesMark::OpenSettings,
                     icon!(more_horizontal).size(size::CommandIcon).build_element(),
                     move || {

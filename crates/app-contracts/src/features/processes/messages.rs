@@ -40,6 +40,10 @@ pub struct Deselect;
 #[remote(action)]
 pub struct Terminate;
 
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct RunNewTask;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub enum ProcessCommand {
     Suspend,

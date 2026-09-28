@@ -9,7 +9,7 @@ use app_contracts::features::agents::{
 use app_contracts::features::processes::{
     Deselect, HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessCommand,
     ProcessRow, ProcessesMsg, ProcessesState, RunImageCommand, RunProcessCommand, RunWindowCommand, Select,
-    SelectLinux, Sort, Terminate, WslEnvironment,
+    RunNewTask, SelectLinux, Sort, Terminate, WslEnvironment,
 };
 use app_contracts::features::window::PressedAway;
 use guinea::prelude::*;
@@ -230,7 +230,7 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
 
 actor! {
     ProcessesActor {
-        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway }
+        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway }
     }
 }
 
@@ -311,6 +311,11 @@ fn deselect(this: &mut ProcessesActor, _msg: Deselect) {
 #[handler]
 fn on_pressed_away(this: &mut ProcessesActor, _msg: PressedAway) {
     this.clear_selection();
+}
+
+#[handler]
+fn run_new_task(this: &mut ProcessesActor, _msg: RunNewTask) {
+    (this.shell)(ShellRequest::RunNewTask);
 }
 
 #[handler]

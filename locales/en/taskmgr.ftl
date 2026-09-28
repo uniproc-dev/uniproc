@@ -2,6 +2,7 @@ shell-nav-processes = Processes
 shell-nav-services = Services
 processes-title = Processes
 processes-end-task = End task
+processes-run-new-task = Run new task
 processes-col-name = Name
 processes-col-pid = PID
 processes-col-process-name = Process name

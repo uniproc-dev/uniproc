@@ -6,13 +6,29 @@ use anyhow::{bail, Result};
 use app_contracts::features::processes::WindowCommand;
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::{
-    IsIconic, PostMessageW, SHObjectProperties, SetForegroundWindow, ShellExecuteW, ShowWindow,
-    HWND, LPARAM, SHOP_FILEPATH, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOWNORMAL, WM_CLOSE,
-    WPARAM,
+    CoInitializeEx, IsIconic, PostMessageW, SHObjectProperties, SetForegroundWindow, ShellExecuteW,
+    ShowWindow, COINIT_APARTMENTTHREADED, HWND, LPARAM, SHOP_FILEPATH, SW_MAXIMIZE, SW_MINIMIZE,
+    SW_RESTORE, SW_SHOWNORMAL, WM_CLOSE, WPARAM,
 };
+
+#[link(name = "shell32", kind = "raw-dylib")]
+unsafe extern "system" {
+    #[link_ordinal(61)]
+    fn RunFileDlg(
+        owner: *mut core::ffi::c_void,
+        icon: *mut core::ffi::c_void,
+        directory: PCWSTR,
+        title: PCWSTR,
+        description: PCWSTR,
+        flags: u32,
+    );
+}
+
+const RUN_AS_ADMINISTRATOR_OPTION: u32 = 0x40;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ShellRequest {
+    RunNewTask,
     RevealFile(Arc<str>),
     FileProperties(Arc<str>),
     SearchOnline(Arc<str>),
@@ -21,6 +37,7 @@ pub enum ShellRequest {
 
 pub fn run(request: ShellRequest) {
     let result = match &request {
+        ShellRequest::RunNewTask => run_new_task(),
         ShellRequest::RevealFile(path) => reveal_file(path),
         ShellRequest::FileProperties(path) => file_properties(path),
         ShellRequest::SearchOnline(query) => search_online(query),
@@ -29,6 +46,23 @@ pub fn run(request: ShellRequest) {
     if let Err(err) = result {
         tracing::warn!(?request, %err, "shell request failed");
     }
+}
+
+fn run_new_task() -> Result<()> {
+    std::thread::Builder::new()
+        .name("run-new-task".into())
+        .spawn(|| unsafe {
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED as u32);
+            RunFileDlg(
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                PCWSTR::null(),
+                PCWSTR::null(),
+                PCWSTR::null(),
+                RUN_AS_ADMINISTRATOR_OPTION,
+            );
+        })?;
+    Ok(())
 }
 
 fn reveal_file(path: &str) -> Result<()> {

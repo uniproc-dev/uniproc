@@ -10,6 +10,7 @@ pub enum ProcessesSettingsMark {
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ProcessesMark {
+    RunNewTask,
     EndTask,
     OpenSettings,
     GroupByType,
