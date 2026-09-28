@@ -43,4 +43,7 @@ pub struct ProcessesColumnsSettings {
 
     #[amestate(default = {})]
     order: ReactiveMap<String, u32>,
+
+    #[amestate(default = false)]
+    memory_as_percent: bool,
 }

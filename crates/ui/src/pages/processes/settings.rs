@@ -1,10 +1,10 @@
-use amethystate::ReactiveMap;
+use amethystate::{Field, ReactiveMap};
 use app_contracts::features::processes::ProcessColumn;
 use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, Expander, Grid,
+    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ComboBox, ContentControl, Expander, Grid,
     GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation, PointerEventInfo,
     ScrollViewer, StackPanel, ThemeBrush, Thickness, ToggleSwitch, VerticalAlignment, View,
 };
@@ -19,6 +19,7 @@ use crate::l10n::L10n;
 use crate::theme::{size, space, Palette};
 use crate::widgets::page::action_button;
 use crate::widgets::separator;
+use crate::widgets::setting_card::{setting_card, SettingCard};
 use crate::widgets::text::{caption, subtitle, text};
 
 struct Layout;
@@ -29,6 +30,7 @@ impl Layout {
     const ExpanderSpacing: f64 = 4.0;
     const RowMinHeight: f64 = 44.0;
     const HeaderInset: f64 = 12.0;
+    const ChoiceWidth: f64 = 180.0;
     const Hit: Color = Color::argb(0, 0, 0, 0);
 }
 
@@ -64,6 +66,7 @@ pub enum ProcessesSettingsMsg {
     MoveSection(SectionId, Step),
     ResetColumns,
     ResetSections,
+    MemoryAsPercent(bool),
     Expand(Group, bool),
     BackHovered(bool),
 }
@@ -74,6 +77,8 @@ pub struct ProcessesSettingsPage {
     layout: ColumnLayout,
     sections: SectionOrder,
     section_ranks: Option<ReactiveMap<String, u32>>,
+    memory_as_percent: bool,
+    memory_setting: Option<Field<bool>>,
 }
 
 impl Default for ProcessesSettingsPage {
@@ -84,9 +89,14 @@ impl Default for ProcessesSettingsPage {
 
 impl ProcessesSettingsPage {
     pub fn new(settings: Option<ProcessesSettingsMaps>) -> Self {
-        let (columns, column_order, section_ranks) = match settings {
-            Some(maps) => (Some(maps.columns), Some(maps.column_order), Some(maps.section_order)),
-            None => (None, None, None),
+        let (columns, column_order, section_ranks, memory_setting) = match settings {
+            Some(maps) => (
+                Some(maps.columns),
+                Some(maps.column_order),
+                Some(maps.section_order),
+                Some(maps.memory_as_percent),
+            ),
+            None => (None, None, None, None),
         };
         Self {
             back_hovered: false,
@@ -94,6 +104,8 @@ impl ProcessesSettingsPage {
             layout: ColumnLayout::new(columns, column_order),
             sections: SectionOrder::kept(section_ranks.as_ref()),
             section_ranks,
+            memory_as_percent: memory_setting.as_ref().is_some_and(Field::get),
+            memory_setting,
         }
     }
 
@@ -116,6 +128,14 @@ impl ProcessesSettingsPage {
                     SectionOrder::forget(ranks);
                 }
             }
+            ProcessesSettingsMsg::MemoryAsPercent(percent) => {
+                self.memory_as_percent = percent;
+                if let Some(setting) = &self.memory_setting
+                    && let Err(err) = setting.set(percent)
+                {
+                    tracing::warn!(?err, "could not keep how memory is shown");
+                }
+            }
             ProcessesSettingsMsg::Expand(group, open) => {
                 self.open.retain(|kept| *kept != group);
                 if open {
@@ -133,6 +153,32 @@ impl ProcessesSettingsPage {
             description,
             open: self.open.contains(&group),
         }
+    }
+
+    fn memory_card(&self, l10n: &L10n, palette: Palette, forward: &Callback<ProcessesSettingsMsg>) -> View {
+        let forward = forward.clone();
+        let choice = ComboBox::new()
+            .mark(ProcessesSettingsMark::MemoryValues)
+            .width(Layout::ChoiceWidth)
+            .items_source([
+                l10n.processes_settings_memory_values(),
+                l10n.processes_settings_memory_percents(),
+            ])
+            .selected_index(usize::from(self.memory_as_percent))
+            .on_selection_changed(move |index: Option<usize>| {
+                if let Some(index) = index {
+                    let _ = forward.call(ProcessesSettingsMsg::MemoryAsPercent(index == 1));
+                }
+            });
+        setting_card(
+            SettingCard {
+                icon: None,
+                title: l10n.processes_settings_memory(),
+                description: l10n.processes_settings_memory_description(),
+                control: choice.into(),
+            },
+            palette,
+        )
     }
 
     pub fn view(
@@ -208,7 +254,7 @@ impl ProcessesSettingsPage {
                         StackPanel::new()
                             .margin(Thickness::new(0.0, space::Section, 0.0, 0.0))
                             .spacing(Layout::ExpanderSpacing)
-                            .children((columns, sections)),
+                            .children((columns, sections, self.memory_card(l10n, palette, &forward))),
                     )),
             )
             .into()

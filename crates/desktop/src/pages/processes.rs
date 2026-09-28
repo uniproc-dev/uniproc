@@ -23,6 +23,7 @@ pub(super) fn open_settings() -> Option<ProcessesSettingsMaps> {
         collapsed_sections: settings.grouping().collapsed_sections().clone(),
         pins: settings.grouping().pins().clone(),
         group_by_type: settings.grouping().by_type().clone(),
+        memory_as_percent: settings.columns().memory_as_percent().clone(),
         section_order: settings.grouping().section_order().clone(),
     })
 }
@@ -76,7 +77,7 @@ mod tests {
 
     use app_contracts::features::agents::{
         AgentConnectionState, EnvironmentKind, LinuxEnvironmentInfo, LinuxProcessStats, RemoteScan,
-        RemoteScanResult, SignatureStatus, WindowsActionRequest, WindowsProcessStats, WindowsReport,
+        RemoteScanResult, SignatureStatus, WindowsActionRequest, WindowsMachineStats, WindowsProcessStats, WindowsReport,
         WindowsReportMessage, WindowsServiceState, WindowsServiceStats,
     };
     use std::time::Duration;
@@ -1772,5 +1773,45 @@ mod tests {
         let order = sections(&mut page);
         assert!(order[0].starts_with("Windows kernel"), "{order:?}");
         assert!(order[1].starts_with("Apps"), "{order:?}");
+    }
+
+    const GIB: u64 = 1 << 30;
+
+    fn memory_report(h: &Harness) {
+        let report = WindowsReport {
+            machine: WindowsMachineStats {
+                total_physical_bytes: 16 * GIB,
+                available_physical_bytes: 12 * GIB,
+                ..Default::default()
+            },
+            processes: machine(),
+            ..Default::default()
+        };
+        h.publish(WindowsReportMessage::Report(Arc::new(report))).settle();
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_memory_header_shows_how_much_is_used(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        memory_report(h);
+        page.settle();
+
+        assert!(page.find_text("4.0 GiB").is_some(), "{:#?}", page.tree());
+        assert!(page.find_text("25.0%").is_none());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn memory_kept_as_percents_shows_a_share_in_the_header(h: &mut Harness) {
+        let _store = start(h);
+        ProcessesSettings::new().unwrap().columns().memory_as_percent().set(true).unwrap();
+        let h = &*h;
+        let mut page = mount(h);
+        memory_report(h);
+        page.settle();
+
+        assert!(page.find_text("25.0%").is_some(), "{:#?}", page.tree());
+        assert!(page.find_text("4.0 GiB").is_none());
     }
 }

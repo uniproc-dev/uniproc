@@ -8,6 +8,7 @@ pub enum ProcessesSettingsMark {
     Down,
     ResetColumns,
     ResetSections,
+    MemoryValues,
 }
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]

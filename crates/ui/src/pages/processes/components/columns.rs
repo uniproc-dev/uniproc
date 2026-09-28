@@ -764,6 +764,7 @@ pub(crate) struct ColumnInputs<'a> {
     pub(crate) layout: &'a ColumnLayout,
     pub(crate) machine: Option<MachineSummary>,
     pub(crate) rows: &'a [ProcessRow],
+    pub(crate) memory_as_percent: bool,
     pub(crate) actions: NameCellActions,
     pub(crate) group_by_type: GroupByType,
     pub(crate) sort_column: ProcessColumn,
@@ -778,6 +779,7 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
         layout,
         machine,
         rows,
+        memory_as_percent,
         actions,
         group_by_type,
         sort_column,
@@ -793,11 +795,18 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
     let disk_total: u64 = rows.iter().map(|r| r.disk_bytes).sum();
     let memory_total_bytes = machine.as_ref().map_or(0, |m| m.memory_total_bytes);
     let cpu_total = machine.as_ref().map(|m| percent(m.cpu_percent)).unwrap_or_default();
-    let memory_used = machine
-        .as_ref()
-        .filter(|m| m.memory_total_bytes > 0)
-        .map(|m| percent(m.memory_used_bytes as f32 / m.memory_total_bytes as f32 * 100.0))
-        .unwrap_or_default();
+    let memory_share = move |bytes: u64| {
+        if memory_total_bytes > 0 {
+            bytes as f32 / memory_total_bytes as f32
+        } else {
+            0.0
+        }
+    };
+    let memory_used = match (machine.as_ref(), memory_as_percent) {
+        (Some(m), true) if m.memory_total_bytes > 0 => percent(memory_share(m.memory_used_bytes) * 100.0),
+        (Some(m), false) => format::bytes(m.memory_used_bytes),
+        _ => String::new(),
+    };
     let accent = accent_color();
     let visible: Vec<_> = layout
         .columns()
@@ -847,15 +856,15 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                     label: l10n.processes_col_memory(),
                     total: memory_used.clone(),
                     place,
-                    value: |r: &ProcessRow| (format::bytes(r.memory_bytes), r.memory_bytes == 0),
-                    heat: move |r: &ProcessRow| {
-                        let share = if memory_total_bytes > 0 {
-                            r.memory_bytes as f32 / memory_total_bytes as f32
+                    value: move |r: &ProcessRow| {
+                        let shown = if memory_as_percent {
+                            percent(memory_share(r.memory_bytes) * 100.0)
                         } else {
-                            0.0
+                            format::bytes(r.memory_bytes)
                         };
-                        (share, memory_heat_color(r, accent, palette))
+                        (shown, r.memory_bytes == 0)
                     },
+                    heat: move |r: &ProcessRow| (memory_share(r.memory_bytes), memory_heat_color(r, accent, palette)),
                     threshold: Heat::Threshold,
                 }),
                 ProcessColumn::Net => metric_column(MetricColumn {

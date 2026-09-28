@@ -271,6 +271,24 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
+    fn memory_is_shown_as_values_until_percents_are_chosen(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        let choice = |page: &mut Mounted<'_, ProcessesSettings>| {
+            let node = page.find(ProcessesSettingsMark::MemoryValues)?;
+            page.property(node, PropertyId::ComboBoxSelectedIndex).cloned()
+        };
+        assert_eq!(choice(&mut page), Some(PropertyValue::SelectionIndex(Some(0))));
+
+        page.send(ProcessesSettingsMsg::MemoryAsPercent(true));
+        page.settle();
+
+        assert_eq!(choice(&mut page), Some(PropertyValue::SelectionIndex(Some(1))));
+        assert!(Stored::new().unwrap().columns().memory_as_percent().get());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_breadcrumb_leads_back_to_the_processes(h: &mut Harness) {
         let _store = start(h);
         let h = &*h;

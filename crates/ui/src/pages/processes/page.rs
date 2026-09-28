@@ -51,6 +51,7 @@ pub struct ProcessesSettingsMaps {
     pub column_order: ReactiveMap<String, u32>,
     pub collapsed_sections: ReactiveMap<String, bool>,
     pub group_by_type: Field<bool>,
+    pub memory_as_percent: Field<bool>,
     pub pins: ReactiveMap<String, PinnedProcess>,
     pub section_order: ReactiveMap<String, u32>,
 }
@@ -125,6 +126,7 @@ pub struct ProcessesPage {
     expanded_processes: HashSet<u32>,
     collapsed_sections: Option<ReactiveMap<String, bool>>,
     pins: Option<ReactiveMap<String, PinnedProcess>>,
+    memory_as_percent: bool,
     by_type: bool,
     by_type_setting: Option<Field<bool>>,
     layout: ColumnLayout,
@@ -190,6 +192,7 @@ fn toggle_pin(map: Option<&ReactiveMap<String, PinnedProcess>>, name: String, pi
 
 impl ProcessesPage {
     pub fn new(settings: Option<ProcessesSettingsMaps>) -> Self {
+        let memory_as_percent = settings.as_ref().is_some_and(|maps| maps.memory_as_percent.get());
         let (columns, column_order, collapsed_sections, pins, by_type_setting, section_ranks) = match settings {
             Some(maps) => (
                 Some(maps.columns),
@@ -207,6 +210,7 @@ impl ProcessesPage {
             expanded_processes: HashSet::new(),
             collapsed_sections,
             pins,
+            memory_as_percent,
             by_type: by_type_setting.as_ref().is_none_or(Field::get),
             by_type_setting,
             layout: ColumnLayout::new(columns, column_order),
@@ -648,6 +652,7 @@ impl ProcessesPage {
             layout: &self.layout,
             machine: state.machine_summary().cloned(),
             rows,
+            memory_as_percent: self.memory_as_percent,
             actions,
             group_by_type,
             sort_column: state.sort_column,
