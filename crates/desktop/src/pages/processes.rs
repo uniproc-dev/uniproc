@@ -722,7 +722,7 @@ mod tests {
     }
 
     fn overlay(page: &Mounted<'_, Processes>) -> Option<&'static str> {
-        ["Connecting...", "Can't reach the agent. Still trying."]
+        ["Connecting...", "Can't reach the service. Still trying."]
             .into_iter()
             .find(|text| page.find_text(text).is_some())
     }
@@ -766,7 +766,7 @@ mod tests {
         after(25, &mut page);
         assert_eq!(
             overlay(&page),
-            Some("Can't reach the agent. Still trying."),
+            Some("Can't reach the service. Still trying."),
             "connects: {}",
             crate::test_agent::connects()
         );

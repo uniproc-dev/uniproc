@@ -1,5 +1,5 @@
 processes-connecting = Connecting...
-processes-agent-gave-up = Can't reach the agent. Still trying.
+processes-agent-gave-up = Can't reach the service. Still trying.
 processes-failed = Failed to load processes: { $error }
 processes-status-processes = { $count ->
     [one] process
@@ -55,7 +55,7 @@ processes-category-pinned = Pinned
 processes-category-wsl = WSL
 processes-wsl-namespace = PID namespace { $id }
 processes-wsl-note-heading = The heading shows WSL the way Windows sees it: what the virtual machine (vmmemWSL) costs.
-processes-wsl-note-rows = Inside, environments and processes carry the Linux agent's numbers. One environment per PID namespace, its processes flush with it.
+processes-wsl-note-rows = Inside, environments and processes carry the numbers of the service inside WSL. One environment per PID namespace, its processes flush with it.
 processes-wsl-note-memory = Memory: Windows compresses and reclaims the VM's pages, so its cost can be lower than what Linux reports; the guest's page cache counts as free inside Linux yet stays held by Windows, so it can also be higher.
 processes-category-background-microsoft = Background processes (Microsoft)
 processes-category-windows-service = Services
