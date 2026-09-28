@@ -173,12 +173,19 @@ mod tests {
         let h = &*h;
         let mut page = mount(h);
 
-        page.send(ProcessesSettingsMsg::ShowColumn(Pid, true));
+        page.within(Pid).click(ProcessesSettingsMark::Shown).settle();
         page.settle();
 
         assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(true)));
         let stored = Stored::new().unwrap().columns().configs().get(Pid.id());
         assert!(stored.is_some_and(|config| config.visible));
+
+        page.within(Pid).click(ProcessesSettingsMark::Shown).settle();
+        page.settle();
+
+        assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(false)));
+        let stored = Stored::new().unwrap().columns().configs().get(Pid.id());
+        assert!(stored.is_some_and(|config| !config.visible));
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
