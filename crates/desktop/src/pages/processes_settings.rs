@@ -61,10 +61,22 @@ mod tests {
         dir
     }
 
-    fn mount(h: &Harness) -> Mounted<'_, ProcessesSettings> {
+    fn mount_closed(h: &Harness) -> Mounted<'_, ProcessesSettings> {
         let params = crate::routes::ProcessesSettingsParams::default();
         let mut page = Mounted::mount_at(&h.child(), params, Route::ProcessesSettings {}).unwrap();
         page.settle();
+        page
+    }
+
+    fn toggle(page: &mut Mounted<'_, ProcessesSettings>, group: ProcessesSettingsMark) {
+        page.click(group).settle();
+        page.settle();
+    }
+
+    fn mount(h: &Harness) -> Mounted<'_, ProcessesSettings> {
+        let mut page = mount_closed(h);
+        toggle(&mut page, ProcessesSettingsMark::ColumnsGroup);
+        toggle(&mut page, ProcessesSettingsMark::SectionsGroup);
         page
     }
 
@@ -117,6 +129,22 @@ mod tests {
 
     fn shown(page: &mut Mounted<'_, ProcessesSettings>, column: ProcessColumn) -> Option<PropertyValue> {
         property(page, column, ProcessesSettingsMark::Shown, PropertyId::ToggleSwitchIsOn)
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_groups_start_closed_and_open_from_their_headings(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount_closed(h);
+        assert!(columns(&page).is_empty());
+        assert!(sections(&page).is_empty());
+
+        toggle(&mut page, ProcessesSettingsMark::ColumnsGroup);
+        assert_eq!(columns(&page), names(&ProcessColumn::ALL));
+        assert!(sections(&page).is_empty(), "one group opens on its own");
+
+        toggle(&mut page, ProcessesSettingsMark::ColumnsGroup);
+        assert!(columns(&page).is_empty());
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

@@ -1,6 +1,8 @@
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ProcessesSettingsMark {
     Back,
+    ColumnsGroup,
+    SectionsGroup,
     Shown,
     Up,
     Down,

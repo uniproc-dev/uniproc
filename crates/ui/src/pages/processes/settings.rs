@@ -4,9 +4,9 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, Expander, Grid,
+    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, CornerRadius, Grid,
     GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation, PointerEventInfo,
-    ScrollViewer, StackPanel, ThemeBrush, Thickness, ToggleSwitch, VerticalAlignment, View,
+    ResourceOverrides, ScrollViewer, StackPanel, ThemeBrush, Thickness, ToggleSwitch, VerticalAlignment, View,
 };
 
 use super::components::column_layout::ColumnLayout;
@@ -16,7 +16,7 @@ use super::components::Step;
 use super::marks::ProcessesSettingsMark;
 use super::page::ProcessesSettingsMaps;
 use crate::l10n::L10n;
-use crate::theme::{size, space, Palette};
+use crate::theme::{radius, size, space, Palette};
 use crate::widgets::page::action_button;
 use crate::widgets::separator;
 use crate::widgets::text::{caption, subtitle, text};
@@ -29,6 +29,8 @@ impl Layout {
     const ExpanderSpacing: f64 = 4.0;
     const RowMinHeight: f64 = 44.0;
     const HeaderInset: f64 = 12.0;
+    const GroupChevron: f64 = 12.0;
+    const CardBorder: f64 = 1.0;
     const SwitchContentColumn: f64 = 12.0;
     const Hit: Color = Color::argb(0, 0, 0, 0);
 }
@@ -43,6 +45,21 @@ impl Crumb {
     const ChevronDrop: f64 = 2.0;
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Group {
+    Columns,
+    Sections,
+}
+
+impl Group {
+    fn mark(self) -> ProcessesSettingsMark {
+        match self {
+            Self::Columns => ProcessesSettingsMark::ColumnsGroup,
+            Self::Sections => ProcessesSettingsMark::SectionsGroup,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum ProcessesSettingsMsg {
     ShowColumn(ProcessColumn, bool),
@@ -50,11 +67,13 @@ pub enum ProcessesSettingsMsg {
     MoveSection(SectionId, Step),
     ResetColumns,
     ResetSections,
+    Toggle(Group),
     BackHovered(bool),
 }
 
 pub struct ProcessesSettingsPage {
     back_hovered: bool,
+    open: Vec<Group>,
     layout: ColumnLayout,
     sections: SectionOrder,
     section_ranks: Option<ReactiveMap<String, u32>>,
@@ -74,6 +93,7 @@ impl ProcessesSettingsPage {
         };
         Self {
             back_hovered: false,
+            open: Vec::new(),
             layout: ColumnLayout::new(columns, column_order),
             sections: SectionOrder::kept(section_ranks.as_ref()),
             section_ranks,
@@ -99,7 +119,23 @@ impl ProcessesSettingsPage {
                     SectionOrder::forget(ranks);
                 }
             }
+            ProcessesSettingsMsg::Toggle(group) => {
+                if let Some(at) = self.open.iter().position(|open| *open == group) {
+                    self.open.remove(at);
+                } else {
+                    self.open.push(group);
+                }
+            }
             ProcessesSettingsMsg::BackHovered(hovered) => self.back_hovered = hovered,
+        }
+    }
+
+    fn heading(&self, group: Group, title: String, description: String) -> Heading {
+        Heading {
+            group,
+            title,
+            description,
+            open: self.open.contains(&group),
         }
     }
 
@@ -130,8 +166,11 @@ impl ProcessesSettingsPage {
         });
 
         let columns = expander(
-            l10n.processes_settings_columns(),
-            l10n.processes_settings_columns_description(),
+            self.heading(
+                Group::Columns,
+                l10n.processes_settings_columns(),
+                l10n.processes_settings_columns_description(),
+            ),
             columns.collect(),
             reset_row(
                 l10n.processes_settings_columns_reset(),
@@ -142,10 +181,14 @@ impl ProcessesSettingsPage {
                 ProcessesSettingsMsg::ResetColumns,
             ),
             palette,
+            &forward,
         );
         let sections = expander(
-            l10n.processes_settings_sections(),
-            l10n.processes_settings_sections_description(),
+            self.heading(
+                Group::Sections,
+                l10n.processes_settings_sections(),
+                l10n.processes_settings_sections_description(),
+            ),
             sections.collect(),
             reset_row(
                 l10n.processes_settings_sections_reset(),
@@ -156,6 +199,7 @@ impl ProcessesSettingsPage {
                 ProcessesSettingsMsg::ResetSections,
             ),
             palette,
+            &forward,
         );
 
         ScrollViewer::new()
@@ -218,16 +262,81 @@ fn breadcrumb(
         .into()
 }
 
-fn expander(title: String, description: String, rows: Vec<KeyedView>, reset: View, palette: Palette) -> View {
-    let header = StackPanel::new()
-        .margin(Thickness::xy(0.0, Layout::HeaderInset))
-        .vertical_alignment(VerticalAlignment::Center)
-        .children((text(title), caption(description).foreground(palette.secondary_text)));
-    Expander::new()
+struct Heading {
+    group: Group,
+    title: String,
+    description: String,
+    open: bool,
+}
+
+fn expander(
+    heading: Heading,
+    rows: Vec<KeyedView>,
+    reset: View,
+    palette: Palette,
+    forward: &Callback<ProcessesSettingsMsg>,
+) -> View {
+    let Heading {
+        group,
+        title,
+        description,
+        open,
+    } = heading;
+    let corners = if open {
+        CornerRadius::new(radius::Control, radius::Control, 0.0, 0.0)
+    } else {
+        CornerRadius::uniform(radius::Control)
+    };
+    let chevron = if open {
+        icon!(chevron_up_regular).size(Layout::GroupChevron).build_element()
+    } else {
+        icon!(chevron_down_regular).size(Layout::GroupChevron).build_element()
+    };
+    let toggle = forward.clone();
+    let header = Button::new()
+        .mark(group.mark())
+        .style(ButtonStyle::Subtle)
         .horizontal_alignment(HorizontalAlignment::Stretch)
-        .header(header)
-        .content(StackPanel::new().children((View::keyed_fragment(rows), reset)))
-        .into()
+        .horizontal_content_alignment(HorizontalAlignment::Stretch)
+        .resource_overrides(
+            ResourceOverrides::new()
+                .set("ButtonPadding", Thickness::xy(space::Card, Layout::HeaderInset))
+                .set("ControlCornerRadius", corners.clone()),
+        )
+        .on_click(move || {
+            let _ = toggle.call(ProcessesSettingsMsg::Toggle(group));
+        })
+        .content(
+            Grid::new()
+                .columns([GridLength::Star(1.0), GridLength::Auto])
+                .children((
+                    StackPanel::new()
+                        .grid_column(0)
+                        .vertical_alignment(VerticalAlignment::Center)
+                        .children((text(title), caption(description).foreground(palette.secondary_text))),
+                    Grid::new()
+                        .grid_column(1)
+                        .vertical_alignment(VerticalAlignment::Center)
+                        .children((chevron,)),
+                )),
+        );
+    let head = Border::new()
+        .background(ThemeBrush::CardBackground)
+        .border_brush(ThemeBrush::CardStroke)
+        .border_thickness(Layout::CardBorder)
+        .corner_radius(corners)
+        .content(header);
+    if !open {
+        return head.into();
+    }
+    let body = Border::new()
+        .background(ThemeBrush::CardBackground)
+        .border_brush(ThemeBrush::CardStroke)
+        .border_thickness(Thickness::new(Layout::CardBorder, 0.0, Layout::CardBorder, Layout::CardBorder))
+        .corner_radius(CornerRadius::new(0.0, 0.0, radius::Control, radius::Control))
+        .padding(Thickness::new(space::Card, 0.0, space::Card, space::Control))
+        .content(StackPanel::new().children((View::keyed_fragment(rows), reset)));
+    StackPanel::new().children((head, body)).into()
 }
 
 fn shown_switch(
