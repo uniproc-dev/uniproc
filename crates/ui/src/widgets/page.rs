@@ -1,7 +1,7 @@
 use windows_reactor::{
     Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, Grid,
     GridChildExt, GridLength, HorizontalAlignment, LayoutControl, Orientation, PointerEventInfo,
-    ProgressRing, StackPanel, Thickness, VerticalAlignment, View,
+    ProgressRing, ResourceOverrides, StackPanel, Thickness, VerticalAlignment, View,
 };
 
 use guinea::winui::MarkExt;
@@ -121,14 +121,14 @@ struct IconButton;
 
 #[expect(non_upper_case_globals)]
 impl IconButton {
-    const Width: f64 = 48.0;
+    const Padding: f64 = 6.0;
 }
 
 pub fn icon_button(mark: impl Mark, icon: View, on_click: impl Fn() + 'static) -> View {
     Button::new()
         .mark(mark)
         .style(ButtonStyle::Subtle)
-        .min_width(IconButton::Width)
+        .resource_overrides(ResourceOverrides::new().set("ButtonPadding", Thickness::uniform(IconButton::Padding)))
         .on_click(on_click)
         .content(icon)
         .into()

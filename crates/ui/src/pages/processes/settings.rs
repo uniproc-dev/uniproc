@@ -4,7 +4,7 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, Grid, GridChildExt,
+    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, FontIcon, Grid, GridChildExt,
     GridLength, KeyedView, LayoutControl, Orientation, PointerEventInfo, ScrollViewer, StackPanel, ThemeBrush,
     Thickness, ToggleSwitch, VerticalAlignment, View,
 };
@@ -34,6 +34,14 @@ impl Layout {
     fn section_header() -> Thickness {
         Thickness::new(1.0, 30.0, 0.0, 6.0)
     }
+}
+
+struct Crumb;
+
+#[expect(non_upper_case_globals)]
+impl Crumb {
+    const Chevron: &str = "\u{E974}";
+    const ChevronPadding: f64 = 2.0;
 }
 
 pub enum ProcessesSettingsMsg {
@@ -181,6 +189,7 @@ fn breadcrumb(
     let parent = Border::new()
         .mark(ProcessesSettingsMark::Back)
         .background(Layout::Hit)
+        .vertical_alignment(VerticalAlignment::Center)
         .on_pointer_entered(move |_: PointerEventInfo| {
             let _ = entered.call(ProcessesSettingsMsg::BackHovered(true));
         })
@@ -191,14 +200,16 @@ fn breadcrumb(
             let _ = back.call(());
         })
         .content(parent_text);
+    let chevron = FontIcon::new()
+        .glyph(Crumb::Chevron)
+        .margin(Thickness::xy(Crumb::ChevronPadding, 0.0))
+        .vertical_alignment(VerticalAlignment::Center);
     StackPanel::new()
         .orientation(Orientation::Horizontal)
-        .spacing(space::Header)
+        .spacing(space::Compact)
         .children((
             parent,
-            Grid::new()
-                .vertical_alignment(VerticalAlignment::Center)
-                .children((icon!(chevron_right_regular).size(size::Chevron).build_element(),)),
+            chevron,
             subtitle(l10n.processes_settings_title()).vertical_alignment(VerticalAlignment::Center),
         ))
         .into()
