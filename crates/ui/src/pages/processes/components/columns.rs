@@ -26,7 +26,7 @@ use guinea::winui::MarkExt;
 
 use super::super::marks::ProcessesMark;
 use super::column_layout::ColumnLayout;
-use super::grouping::{is_service_host, Child, DisplayRow, DropEdge, ProcessName, SectionId, SectionRow, WslRow};
+use super::grouping::{is_idle, is_service_host, Child, DisplayRow, DropEdge, ProcessName, SectionId, SectionRow, WslRow};
 use super::section_drag::SectionGesture;
 
 struct Hit;
@@ -851,7 +851,10 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                     total: cpu_total.clone(),
                     place,
                     value: |r: &ProcessRow| (percent(r.cpu_percent), r.cpu_percent < Cpu::Zero),
-                    heat: move |r: &ProcessRow| (r.cpu_percent / 100.0, accent),
+                    heat: move |r: &ProcessRow| {
+                        let color = if is_idle(r) { palette.heat_muted } else { accent };
+                        (r.cpu_percent / 100.0, color)
+                    },
                     threshold: Cpu::HeatThreshold,
                 }),
                 ProcessColumn::Memory => metric_column(MetricColumn {

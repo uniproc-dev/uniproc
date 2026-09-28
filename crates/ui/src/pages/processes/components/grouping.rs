@@ -436,6 +436,7 @@ struct SectionTotals {
     net_bytes: u64,
     group_count: usize,
     compressed_bytes: u64,
+    idle_cpu_percent: f32,
 }
 
 impl SectionTotals {
@@ -454,6 +455,9 @@ impl SectionTotals {
 
             if &*group.leader.name == ProcessName::MemoryCompression {
                 totals.compressed_bytes += group.leader.memory_bytes;
+            }
+            if is_idle(&group.leader) {
+                totals.idle_cpu_percent += group.leader.cpu_percent;
             }
         }
         for console in section.consoles.values().flatten() {
@@ -667,6 +671,14 @@ fn sorted_memory(row: &ProcessRow) -> Option<u64> {
     (&*row.name != ProcessName::MemoryCompression).then_some(row.memory_bytes)
 }
 
+pub(crate) fn is_idle(row: &ProcessRow) -> bool {
+    row.pid == 0 && row.category == ProcessCategory::WindowsKernel
+}
+
+fn sorted_cpu(row: &ProcessRow) -> Option<i64> {
+    (!is_idle(row)).then_some(tenths(row.cpu_percent))
+}
+
 fn compare_by(column: ProcessColumn, a: &ProcessRow, b: &ProcessRow) -> Ordering {
     match column {
         ProcessColumn::Name => a
@@ -680,7 +692,7 @@ fn compare_by(column: ProcessColumn, a: &ProcessRow, b: &ProcessRow) -> Ordering
             .chars()
             .flat_map(char::to_lowercase)
             .cmp(b.name.chars().flat_map(char::to_lowercase)),
-        ProcessColumn::Cpu => tenths(a.cpu_percent).cmp(&tenths(b.cpu_percent)),
+        ProcessColumn::Cpu => sorted_cpu(a).cmp(&sorted_cpu(b)),
         ProcessColumn::Memory => sorted_memory(a).cmp(&sorted_memory(b)),
         ProcessColumn::Disk => a.disk_bytes.cmp(&b.disk_bytes),
         ProcessColumn::Net => a.net_bytes.cmp(&b.net_bytes),
@@ -1026,7 +1038,7 @@ impl DisplayRow {
                 pid: 0,
                 name: label.into(),
                 display_name: label.into(),
-                cpu_percent: totals.cpu_percent,
+                cpu_percent: (totals.cpu_percent - totals.idle_cpu_percent).max(0.0),
                 memory_bytes: totals.memory_bytes.saturating_sub(totals.compressed_bytes),
                 disk_bytes: totals.disk_bytes,
                 net_bytes: totals.net_bytes,
@@ -1608,6 +1620,32 @@ pub(crate) mod tests {
         let mut sections = split_by_category(group_by_name(&[a, b], None));
         sort_groups(&mut sections, &cpu_order());
         assert_eq!(group_pids(&sections), vec![1, 2]);
+    }
+
+    #[test]
+    fn the_kernel_heading_leaves_idle_time_out_of_its_cpu() {
+        let mut idle = categorised(0, "System Idle Process", ProcessCategory::WindowsKernel);
+        idle.cpu_percent = 52.7;
+        let mut system = categorised(4, "System", ProcessCategory::WindowsKernel);
+        system.cpu_percent = 1.8;
+
+        let sections = split_by_category(vec![group(idle, vec![]), group(system, vec![])]);
+        let out = flat(&sections, &HashSet::new(), &HashSet::new());
+        let heading = out.iter().find(|d| d.section.is_some()).unwrap();
+
+        assert!((heading.row.cpu_percent - 1.8).abs() < 1e-4, "{}", heading.row.cpu_percent);
+    }
+
+    #[test]
+    fn idle_time_sorts_below_every_process_by_cpu() {
+        let mut idle = categorised(0, "System Idle Process", ProcessCategory::WindowsKernel);
+        idle.cpu_percent = 90.0;
+        let busy = categorised(4, "System", ProcessCategory::WindowsKernel);
+        let mut sections = split_by_category(vec![group(idle, vec![]), group(busy, vec![])]);
+
+        sort_groups(&mut sections, &Order { column: ProcessColumn::Cpu, descending: true });
+
+        assert_eq!(group_pids(&sections), vec![4, 0]);
     }
 
     #[test]
