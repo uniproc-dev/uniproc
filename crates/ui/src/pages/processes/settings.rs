@@ -4,7 +4,7 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, FontIcon, Grid, GridChildExt,
+    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, Grid, GridChildExt,
     GridLength, KeyedView, LayoutControl, Orientation, PointerEventInfo, ScrollViewer, StackPanel, ThemeBrush,
     Thickness, ToggleSwitch, VerticalAlignment, View,
 };
@@ -40,7 +40,7 @@ struct Crumb;
 
 #[expect(non_upper_case_globals)]
 impl Crumb {
-    const Chevron: &str = "\u{E974}";
+    const ChevronSize: f64 = 12.0;
     const ChevronPadding: f64 = 2.0;
 }
 
@@ -200,10 +200,10 @@ fn breadcrumb(
             let _ = back.call(());
         })
         .content(parent_text);
-    let chevron = FontIcon::new()
-        .glyph(Crumb::Chevron)
+    let chevron = Grid::new()
         .margin(Thickness::xy(Crumb::ChevronPadding, 0.0))
-        .vertical_alignment(VerticalAlignment::Center);
+        .vertical_alignment(VerticalAlignment::Center)
+        .children((icon!(chevron_right_regular).size(Crumb::ChevronSize).build_element(),));
     StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(space::Compact)
