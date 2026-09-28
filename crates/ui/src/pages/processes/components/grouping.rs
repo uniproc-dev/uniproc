@@ -1,9 +1,11 @@
+use amethystate::ReactiveMap;
 use app_contracts::features::agents::EnvironmentKind;
 use app_contracts::features::processes::{
     HostedService, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessWindow,
     WslEnvironment, WslProcess,
 };
 
+use super::Step;
 use crate::theme::size;
 use crate::widgets::table_cell::Highlight;
 
@@ -103,6 +105,12 @@ impl SectionId {
     }
 }
 
+impl guinea::Mark for SectionId {
+    fn name(&self) -> &'static str {
+        self.id()
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct SectionOrder(Vec<SectionId>);
 
@@ -121,8 +129,42 @@ impl SectionOrder {
         Self(ids)
     }
 
+    pub(crate) fn kept(ranks: Option<&ReactiveMap<String, u32>>) -> Self {
+        ranks
+            .map(|ranks| Self::ranked(|id| ranks.get(id.id())))
+            .unwrap_or_default()
+    }
+
     pub(crate) fn ids(&self) -> &[SectionId] {
         &self.0
+    }
+
+    pub(crate) fn can_shift(&self, section: SectionId, step: Step) -> bool {
+        self.shifted(section, step).is_some()
+    }
+
+    pub(crate) fn shifted(&self, section: SectionId, step: Step) -> Option<Self> {
+        let at = self.0.iter().position(|id| *id == section)?;
+        let before = match step {
+            Step::Up => Some(self.0[at.checked_sub(1)?]),
+            Step::Down if at + 1 < self.0.len() => self.0.get(at + 2).copied(),
+            Step::Down => return None,
+        };
+        Some(self.moved(section, before))
+    }
+
+    pub(crate) fn store(&self, ranks: &ReactiveMap<String, u32>) {
+        for (rank, id) in self.0.iter().enumerate() {
+            if let Err(err) = ranks.insert(id.id().to_string(), &(rank as u32)) {
+                tracing::warn!(section = id.id(), ?err, "section order write failed");
+            }
+        }
+    }
+
+    pub(crate) fn forget(ranks: &ReactiveMap<String, u32>) {
+        if let Err(err) = ranks.clear() {
+            tracing::warn!(?err, "section order reset failed");
+        }
     }
 
     pub(crate) fn moved(&self, section: SectionId, before: Option<SectionId>) -> Self {

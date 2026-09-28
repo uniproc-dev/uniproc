@@ -1,18 +1,19 @@
 use app_contracts::features::processes::ProcessesState;
 use app_contracts::features::window::PressedAway;
 use domain::features::processes::settings::ProcessesSettings;
-use domain::features::processes::{ProcessesDeps, ProcessesFeature};
 use guinea::feature::FeatureInitContext;
 use guinea::prelude::GlobalEventBus;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::pages::processes::{ProcessesMsg, ProcessesPage, ProcessesSettingsMaps};
 use ui::theme::{scheme_context, Palette};
-use windows_reactor::View;
+use windows_reactor::{Callback, View};
+
+use crate::routes::Route;
 
 #[derive(Default)]
 pub struct Processes(ProcessesPage);
 
-fn open_settings() -> Option<ProcessesSettingsMaps> {
+pub(super) fn open_settings() -> Option<ProcessesSettingsMaps> {
     let settings = ProcessesSettings::new()
         .inspect_err(|err| tracing::error!(?err, "processes settings did not open"))
         .ok()?;
@@ -28,14 +29,12 @@ fn open_settings() -> Option<ProcessesSettingsMaps> {
 
 #[page]
 impl Page for Processes {
-    const CACHE_STATE_IN_MEMORY: bool = true;
-
     type Params = crate::routes::ProcessesParams;
-    type Installs = ProcessesFeature;
+    type Installs = ();
     type Message = ProcessesMsg;
 
-    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        ctx.install(&ctx.require_or_default::<ProcessesDeps>())
+    fn install(_ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
+        Ok(())
     }
 
     fn init(_ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
@@ -65,7 +64,9 @@ impl Page for Processes {
             }
             None
         });
-        self.0.view(&state, &dispatch, &l10n, palette, forward)
+        let nav = cx.navigate::<Route>();
+        let open_settings = Callback::new(move |()| nav.to(Route::ProcessesSettings {}));
+        self.0.view(&state, &dispatch, &l10n, palette, forward, open_settings)
     }
 }
 
@@ -90,6 +91,7 @@ mod tests {
     };
     use guinea::prelude::GlobalEventBus;
     use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
+    use domain::features::processes::{ProcessesDeps, ProcessesFeature};
     use domain::features::processes::shell::ShellRequest;
     use domain::features::processes::windows_scan::AppWindows;
     use guinea::app::Harness;
@@ -103,7 +105,6 @@ mod tests {
     use ui::widgets::page::PageMark;
     use ui::widgets::selection::SelectionMark;
     use app_contracts::features::window::PressedAway;
-    use windows_reactor::ColorScheme;
 
     use super::*;
 
@@ -221,11 +222,13 @@ mod tests {
     }
 
     fn mount(h: &Harness) -> Mounted<'_, Processes> {
-        let params = crate::routes::ProcessesParams::default();
-        let mut page = Mounted::mount_with(&h.segment(), params, |page| {
-            View::provide(scheme_context(), ColorScheme::Dark, page)
+        h.install::<ProcessesFeature>(&ProcessesDeps {
+            windows: desktop_windows,
+            shell: fake_shell,
         })
         .unwrap();
+        let params = crate::routes::ProcessesParams::default();
+        let mut page = Mounted::mount_at(&h.child(), params, Route::Processes {}).unwrap();
         report(h, machine());
         page.settle();
         page
@@ -627,6 +630,18 @@ mod tests {
         assert_eq!(h.state::<ProcessesState>().selected, None, "a heading is not selectable");
     }
 
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_settings_button_opens_the_processes_settings(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        page.click(ProcessesMark::OpenSettings).settle();
+        page.settle();
+
+        assert_eq!(page.navigated::<Route>(), [Route::ProcessesSettings {}]);
+    }
+
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn end_task_keeps_the_selection(h: &mut Harness) {
         let _store = start(h);
@@ -707,11 +722,13 @@ mod tests {
             start_in_process: crate::test_agent::start_in_process,
         })
             .unwrap();
-        let params = crate::routes::ProcessesParams::default();
-        let mut page = Mounted::mount_with(&h.segment(), params, |page| {
-            View::provide(scheme_context(), ColorScheme::Dark, page)
+        h.install::<ProcessesFeature>(&ProcessesDeps {
+            windows: desktop_windows,
+            shell: fake_shell,
         })
         .unwrap();
+        let params = crate::routes::ProcessesParams::default();
+        let mut page = Mounted::mount_at(&h.child(), params, Route::Processes {}).unwrap();
         let after = |seconds: u64, page: &mut Mounted<'_, Processes>| {
             h.advance(Duration::from_secs(seconds));
             page.settle();

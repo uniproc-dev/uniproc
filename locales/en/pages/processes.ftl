@@ -22,6 +22,14 @@ processes-selected = Selected: { $name } | PID { $pid }
 processes-selected-exited = Selected: { $name } | PID { $pid } | Exited
 processes-selected-group = Selected: { $name } | Group ({ $count })
 processes-selected-linux = Selected: { $name } | PID { $pid } | { $environment }
+processes-settings = Settings
+
+processes-settings-title = Settings
+processes-settings-columns = Columns
+processes-settings-columns-description = Which columns the table shows and in what order. Name always comes first.
+processes-settings-sections = Sections
+processes-settings-sections-description = The order of the groups in the table. Headings can also be dragged in the table itself.
+processes-settings-reset-sections = Reset order
 
 processes-menu-pin = Pin
 processes-menu-unpin = Unpin

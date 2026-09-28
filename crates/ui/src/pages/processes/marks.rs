@@ -1,6 +1,16 @@
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ProcessesSettingsMark {
+    Back,
+    Shown,
+    Up,
+    Down,
+    ResetSections,
+}
+
+#[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ProcessesMark {
     EndTask,
+    OpenSettings,
     GroupByType,
     Chevron,
     Exited,

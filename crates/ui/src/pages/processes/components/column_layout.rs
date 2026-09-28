@@ -3,6 +3,8 @@ use app_contracts::features::processes::{ColumnConfig, ProcessColumn};
 use guinea::Mark;
 use guinea_widgets::table::{ColumnOrder, ColumnWidths, Reordered, Resized};
 
+use super::Step;
+
 struct MinWidth;
 
 #[expect(non_upper_case_globals)]
@@ -98,6 +100,62 @@ impl ColumnLayout {
             if let Err(err) = ranks.insert(column.id().to_string(), &(rank as u32)) {
                 tracing::warn!(column = column.id(), ?err, "column order write failed");
             }
+        }
+    }
+
+    pub(crate) fn placed(&self) -> Vec<ProcessColumn> {
+        let named = self
+            .order
+            .names()
+            .iter()
+            .filter_map(|name| ProcessColumn::from_mark(name));
+        let mut placed = vec![ProcessColumn::Name];
+        for column in named.chain(ProcessColumn::ALL) {
+            if !placed.contains(&column) {
+                placed.push(column);
+            }
+        }
+        placed
+    }
+
+    pub(crate) fn can_shift(&self, column: ProcessColumn, step: Step) -> bool {
+        let placed = self.placed();
+        placed
+            .iter()
+            .position(|c| *c == column)
+            .is_some_and(|at| Self::target(at, step, placed.len()).is_some())
+    }
+
+    fn target(at: usize, step: Step, len: usize) -> Option<usize> {
+        let to = match step {
+            Step::Up => at.checked_sub(1)?,
+            Step::Down => at + 1,
+        };
+        (at > 0 && to > 0 && to < len).then_some(to)
+    }
+
+    pub(crate) fn shift(&mut self, column: ProcessColumn, step: Step) {
+        let mut placed = self.placed();
+        let Some(at) = placed.iter().position(|c| *c == column) else {
+            return;
+        };
+        let Some(to) = Self::target(at, step, placed.len()) else {
+            return;
+        };
+        placed.swap(at, to);
+        self.reorder(Reordered {
+            order: placed.iter().map(|column| column.name()).collect(),
+        });
+    }
+
+    pub(crate) fn visible(&self, column: ProcessColumn) -> bool {
+        self.config(column).visible
+    }
+
+    pub(crate) fn show(&mut self, column: ProcessColumn, visible: bool) {
+        let config = self.config(column);
+        if config.visible != visible {
+            self.store(column, ColumnConfig { visible, ..config });
         }
     }
 

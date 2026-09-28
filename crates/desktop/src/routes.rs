@@ -1,13 +1,16 @@
 use guinea::prelude::*;
 
-use crate::layouts::{ShellLayout, TabsLayout};
-use crate::pages::{Processes, Services, Settings, Wsl};
+use crate::layouts::{ProcessesArea, ShellLayout, TabsLayout};
+use crate::pages::{Processes, ProcessesSettings, Services, Settings, Wsl};
 
 routes! {
     Route {
         layout(TabsLayout) restorable {
             layout(ShellLayout) {
-                page(Processes)
+                layout(ProcessesArea) {
+                    page(Processes)
+                    page(ProcessesSettings)
+                }
                 page(Services)
                 page(Wsl)
                 page(Settings)

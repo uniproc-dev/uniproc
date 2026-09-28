@@ -84,11 +84,12 @@ fn main() {
     let palette = Palette::of(ColorScheme::Dark);
     let dispatch = Dispatch::default();
     let forward = Callback::new(|_: ProcessesMsg| {});
+    let open_settings = Callback::new(|()| {});
     let page = ProcessesPage::new(None);
 
     let first = state(rows(&exes, processes, 0));
     let started = Instant::now();
-    drop(page.view(&first, &dispatch, &l10n, palette, forward.clone()));
+    drop(page.view(&first, &dispatch, &l10n, palette, forward.clone(), open_settings.clone()));
     println!("first view (cold icon cache): {:?}", started.elapsed());
     std::thread::sleep(Duration::from_secs(3));
 
@@ -97,7 +98,7 @@ fn main() {
     for tick in 1..=ITERATIONS {
         let next = state(rows(&exes, processes, tick));
         let started = Instant::now();
-        let view = page.view(&next, &dispatch, &l10n, palette, forward.clone());
+        let view = page.view(&next, &dispatch, &l10n, palette, forward.clone(), open_settings.clone());
         let took = started.elapsed();
         drop(view);
         total += took;

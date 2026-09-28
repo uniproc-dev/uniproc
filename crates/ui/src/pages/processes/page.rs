@@ -192,10 +192,7 @@ impl ProcessesPage {
             ),
             None => (None, None, None, None, None, None),
         };
-        let section_order = section_ranks
-            .as_ref()
-            .map(|ranks| SectionOrder::ranked(|id| ranks.get(&id.id().to_string())))
-            .unwrap_or_default();
+        let section_order = SectionOrder::kept(section_ranks.as_ref());
         Self {
             expanded_groups: HashSet::new(),
             expanded_processes: HashSet::new(),
@@ -254,13 +251,8 @@ impl ProcessesPage {
 
     fn move_section(&mut self, section: SectionId, placement: Placement) {
         self.section_order = self.section_order.moved(section, placement.before);
-        let Some(ranks) = &self.section_ranks else {
-            return;
-        };
-        for (rank, id) in self.section_order.ids().iter().enumerate() {
-            if let Err(err) = ranks.insert(id.id().to_string(), &(rank as u32)) {
-                tracing::warn!(section = id.id(), ?err, "section order write failed");
-            }
+        if let Some(ranks) = &self.section_ranks {
+            self.section_order.store(ranks);
         }
     }
 
@@ -321,6 +313,7 @@ impl ProcessesPage {
         l10n: &L10n,
         palette: Palette,
         forward: Callback<ProcessesMsg>,
+        open_settings: Callback<()>,
     ) -> View {
         self.selected_group_size.set(None);
         let body = match &state.rows {
@@ -361,7 +354,7 @@ impl ProcessesPage {
 
         let terminate = dispatch.clone();
         let header = Grid::new()
-            .columns([GridLength::Auto, GridLength::Star(1.0), GridLength::Auto])
+            .columns([GridLength::Auto, GridLength::Star(1.0), GridLength::Auto, GridLength::Auto])
             .children((
                 StackPanel::new()
                     .orientation(Orientation::Horizontal)
@@ -379,6 +372,15 @@ impl ProcessesPage {
                     Some(icon!(prohibited).size(size::CommandIcon).build_element()),
                     live.is_some_and(|row| row.category.takes_actions()),
                     move || terminate.emit(Terminate),
+                )),
+                Border::new().grid_column(3).content(command_button(
+                    ProcessesMark::OpenSettings,
+                    l10n.processes_settings(),
+                    Some(icon!(settings).size(size::CommandIcon).build_element()),
+                    true,
+                    move || {
+                        let _ = open_settings.call(());
+                    },
                 )),
             ));
 
