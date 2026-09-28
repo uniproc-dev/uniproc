@@ -7,11 +7,11 @@ use crate::theme::{radius, space, Palette};
 use crate::widgets::card::card;
 use crate::widgets::text::{caption, text};
 
-pub(crate) struct SettingCardSize;
+pub struct SettingCardSize;
 
 #[expect(non_upper_case_globals)]
 impl SettingCardSize {
-    pub(crate) const Icon: f64 = 20.0;
+    pub const Icon: f64 = 20.0;
     const MinHeight: f64 = 68.0;
     const Border: f64 = 1.0;
     const ContentMinWidth: f64 = 120.0;
@@ -21,14 +21,14 @@ impl SettingCardSize {
     }
 }
 
-pub(crate) struct SettingCard {
-    pub(crate) icon: View,
-    pub(crate) title: String,
-    pub(crate) description: String,
-    pub(crate) control: View,
+pub struct SettingCard {
+    pub icon: Option<View>,
+    pub title: String,
+    pub description: String,
+    pub control: View,
 }
 
-pub(crate) fn setting_card(setting: SettingCard, palette: Palette) -> View {
+pub fn setting_card(setting: SettingCard, palette: Palette) -> View {
     let SettingCard {
         icon,
         title,
@@ -42,6 +42,15 @@ pub(crate) fn setting_card(setting: SettingCard, palette: Palette) -> View {
             text(title),
             caption(description).foreground(palette.secondary_text),
         ));
+    let icon = match icon {
+        Some(icon) => Grid::new()
+            .grid_column(0)
+            .margin(SettingCardSize::icon_margin())
+            .vertical_alignment(VerticalAlignment::Center)
+            .children((icon,))
+            .into(),
+        None => View::empty(),
+    };
 
     card()
         .corner_radius(radius::Control)
@@ -53,11 +62,7 @@ pub(crate) fn setting_card(setting: SettingCard, palette: Palette) -> View {
             Grid::new()
                 .columns([GridLength::Auto, GridLength::Star(1.0), GridLength::Auto])
                 .children((
-                    Grid::new()
-                        .grid_column(0)
-                        .margin(SettingCardSize::icon_margin())
-                        .vertical_alignment(VerticalAlignment::Center)
-                        .children((icon,)),
+                    icon,
                     Grid::new()
                         .grid_column(1)
                         .vertical_alignment(VerticalAlignment::Center)

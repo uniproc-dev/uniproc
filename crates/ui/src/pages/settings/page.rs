@@ -11,9 +11,9 @@ use windows_reactor::{
     StackPanel, Thickness, VerticalAlignment, View,
 };
 
-use super::components::setting_card::{setting_card, SettingCard, SettingCardSize};
 use crate::l10n::L10n;
 use crate::theme::{space, Palette};
+use crate::widgets::setting_card::{setting_card, SettingCard, SettingCardSize};
 use crate::widgets::text::{body_strong, subtitle, text};
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
@@ -81,7 +81,7 @@ fn theme_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: 
         });
     setting_card(
         SettingCard {
-            icon: icon!(color).size(SettingCardSize::Icon).build(),
+            icon: Some(icon!(color).size(SettingCardSize::Icon).build()),
             title: l10n.settings_theme(),
             description: l10n.settings_theme_description(),
             control: choice.into(),
@@ -104,7 +104,7 @@ fn start_page_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
         });
     setting_card(
         SettingCard {
-            icon: icon!(start_page).size(SettingCardSize::Icon).build(),
+            icon: Some(icon!(start_page).size(SettingCardSize::Icon).build()),
             title: l10n.settings_start_page(),
             description: l10n.settings_start_page_description(),
             control: choice.into(),
@@ -147,7 +147,7 @@ fn update_speed_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
         .children((slider.margin(Thickness::new(0.0, 0.0, space::Header, 0.0)), value, unit));
     setting_card(
         SettingCard {
-            icon: icon!(top_speed).size(SettingCardSize::Icon).build(),
+            icon: Some(icon!(top_speed).size(SettingCardSize::Icon).build()),
             title: l10n.settings_update_speed(),
             description: l10n.settings_update_speed_description(),
             control: control.into(),
