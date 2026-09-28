@@ -22,7 +22,6 @@ processes-selected = Selected: { $name } | PID { $pid }
 processes-selected-exited = Selected: { $name } | PID { $pid } | Exited
 processes-selected-group = Selected: { $name } | Group ({ $count })
 processes-selected-linux = Selected: { $name } | PID { $pid } | { $environment }
-processes-settings = Settings
 
 processes-settings-title = Settings
 processes-settings-columns = Columns

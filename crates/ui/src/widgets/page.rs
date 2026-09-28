@@ -117,6 +117,15 @@ pub fn command_button(
     labelled_button(ButtonStyle::Subtle, mark, label, icon, enabled, on_click)
 }
 
+pub fn icon_button(mark: impl Mark, icon: View, on_click: impl Fn() + 'static) -> View {
+    Button::new()
+        .mark(mark)
+        .style(ButtonStyle::Subtle)
+        .on_click(on_click)
+        .content(icon)
+        .into()
+}
+
 pub fn action_button(
     mark: impl Mark,
     label: impl Into<String>,

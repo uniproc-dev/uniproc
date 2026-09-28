@@ -4,9 +4,9 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Button, ButtonStyle, Callback, ChildrenControl, ContentControl, Grid, GridChildExt, GridLength,
-    KeyedView, LayoutControl, Orientation, ScrollViewer, StackPanel, ThemeBrush, Thickness, ToggleSwitch,
-    VerticalAlignment, View,
+    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, Grid, GridChildExt,
+    GridLength, KeyedView, LayoutControl, Orientation, PointerEventInfo, ScrollViewer, StackPanel, ThemeBrush,
+    Thickness, ToggleSwitch, VerticalAlignment, View,
 };
 
 use super::components::column_layout::ColumnLayout;
@@ -29,6 +29,7 @@ impl Layout {
     const RowSpacing: f64 = 4.0;
     const RowMinHeight: f64 = 48.0;
     const Border: f64 = 1.0;
+    const Hit: Color = Color::argb(0, 0, 0, 0);
 
     fn section_header() -> Thickness {
         Thickness::new(1.0, 30.0, 0.0, 6.0)
@@ -40,9 +41,11 @@ pub enum ProcessesSettingsMsg {
     MoveColumn(ProcessColumn, Step),
     MoveSection(SectionId, Step),
     ResetSections,
+    BackHovered(bool),
 }
 
 pub struct ProcessesSettingsPage {
+    back_hovered: bool,
     layout: ColumnLayout,
     sections: SectionOrder,
     section_ranks: Option<ReactiveMap<String, u32>>,
@@ -61,6 +64,7 @@ impl ProcessesSettingsPage {
             None => (None, None, None),
         };
         Self {
+            back_hovered: false,
             layout: ColumnLayout::new(columns, column_order),
             sections: SectionOrder::kept(section_ranks.as_ref()),
             section_ranks,
@@ -85,6 +89,7 @@ impl ProcessesSettingsPage {
                     SectionOrder::forget(ranks);
                 }
             }
+            ProcessesSettingsMsg::BackHovered(hovered) => self.back_hovered = hovered,
         }
     }
 
@@ -138,7 +143,7 @@ impl ProcessesSettingsPage {
                     .max_width(Layout::MaxWidth)
                     .margin(Thickness::new(space::Page, space::Section, space::Page, space::Page))
                     .children((
-                        breadcrumb(l10n, palette, back),
+                        breadcrumb(l10n, palette, self.back_hovered, &forward, back),
                         section(
                             l10n.processes_settings_columns(),
                             l10n.processes_settings_columns_description(),
@@ -159,22 +164,41 @@ impl ProcessesSettingsPage {
     }
 }
 
-fn breadcrumb(l10n: &L10n, palette: Palette, back: Callback<()>) -> View {
-    let parent = Button::new()
+fn breadcrumb(
+    l10n: &L10n,
+    palette: Palette,
+    hovered: bool,
+    forward: &Callback<ProcessesSettingsMsg>,
+    back: Callback<()>,
+) -> View {
+    let (entered, exited) = (forward.clone(), forward.clone());
+    let parent_text = subtitle(l10n.processes_title());
+    let parent_text = if hovered {
+        parent_text.foreground(ThemeBrush::PrimaryText)
+    } else {
+        parent_text.foreground(palette.secondary_text)
+    };
+    let parent = Border::new()
         .mark(ProcessesSettingsMark::Back)
-        .style(ButtonStyle::Subtle)
-        .on_click(move || {
+        .background(Layout::Hit)
+        .on_pointer_entered(move |_: PointerEventInfo| {
+            let _ = entered.call(ProcessesSettingsMsg::BackHovered(true));
+        })
+        .on_pointer_exited(move |_: PointerEventInfo| {
+            let _ = exited.call(ProcessesSettingsMsg::BackHovered(false));
+        })
+        .on_pointer_released(move |_: PointerEventInfo| {
             let _ = back.call(());
         })
-        .content(subtitle(l10n.processes_title()).foreground(palette.secondary_text));
+        .content(parent_text);
     StackPanel::new()
         .orientation(Orientation::Horizontal)
-        .spacing(space::Control)
+        .spacing(space::Header)
         .children((
             parent,
             Grid::new()
                 .vertical_alignment(VerticalAlignment::Center)
-                .children((icon!(chevron_right_regular).size(size::Icon).build_element(),)),
+                .children((icon!(chevron_right_regular).size(size::Chevron).build_element(),)),
             subtitle(l10n.processes_settings_title()).vertical_alignment(VerticalAlignment::Center),
         ))
         .into()

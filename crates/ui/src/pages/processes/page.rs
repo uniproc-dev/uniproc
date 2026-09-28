@@ -33,7 +33,7 @@ use super::components::status::{status_bar, StatusCounts};
 use super::marks::ProcessesMark;
 use crate::l10n::L10n;
 use crate::theme::{radius, size, space, Palette};
-use crate::widgets::page::{command_button, loading, page_frame, page_title};
+use crate::widgets::page::{command_button, icon_button, loading, page_frame, page_title};
 use crate::widgets::selection::SelectionMark;
 use crate::widgets::text::text;
 
@@ -373,11 +373,9 @@ impl ProcessesPage {
                     live.is_some_and(|row| row.category.takes_actions()),
                     move || terminate.emit(Terminate),
                 )),
-                Border::new().grid_column(3).content(command_button(
+                Border::new().grid_column(3).content(icon_button(
                     ProcessesMark::OpenSettings,
-                    l10n.processes_settings(),
-                    Some(icon!(settings).size(size::CommandIcon).build_element()),
-                    true,
+                    icon!(more_horizontal).size(size::CommandIcon).build_element(),
                     move || {
                         let _ = open_settings.call(());
                     },
