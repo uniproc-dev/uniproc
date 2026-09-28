@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use app_contracts::features::agents::{WindowsAction, WindowsReport};
 use tokio::sync::Mutex;
-use uniproc_windows_agent::agent::{Agent, Sampler};
+use uniproc_windows_agent::agent::{Agent, Watch};
 
 use super::windows_report::{self, Reports};
 
@@ -14,7 +14,7 @@ pub struct WindowsFeed {
 
 #[derive(Default)]
 struct Sampling {
-    sampler: Option<(Duration, Sampler)>,
+    watch: Option<(Duration, Watch)>,
     reports: Reports,
 }
 
@@ -34,20 +34,22 @@ impl WindowsFeed {
     pub async fn report(&self) -> anyhow::Result<Option<WindowsReport>> {
         let interval = (self.interval)();
         let mut sampling = self.sampling.lock().await;
-        let Sampling { sampler, reports } = &mut *sampling;
-        let sampler = match sampler {
-            Some((held, sampler)) if *held == interval => sampler,
-            slot => {
-                *slot = None;
-                let subscribed = self.agent.subscribe(windows_report::spec(interval)).await?;
-                &mut slot.insert((interval, subscribed)).1
+        let Sampling { watch: slot, reports } = &mut *sampling;
+        let watch = match &mut *slot {
+            Some((held, watch)) if *held == interval => watch,
+            stale => {
+                *stale = None;
+                let watching = self.agent.watch(windows_report::spec(interval)).await?;
+                &mut stale.insert((interval, watching)).1
             }
         };
-        let sample = sampler.next().await?;
-        let Some(snapshot) = self.agent.snapshot().await? else {
-            return Ok(None);
-        };
-        Ok(Some(reports.report(&snapshot, &sample)))
+        match watch.next().await {
+            Ok(update) => Ok(Some(reports.report(&update))),
+            Err(error) => {
+                *slot = None;
+                Err(error)
+            }
+        }
     }
 
     pub async fn act(&self, action: WindowsAction) -> u32 {

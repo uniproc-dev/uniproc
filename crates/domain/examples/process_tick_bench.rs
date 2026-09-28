@@ -98,15 +98,12 @@ mod bench {
         let agent = Agent::remote(Duration::from_secs(5))
             .await
             .context("connect failed - is uniproc-windows-agent running?")?;
-        let mut sampler = agent.subscribe(windows_report::spec(Duration::from_secs(1))).await?;
-        let sample = sampler.next().await?;
-        let snapshot = agent
-            .snapshot()
-            .await?
-            .context("the process list kept moving under the states")?;
+        let mut watch = agent.watch(windows_report::spec(Duration::from_secs(1))).await?;
+        let update = watch.next().await?;
+        let snapshot = &update.snapshot;
 
         let mut reports = Reports::default();
-        let report = reports.report(&snapshot, &sample);
+        let report = reports.report(&update);
         let windowed = windows_scan::app_windows();
         println!(
             "live: {} passports, {} metric rows, {} app-window pids, {} rounds per stage\n",
@@ -116,7 +113,7 @@ mod bench {
             ROUNDS,
         );
 
-        let joined = measure(|| (), |()| reports.report(&snapshot, &sample));
+        let joined = measure(|| (), |()| reports.report(&update));
         let scanned = measure(|| (), |()| windows_scan::app_windows());
         let mapped = measure(|| (), |()| rows_from_report(&report, &windowed));
         let published = measure(

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -35,17 +35,19 @@ pub fn spec(interval: Duration) -> MetricSpec {
 
 #[derive(Default)]
 pub struct Reports {
-    processes: Option<api::Tagged<Arc<[api::ProcessInfo]>>>,
     passports: HashMap<Key, WindowsProcessStats>,
-    services: Option<(u64, Vec<WindowsServiceStats>)>,
+    services: Vec<WindowsServiceStats>,
     cpu_times: HashMap<Key, u64>,
     machine_cpu: Option<api::MachineCpu>,
 }
 
 impl Reports {
-    pub fn report(&mut self, snapshot: &api::Snapshot, sample: &api::Sample) -> WindowsReport {
-        self.keep_passports(&snapshot.processes);
-        self.keep_services(&snapshot.services);
+    pub fn report(&mut self, update: &api::Update) -> WindowsReport {
+        let api::Update { snapshot, sample, changes } = update;
+        self.keep_passports(&snapshot.processes.value, changes);
+        if changes.full || changes.services {
+            self.services = snapshot.services.value.iter().map(service).collect();
+        }
 
         let elapsed = machine_time(self.machine_cpu, sample.machine.cpu);
         let columns = &sample.columns;
@@ -91,39 +93,25 @@ impl Reports {
         WindowsReport {
             machine,
             processes,
-            services: self.services.as_ref().map(|(_, services)| services.clone()).unwrap_or_default(),
+            services: self.services.clone(),
         }
     }
 
-    fn keep_passports(&mut self, processes: &api::Tagged<Arc<[api::ProcessInfo]>>) {
-        if self.processes.as_ref().is_some_and(|held| held.etag == processes.etag) {
+    fn keep_passports(&mut self, processes: &[api::ProcessInfo], changes: &api::Changes) {
+        if changes.full {
+            self.passports = processes.iter().map(|info| (key(info), passport(info))).collect();
             return;
         }
-        let before: HashMap<Key, &api::ProcessInfo> = self
-            .processes
-            .as_ref()
-            .map(|held| held.value.iter().map(|info| (key(info), info)).collect())
-            .unwrap_or_default();
-
-        let mut held = std::mem::take(&mut self.passports);
-        self.passports = processes
-            .value
-            .iter()
-            .map(|info| {
-                let kept = held
-                    .remove(&key(info))
-                    .filter(|_| before.get(&key(info)).is_some_and(|was| *was == info));
-                (key(info), kept.unwrap_or_else(|| passport(info)))
-            })
-            .collect();
-        self.processes = Some(processes.clone());
-    }
-
-    fn keep_services(&mut self, services: &api::Tagged<Arc<[api::ServiceStats]>>) {
-        if self.services.as_ref().is_some_and(|(etag, _)| *etag == services.etag) {
+        for left in &changes.left {
+            self.passports.remove(left);
+        }
+        if changes.passports.is_empty() {
             return;
         }
-        self.services = Some((services.etag, services.value.iter().map(service).collect()));
+        let changed: HashSet<Key> = changes.passports.iter().copied().collect();
+        for info in processes.iter().filter(|info| changed.contains(&key(info))) {
+            self.passports.insert(key(info), passport(info));
+        }
     }
 }
 
@@ -290,10 +278,26 @@ mod tests {
         api::ProcessInfo {
             pid,
             sequence_number: sequence(pid),
-            name: name.to_string(),
+            name: name.into(),
             cmdline: cmdline.iter().map(|arg| arg.to_string()).collect(),
             ..api::ProcessInfo::default()
         }
+    }
+
+    fn update(snapshot: api::Snapshot, sample: api::Sample, changes: api::Changes) -> api::Update {
+        api::Update { snapshot, sample, changes }
+    }
+
+    fn full(snapshot: api::Snapshot, sample: api::Sample) -> api::Update {
+        update(snapshot, sample, api::Changes { full: true, ..api::Changes::default() })
+    }
+
+    fn same(snapshot: api::Snapshot, sample: api::Sample) -> api::Update {
+        update(snapshot, sample, api::Changes::default())
+    }
+
+    fn key(pid: u32) -> (u32, u64) {
+        (pid, sequence(pid))
     }
 
     fn snapshot(etag: u64, infos: Vec<api::ProcessInfo>) -> api::Snapshot {
@@ -346,10 +350,10 @@ mod tests {
     fn a_passport_keeps_the_first_argument_and_the_console_host() {
         let mut console = info(7, "app.exe", &[r"C:\app.exe", "--flag"]);
         console.console_host_pid = 40;
-        let report = Reports::default().report(
-            &snapshot(1, vec![console, info(8, "idle", &[])]),
-            &sample(&[row(7, 0), row(8, 0)], 0, 0),
-        );
+        let report = Reports::default().report(&full(
+            snapshot(1, vec![console, info(8, "idle", &[])]),
+            sample(&[row(7, 0), row(8, 0)], 0, 0),
+        ));
 
         assert_eq!(&*report.processes[0].first_arg, r"C:\app.exe");
         assert_eq!(report.processes[0].console_host_pid, 40);
@@ -360,10 +364,10 @@ mod tests {
     fn rows_join_their_passports_by_pid_and_sequence_number() {
         let mut read = row(9, 0);
         read.disk_read_bytes = 100;
-        let report = Reports::default().report(
-            &snapshot(1, vec![info(7, "a.exe", &[]), info(9, "b.exe", &[])]),
-            &sample(&[read, row(7, 0)], 0, 0),
-        );
+        let report = Reports::default().report(&full(
+            snapshot(1, vec![info(7, "a.exe", &[]), info(9, "b.exe", &[])]),
+            sample(&[read, row(7, 0)], 0, 0),
+        ));
 
         let by_pid = |pid: u32| report.processes.iter().find(|r| r.pid == pid).unwrap();
         assert_eq!(&*by_pid(9).name, "b.exe");
@@ -375,10 +379,10 @@ mod tests {
     fn a_row_without_its_passport_is_dropped_rather_than_named_wrong() {
         let mut reused = row(8, 0);
         reused.sequence_number += 1;
-        let report = Reports::default().report(
-            &snapshot(1, vec![info(7, "a.exe", &[]), info(8, "b.exe", &[])]),
-            &sample(&[row(7, 0), reused, row(99, 0)], 0, 0),
-        );
+        let report = Reports::default().report(&full(
+            snapshot(1, vec![info(7, "a.exe", &[]), info(8, "b.exe", &[])]),
+            sample(&[row(7, 0), reused, row(99, 0)], 0, 0),
+        ));
 
         assert_eq!(report.processes.iter().map(|r| r.pid).collect::<Vec<_>>(), vec![7]);
     }
@@ -386,34 +390,79 @@ mod tests {
     #[test]
     fn an_unchanged_process_keeps_its_strings_across_list_changes() {
         let mut reports = Reports::default();
-        let first = reports.report(&snapshot(1, vec![info(7, "a.exe", &[])]), &sample(&[row(7, 0)], 0, 0));
-        let second = reports.report(
-            &snapshot(2, vec![info(7, "a.exe", &[]), info(8, "b.exe", &[])]),
-            &sample(&[row(7, 0), row(8, 0)], 0, 0),
-        );
+        let first = reports.report(&full(snapshot(1, vec![info(7, "a.exe", &[])]), sample(&[row(7, 0)], 0, 0)));
+        let second = reports.report(&update(
+            snapshot(2, vec![info(7, "a.exe", &[]), info(8, "b.exe", &[])]),
+            sample(&[row(7, 0), row(8, 0)], 0, 0),
+            api::Changes { passports: vec![key(8)], states: vec![key(8)], ..api::Changes::default() },
+        ));
 
         assert!(Arc::ptr_eq(&first.processes[0].name, &second.processes[0].name));
+        assert_eq!(&*second.processes[1].name, "b.exe");
+    }
+
+    #[test]
+    fn a_changed_passport_is_read_again() {
+        let mut reports = Reports::default();
+        reports.report(&full(snapshot(1, vec![info(7, "a.exe", &[])]), sample(&[row(7, 0)], 0, 0)));
+        let mut enriched = info(7, "a.exe", &[]);
+        enriched.display_name = "App".into();
+        let report = reports.report(&update(
+            snapshot(2, vec![enriched]),
+            sample(&[row(7, 0)], 0, 0),
+            api::Changes { passports: vec![key(7)], ..api::Changes::default() },
+        ));
+
+        assert_eq!(&*report.processes[0].display_name, "App");
     }
 
     #[test]
     fn a_reused_pid_gets_the_new_process_strings() {
         let mut reports = Reports::default();
-        reports.report(&snapshot(1, vec![info(7, "a.exe", &[])]), &sample(&[row(7, 0)], 0, 0));
+        reports.report(&full(snapshot(1, vec![info(7, "a.exe", &[])]), sample(&[row(7, 0)], 0, 0)));
         let mut reborn = info(7, "b.exe", &[]);
         reborn.sequence_number += 1;
         let mut reused = row(7, 0);
         reused.sequence_number += 1;
-        let report = reports.report(&snapshot(2, vec![reborn]), &sample(&[reused], 0, 0));
+        let report = reports.report(&update(
+            snapshot(2, vec![reborn]),
+            sample(&[reused], 0, 0),
+            api::Changes {
+                passports: vec![(7, sequence(7) + 1)],
+                left: vec![key(7)],
+                ..api::Changes::default()
+            },
+        ));
 
         assert_eq!(&*report.processes[0].name, "b.exe");
+        assert_eq!(reports.passports.len(), 1);
+    }
+
+    #[test]
+    fn services_are_read_again_only_when_they_changed() {
+        let mut reports = Reports::default();
+        let mut list = snapshot(1, vec![]);
+        list.services.value = Arc::from([api::ServiceStats { name: "svc".into(), ..api::ServiceStats::default() }]);
+        let first = reports.report(&full(list.clone(), sample(&[], 0, 0)));
+        let kept = reports.report(&same(list.clone(), sample(&[], 0, 0)));
+        list.services.value = Arc::from([]);
+        let changed = reports.report(&update(
+            list,
+            sample(&[], 0, 0),
+            api::Changes { services: true, ..api::Changes::default() },
+        ));
+
+        assert_eq!(first.services.len(), 1);
+        assert!(Arc::ptr_eq(&first.services[0].name, &kept.services[0].name));
+        assert!(changed.services.is_empty());
     }
 
     #[test]
     fn cpu_is_the_share_of_machine_time_between_two_samples() {
         let mut reports = Reports::default();
         let list = snapshot(1, vec![info(7, "a.exe", &[])]);
-        let first = reports.report(&list, &sample(&[row(7, 1_000)], 10_000, 4_000));
-        let second = reports.report(&list, &sample(&[row(7, 1_250)], 11_000, 4_600));
+        let first = reports.report(&full(list.clone(), sample(&[row(7, 1_000)], 10_000, 4_000)));
+        let second = reports.report(&same(list, sample(&[row(7, 1_250)], 11_000, 4_600)));
 
         assert_eq!(first.processes[0].cpu_percent, 0.0);
         assert_eq!(first.machine.cpu_percent, 0.0);
@@ -427,8 +476,8 @@ mod tests {
         let list = snapshot(1, vec![info(7, "a.exe", &[])]);
         let mut unread = sample(&[row(7, api::NO_DATA_U64)], 10_000, 0);
         unread.columns.working_set = Some(Arc::from([api::NO_DATA_U64]));
-        let first = reports.report(&list, &unread);
-        let second = reports.report(&list, &sample(&[row(7, 500)], 11_000, 0));
+        let first = reports.report(&full(list.clone(), unread));
+        let second = reports.report(&same(list, sample(&[row(7, 500)], 11_000, 0)));
 
         assert_eq!(first.processes[0].working_set_bytes, 0);
         assert_eq!(second.processes[0].cpu_percent, 0.0);
@@ -437,11 +486,12 @@ mod tests {
     #[test]
     fn a_process_seen_for_the_first_time_has_no_cpu_yet() {
         let mut reports = Reports::default();
-        reports.report(&snapshot(1, vec![info(7, "a.exe", &[])]), &sample(&[row(7, 0)], 10_000, 0));
-        let report = reports.report(
-            &snapshot(2, vec![info(7, "a.exe", &[]), info(8, "b.exe", &[])]),
-            &sample(&[row(7, 0), row(8, 900_000)], 11_000, 0),
-        );
+        reports.report(&full(snapshot(1, vec![info(7, "a.exe", &[])]), sample(&[row(7, 0)], 10_000, 0)));
+        let report = reports.report(&update(
+            snapshot(2, vec![info(7, "a.exe", &[]), info(8, "b.exe", &[])]),
+            sample(&[row(7, 0), row(8, 900_000)], 11_000, 0),
+            api::Changes { passports: vec![key(8)], states: vec![key(8)], ..api::Changes::default() },
+        ));
 
         let by_pid = |pid: u32| report.processes.iter().find(|r| r.pid == pid).unwrap();
         assert_eq!(by_pid(8).cpu_percent, 0.0);
