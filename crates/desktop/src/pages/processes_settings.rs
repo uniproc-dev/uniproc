@@ -189,6 +189,31 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_columns_come_back_to_their_defaults(h: &mut Harness) {
+        use ProcessColumn::*;
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        let reset = ProcessesSettingsMark::ResetColumns;
+        assert!(!enabled(&mut page, reset, reset), "nothing to reset yet");
+
+        page.within(Cpu).click(ProcessesSettingsMark::Down).settle();
+        page.within(Pid).click(ProcessesSettingsMark::Shown).settle();
+        page.settle();
+        assert!(enabled(&mut page, reset, reset));
+
+        page.click(reset).settle();
+        page.settle();
+
+        assert_eq!(columns(&page), names(&ProcessColumn::ALL));
+        assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(false)));
+        assert!(!enabled(&mut page, reset, reset));
+        let stored = Stored::new().unwrap();
+        assert_eq!(stored.columns().order().get("cpu"), None);
+        assert!(stored.columns().configs().get(Pid.id()).is_some_and(|config| !config.visible));
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_section_moves_up_and_the_order_can_be_reset(h: &mut Harness) {
         let _store = start(h);
         let h = &*h;

@@ -4,9 +4,9 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, Grid, GridChildExt,
-    GridLength, KeyedView, LayoutControl, Orientation, PointerEventInfo, ScrollViewer, StackPanel, ThemeBrush,
-    Thickness, ToggleSwitch, VerticalAlignment, View,
+    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, Expander, Grid,
+    GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation, PointerEventInfo,
+    ScrollViewer, StackPanel, ThemeBrush, Thickness, ToggleSwitch, VerticalAlignment, View,
 };
 
 use super::components::column_layout::ColumnLayout;
@@ -16,24 +16,21 @@ use super::components::Step;
 use super::marks::ProcessesSettingsMark;
 use super::page::ProcessesSettingsMaps;
 use crate::l10n::L10n;
-use crate::theme::{radius, size, space, Palette};
-use crate::widgets::card::card;
+use crate::theme::{size, space, Palette};
 use crate::widgets::page::action_button;
-use crate::widgets::text::{body_strong, caption, subtitle, text};
+use crate::widgets::separator;
+use crate::widgets::text::{caption, subtitle, text};
 
 struct Layout;
 
 #[expect(non_upper_case_globals)]
 impl Layout {
     const MaxWidth: f64 = 1064.0;
-    const RowSpacing: f64 = 4.0;
-    const RowMinHeight: f64 = 48.0;
-    const Border: f64 = 1.0;
+    const ExpanderSpacing: f64 = 4.0;
+    const RowMinHeight: f64 = 44.0;
+    const HeaderInset: f64 = 12.0;
+    const SwitchContentColumn: f64 = 12.0;
     const Hit: Color = Color::argb(0, 0, 0, 0);
-
-    fn section_header() -> Thickness {
-        Thickness::new(1.0, 30.0, 0.0, 6.0)
-    }
 }
 
 struct Crumb;
@@ -46,10 +43,12 @@ impl Crumb {
     const ChevronDrop: f64 = 2.0;
 }
 
+#[derive(Clone, Copy)]
 pub enum ProcessesSettingsMsg {
     ShowColumn(ProcessColumn, bool),
     MoveColumn(ProcessColumn, Step),
     MoveSection(SectionId, Step),
+    ResetColumns,
     ResetSections,
     BackHovered(bool),
 }
@@ -93,6 +92,7 @@ impl ProcessesSettingsPage {
                     }
                 }
             }
+            ProcessesSettingsMsg::ResetColumns => self.layout.reset(),
             ProcessesSettingsMsg::ResetSections => {
                 self.sections = SectionOrder::default();
                 if let Some(ranks) = &self.section_ranks {
@@ -111,20 +111,13 @@ impl ProcessesSettingsPage {
         back: Callback<()>,
     ) -> View {
         let columns = self.layout.placed().into_iter().map(|column| {
-            let shown = forward.clone();
-            let switch = ToggleSwitch::new()
-                .mark(ProcessesSettingsMark::Shown)
-                .is_on(self.layout.visible(column))
-                .is_enabled(column != ProcessColumn::Name)
-                .on_toggled(move |on: bool| {
-                    let _ = shown.call(ProcessesSettingsMsg::ShowColumn(column, on));
-                });
             let moves = move_buttons(
                 |step| self.layout.can_shift(column, step),
                 &forward,
                 move |step| ProcessesSettingsMsg::MoveColumn(column, step),
             );
-            row(column, column_label(l10n, column), (moves, switch.into()))
+            let switch = shown_switch(column, self.layout.visible(column), l10n, palette, &forward);
+            row(column, column_label(l10n, column), (moves, switch), palette)
         });
 
         let sections = self.sections.ids().iter().map(|&section| {
@@ -133,18 +126,36 @@ impl ProcessesSettingsPage {
                 &forward,
                 move |step| ProcessesSettingsMsg::MoveSection(section, step),
             );
-            row(section, section_label(l10n, section), (moves, View::empty()))
+            row(section, section_label(l10n, section), (moves, View::empty()), palette)
         });
 
-        let reset = forward.clone();
-        let reset = action_button(
-            ProcessesSettingsMark::ResetSections,
-            l10n.processes_settings_reset_sections(),
-            Some(icon!(restore).size(size::Icon).build_element()),
-            self.sections != SectionOrder::default(),
-            move || {
-                let _ = reset.call(ProcessesSettingsMsg::ResetSections);
-            },
+        let columns = expander(
+            l10n.processes_settings_columns(),
+            l10n.processes_settings_columns_description(),
+            columns.collect(),
+            reset_row(
+                l10n.processes_settings_columns_reset(),
+                ProcessesSettingsMark::ResetColumns,
+                !self.layout.is_default(),
+                l10n,
+                &forward,
+                ProcessesSettingsMsg::ResetColumns,
+            ),
+            palette,
+        );
+        let sections = expander(
+            l10n.processes_settings_sections(),
+            l10n.processes_settings_sections_description(),
+            sections.collect(),
+            reset_row(
+                l10n.processes_settings_sections_reset(),
+                ProcessesSettingsMark::ResetSections,
+                self.sections != SectionOrder::default(),
+                l10n,
+                &forward,
+                ProcessesSettingsMsg::ResetSections,
+            ),
+            palette,
         );
 
         ScrollViewer::new()
@@ -154,20 +165,10 @@ impl ProcessesSettingsPage {
                     .margin(Thickness::new(space::Page, space::Section, space::Page, space::Page))
                     .children((
                         breadcrumb(l10n, palette, self.back_hovered, &forward, back),
-                        section(
-                            l10n.processes_settings_columns(),
-                            l10n.processes_settings_columns_description(),
-                            View::empty(),
-                            columns.collect::<Vec<_>>(),
-                            palette,
-                        ),
-                        section(
-                            l10n.processes_settings_sections(),
-                            l10n.processes_settings_sections_description(),
-                            reset,
-                            sections.collect::<Vec<_>>(),
-                            palette,
-                        ),
+                        StackPanel::new()
+                            .margin(Thickness::new(0.0, space::Section, 0.0, 0.0))
+                            .spacing(Layout::ExpanderSpacing)
+                            .children((columns, sections)),
                     )),
             )
             .into()
@@ -217,26 +218,78 @@ fn breadcrumb(
         .into()
 }
 
-fn section(title: String, description: String, action: View, rows: Vec<KeyedView>, palette: Palette) -> View {
-    let heading = Grid::new()
+fn expander(title: String, description: String, rows: Vec<KeyedView>, reset: View, palette: Palette) -> View {
+    let header = StackPanel::new()
+        .margin(Thickness::xy(0.0, Layout::HeaderInset))
+        .vertical_alignment(VerticalAlignment::Center)
+        .children((text(title), caption(description).foreground(palette.secondary_text)));
+    Expander::new()
+        .horizontal_alignment(HorizontalAlignment::Stretch)
+        .header(header)
+        .content(StackPanel::new().children((View::keyed_fragment(rows), reset)))
+        .into()
+}
+
+fn shown_switch(
+    column: ProcessColumn,
+    visible: bool,
+    l10n: &L10n,
+    palette: Palette,
+    forward: &Callback<ProcessesSettingsMsg>,
+) -> View {
+    let enabled = column != ProcessColumn::Name;
+    let state = text(if visible {
+        l10n.processes_settings_shown_on()
+    } else {
+        l10n.processes_settings_shown_off()
+    })
+    .vertical_alignment(VerticalAlignment::Center);
+    let state = if enabled {
+        state
+    } else {
+        state.foreground(palette.disabled_text)
+    };
+    let shown = forward.clone();
+    let switch = ToggleSwitch::new()
+        .mark(ProcessesSettingsMark::Shown)
+        .is_on(visible)
+        .is_enabled(enabled)
+        .on_content(View::empty())
+        .off_content(View::empty())
+        .min_width(0.0)
+        .margin(Thickness::new(0.0, 0.0, -Layout::SwitchContentColumn, 0.0))
+        .on_toggled(move |on: bool| {
+            let _ = shown.call(ProcessesSettingsMsg::ShowColumn(column, on));
+        });
+    StackPanel::new()
+        .orientation(Orientation::Horizontal)
+        .spacing(space::Header)
+        .children((state, switch))
+        .into()
+}
+
+fn reset_row(
+    label: String,
+    mark: ProcessesSettingsMark,
+    enabled: bool,
+    l10n: &L10n,
+    forward: &Callback<ProcessesSettingsMsg>,
+    message: ProcessesSettingsMsg,
+) -> View {
+    let forward = forward.clone();
+    let button = action_button(mark, l10n.processes_settings_reset(), None, enabled, move || {
+        let _ = forward.call(message);
+    });
+    Grid::new()
         .columns([GridLength::Star(1.0), GridLength::Auto])
-        .margin(Layout::section_header())
+        .min_height(Layout::RowMinHeight)
+        .margin(Thickness::new(0.0, space::Control, 0.0, 0.0))
         .children((
-            StackPanel::new().grid_column(0).children((
-                body_strong(title),
-                caption(description).foreground(palette.secondary_text),
-            )),
+            text(label).vertical_alignment(VerticalAlignment::Center).grid_column(0),
             Grid::new()
                 .grid_column(1)
-                .vertical_alignment(VerticalAlignment::Bottom)
-                .children((action,)),
-        ));
-    StackPanel::new()
-        .children((
-            heading,
-            StackPanel::new()
-                .spacing(Layout::RowSpacing)
-                .children((View::keyed_fragment(rows),)),
+                .vertical_alignment(VerticalAlignment::Center)
+                .children((button,)),
         ))
         .into()
 }
@@ -276,32 +329,25 @@ fn move_buttons(
         .into()
 }
 
-fn row(mark: impl Mark, label: String, (moves, control): (View, View)) -> KeyedView {
+fn row(mark: impl Mark, label: String, (moves, control): (View, View), palette: Palette) -> KeyedView {
     let key = mark.name();
-    let row = card()
-        .mark(mark)
-        .corner_radius(radius::Control)
-        .border_thickness(Layout::Border)
-        .border_brush(ThemeBrush::CardStroke)
-        .min_height(Layout::RowMinHeight)
-        .padding(Thickness::xy(space::Card, space::Compact))
-        .content(
-            Grid::new()
-                .columns([GridLength::Star(1.0), GridLength::Auto, GridLength::Auto])
-                .column_spacing(space::Card)
-                .children((
-                    text(label)
-                        .vertical_alignment(VerticalAlignment::Center)
-                        .grid_column(0),
-                    Grid::new()
-                        .grid_column(1)
-                        .vertical_alignment(VerticalAlignment::Center)
-                        .children((moves,)),
-                    Grid::new()
-                        .grid_column(2)
-                        .vertical_alignment(VerticalAlignment::Center)
-                        .children((control,)),
-                )),
-        );
-    KeyedView::new(key, row)
+    let line = Border::new().mark(mark).min_height(Layout::RowMinHeight).content(
+        Grid::new()
+            .columns([GridLength::Star(1.0), GridLength::Auto, GridLength::Auto])
+            .column_spacing(space::Card)
+            .children((
+                text(label)
+                    .vertical_alignment(VerticalAlignment::Center)
+                    .grid_column(0),
+                Grid::new()
+                    .grid_column(1)
+                    .vertical_alignment(VerticalAlignment::Center)
+                    .children((moves,)),
+                Grid::new()
+                    .grid_column(2)
+                    .vertical_alignment(VerticalAlignment::Center)
+                    .children((control,)),
+            )),
+    );
+    KeyedView::new(key, StackPanel::new().children((line, separator(palette))))
 }

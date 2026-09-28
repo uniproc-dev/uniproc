@@ -148,6 +148,25 @@ impl ColumnLayout {
         });
     }
 
+    pub(crate) fn is_default(&self) -> bool {
+        self.placed() == ProcessColumn::ALL
+            && ProcessColumn::ALL
+                .into_iter()
+                .all(|column| self.visible(column) == column.default_config().visible)
+    }
+
+    pub(crate) fn reset(&mut self) {
+        self.order = ColumnOrder::default();
+        if let Some(ranks) = &self.ranks
+            && let Err(err) = ranks.clear()
+        {
+            tracing::warn!(?err, "column order reset failed");
+        }
+        for column in ProcessColumn::ALL {
+            self.show(column, column.default_config().visible);
+        }
+    }
+
     pub(crate) fn visible(&self, column: ProcessColumn) -> bool {
         self.config(column).visible
     }

@@ -4,6 +4,7 @@ pub enum ProcessesSettingsMark {
     Shown,
     Up,
     Down,
+    ResetColumns,
     ResetSections,
 }
 

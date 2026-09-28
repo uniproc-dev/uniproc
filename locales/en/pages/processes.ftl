@@ -25,10 +25,14 @@ processes-selected-linux = Selected: { $name } | PID { $pid } | { $environment }
 
 processes-settings-title = Settings
 processes-settings-columns = Columns
-processes-settings-columns-description = Which columns the table shows and in what order. Name always comes first.
+processes-settings-columns-description = Column order on the Processes page
+processes-settings-columns-reset = Default columns
 processes-settings-sections = Sections
-processes-settings-sections-description = The order of the groups in the table. Headings can also be dragged in the table itself.
-processes-settings-reset-sections = Reset order
+processes-settings-sections-description = Section order on the Processes page
+processes-settings-sections-reset = Default section order
+processes-settings-reset = Reset
+processes-settings-shown-on = On
+processes-settings-shown-off = Off
 
 processes-menu-pin = Pin
 processes-menu-unpin = Unpin
