@@ -16,6 +16,7 @@ use crate::widgets::metric_chart::{
     metric_chart, metric_mini_bar, MetricChart, MetricChartKind, MetricChartStyle,
 };
 use crate::widgets::separator;
+use crate::widgets::text::nav_label;
 
 struct Title;
 
@@ -178,7 +179,7 @@ fn navigation(props: ShellProps<'_>) -> View {
             tag,
             NavigationViewItem::new()
                 .tag(tag)
-                .content(label)
+                .content(nav_label(label))
                 .icon(icon)
                 .is_selected(tag == selected_tag),
         )
