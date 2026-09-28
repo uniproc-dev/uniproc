@@ -1,5 +1,7 @@
-pub fn bytes_per_second(v: u64) -> String {
-    format!("{}/s", bytes(v))
+use app_contracts::features::settings::ByteUnits;
+
+pub fn bytes_per_second(units: ByteUnits, v: u64) -> String {
+    format!("{}/s", bytes(units, v))
 }
 
 struct Binary;
@@ -9,15 +11,36 @@ impl Binary {
     const Kib: f64 = 1024.0;
 }
 
-pub fn bytes(v: u64) -> String {
+fn suffixes(units: ByteUnits) -> [&'static str; 3] {
+    match units {
+        ByteUnits::Windows => ["KB", "MB", "GB"],
+        ByteUnits::Iec => ["KiB", "MiB", "GiB"],
+    }
+}
+
+pub fn bytes(units: ByteUnits, v: u64) -> String {
+    let [kilo, mega, giga] = suffixes(units);
     let f = v as f64;
     if f >= Binary::Kib.powi(3) {
-        format!("{:.1} GiB", f / Binary::Kib.powi(3))
+        format!("{:.1} {giga}", f / Binary::Kib.powi(3))
     } else if f >= Binary::Kib.powi(2) {
-        format!("{:.1} MiB", f / Binary::Kib.powi(2))
+        format!("{:.1} {mega}", f / Binary::Kib.powi(2))
     } else if f >= Binary::Kib {
-        format!("{:.0} KiB", f / Binary::Kib)
+        format!("{:.0} {kilo}", f / Binary::Kib)
     } else {
         format!("{v} B")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn windows_units_count_in_1024s_and_say_gb() {
+        assert_eq!(bytes(ByteUnits::Windows, 3 << 30), "3.0 GB");
+        assert_eq!(bytes(ByteUnits::Iec, 3 << 30), "3.0 GiB");
+        assert_eq!(bytes_per_second(ByteUnits::Windows, 20 << 10), "20 KB/s");
+        assert_eq!(bytes(ByteUnits::Iec, 512), "512 B");
     }
 }

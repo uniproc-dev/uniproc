@@ -1,5 +1,5 @@
 use app_contracts::features::settings::{
-    SetStartPage, SetTheme, SetUpdateInterval, SettingsMsg, SettingsState, UpdateInterval,
+    SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsMsg, SettingsState, UpdateInterval,
     UpdateIntervalChanged,
 };
 use guinea::prelude::*;
@@ -23,14 +23,23 @@ impl SettingsActor {
             theme: state.theme,
             start_page: state.start_page,
             update_interval_ms: state.update_interval_ms,
+            byte_units: state.byte_units,
         });
     }
 }
 
 actor! {
     SettingsActor {
-        handlers { SetTheme, SetStartPage, SetUpdateInterval }
+        handlers { SetTheme, SetStartPage, SetUpdateInterval, SetByteUnits }
     }
+}
+
+#[handler]
+fn set_byte_units(this: &mut SettingsActor, SetByteUnits(units): SetByteUnits) {
+    if let Err(err) = this.settings.byte_units().set(units.id().to_string()) {
+        tracing::warn!(?err, "byte units setting write failed");
+    }
+    this.publish();
 }
 
 #[handler]

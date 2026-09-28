@@ -55,6 +55,28 @@ impl StartPage {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Deserialize)]
+pub enum ByteUnits {
+    #[default]
+    Windows,
+    Iec,
+}
+
+impl ByteUnits {
+    pub const ALL: [ByteUnits; 2] = [ByteUnits::Windows, ByteUnits::Iec];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            ByteUnits::Windows => "windows",
+            ByteUnits::Iec => "iec",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|units| units.id() == id)
+    }
+}
+
 pub struct UpdateInterval;
 
 #[expect(non_upper_case_globals)]
@@ -82,6 +104,9 @@ mod tests {
         }
         for page in StartPage::ALL {
             assert_eq!(StartPage::from_id(page.id()), Some(page));
+        }
+        for units in ByteUnits::ALL {
+            assert_eq!(ByteUnits::from_id(units.id()), Some(units));
         }
         assert_eq!(AppTheme::from_id("sepia"), None);
     }

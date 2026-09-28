@@ -167,6 +167,7 @@ impl Layout for ShellLayout {
             content,
             splash: splash(&link, &link_dispatch, &l10n, palette),
             metrics: &metrics,
+            units: settings.byte_units,
             cpu_chart: &self.cpu_chart,
             memory_chart: &self.memory_chart,
             on_select,

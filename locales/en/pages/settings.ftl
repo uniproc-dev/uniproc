@@ -18,3 +18,8 @@ settings-start-page-wsl = WSL
 settings-update-speed = Real time update speed
 settings-update-speed-description = Choose how often to update the system resource usage report
 settings-update-speed-unit = ms
+
+settings-byte-units = Size units
+settings-byte-units-description = How memory, disk and network amounts are written
+settings-byte-units-windows = KB, MB, GB
+settings-byte-units-iec = KiB, MiB, GiB

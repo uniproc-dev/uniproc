@@ -4,6 +4,7 @@ use app_contracts::features::agents::EnvironmentKind;
 use app_contracts::features::processes::{
     HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessRow, ProcessWindow,
 };
+use app_contracts::features::settings::ByteUnits;
 use guicons::icon;
 use guinea_widgets::table::ColumnSpec;
 use windows_reactor::{
@@ -765,6 +766,7 @@ pub(crate) struct ColumnInputs<'a> {
     pub(crate) machine: Option<MachineSummary>,
     pub(crate) rows: &'a [ProcessRow],
     pub(crate) memory_as_percent: bool,
+    pub(crate) units: ByteUnits,
     pub(crate) actions: NameCellActions,
     pub(crate) group_by_type: GroupByType,
     pub(crate) sort_column: ProcessColumn,
@@ -780,6 +782,7 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
         machine,
         rows,
         memory_as_percent,
+        units,
         actions,
         group_by_type,
         sort_column,
@@ -804,7 +807,7 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
     };
     let memory_used = match (machine.as_ref(), memory_as_percent) {
         (Some(m), true) if m.memory_total_bytes > 0 => percent(memory_share(m.memory_used_bytes) * 100.0),
-        (Some(m), false) => format::bytes(m.memory_used_bytes),
+        (Some(m), false) => format::bytes(units, m.memory_used_bytes),
         _ => String::new(),
     };
     let accent = accent_color();
@@ -860,7 +863,7 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                         let shown = if memory_as_percent {
                             percent(memory_share(r.memory_bytes) * 100.0)
                         } else {
-                            format::bytes(r.memory_bytes)
+                            format::bytes(units, r.memory_bytes)
                         };
                         (shown, r.memory_bytes == 0)
                     },
@@ -870,18 +873,18 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                 ProcessColumn::Net => metric_column(MetricColumn {
                     id: ProcessColumn::Net,
                     label: l10n.processes_col_net(),
-                    total: format::bytes_per_second(net_total),
+                    total: format::bytes_per_second(units, net_total),
                     place,
-                    value: |r: &ProcessRow| (format::bytes_per_second(r.net_bytes), r.net_bytes == 0),
+                    value: move |r: &ProcessRow| (format::bytes_per_second(units, r.net_bytes), r.net_bytes == 0),
                     heat: move |r: &ProcessRow| (r.net_bytes as f32 / net_max, accent),
                     threshold: Heat::Threshold,
                 }),
                 ProcessColumn::Disk => metric_column(MetricColumn {
                     id: ProcessColumn::Disk,
                     label: l10n.processes_col_disk(),
-                    total: format::bytes_per_second(disk_total),
+                    total: format::bytes_per_second(units, disk_total),
                     place,
-                    value: |r: &ProcessRow| (format::bytes_per_second(r.disk_bytes), r.disk_bytes == 0),
+                    value: move |r: &ProcessRow| (format::bytes_per_second(units, r.disk_bytes), r.disk_bytes == 0),
                     heat: move |r: &ProcessRow| (r.disk_bytes as f32 / disk_max, accent),
                     threshold: Heat::Threshold,
                 }),

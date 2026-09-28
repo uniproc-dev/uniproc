@@ -1,3 +1,4 @@
+use app_contracts::features::settings::ByteUnits;
 use app_contracts::features::wsl::{AgentPresence, DistroRow, LinuxMachineSummary};
 use guinea_widgets::table::ColumnSpec;
 use windows_reactor::{
@@ -122,7 +123,7 @@ fn status_column(l10n: &L10n, palette: Palette) -> Column {
     )
 }
 
-pub(crate) fn build_columns(l10n: &L10n, palette: Palette) -> Vec<Column> {
+pub(crate) fn build_columns(l10n: &L10n, palette: Palette, units: ByteUnits) -> Vec<Column> {
     vec![
         name_column(l10n, palette),
         status_column(l10n, palette),
@@ -134,19 +135,19 @@ pub(crate) fn build_columns(l10n: &L10n, palette: Palette) -> Vec<Column> {
                 m.cpu_percent.unwrap_or(0.0) / 100.0,
             )
         }),
-        metric_column(WslColumn::Memory, l10n.wsl_col_memory(), 130.0, palette, |m| {
+        metric_column(WslColumn::Memory, l10n.wsl_col_memory(), 130.0, palette, move |m| {
             let share = if m.memory_total_bytes > 0 {
                 m.memory_used_bytes as f32 / m.memory_total_bytes as f32
             } else {
                 0.0
             };
-            (format::bytes(m.memory_used_bytes), share)
+            (format::bytes(units, m.memory_used_bytes), share)
         }),
-        metric_column(WslColumn::Net, l10n.wsl_col_net(), 110.0, palette, |m| {
-            (format::bytes(m.net_bytes), 0.0)
+        metric_column(WslColumn::Net, l10n.wsl_col_net(), 110.0, palette, move |m| {
+            (format::bytes(units, m.net_bytes), 0.0)
         }),
-        metric_column(WslColumn::Disk, l10n.wsl_col_disk(), 110.0, palette, |m| {
-            (format::bytes(m.disk_bytes), 0.0)
+        metric_column(WslColumn::Disk, l10n.wsl_col_disk(), 110.0, palette, move |m| {
+            (format::bytes(units, m.disk_bytes), 0.0)
         }),
     ]
 }

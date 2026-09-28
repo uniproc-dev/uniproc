@@ -11,6 +11,7 @@ use app_contracts::features::processes::{
     RunProcessCommand,
     RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate,
 };
+use app_contracts::features::settings::ByteUnits;
 use guicons::icon;
 use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
@@ -327,10 +328,11 @@ impl ProcessesPage {
         palette: Palette,
         forward: Callback<ProcessesMsg>,
         open_settings: Callback<()>,
+        units: ByteUnits,
     ) -> View {
         self.selected_group_size.set(None);
         let body = match &state.rows {
-            Load::Ready(rows) => self.table(state, rows, dispatch, l10n, palette, forward.clone()),
+            Load::Ready(rows) => self.table(state, rows, dispatch, l10n, palette, forward.clone(), units),
             Load::Failed(err) => text(l10n.processes_failed(err.to_string())).into(),
             _ => loading(),
         };
@@ -462,6 +464,7 @@ impl ProcessesPage {
         l10n: &L10n,
         palette: Palette,
         forward: Callback<ProcessesMsg>,
+        units: ByteUnits,
     ) -> View {
         let collapsed_sections: HashSet<SectionId> =
             enabled_keys(self.collapsed_sections.as_ref())
@@ -653,6 +656,7 @@ impl ProcessesPage {
             machine: state.machine_summary().cloned(),
             rows,
             memory_as_percent: self.memory_as_percent,
+            units,
             actions,
             group_by_type,
             sort_column: state.sort_column,

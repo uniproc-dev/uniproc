@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use app_contracts::features::settings::{
-    AppTheme, SetStartPage, SetTheme, SetUpdateInterval, SettingsState, StartPage, UpdateInterval,
+    AppTheme, ByteUnits, SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsState, StartPage,
+    UpdateInterval,
 };
 use guicons::icon;
 use guinea::prelude::Dispatch;
@@ -22,6 +23,7 @@ pub enum SettingsMark {
     StartPage,
     UpdateSpeed,
     UpdateSpeedValue,
+    ByteUnits,
 }
 
 struct Control;
@@ -113,6 +115,36 @@ fn start_page_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
     )
 }
 
+fn byte_units_label(l10n: &L10n, units: ByteUnits) -> String {
+    match units {
+        ByteUnits::Windows => l10n.settings_byte_units_windows(),
+        ByteUnits::Iec => l10n.settings_byte_units_iec(),
+    }
+}
+
+fn byte_units_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+    let dispatch = dispatch.clone();
+    let choice = ComboBox::new()
+        .mark(SettingsMark::ByteUnits)
+        .width(Control::ChoiceWidth)
+        .items_source(ByteUnits::ALL.map(|units| byte_units_label(l10n, units)))
+        .selected_index(ByteUnits::ALL.iter().position(|units| *units == state.byte_units))
+        .on_selection_changed(move |index: Option<usize>| {
+            if let Some(units) = index.and_then(|index| ByteUnits::ALL.get(index)) {
+                dispatch.emit(SetByteUnits(*units));
+            }
+        });
+    setting_card(
+        SettingCard {
+            icon: Some(icon!(byte_units).size(SettingCardSize::Icon).build()),
+            title: l10n.settings_byte_units(),
+            description: l10n.settings_byte_units_description(),
+            control: choice.into(),
+        },
+        palette,
+    )
+}
+
 fn update_speed_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let dispatch = dispatch.clone();
     let millis = |interval: Duration| interval.as_millis() as f64;
@@ -166,6 +198,7 @@ pub fn settings_view(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
         StackPanel::new().spacing(Layout::CardSpacing).children((
             start_page_card(state, dispatch, l10n, palette),
             update_speed_card(state, dispatch, l10n, palette),
+            byte_units_card(state, dispatch, l10n, palette),
         )),
     );
 

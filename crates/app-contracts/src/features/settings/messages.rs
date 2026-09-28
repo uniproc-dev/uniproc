@@ -1,7 +1,7 @@
 use guinea::prelude::Event;
 use serde::Deserialize;
 
-use super::model::{AppTheme, StartPage};
+use super::model::{AppTheme, ByteUnits, StartPage};
 
 #[derive(Clone, Copy)]
 pub enum SettingsMsg {
@@ -9,8 +9,13 @@ pub enum SettingsMsg {
         theme: AppTheme,
         start_page: StartPage,
         update_interval_ms: u64,
+        byte_units: ByteUnits,
     },
 }
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct SetByteUnits(pub ByteUnits);
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]

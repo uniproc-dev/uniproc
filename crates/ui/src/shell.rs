@@ -1,4 +1,5 @@
 use app_contracts::features::metrics::MetricsState;
+use app_contracts::features::settings::ByteUnits;
 use guicons::icon;
 use guinea_widgets::chart::Chart;
 use guinea_widgets::resize::{resize_handle, RESIZE_HANDLE_WIDTH};
@@ -42,6 +43,7 @@ pub struct ShellProps<'a> {
     pub content: View,
     pub splash: Option<View>,
     pub metrics: &'a MetricsState,
+    pub units: ByteUnits,
     pub cpu_chart: &'a Chart,
     pub memory_chart: &'a Chart,
     pub on_select: Callback<Option<String>>,
@@ -102,7 +104,7 @@ fn metrics_pane_footer(props: &ShellProps<'_>) -> View {
             m.cpu_max_mhz as f64 / 1000.0
         )
     });
-    let memory_detail = machine.map(|m| format::bytes(m.memory_total_bytes));
+    let memory_detail = machine.map(|m| format::bytes(props.units, m.memory_total_bytes));
 
     let cpu_chart = metric_chart(MetricChart {
         chart: props.cpu_chart,

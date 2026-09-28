@@ -2,6 +2,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use app_contracts::features::agents::AgentConnectionState;
+use app_contracts::features::settings::ByteUnits;
 use app_contracts::features::processes::{
     MachineSummary, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState,
 };
@@ -89,7 +90,7 @@ fn main() {
 
     let first = state(rows(&exes, processes, 0));
     let started = Instant::now();
-    drop(page.view(&first, &dispatch, &l10n, palette, forward.clone(), open_settings.clone()));
+    drop(page.view(&first, &dispatch, &l10n, palette, forward.clone(), open_settings.clone(), ByteUnits::Windows));
     println!("first view (cold icon cache): {:?}", started.elapsed());
     std::thread::sleep(Duration::from_secs(3));
 
@@ -98,7 +99,7 @@ fn main() {
     for tick in 1..=ITERATIONS {
         let next = state(rows(&exes, processes, tick));
         let started = Instant::now();
-        let view = page.view(&next, &dispatch, &l10n, palette, forward.clone(), open_settings.clone());
+        let view = page.view(&next, &dispatch, &l10n, palette, forward.clone(), open_settings.clone(), ByteUnits::Windows);
         let took = started.elapsed();
         drop(view);
         total += took;

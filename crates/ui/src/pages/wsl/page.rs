@@ -1,3 +1,4 @@
+use app_contracts::features::settings::ByteUnits;
 use app_contracts::features::wsl::WslState;
 use guinea::prelude::Load;
 use guinea_widgets::table::{table, ColumnWidths, Resized};
@@ -31,11 +32,12 @@ impl WslPage {
         l10n: &L10n,
         palette: Palette,
         forward: Callback<WslMsg>,
+        units: ByteUnits,
     ) -> View {
         let body = match &state.distros {
             Load::Ready(rows) => table(
                 rows.to_vec(),
-                build_columns(l10n, palette),
+                build_columns(l10n, palette, units),
             )
             .widths(&self.widths)
             .on_resize(move |drag: Resized| {

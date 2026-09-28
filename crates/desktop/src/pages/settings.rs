@@ -30,7 +30,8 @@ impl Page for Settings {
 #[cfg(test)]
 mod tests {
     use app_contracts::features::settings::{
-        AppTheme, SetStartPage, SetTheme, SetUpdateInterval, StartPage, UpdateIntervalChanged,
+        AppTheme, ByteUnits, SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, StartPage,
+        UpdateIntervalChanged,
     };
     use domain::features::settings::settings::GeneralSettings;
     use domain::features::settings::SettingsFeature;
@@ -80,6 +81,7 @@ mod tests {
         assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::SliderMinimum), PropertyValue::F64(100.0));
         assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::SliderMaximum), PropertyValue::F64(5000.0));
         assert_eq!(shown_interval(&page), PropertyValue::OptionalF64(Some(1500.0)));
+        assert_eq!(value(&page, SettingsMark::ByteUnits, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(0)));
         assert!(page.find_text("Use system setting").is_none(), "a closed choice shows no list");
     }
 
@@ -93,14 +95,17 @@ mod tests {
         dispatch.emit(SetTheme(AppTheme::Dark));
         dispatch.emit(SetStartPage(StartPage::Wsl));
         dispatch.emit(SetUpdateInterval(300));
+        dispatch.emit(SetByteUnits(ByteUnits::Iec));
         page.settle();
 
         assert_eq!(value(&page, SettingsMark::Theme, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(2)));
         assert_eq!(value(&page, SettingsMark::StartPage, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(3)));
         assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::SliderValue), PropertyValue::F64(300.0));
         assert_eq!(shown_interval(&page), PropertyValue::OptionalF64(Some(300.0)));
+        assert_eq!(value(&page, SettingsMark::ByteUnits, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(1)));
 
         let stored = GeneralSettings::new().unwrap();
+        assert_eq!(stored.byte_units_choice(), ByteUnits::Iec);
         assert_eq!(stored.theme_choice(), AppTheme::Dark);
         assert_eq!(stored.start_page_choice(), StartPage::Wsl);
         assert_eq!(stored.update_interval_ms().get(), 300);

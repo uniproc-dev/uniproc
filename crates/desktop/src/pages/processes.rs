@@ -1,4 +1,5 @@
 use app_contracts::features::processes::ProcessesState;
+use app_contracts::features::settings::SettingsState;
 use app_contracts::features::window::PressedAway;
 use domain::features::processes::settings::ProcessesSettings;
 use guinea::feature::FeatureInitContext;
@@ -67,7 +68,9 @@ impl Page for Processes {
         });
         let nav = cx.navigate::<Route>();
         let open_settings = Callback::new(move |()| nav.to(Route::ProcessesSettings {}));
-        self.0.view(&state, &dispatch, &l10n, palette, forward, open_settings)
+        let (settings, _) = cx.use_reducer::<SettingsState, _>();
+        let units = settings.byte_units;
+        self.0.view(&state, &dispatch, &l10n, palette, forward, open_settings, units)
     }
 }
 
@@ -93,6 +96,8 @@ mod tests {
     use guinea::prelude::GlobalEventBus;
     use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
     use domain::features::processes::{ProcessesDeps, ProcessesFeature};
+    use domain::features::settings::SettingsFeature;
+    use app_contracts::features::settings::{ByteUnits, SetByteUnits};
     use domain::features::processes::shell::ShellRequest;
     use domain::features::processes::windows_scan::AppWindows;
     use guinea::app::Harness;
@@ -223,6 +228,7 @@ mod tests {
     }
 
     fn mount(h: &Harness) -> Mounted<'_, Processes> {
+        h.install::<SettingsFeature>(&()).unwrap();
         h.install::<ProcessesFeature>(&ProcessesDeps {
             windows: desktop_windows,
             shell: fake_shell,
@@ -735,6 +741,7 @@ mod tests {
             start_in_process: crate::test_agent::start_in_process,
         })
             .unwrap();
+        h.install::<SettingsFeature>(&()).unwrap();
         h.install::<ProcessesFeature>(&ProcessesDeps {
             windows: desktop_windows,
             shell: fake_shell,
@@ -1798,8 +1805,12 @@ mod tests {
         memory_report(h);
         page.settle();
 
-        assert!(page.find_text("4.0 GiB").is_some(), "{:#?}", page.tree());
+        assert!(page.find_text("4.0 GB").is_some(), "{:#?}", page.tree());
         assert!(page.find_text("25.0%").is_none());
+
+        h.dispatch::<SettingsState>().emit(SetByteUnits(ByteUnits::Iec));
+        page.settle();
+        assert!(page.find_text("4.0 GiB").is_some(), "{:#?}", page.tree());
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -1812,6 +1823,6 @@ mod tests {
         page.settle();
 
         assert!(page.find_text("25.0%").is_some(), "{:#?}", page.tree());
-        assert!(page.find_text("4.0 GiB").is_none());
+        assert!(page.find_text("4.0 GB").is_none());
     }
 }

@@ -1,3 +1,4 @@
+use app_contracts::features::settings::SettingsState;
 use app_contracts::features::wsl::WslState;
 use domain::features::wsl::WslFeature;
 use guinea::feature::FeatureInitContext;
@@ -30,6 +31,7 @@ impl Page for Wsl {
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: WslMsg| message);
-        self.0.view(&state, &l10n, palette, forward)
+        let (settings, _) = cx.use_reducer::<SettingsState, _>();
+        self.0.view(&state, &l10n, palette, forward, settings.byte_units)
     }
 }
