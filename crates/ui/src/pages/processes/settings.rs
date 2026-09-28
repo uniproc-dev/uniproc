@@ -42,6 +42,7 @@ struct Crumb;
 impl Crumb {
     const ChevronSize: f64 = 12.0;
     const ChevronPadding: f64 = 2.0;
+    const ChevronDrop: f64 = 2.0;
 }
 
 pub enum ProcessesSettingsMsg {
@@ -201,7 +202,7 @@ fn breadcrumb(
         })
         .content(parent_text);
     let chevron = Grid::new()
-        .margin(Thickness::xy(Crumb::ChevronPadding, 0.0))
+        .margin(Thickness::new(Crumb::ChevronPadding, Crumb::ChevronDrop, Crumb::ChevronPadding, 0.0))
         .vertical_alignment(VerticalAlignment::Center)
         .children((icon!(chevron_right_regular).size(Crumb::ChevronSize).build_element(),));
     StackPanel::new()
