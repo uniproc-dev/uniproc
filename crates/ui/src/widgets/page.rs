@@ -117,10 +117,18 @@ pub fn command_button(
     labelled_button(ButtonStyle::Subtle, mark, label, icon, enabled, on_click)
 }
 
+struct IconButton;
+
+#[expect(non_upper_case_globals)]
+impl IconButton {
+    const Width: f64 = 48.0;
+}
+
 pub fn icon_button(mark: impl Mark, icon: View, on_click: impl Fn() + 'static) -> View {
     Button::new()
         .mark(mark)
         .style(ButtonStyle::Subtle)
+        .min_width(IconButton::Width)
         .on_click(on_click)
         .content(icon)
         .into()
