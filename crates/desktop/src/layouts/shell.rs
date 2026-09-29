@@ -170,6 +170,7 @@ impl Layout for ShellLayout {
             splash: splash(&link, &link_dispatch, &l10n, palette),
             metrics: &metrics,
             units: settings.byte_units,
+            cadence_ms: settings.update_interval_ms,
             charts: &self.charts,
             shown: settings.sidebar_charts,
             on_show_chart: Callback::new(move |(chart, shown)| settings_dispatch.emit(ShowSidebarChart(chart, shown))),

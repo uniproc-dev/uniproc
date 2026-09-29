@@ -1,6 +1,6 @@
 use app_contracts::features::settings::{ByteUnits, SidebarChart};
 use guinea::prelude::Load;
-use guinea_widgets::chart::{Chart, ChartGrid, HoverInfo, Interpolation, LineChartOptions, Series};
+use guinea_widgets::chart::{Chart, ChartGrid, HoverInfo, Interpolation, LineChartOptions, Live, Series};
 use guinea_widgets::color::{hex, hex_alpha};
 use windows_canvas::ColorF;
 use windows_reactor::{
@@ -65,6 +65,7 @@ struct Timeline;
 impl Timeline {
     const Tick: u64 = 5_000;
     const Window: u64 = 60_000;
+    const PerSecond: f64 = 1000.0;
     const Levels: [f32; 3] = [25.0, 50.0, 75.0];
 }
 
@@ -171,6 +172,7 @@ pub struct MetricChart<'a> {
     pub kind: SidebarChart,
     pub history: &'a Load<Vec<(u64, f32)>>,
     pub scale: Scale,
+    pub cadence_ms: u64,
     pub height: f64,
     pub detail: Option<String>,
     pub palette: Palette,
@@ -182,6 +184,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
         kind,
         history,
         scale,
+        cadence_ms,
         height,
         detail,
         palette,
@@ -217,6 +220,10 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
                 color: color_f(palette.divider_stroke),
             }),
             x_window: Some(Timeline::Window),
+            live: Some(Live {
+                per_second: Timeline::PerSecond,
+                lag: cadence_ms,
+            }),
             y_range: Some((0.0, ceiling.max(1.0))),
             corner_radius: Some((radius::Control - 1.0) as f32),
         },
