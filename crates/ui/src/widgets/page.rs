@@ -1,7 +1,7 @@
 use windows_reactor::{
     Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, Grid,
-    GridChildExt, GridLength, HorizontalAlignment, LayoutControl, Orientation, PointerEventInfo,
-    ProgressRing, ResourceOverrides, StackPanel, Thickness, VerticalAlignment, View,
+    GridChildExt, GridLength, HorizontalAlignment, IntoViews, LayoutControl, Orientation, PointerEventInfo,
+    ProgressRing, ResourceOverrides, ScrollViewer, StackPanel, Thickness, VerticalAlignment, View,
 };
 
 use guinea::winui::MarkExt;
@@ -91,6 +91,21 @@ pub fn page_frame(
     };
 
     Grid::new().children((under, cards)).into()
+}
+
+struct SettingsColumn;
+
+#[expect(non_upper_case_globals)]
+impl SettingsColumn {
+    const MaxWidth: f64 = 1064.0;
+}
+
+pub fn settings_column(children: impl IntoViews) -> View {
+    let column = StackPanel::new()
+        .max_width(SettingsColumn::MaxWidth)
+        .margin(Thickness::new(space::Page, space::Section, space::Page, space::Page))
+        .children(children);
+    ScrollViewer::new().content(Grid::new().children((column,))).into()
 }
 
 pub fn page_title(title: impl Into<String>) -> View {

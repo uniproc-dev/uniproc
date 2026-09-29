@@ -6,7 +6,7 @@ use guinea::Mark;
 use windows_reactor::{
     Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ComboBox, ContentControl, Expander, Grid,
     GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation, PointerEventInfo,
-    ScrollViewer, StackPanel, ThemeBrush, Thickness, ToggleSwitch, VerticalAlignment, View,
+    StackPanel, ThemeBrush, Thickness, ToggleSwitch, VerticalAlignment, View,
 };
 
 use super::components::column_layout::ColumnLayout;
@@ -17,7 +17,7 @@ use super::marks::ProcessesSettingsMark;
 use super::page::ProcessesSettingsMaps;
 use crate::l10n::L10n;
 use crate::theme::{size, space, Palette};
-use crate::widgets::page::action_button;
+use crate::widgets::page::{action_button, settings_column};
 use crate::widgets::separator;
 use crate::widgets::setting_card::{setting_card, SettingCard};
 use crate::widgets::text::{caption, subtitle, text};
@@ -26,7 +26,6 @@ struct Layout;
 
 #[expect(non_upper_case_globals)]
 impl Layout {
-    const MaxWidth: f64 = 1064.0;
     const ExpanderSpacing: f64 = 4.0;
     const RowMinHeight: f64 = 44.0;
     const HeaderInset: f64 = 12.0;
@@ -244,20 +243,13 @@ impl ProcessesSettingsPage {
             &forward,
         );
 
-        ScrollViewer::new()
-            .content(
-                StackPanel::new()
-                    .max_width(Layout::MaxWidth)
-                    .margin(Thickness::new(space::Page, space::Section, space::Page, space::Page))
-                    .children((
-                        breadcrumb(l10n, palette, self.back_hovered, &forward, back),
-                        StackPanel::new()
-                            .margin(Thickness::new(0.0, space::Section, 0.0, 0.0))
-                            .spacing(Layout::ExpanderSpacing)
-                            .children((columns, sections, self.memory_card(l10n, palette, &forward))),
-                    )),
-            )
-            .into()
+        settings_column((
+            breadcrumb(l10n, palette, self.back_hovered, &forward, back),
+            StackPanel::new()
+                .margin(Thickness::new(0.0, space::Section, 0.0, 0.0))
+                .spacing(Layout::ExpanderSpacing)
+                .children((columns, sections, self.memory_card(l10n, palette, &forward))),
+        ))
     }
 }
 

@@ -8,12 +8,13 @@ use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    ChildrenControl, ComboBox, ContentControl, LayoutControl, NumberBox, Orientation, ScrollViewer, Slider,
+    ChildrenControl, ComboBox, LayoutControl, NumberBox, Orientation, Slider,
     StackPanel, Thickness, VerticalAlignment, View,
 };
 
 use crate::l10n::L10n;
 use crate::theme::{space, Palette};
+use crate::widgets::page::settings_column;
 use crate::widgets::setting_card::{setting_card, SettingCard, SettingCardSize};
 use crate::widgets::text::{body_strong, subtitle, text};
 
@@ -39,7 +40,6 @@ struct Layout;
 
 #[expect(non_upper_case_globals)]
 impl Layout {
-    const MaxWidth: f64 = 1064.0;
     const CardSpacing: f64 = 4.0;
 
     fn section_header() -> Thickness {
@@ -202,12 +202,5 @@ pub fn settings_view(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
         )),
     );
 
-    ScrollViewer::new()
-        .content(
-            StackPanel::new()
-                .max_width(Layout::MaxWidth)
-                .margin(Thickness::new(space::Page, space::Section, space::Page, space::Page))
-                .children((subtitle(l10n.settings_title()), appearance, general)),
-        )
-        .into()
+    settings_column((subtitle(l10n.settings_title()), appearance, general))
 }
