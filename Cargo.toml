@@ -83,7 +83,7 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 windows = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45", features = [
     "UI_ViewManagement",
     "appmodel", "combaseapi", "dwmapi", "knownfolders", "minwindef", "objbase", "shellapi",
-    "shlobj_core", "shobjidl_core", "windef", "wingdi", "winerror", "winuser",
+    "shlobj_core", "shobjidl_core", "windef", "wingdi", "winerror", "winreg", "winuser",
 ] }
 
 # --- Utilities ---

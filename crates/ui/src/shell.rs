@@ -74,6 +74,11 @@ fn nav_items(l10n: &L10n) -> Vec<(&'static str, String, View)> {
             l10n.shell_nav_wsl(),
             icon!(linux).size(size::NavIcon).build(),
         ),
+        (
+            "system",
+            l10n.shell_nav_system(),
+            icon!(system).size(size::NavIcon).build(),
+        ),
     ]
 }
 

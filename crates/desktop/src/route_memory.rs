@@ -27,7 +27,7 @@ fn settings() -> Option<&'static RouteSettings> {
 }
 
 pub fn remember(route: &Route) {
-    if matches!(route, Route::Settings {} | Route::ProcessesSettings {}) {
+    if matches!(route, Route::Settings {} | Route::ProcessesSettings {} | Route::System {}) {
         return;
     }
     let (Some(settings), Some(saved)) = (settings(), route.save()) else {

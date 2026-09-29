@@ -10,7 +10,7 @@ use guinea::Mark;
 use crate::theme::{opacity, space, Palette};
 use crate::widgets::card::card;
 use crate::widgets::separator;
-use crate::widgets::text::{body_large, text};
+use crate::widgets::text::{body_large, body_strong, text};
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PageMark {
@@ -98,6 +98,17 @@ struct SettingsColumn;
 #[expect(non_upper_case_globals)]
 impl SettingsColumn {
     const MaxWidth: f64 = 1064.0;
+    const CardSpacing: f64 = 4.0;
+
+    fn section_header() -> Thickness {
+        Thickness::new(1.0, 30.0, 0.0, 6.0)
+    }
+}
+
+pub fn settings_section(title: impl Into<String>, cards: impl IntoViews) -> View {
+    let header = body_strong(title).margin(SettingsColumn::section_header());
+    let cards = StackPanel::new().spacing(SettingsColumn::CardSpacing).children(cards);
+    StackPanel::new().children((header, cards)).into()
 }
 
 pub fn settings_column(children: impl IntoViews) -> View {

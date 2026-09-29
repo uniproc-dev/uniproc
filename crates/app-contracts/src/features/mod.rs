@@ -5,5 +5,6 @@ pub mod processes;
 pub mod services;
 pub mod settings;
 pub mod sidebar;
+pub mod system;
 pub mod window;
 pub mod wsl;

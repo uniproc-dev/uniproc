@@ -17,7 +17,7 @@ use guinea_widgets::chart::Chart;
 use windows_reactor::{Callback, ColorScheme, View, WindowBackdrop, WindowTheme, WindowVisuals};
 
 use crate::layouts::ProcessesArea;
-use crate::pages::{Services, Settings, Wsl};
+use crate::pages::{Services, Settings, System, Wsl};
 use crate::route_memory;
 use crate::routes::Route;
 
@@ -139,6 +139,8 @@ impl Layout for ShellLayout {
             "wsl"
         } else if cx.child_is::<ProcessesArea>() {
             "processes"
+        } else if cx.child_is::<System>() {
+            "system"
         } else if cx.child_is::<Settings>() {
             "settings"
         } else {
@@ -149,6 +151,7 @@ impl Layout for ShellLayout {
             Some("processes") => nav.to(Route::Processes {}),
             Some("services") => nav.to(Route::Services {}),
             Some("wsl") => nav.to(Route::Wsl {}),
+            Some("system") => nav.to(Route::System {}),
             Some("settings") => nav.to(Route::Settings {}),
             _ => {}
         });
@@ -274,6 +277,18 @@ mod tests {
         page.settle();
 
         assert_eq!(page.navigated::<Route>(), [Route::Settings {}]);
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_system_item_opens_the_system_page(h: &mut Harness) {
+        let _store = start(h, true);
+        let h = &*h;
+        let mut page = mount(h);
+
+        page.click_text("System").settle();
+        page.settle();
+
+        assert_eq!(page.navigated::<Route>(), [Route::System {}]);
     }
 
     fn unreachable_line(page: &Mounted<'_, ShellLayout>) -> Option<String> {

@@ -1,5 +1,6 @@
 shell-window-title = { -brand-name }
 shell-nav-wsl = WSL
+shell-nav-system = System
 shell-nav-settings = Settings
 shell-splash-name = Uniproc
 shell-splash-open-in-process = Open monitor in process

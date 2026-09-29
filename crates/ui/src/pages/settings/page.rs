@@ -14,9 +14,9 @@ use windows_reactor::{
 
 use crate::l10n::L10n;
 use crate::theme::{space, Palette};
-use crate::widgets::page::settings_column;
+use crate::widgets::page::{settings_column, settings_section};
 use crate::widgets::setting_card::{setting_card, SettingCard, SettingCardSize};
-use crate::widgets::text::{body_strong, caption, subtitle, text};
+use crate::widgets::text::{caption, subtitle, text};
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SettingsMark {
@@ -46,13 +46,8 @@ struct Layout;
 
 #[expect(non_upper_case_globals)]
 impl Layout {
-    const CardSpacing: f64 = 4.0;
     const ExpanderHeaderInset: f64 = 12.0;
     const ExpanderContentInset: f64 = 36.0;
-
-    fn section_header() -> Thickness {
-        Thickness::new(1.0, 30.0, 0.0, 6.0)
-    }
 }
 
 fn theme_label(l10n: &L10n, theme: AppTheme) -> String {
@@ -70,11 +65,6 @@ fn start_page_label(l10n: &L10n, page: StartPage) -> String {
         StartPage::Services => l10n.settings_start_page_services(),
         StartPage::Wsl => l10n.settings_start_page_wsl(),
     }
-}
-
-fn section(title: String, cards: impl Into<View>) -> View {
-    let header = body_strong(title).margin(Layout::section_header());
-    StackPanel::new().children((header, cards)).into()
 }
 
 fn theme_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
@@ -253,18 +243,18 @@ fn update_speed_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
 }
 
 pub fn settings_view(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
-    let appearance = section(
+    let appearance = settings_section(
         l10n.settings_section_appearance(),
-        theme_card(state, dispatch, l10n, palette),
+        (theme_card(state, dispatch, l10n, palette),),
     );
-    let general = section(
+    let general = settings_section(
         l10n.settings_section_general(),
-        StackPanel::new().spacing(Layout::CardSpacing).children((
+        (
             start_page_card(state, dispatch, l10n, palette),
             update_speed_card(state, dispatch, l10n, palette),
             byte_units_card(state, dispatch, l10n, palette),
             sidebar_charts_card(state, dispatch, l10n, palette),
-        )),
+        ),
     );
 
     settings_column((subtitle(l10n.settings_title()), appearance, general))

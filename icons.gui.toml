@@ -52,6 +52,91 @@ iconify = "fluent:ruler-24-regular"
 [sidebar-charts]
 iconify = "fluent:data-trending-24-regular"
 
+[system]
+iconify = "fluent-color:toolbox-24"
+paint = "none"
+
+[tool-task-manager]
+iconify = "fluent:data-usage-24-regular"
+
+[tool-resource-monitor]
+iconify = "fluent:gauge-24-regular"
+
+[tool-performance-monitor]
+iconify = "fluent:data-line-24-regular"
+
+[tool-reliability-monitor]
+iconify = "fluent:heart-pulse-24-regular"
+
+[tool-system-information]
+iconify = "fluent:info-24-regular"
+
+[tool-directx-diagnostic]
+iconify = "fluent:stethoscope-24-regular"
+
+[tool-event-viewer]
+iconify = "fluent:document-bullet-list-24-regular"
+
+[tool-services]
+iconify = "fluent:puzzle-piece-24-regular"
+
+[tool-task-scheduler]
+iconify = "fluent:calendar-clock-24-regular"
+
+[tool-device-manager]
+iconify = "fluent:developer-board-24-regular"
+
+[tool-disk-management]
+iconify = "fluent:hard-drive-24-regular"
+
+[tool-computer-management]
+iconify = "fluent:desktop-24-regular"
+
+[tool-registry-editor]
+iconify = "fluent:database-24-regular"
+
+[tool-system-properties]
+iconify = "fluent:laptop-settings-24-regular"
+
+[tool-environment-variables]
+iconify = "fluent:braces-variable-24-regular"
+
+[tool-startup-apps]
+iconify = "fluent:rocket-24-regular"
+
+[tool-installed-apps]
+iconify = "fluent:apps-24-regular"
+
+[tool-storage]
+iconify = "fluent:storage-24-regular"
+
+[tool-power]
+iconify = "fluent:power-24-regular"
+
+[tool-windows-update]
+iconify = "fluent:arrow-sync-circle-24-regular"
+
+[tool-about]
+iconify = "fluent:laptop-24-regular"
+
+[tool-process-explorer]
+iconify = "fluent:apps-list-detail-24-regular"
+
+[tool-process-monitor]
+iconify = "fluent:document-search-24-regular"
+
+[tool-autoruns]
+iconify = "fluent:flash-24-regular"
+
+[tool-tcpview]
+iconify = "fluent:plug-connected-24-regular"
+
+[tool-rammap]
+iconify = "fluent:memory-16-regular"
+
+[tool-vmmap]
+iconify = "fluent:table-24-regular"
+
 [coin]
 iconify = "fluent-color:coin-multiple-24"
 paint = "none"
