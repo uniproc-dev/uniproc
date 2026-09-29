@@ -229,13 +229,24 @@ fn window_lines(handle: isize, l10n: &L10n) -> Vec<Line> {
 
 fn column_mark(column: ProcessColumn) -> Option<ProcessesMark> {
     match column {
-        ProcessColumn::Name | ProcessColumn::Pid | ProcessColumn::ProcessName => None,
         ProcessColumn::Cpu => Some(ProcessesMark::MenuColumnCpu),
         ProcessColumn::Memory => Some(ProcessesMark::MenuColumnMemory),
         ProcessColumn::Net => Some(ProcessesMark::MenuColumnNet),
         ProcessColumn::Disk => Some(ProcessesMark::MenuColumnDisk),
         ProcessColumn::Gpu => Some(ProcessesMark::MenuColumnGpu),
         ProcessColumn::GpuMemory => Some(ProcessesMark::MenuColumnGpuMemory),
+        ProcessColumn::Name
+        | ProcessColumn::Pid
+        | ProcessColumn::ProcessName
+        | ProcessColumn::Status
+        | ProcessColumn::Publisher
+        | ProcessColumn::User
+        | ProcessColumn::CommandLine
+        | ProcessColumn::ImagePath
+        | ProcessColumn::GpuEngine
+        | ProcessColumn::Platform
+        | ProcessColumn::Elevated
+        | ProcessColumn::Isolation => None,
     }
 }
 

@@ -71,6 +71,7 @@ mod tests {
             category: app_contracts::features::processes::ProcessCategory::App,
             services: None,
             windows: None,
+            details: Default::default(),
         }
     }
 

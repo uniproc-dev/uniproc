@@ -3,13 +3,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use app_contracts::features::agents::{
-    AgentConnectionState, RemoteScanResult, SignatureStatus, WindowsAction, WindowsActionRequest,
-    WindowsProcessStats, WindowsReport, WindowsReportMessage,
+    AgentConnectionState, GpuEngineId, ProcessRunState, RemoteScanResult, SignatureStatus, WindowsAction,
+    WindowsActionRequest, WindowsGpu, WindowsProcessStats, WindowsReport, WindowsReportMessage,
 };
 use app_contracts::features::processes::{
-    Deselect, HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessCommand,
-    ProcessRow, ProcessesMsg, ProcessesState, RunImageCommand, RunProcessCommand, RunWindowCommand, Select,
-    RunNewTask, SelectLinux, Sort, Terminate, WslEnvironment,
+    Deselect, GpuEngineLabel, HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessCommand,
+    ProcessDetails, ProcessRow, ProcessStatus, ProcessesMsg, ProcessesState, RunImageCommand, RunProcessCommand,
+    RunWindowCommand, Select, RunNewTask, SelectLinux, Sort, Terminate, WslEnvironment,
 };
 use app_contracts::features::window::PressedAway;
 use guinea::prelude::*;
@@ -226,8 +226,44 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
             windows: Some(windows.of(p.pid))
                 .filter(|windows| !windows.is_empty())
                 .map(Arc::from),
+            details: Arc::new(details(p, &report.machine.gpus)),
         })
         .collect()
+}
+
+fn status(state: &ProcessRunState) -> ProcessStatus {
+    if state.suspended == Some(true) {
+        ProcessStatus::Suspended
+    } else if state.efficiency_mode == Some(true) {
+        ProcessStatus::Efficiency
+    } else {
+        ProcessStatus::Running
+    }
+}
+
+fn gpu_engine(engine: GpuEngineId, gpus: &[WindowsGpu]) -> Option<GpuEngineLabel> {
+    let (adapter, gpu) = gpus.iter().enumerate().find(|(_, gpu)| gpu.luid == engine.adapter_luid)?;
+    let name = gpu.engines.iter().find(|known| known.ordinal == engine.ordinal)?.name.clone();
+    Some(GpuEngineLabel {
+        adapter: adapter as u32,
+        engine: name,
+    })
+}
+
+fn details(p: &WindowsProcessStats, gpus: &[WindowsGpu]) -> ProcessDetails {
+    ProcessDetails {
+        status: status(&p.state),
+        publisher: p.publisher.clone(),
+        user: p.user.clone(),
+        command_line: p.command_line.clone(),
+        gpu_engine: p
+            .gpu_engine
+            .filter(|_| p.gpu_percent > 0.0)
+            .and_then(|engine| gpu_engine(engine, gpus)),
+        architecture: p.architecture,
+        elevated: p.elevated,
+        isolation: p.isolation,
+    }
 }
 
 actor! {
@@ -421,6 +457,71 @@ mod tests {
         assert_eq!(owner(12), None, "the parent is not in this report");
         assert_eq!(owner(13), None, "only console hosts get an owner");
         assert_eq!(owner(10), None);
+    }
+
+    #[test]
+    fn a_row_carries_the_details_task_manager_shows() {
+        let engine = |ordinal, name: &str| app_contracts::features::agents::WindowsGpuEngine {
+            ordinal,
+            name: name.into(),
+            ..Default::default()
+        };
+        let gpus = [
+            WindowsGpu {
+                luid: 7,
+                ..Default::default()
+            },
+            WindowsGpu {
+                luid: 9,
+                engines: Arc::from([engine(0, "3D"), engine(2, "Video Decode")]),
+                ..Default::default()
+            },
+        ];
+        let suspended = ProcessRunState {
+            suspended: Some(true),
+            efficiency_mode: Some(true),
+            ..Default::default()
+        };
+        let report = WindowsReport {
+            processes: vec![
+                WindowsProcessStats {
+                    state: suspended,
+                    gpu_percent: 12.0,
+                    gpu_engine: Some(GpuEngineId {
+                        adapter_luid: 9,
+                        ordinal: 2,
+                    }),
+                    publisher: "Contoso".into(),
+                    ..stats(10, 1, "player.exe", "")
+                },
+                WindowsProcessStats {
+                    gpu_engine: Some(GpuEngineId {
+                        adapter_luid: 9,
+                        ordinal: 0,
+                    }),
+                    ..stats(11, 1, "idle.exe", "")
+                },
+            ],
+            machine: app_contracts::features::agents::WindowsMachineStats {
+                gpus: Arc::from(gpus),
+                ..Default::default()
+            },
+            ..WindowsReport::default()
+        };
+
+        let rows = rows_from_report(&report, &AppWindows::default());
+        let player = &rows[0].details;
+        assert_eq!(player.status, ProcessStatus::Suspended, "suspended wins over efficiency mode");
+        assert_eq!(&*player.publisher, "Contoso");
+        assert_eq!(
+            player.gpu_engine,
+            Some(GpuEngineLabel {
+                adapter: 1,
+                engine: "Video Decode".into(),
+            })
+        );
+        assert_eq!(rows[1].details.gpu_engine, None, "an engine that is not busy is not named");
+        assert_eq!(rows[1].details.status, ProcessStatus::Running);
     }
 
     fn client(pid: u32, parent_pid: u32, name: &str, console_host_pid: u32) -> WindowsProcessStats {

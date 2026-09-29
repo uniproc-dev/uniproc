@@ -52,6 +52,7 @@ fn rows(exes: &[String], processes: usize, tick: u32) -> Rc<[ProcessRow]> {
                 category: ProcessCategory::ORDER[index % ProcessCategory::ORDER.len()],
                 services: None,
                 windows: None,
+                details: Default::default(),
             }
         })
         .collect()

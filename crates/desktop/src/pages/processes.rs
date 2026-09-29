@@ -1238,6 +1238,46 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
+    fn details_columns_show_the_process_and_what_a_group_shares(h: &mut Harness) {
+        let _store = start(h);
+        for column in [
+            ProcessColumn::Status,
+            ProcessColumn::Publisher,
+            ProcessColumn::CommandLine,
+            ProcessColumn::Elevated,
+        ] {
+            show_in_settings(column);
+        }
+        let h = &*h;
+        let mut page = mount(h);
+
+        let mut processes = machine();
+        for p in &mut processes {
+            if p.pid == NOTEPAD {
+                p.publisher = "Microsoft Windows".into();
+                p.command_line = r#""C:\Windows\notepad.exe" notes.txt"#.into();
+                p.elevated = Some(false);
+                p.state.suspended = Some(true);
+            }
+            if CHROME.contains(&p.pid) {
+                p.publisher = "Google LLC".into();
+                p.command_line = "chrome.exe --type=renderer".into();
+            }
+        }
+        report(h, processes);
+        page.settle();
+
+        let row = page.item_where(|item| label(item) == "notepad.exe").tree();
+        assert_eq!(cell(&row, ProcessColumn::Status), "Suspended");
+        assert_eq!(cell(&row, ProcessColumn::Publisher), "Microsoft Windows");
+        assert_eq!(cell(&row, ProcessColumn::CommandLine), r#""C:\Windows\notepad.exe" notes.txt"#);
+        assert_eq!(cell(&row, ProcessColumn::Elevated), "No");
+        let group = page.item_where(|item| label(item) == "chrome.exe (3)").tree();
+        assert_eq!(cell(&group, ProcessColumn::Publisher), "Google LLC", "one publisher for the whole group");
+        assert_eq!(cell(&group, ProcessColumn::CommandLine), "", "a group has no single command line");
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_press_away_closes_the_header_menu(h: &mut Harness) {
         let _store = start(h);
         let h = &*h;

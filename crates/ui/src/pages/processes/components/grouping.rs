@@ -206,6 +206,7 @@ impl Environment {
             category: ProcessCategory::Wsl,
             services: None,
             windows: None,
+            details: Default::default(),
         };
         Self {
             pid_ns: environment.pid_ns,
@@ -706,7 +707,23 @@ fn compare_by(column: ProcessColumn, a: &ProcessRow, b: &ProcessRow) -> Ordering
         ProcessColumn::Net => a.net_bytes.cmp(&b.net_bytes),
         ProcessColumn::Gpu => tenths(a.gpu_percent).cmp(&tenths(b.gpu_percent)),
         ProcessColumn::GpuMemory => a.gpu_memory_bytes.cmp(&b.gpu_memory_bytes),
+        ProcessColumn::Status => a.details.status.cmp(&b.details.status),
+        ProcessColumn::Publisher => caseless(&a.details.publisher, &b.details.publisher),
+        ProcessColumn::User => caseless(&a.details.user, &b.details.user),
+        ProcessColumn::CommandLine => caseless(&a.details.command_line, &b.details.command_line),
+        ProcessColumn::ImagePath => caseless(&a.exe_path, &b.exe_path),
+        ProcessColumn::GpuEngine => {
+            let key = |row: &ProcessRow| row.details.gpu_engine.as_ref().map(|label| (label.adapter, label.engine.clone()));
+            key(a).cmp(&key(b))
+        }
+        ProcessColumn::Platform => a.details.architecture.cmp(&b.details.architecture),
+        ProcessColumn::Elevated => a.details.elevated.cmp(&b.details.elevated),
+        ProcessColumn::Isolation => a.details.isolation.cmp(&b.details.isolation),
     }
+}
+
+fn caseless(a: &str, b: &str) -> Ordering {
+    a.chars().flat_map(char::to_lowercase).cmp(b.chars().flat_map(char::to_lowercase))
 }
 
 fn compare_rows(order: &Order, a: &ProcessRow, b: &ProcessRow) -> Ordering {
@@ -1061,6 +1078,7 @@ impl DisplayRow {
                 category: ProcessCategory::App,
                 services: None,
                 windows: None,
+                details: Default::default(),
             },
             depth: 0,
             has_children: totals.group_count > 0,
@@ -1106,6 +1124,7 @@ impl DisplayRow {
                 category: ProcessCategory::App,
                 services: None,
                 windows: None,
+                details: Default::default(),
             },
             depth: 1,
             has_children: false,
@@ -1201,6 +1220,7 @@ pub(crate) mod tests {
             category,
             services: None,
             windows: None,
+            details: Default::default(),
         }
     }
 

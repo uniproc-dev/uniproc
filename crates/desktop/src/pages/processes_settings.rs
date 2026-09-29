@@ -178,7 +178,8 @@ mod tests {
         assert!(!enabled(&mut page, Pid, ProcessesSettingsMark::Up));
         assert!(enabled(&mut page, Pid, ProcessesSettingsMark::Down));
         assert!(enabled(&mut page, Disk, ProcessesSettingsMark::Down));
-        assert!(!enabled(&mut page, GpuMemory, ProcessesSettingsMark::Down));
+        let last = ProcessColumn::ALL[ProcessColumn::ALL.len() - 1];
+        assert!(!enabled(&mut page, last, ProcessesSettingsMark::Down));
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -191,7 +192,11 @@ mod tests {
         page.within(Cpu).click(ProcessesSettingsMark::Down).settle();
         page.settle();
 
-        assert_eq!(columns(&page), names(&[Name, Pid, ProcessName, Memory, Cpu, Net, Disk, Gpu, GpuMemory]));
+        let mut traded = ProcessColumn::ALL.to_vec();
+        let cpu = traded.iter().position(|column| *column == Cpu).unwrap();
+        traded.swap(cpu, cpu + 1);
+        assert_eq!(traded[cpu], Memory);
+        assert_eq!(columns(&page), names(&traded));
         let ranks = Stored::new().unwrap().columns().order();
         assert_eq!(ranks.get("memory"), Some(3));
         assert_eq!(ranks.get("cpu"), Some(4));

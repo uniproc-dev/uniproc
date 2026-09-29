@@ -392,6 +392,7 @@ fn passport(info: &api::ProcessInfo) -> WindowsProcessStats {
         session_id: info.session_id,
         name: Arc::from(info.name.as_str()),
         first_arg: Arc::from(info.cmdline.first().map_or("", String::as_str)),
+        command_line: Arc::from(command_line(&info.cmdline)),
         package_full_name: Arc::from(info.package_full_name.as_str()),
         package_relative_app_id: Arc::from(info.package_relative_app_id.as_str()),
         is_service: info.is_service,
@@ -412,6 +413,17 @@ fn passport(info: &api::ProcessInfo) -> WindowsProcessStats {
         publisher: Arc::from(info.publisher.as_str()),
         ..WindowsProcessStats::default()
     }
+}
+
+fn command_line(args: &[String]) -> String {
+    let quoted = args.iter().map(|arg| {
+        if arg.is_empty() || arg.contains([' ', '\t']) {
+            format!("\"{arg}\"")
+        } else {
+            arg.clone()
+        }
+    });
+    quoted.collect::<Vec<_>>().join(" ")
 }
 
 fn run_state(state: &api::ProcessState) -> ProcessRunState {
@@ -684,6 +696,13 @@ mod tests {
         assert_eq!(&*report.processes[0].first_arg, r"C:\app.exe");
         assert_eq!(report.processes[0].console_host_pid, 40);
         assert_eq!(&*report.processes[1].first_arg, "");
+    }
+
+    #[test]
+    fn the_command_line_quotes_what_has_spaces() {
+        let args = [r"C:\Program Files\app.exe", "--flag", "a b", ""].map(String::from);
+        assert_eq!(command_line(&args), r#""C:\Program Files\app.exe" --flag "a b" """#);
+        assert_eq!(command_line(&[]), "");
     }
 
     #[test]

@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
-use app_contracts::features::agents::EnvironmentKind;
+use app_contracts::features::agents::{Architecture, EnvironmentKind, Isolation};
 use app_contracts::features::processes::{
-    HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessRow, ProcessWindow,
+    HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessRow, ProcessStatus, ProcessWindow,
 };
 use app_contracts::features::settings::ByteUnits;
 use guicons::icon;
@@ -675,7 +675,89 @@ pub(crate) fn column_label(l10n: &L10n, column: ProcessColumn) -> String {
         ProcessColumn::Disk => l10n.processes_col_disk(),
         ProcessColumn::Gpu => l10n.processes_col_gpu(),
         ProcessColumn::GpuMemory => l10n.processes_col_gpu_memory(),
+        ProcessColumn::Status => l10n.processes_col_status(),
+        ProcessColumn::Publisher => l10n.processes_col_publisher(),
+        ProcessColumn::User => l10n.processes_col_user(),
+        ProcessColumn::CommandLine => l10n.processes_col_command_line(),
+        ProcessColumn::ImagePath => l10n.processes_col_image_path(),
+        ProcessColumn::GpuEngine => l10n.processes_col_gpu_engine(),
+        ProcessColumn::Platform => l10n.processes_col_platform(),
+        ProcessColumn::Elevated => l10n.processes_col_elevated(),
+        ProcessColumn::Isolation => l10n.processes_col_isolation(),
     }
+}
+
+#[derive(Clone, Copy)]
+enum DetailScope {
+    Process,
+    Group,
+}
+
+fn detail_row(d: &DisplayRow, scope: DetailScope) -> Option<&ProcessRow> {
+    if d.section.is_some() || d.absent {
+        return None;
+    }
+    match (&d.wsl, &d.child, scope) {
+        (Some(WslRow::Environment { .. }), _, _) => None,
+        (None, Some(Child::Window(_) | Child::Service(_)), _) => None,
+        (None, _, DetailScope::Process) if d.has_children => None,
+        _ => Some(&d.row),
+    }
+}
+
+fn detail_column<F>(id: ProcessColumn, l10n: &L10n, place: Place, scope: DetailScope, text: F) -> Column
+where
+    F: Fn(&L10n, &ProcessRow) -> String + 'static,
+{
+    let words = l10n.clone();
+    text_column(id, column_label(l10n, id), place, HorizontalAlignment::Left, move |d| {
+        detail_row(d, scope).map(|row| text(&words, row)).filter(|shown| !shown.is_empty())
+    })
+}
+
+fn status_label(l10n: &L10n, status: ProcessStatus) -> String {
+    match status {
+        ProcessStatus::Running => String::new(),
+        ProcessStatus::Suspended => l10n.processes_status_suspended(),
+        ProcessStatus::Efficiency => l10n.processes_status_efficiency(),
+    }
+}
+
+fn platform_label(l10n: &L10n, architecture: Architecture) -> String {
+    match architecture {
+        Architecture::Unknown => String::new(),
+        Architecture::X86 => l10n.processes_platform_x86(),
+        Architecture::X64 => l10n.processes_platform_x64(),
+        Architecture::Arm => l10n.processes_platform_arm(),
+        Architecture::Arm64 => l10n.processes_platform_arm64(),
+        Architecture::Arm64X86Compatible => l10n.processes_platform_arm64_x86(),
+        Architecture::Arm64X64Compatible => l10n.processes_platform_arm64_x64(),
+    }
+}
+
+fn elevated_label(l10n: &L10n, elevated: Option<bool>) -> String {
+    match elevated {
+        Some(true) => l10n.processes_elevated_yes(),
+        Some(false) => l10n.processes_elevated_no(),
+        None => String::new(),
+    }
+}
+
+fn isolation_label(l10n: &L10n, isolation: Isolation) -> String {
+    match isolation {
+        Isolation::Unknown | Isolation::None => String::new(),
+        Isolation::AppContainer => l10n.processes_isolation_app_container(),
+        Isolation::Uwp => l10n.processes_isolation_uwp(),
+        Isolation::Silo => l10n.processes_isolation_silo(),
+    }
+}
+
+fn gpu_engine_label(l10n: &L10n, row: &ProcessRow) -> String {
+    row.details
+        .gpu_engine
+        .as_ref()
+        .map(|label| l10n.processes_gpu_engine(label.adapter.to_string(), label.engine.to_string()))
+        .unwrap_or_default()
 }
 
 fn name_column(place: Place, actions: NameCellActions, group_by_type: GroupByType, l10n: L10n) -> Column {
@@ -916,6 +998,33 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                     value: move |r: &ProcessRow| (format::bytes(units, r.gpu_memory_bytes), r.gpu_memory_bytes == 0),
                     heat: move |r: &ProcessRow| (r.gpu_memory_bytes as f32 / gpu_memory_max, accent),
                     threshold: Heat::Threshold,
+                }),
+                ProcessColumn::Status => detail_column(column.column, l10n, place, DetailScope::Process, |l10n, r| {
+                    status_label(l10n, r.details.status)
+                }),
+                ProcessColumn::Publisher => detail_column(column.column, l10n, place, DetailScope::Group, |_, r| {
+                    r.details.publisher.to_string()
+                }),
+                ProcessColumn::User => {
+                    detail_column(column.column, l10n, place, DetailScope::Group, |_, r| r.details.user.to_string())
+                }
+                ProcessColumn::CommandLine => detail_column(column.column, l10n, place, DetailScope::Process, |_, r| {
+                    r.details.command_line.to_string()
+                }),
+                ProcessColumn::ImagePath => {
+                    detail_column(column.column, l10n, place, DetailScope::Group, |_, r| r.exe_path.to_string())
+                }
+                ProcessColumn::GpuEngine => {
+                    detail_column(column.column, l10n, place, DetailScope::Process, gpu_engine_label)
+                }
+                ProcessColumn::Platform => detail_column(column.column, l10n, place, DetailScope::Group, |l10n, r| {
+                    platform_label(l10n, r.details.architecture)
+                }),
+                ProcessColumn::Elevated => detail_column(column.column, l10n, place, DetailScope::Process, |l10n, r| {
+                    elevated_label(l10n, r.details.elevated)
+                }),
+                ProcessColumn::Isolation => detail_column(column.column, l10n, place, DetailScope::Group, |l10n, r| {
+                    isolation_label(l10n, r.details.isolation)
                 }),
             }
         })

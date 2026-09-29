@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::features::agents::EnvironmentKind;
+use crate::features::agents::{Architecture, EnvironmentKind, Isolation};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ColumnConfig {
@@ -97,10 +97,19 @@ pub enum ProcessColumn {
     Disk,
     Gpu,
     GpuMemory,
+    Status,
+    Publisher,
+    User,
+    CommandLine,
+    ImagePath,
+    GpuEngine,
+    Platform,
+    Elevated,
+    Isolation,
 }
 
 impl ProcessColumn {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 18] = [
         Self::Name,
         Self::Pid,
         Self::ProcessName,
@@ -110,6 +119,15 @@ impl ProcessColumn {
         Self::Disk,
         Self::Gpu,
         Self::GpuMemory,
+        Self::Status,
+        Self::Publisher,
+        Self::User,
+        Self::CommandLine,
+        Self::ImagePath,
+        Self::GpuEngine,
+        Self::Platform,
+        Self::Elevated,
+        Self::Isolation,
     ];
 
     pub fn id(self) -> &'static str {
@@ -123,6 +141,15 @@ impl ProcessColumn {
             Self::Disk => "disk",
             Self::Gpu => "gpu",
             Self::GpuMemory => "gpu_memory",
+            Self::Status => "status",
+            Self::Publisher => "publisher",
+            Self::User => "user",
+            Self::CommandLine => "command_line",
+            Self::ImagePath => "image_path",
+            Self::GpuEngine => "gpu_engine",
+            Self::Platform => "platform",
+            Self::Elevated => "elevated",
+            Self::Isolation => "isolation",
         }
     }
 
@@ -136,16 +163,28 @@ impl ProcessColumn {
             Self::Net | Self::Disk => (110, true),
             Self::Gpu => (100, true),
             Self::GpuMemory => (130, false),
+            Self::Status => (120, false),
+            Self::Publisher => (180, false),
+            Self::User => (140, false),
+            Self::CommandLine => (320, false),
+            Self::ImagePath => (280, false),
+            Self::GpuEngine => (120, false),
+            Self::Platform => (90, false),
+            Self::Elevated => (80, false),
+            Self::Isolation => (110, false),
         };
         ColumnConfig { width, visible }
     }
 
     pub fn is_metric(self) -> bool {
-        !matches!(self, Self::Name | Self::Pid | Self::ProcessName)
+        matches!(
+            self,
+            Self::Cpu | Self::Memory | Self::Net | Self::Disk | Self::Gpu | Self::GpuMemory
+        )
     }
 
     pub fn sorts_ascending_first(self) -> bool {
-        matches!(self, Self::Name | Self::Pid | Self::ProcessName)
+        !self.is_metric()
     }
 
     pub fn from_mark(name: &str) -> Option<Self> {
@@ -166,6 +205,32 @@ pub struct ProcessWindow {
     pub title: Arc<str>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
+pub enum ProcessStatus {
+    #[default]
+    Running,
+    Suspended,
+    Efficiency,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct GpuEngineLabel {
+    pub adapter: u32,
+    pub engine: Arc<str>,
+}
+
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct ProcessDetails {
+    pub status: ProcessStatus,
+    pub publisher: Arc<str>,
+    pub user: Arc<str>,
+    pub command_line: Arc<str>,
+    pub gpu_engine: Option<GpuEngineLabel>,
+    pub architecture: Architecture,
+    pub elevated: Option<bool>,
+    pub isolation: Isolation,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct ProcessRow {
     pub pid: u32,
@@ -184,6 +249,7 @@ pub struct ProcessRow {
     pub category: ProcessCategory,
     pub services: Option<Arc<[HostedService]>>,
     pub windows: Option<Arc<[ProcessWindow]>>,
+    pub details: Arc<ProcessDetails>,
 }
 
 #[derive(Clone, PartialEq, Debug)]

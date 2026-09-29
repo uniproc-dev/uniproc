@@ -25,7 +25,7 @@ pub enum ProcessPriority {
     Realtime,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, PartialOrd, Ord, Deserialize)]
 pub enum Architecture {
     #[default]
     Unknown,
@@ -46,7 +46,7 @@ pub enum UacVirtualization {
     Enabled,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, PartialOrd, Ord, Deserialize)]
 pub enum Isolation {
     #[default]
     Unknown,
@@ -209,6 +209,7 @@ pub struct WindowsProcessStats {
     pub session_id: u32,
     pub name: Arc<str>,
     pub first_arg: Arc<str>,
+    pub command_line: Arc<str>,
     pub package_full_name: Arc<str>,
     pub package_relative_app_id: Arc<str>,
     pub cpu_percent: f32,
