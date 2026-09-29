@@ -3318,8 +3318,8 @@ dependencies = [
 
 [[package]]
 name = "uniproc-protocol"
-version = "0.12.4"
-source = "git+https://github.com/uniproc-dev/uniproc-protocol?tag=v0.12.4#ce6f4466a4a5ea875c1a9e993baa8170aa76f4a3"
+version = "0.12.5"
+source = "git+https://github.com/uniproc-dev/uniproc-protocol?tag=v0.12.5#31124f0f8576202b3e6de1216701d0b88fa021ab"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -3329,7 +3329,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-agent"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.12.0#b586048be0dfefd1a6a722f3940b9e955b6c7871"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.12.2#30823e4db1319799130bf35a1228dd6e764db6f1"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -3351,7 +3351,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-core"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.12.0#b586048be0dfefd1a6a722f3940b9e955b6c7871"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.12.2#30823e4db1319799130bf35a1228dd6e764db6f1"
 dependencies = [
  "amethystate",
  "anyhow",
