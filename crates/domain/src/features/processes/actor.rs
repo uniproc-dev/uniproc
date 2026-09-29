@@ -270,6 +270,7 @@ fn on_windows_report(this: &mut ProcessesActor, msg: WindowsReportMessage) {
         memory_total_bytes: machine.total_physical_bytes,
         gpu_percent: machine.gpu_percent(),
         gpu_memory_used_bytes: machine.gpu_dedicated_used_bytes(),
+        ..MachineSummary::default()
     };
 
     let windows = (this.windows)();

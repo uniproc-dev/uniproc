@@ -1,5 +1,7 @@
 use amethystate::amethystate;
-use app_contracts::features::settings::{AppTheme, ByteUnits, SettingsState, StartPage, UpdateInterval};
+use app_contracts::features::settings::{
+    AppTheme, ByteUnits, SettingsState, SidebarCharts, StartPage, UpdateInterval,
+};
 
 #[amethystate(prefix = "general")]
 pub struct GeneralSettings {
@@ -14,6 +16,9 @@ pub struct GeneralSettings {
 
     #[amestate(default = ByteUnits::default().id().to_string())]
     pub byte_units: String,
+
+    #[amestate(default = SidebarCharts::default().hidden_ids())]
+    pub hidden_sidebar_charts: String,
 }
 
 impl GeneralSettings {
@@ -29,6 +34,10 @@ impl GeneralSettings {
         ByteUnits::from_id(&self.byte_units().get()).unwrap_or_default()
     }
 
+    pub fn sidebar_charts(&self) -> SidebarCharts {
+        SidebarCharts::from_hidden_ids(&self.hidden_sidebar_charts().get())
+    }
+
     pub fn update_interval(&self) -> std::time::Duration {
         UpdateInterval::clamp(self.update_interval_ms().get())
     }
@@ -39,6 +48,7 @@ impl GeneralSettings {
             start_page: self.start_page_choice(),
             update_interval_ms: self.update_interval().as_millis() as u64,
             byte_units: self.byte_units_choice(),
+            sidebar_charts: self.sidebar_charts(),
         }
     }
 }

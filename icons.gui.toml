@@ -49,6 +49,9 @@ iconify = "fluent:top-speed-24-regular"
 [byte-units]
 iconify = "fluent:ruler-24-regular"
 
+[sidebar-charts]
+iconify = "fluent:data-trending-24-regular"
+
 [coin]
 iconify = "fluent-color:coin-multiple-24"
 paint = "none"

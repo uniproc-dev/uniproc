@@ -1,7 +1,7 @@
 use app_contracts::features::agent_link::{AgentLinkState, StartInProcess};
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::metrics::MetricsState;
-use app_contracts::features::settings::{AppTheme, SettingsState};
+use app_contracts::features::settings::{AppTheme, SettingsState, ShowSidebarChart};
 use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarState};
 use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
 use domain::features::agents::providers::windows::AGENT_SERVICE_DISPLAY_NAME;
@@ -48,8 +48,7 @@ pub(crate) fn splash(
 #[derive(Default)]
 pub struct ShellLayout {
     scheme: ColorScheme,
-    cpu_chart: Chart,
-    memory_chart: Chart,
+    charts: [Chart; 5],
 }
 
 fn window_theme(theme: AppTheme) -> WindowTheme {
@@ -114,7 +113,7 @@ impl Layout for ShellLayout {
     fn view(&self, cx: &mut LayoutCx<'_, Self>) -> View {
         let on_scheme = cx.on(ShellMsg::Scheme);
         cx.on_color_scheme(on_scheme);
-        let (settings, _) = cx.use_reducer::<SettingsState, _>();
+        let (settings, settings_dispatch) = cx.use_reducer::<SettingsState, _>();
         cx.window_visuals(
             WindowVisuals::new()
                 .client_size(WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -168,8 +167,9 @@ impl Layout for ShellLayout {
             splash: splash(&link, &link_dispatch, &l10n, palette),
             metrics: &metrics,
             units: settings.byte_units,
-            cpu_chart: &self.cpu_chart,
-            memory_chart: &self.memory_chart,
+            charts: &self.charts,
+            shown: settings.sidebar_charts,
+            on_show_chart: Callback::new(move |(chart, shown)| settings_dispatch.emit(ShowSidebarChart(chart, shown))),
             on_select,
             on_resize,
             on_open_changed,
@@ -189,6 +189,7 @@ mod tests {
     use uuid::Uuid;
 
     use app_contracts::features::agent_link::InProcess;
+    use app_contracts::features::settings::SidebarChart;
     use app_contracts::features::agents::{
         AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsActionResponse,
     };
@@ -433,5 +434,55 @@ mod tests {
         after(h, &mut page, 3);
         assert_eq!(agent(h), AgentConnectionState::Connected);
         assert!(!splash_shown(&page), "{:#?}", page.tree());
+    }
+
+    fn open_pane(h: &Harness, page: &mut Mounted<'_, ShellLayout>) {
+        h.dispatch::<SidebarState>().emit(SetOpen(true));
+        page.settle();
+    }
+
+    fn tile_shown(page: &Mounted<'_, ShellLayout>, chart: SidebarChart) -> bool {
+        page.find(ui::SidebarMark::tile(chart)).is_some()
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_hidden_chart_leaves_the_pane_and_comes_back(h: &mut Harness) {
+        let _store = start(h, true);
+        let h = &*h;
+        let mut page = mount(h);
+        open_pane(h, &mut page);
+        for chart in SidebarChart::ALL {
+            assert!(tile_shown(&page, chart), "{chart:?}: {:#?}", page.tree());
+        }
+        assert!(page.find(ui::SidebarMark::Charts).is_some(), "the menu that picks them");
+
+        h.dispatch::<SettingsState>().emit(ShowSidebarChart(SidebarChart::Disk, false));
+        page.settle();
+        assert!(!tile_shown(&page, SidebarChart::Disk), "{:#?}", page.tree());
+        assert!(tile_shown(&page, SidebarChart::Network));
+
+        h.dispatch::<SettingsState>().emit(ShowSidebarChart(SidebarChart::Disk, true));
+        page.settle();
+        assert!(tile_shown(&page, SidebarChart::Disk), "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn rate_charts_name_the_top_of_their_scale(h: &mut Harness) {
+        let _store = start(h, true);
+        let h = &*h;
+        let mut page = mount(h);
+        open_pane(h, &mut page);
+        after(h, &mut page, 1);
+
+        let tree = page.tree();
+        let scale = |chart: SidebarChart| {
+            tree.find(ui::SidebarMark::tile(chart))
+                .unwrap_or_else(|| panic!("{chart:?}: {tree:#?}"))
+                .find_text("100%: \u{2068}100 KB/s\u{2069}")
+                .is_some()
+        };
+        assert!(scale(SidebarChart::Disk), "{tree:#?}");
+        assert!(scale(SidebarChart::Network), "{tree:#?}");
+        assert!(!scale(SidebarChart::Cpu), "a percent chart needs no scale");
     }
 }

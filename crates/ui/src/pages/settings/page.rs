@@ -1,22 +1,22 @@
 use std::time::Duration;
 
 use app_contracts::features::settings::{
-    AppTheme, ByteUnits, SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsState, StartPage,
-    UpdateInterval,
+    AppTheme, ByteUnits, SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsState, ShowSidebarChart,
+    SidebarChart, StartPage, UpdateInterval,
 };
 use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    ChildrenControl, ComboBox, LayoutControl, NumberBox, Orientation, Slider,
-    StackPanel, Thickness, VerticalAlignment, View,
+    Border, CheckBox, ChildrenControl, ComboBox, ContentControl, Expander, HorizontalAlignment, LayoutControl,
+    NumberBox, Orientation, Slider, StackPanel, Thickness, VerticalAlignment, View,
 };
 
 use crate::l10n::L10n;
 use crate::theme::{space, Palette};
 use crate::widgets::page::settings_column;
 use crate::widgets::setting_card::{setting_card, SettingCard, SettingCardSize};
-use crate::widgets::text::{body_strong, subtitle, text};
+use crate::widgets::text::{body_strong, caption, subtitle, text};
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SettingsMark {
@@ -25,6 +25,12 @@ pub enum SettingsMark {
     UpdateSpeed,
     UpdateSpeedValue,
     ByteUnits,
+    SidebarCharts,
+    SidebarCpu,
+    SidebarMemory,
+    SidebarDisk,
+    SidebarNetwork,
+    SidebarGpu,
 }
 
 struct Control;
@@ -41,6 +47,8 @@ struct Layout;
 #[expect(non_upper_case_globals)]
 impl Layout {
     const CardSpacing: f64 = 4.0;
+    const ExpanderHeaderInset: f64 = 12.0;
+    const ExpanderContentInset: f64 = 36.0;
 
     fn section_header() -> Thickness {
         Thickness::new(1.0, 30.0, 0.0, 6.0)
@@ -145,6 +153,62 @@ fn byte_units_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
     )
 }
 
+fn sidebar_chart_label(l10n: &L10n, chart: SidebarChart) -> String {
+    match chart {
+        SidebarChart::Cpu => l10n.settings_sidebar_chart_cpu(),
+        SidebarChart::Memory => l10n.settings_sidebar_chart_memory(),
+        SidebarChart::Disk => l10n.settings_sidebar_chart_disk(),
+        SidebarChart::Network => l10n.settings_sidebar_chart_network(),
+        SidebarChart::Gpu => l10n.settings_sidebar_chart_gpu(),
+    }
+}
+
+impl SettingsMark {
+    pub fn sidebar_chart(chart: SidebarChart) -> Self {
+        match chart {
+            SidebarChart::Cpu => Self::SidebarCpu,
+            SidebarChart::Memory => Self::SidebarMemory,
+            SidebarChart::Disk => Self::SidebarDisk,
+            SidebarChart::Network => Self::SidebarNetwork,
+            SidebarChart::Gpu => Self::SidebarGpu,
+        }
+    }
+}
+
+fn sidebar_charts_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+    let toggles = SidebarChart::ALL.map(|chart| {
+        let dispatch = dispatch.clone();
+        CheckBox::new()
+            .mark(SettingsMark::sidebar_chart(chart))
+            .is_checked(state.sidebar_charts.shows(chart))
+            .on_is_checked_changed(move |shown: bool| dispatch.emit(ShowSidebarChart(chart, shown)))
+            .content(text(sidebar_chart_label(l10n, chart)))
+    });
+    let header = StackPanel::new()
+        .orientation(Orientation::Horizontal)
+        .spacing(space::Card)
+        .margin(Thickness::xy(0.0, Layout::ExpanderHeaderInset))
+        .children((
+            Border::new()
+                .vertical_alignment(VerticalAlignment::Center)
+                .content(icon!(sidebar_charts).size(SettingCardSize::Icon).build()),
+            StackPanel::new().vertical_alignment(VerticalAlignment::Center).children((
+                text(l10n.settings_sidebar_charts()),
+                caption(l10n.settings_sidebar_charts_description()).foreground(palette.secondary_text),
+            )),
+        ));
+    Expander::new()
+        .mark(SettingsMark::SidebarCharts)
+        .horizontal_alignment(HorizontalAlignment::Stretch)
+        .header(header)
+        .content(
+            StackPanel::new()
+                .margin(Thickness::new(Layout::ExpanderContentInset, 0.0, 0.0, 0.0))
+                .children(toggles),
+        )
+        .into()
+}
+
 fn update_speed_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let dispatch = dispatch.clone();
     let millis = |interval: Duration| interval.as_millis() as f64;
@@ -199,6 +263,7 @@ pub fn settings_view(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
             start_page_card(state, dispatch, l10n, palette),
             update_speed_card(state, dispatch, l10n, palette),
             byte_units_card(state, dispatch, l10n, palette),
+            sidebar_charts_card(state, dispatch, l10n, palette),
         )),
     );
 

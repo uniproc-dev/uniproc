@@ -1,6 +1,6 @@
 use app_contracts::features::settings::{
-    SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsMsg, SettingsState, UpdateInterval,
-    UpdateIntervalChanged,
+    SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsMsg, SettingsState, ShowSidebarChart,
+    UpdateInterval, UpdateIntervalChanged,
 };
 use guinea::prelude::*;
 
@@ -24,14 +24,24 @@ impl SettingsActor {
             start_page: state.start_page,
             update_interval_ms: state.update_interval_ms,
             byte_units: state.byte_units,
+            sidebar_charts: state.sidebar_charts,
         });
     }
 }
 
 actor! {
     SettingsActor {
-        handlers { SetTheme, SetStartPage, SetUpdateInterval, SetByteUnits }
+        handlers { SetTheme, SetStartPage, SetUpdateInterval, SetByteUnits, ShowSidebarChart }
     }
+}
+
+#[handler]
+fn show_sidebar_chart(this: &mut SettingsActor, ShowSidebarChart(chart, shown): ShowSidebarChart) {
+    let charts = this.settings.sidebar_charts().with(chart, shown);
+    if let Err(err) = this.settings.hidden_sidebar_charts().set(charts.hidden_ids()) {
+        tracing::warn!(?err, "sidebar charts setting write failed");
+    }
+    this.publish();
 }
 
 #[handler]

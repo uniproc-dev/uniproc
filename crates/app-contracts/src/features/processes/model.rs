@@ -209,4 +209,6 @@ pub struct MachineSummary {
     pub memory_total_bytes: u64,
     pub gpu_percent: f32,
     pub gpu_memory_used_bytes: u64,
+    pub disk_bytes_per_sec: u64,
+    pub network_bytes_per_sec: u64,
 }

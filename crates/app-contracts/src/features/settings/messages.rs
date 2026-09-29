@@ -1,7 +1,7 @@
 use guinea::prelude::Event;
 use serde::Deserialize;
 
-use super::model::{AppTheme, ByteUnits, StartPage};
+use super::model::{AppTheme, ByteUnits, SidebarChart, SidebarCharts, StartPage};
 
 #[derive(Clone, Copy)]
 pub enum SettingsMsg {
@@ -10,8 +10,13 @@ pub enum SettingsMsg {
         start_page: StartPage,
         update_interval_ms: u64,
         byte_units: ByteUnits,
+        sidebar_charts: SidebarCharts,
     },
 }
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct ShowSidebarChart(pub SidebarChart, pub bool);
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]

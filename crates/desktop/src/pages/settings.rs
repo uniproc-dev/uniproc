@@ -30,7 +30,7 @@ impl Page for Settings {
 #[cfg(test)]
 mod tests {
     use app_contracts::features::settings::{
-        AppTheme, ByteUnits, SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, StartPage,
+        AppTheme, ByteUnits, SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, SidebarChart, StartPage,
         UpdateIntervalChanged,
     };
     use domain::features::settings::settings::GeneralSettings;
@@ -109,6 +109,28 @@ mod tests {
         assert_eq!(stored.theme_choice(), AppTheme::Dark);
         assert_eq!(stored.start_page_choice(), StartPage::Wsl);
         assert_eq!(stored.update_interval_ms().get(), 300);
+    }
+
+    fn ticked(page: &Mounted<'_, Settings>, chart: SidebarChart) -> PropertyValue {
+        value(page, SettingsMark::sidebar_chart(chart), PropertyId::CheckBoxIsChecked)
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_chart_unticked_here_leaves_the_pane_and_is_kept(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        for chart in SidebarChart::ALL {
+            assert_eq!(ticked(&page, chart), PropertyValue::Bool(true), "{chart:?}");
+        }
+
+        page.click(SettingsMark::sidebar_chart(SidebarChart::Network)).settle();
+        page.settle();
+
+        assert_eq!(ticked(&page, SidebarChart::Network), PropertyValue::Bool(false));
+        assert_eq!(ticked(&page, SidebarChart::Disk), PropertyValue::Bool(true));
+        assert!(!h.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Network));
+        assert_eq!(GeneralSettings::new().unwrap().hidden_sidebar_charts().get(), "network");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

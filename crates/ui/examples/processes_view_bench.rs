@@ -68,6 +68,7 @@ fn state(rows: Rc<[ProcessRow]>) -> ProcessesState {
             memory_total_bytes: 32_000_000_000,
             gpu_percent: 7.5,
             gpu_memory_used_bytes: 1_500_000_000,
+            ..MachineSummary::default()
         }),
         selected: Some(1_010),
         sort_column: ProcessColumn::Cpu,
