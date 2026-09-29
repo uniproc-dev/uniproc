@@ -1,9 +1,10 @@
 use app_contracts::features::system::SystemState;
-use domain::features::system::{SystemDeps, SystemFeature};
 use guinea::feature::FeatureInitContext;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::theme::{scheme_context, Palette};
-use windows_reactor::View;
+use windows_reactor::{Callback, View};
+
+use crate::routes::Route;
 
 #[derive(Default)]
 pub struct System;
@@ -11,12 +12,11 @@ pub struct System;
 #[page]
 impl Page for System {
     type Params = crate::routes::SystemParams;
-    type Installs = SystemFeature;
+    type Installs = ();
     type Message = ();
 
-    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        let deps = ctx.require_or_default::<SystemDeps>();
-        ctx.install(&deps)
+    fn install(_ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
+        Ok(())
     }
 
     fn update(&mut self, _message: (), _cx: &mut UpdateCx<'_, Self>) {}
@@ -25,92 +25,88 @@ impl Page for System {
         let (state, dispatch) = cx.use_reducer::<SystemState, _>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
-        ui::pages::system::system_view(&state, &dispatch, &l10n, palette)
+        let nav = cx.navigate::<Route>();
+        let open_tools = Callback::new(move |()| nav.to(Route::SystemTools {}));
+        ui::pages::system::system_view(&state, &dispatch, &l10n, palette, open_tools)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-    use std::sync::Mutex;
-
-    use app_contracts::features::system::SystemTool;
-    use domain::features::system::tools::Launch;
+    use app_contracts::features::system::{OpenTool, PinTool, SystemTool};
     use guinea::app::Harness;
-    use guinea::winui::harness::Mounted;
-    use guinea_plugin_l10n::L10nPlugin;
-    use ui::pages::system::ToolMark;
+    use guinea::winui::harness::{Mounted, Node};
+    use ui::pages::system::{SystemMark, ToolMark};
 
     use super::*;
+    use crate::test_system::{self, launch, launched};
 
-    static LAUNCHED: Mutex<Vec<Launch>> = Mutex::new(Vec::new());
-
-    fn launched() -> Vec<Launch> {
-        LAUNCHED.lock().unwrap().clone()
-    }
-
-    fn record(launch: Launch) {
-        LAUNCHED.lock().unwrap().push(launch);
-    }
-
-    fn procexp_only(name: &str) -> Option<PathBuf> {
-        (name == "procexp64.exe").then(|| PathBuf::from(r"C:\Tools\procexp64.exe"))
-    }
-
-    fn mount(h: &mut Harness) -> Mounted<'_, System> {
-        LAUNCHED.lock().unwrap().clear();
-        h.plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
-            .unwrap()
-            .provide(SystemDeps {
-                locate: procexp_only,
-                launch: record,
-            });
-        let h = &*h;
-        let mut page = Mounted::<System>::mount(&h.child(), crate::routes::SystemParams::default()).unwrap();
+    fn mount(h: &Harness) -> Mounted<'_, System> {
+        let mut page =
+            Mounted::mount_at(&h.child(), crate::routes::SystemParams::default(), Route::System {}).unwrap();
         page.settle();
         page
     }
 
-    fn button_says(page: &Mounted<'_, System>, tool: SystemTool, label: &str) -> bool {
-        page.tree()
-            .find(ToolMark(tool))
-            .unwrap_or_else(|| panic!("{tool:?}: {:#?}", page.tree()))
-            .find_text(label)
-            .is_some()
-    }
-
-    #[guinea::test(iterations = 4, exclusive = "system_tools")]
-    fn every_tool_has_a_row(h: &mut Harness) {
-        let page = mount(h);
-        for tool in SystemTool::ALL {
-            assert!(page.find(ToolMark(tool)).is_some(), "{tool:?}: {:#?}", page.tree());
+    fn tools_in(node: &Node, found: &mut Vec<SystemTool>) {
+        if let Some(tool) = node.id.as_deref().and_then(SystemTool::from_id) {
+            found.push(tool);
+        }
+        for child in &node.children {
+            tools_in(child, found);
         }
     }
 
-    #[guinea::test(iterations = 4, exclusive = "system_tools")]
-    fn a_found_tool_opens_and_a_missing_one_is_downloaded(h: &mut Harness) {
+    fn favourites(page: &Mounted<'_, System>) -> Vec<SystemTool> {
+        let tree = page.tree();
+        let mut found = Vec::new();
+        if let Some(shown) = tree.find(SystemMark::Favourites) {
+            tools_in(shown, &mut found);
+        }
+        found
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_tools_card_opens_the_tools_page(h: &mut Harness) {
+        let _store = test_system::start(h);
+        let h = &*h;
         let mut page = mount(h);
-        assert!(button_says(&page, SystemTool::ProcessExplorer, "Open"));
-        assert!(button_says(&page, SystemTool::ProcessMonitor, "Download"));
-        assert!(button_says(&page, SystemTool::EventViewer, "Open"));
+        assert!(page.find(SystemMark::NoFavourites).is_some(), "{:#?}", page.tree());
 
-        page.click(ToolMark(SystemTool::ProcessExplorer)).settle();
-        page.click(ToolMark(SystemTool::ProcessMonitor)).settle();
-        page.click(ToolMark(SystemTool::ReliabilityMonitor)).settle();
-        page.click(ToolMark(SystemTool::EnvironmentVariables)).settle();
+        page.click(SystemMark::Tools).settle();
 
-        let launch = |file: &str, args: &str| Launch {
-            file: file.into(),
-            args: args.into(),
-        };
+        assert_eq!(page.navigated::<Route>(), [Route::SystemTools {}]);
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn pinned_tools_come_first_then_the_most_opened(h: &mut Harness) {
+        let _store = test_system::start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        for tool in [SystemTool::EventViewer, SystemTool::RegistryEditor, SystemTool::EventViewer] {
+            h.act::<SystemState>(OpenTool(tool)).settle();
+        }
+        h.act::<SystemState>(PinTool(SystemTool::ProcessExplorer, true)).settle();
+        page.settle();
+
+        assert_eq!(
+            favourites(&page),
+            [SystemTool::ProcessExplorer, SystemTool::EventViewer, SystemTool::RegistryEditor],
+            "{:#?}",
+            page.tree()
+        );
         assert_eq!(
             launched(),
             [
-                launch(r"C:\Tools\procexp64.exe", ""),
-                launch("https://learn.microsoft.com/sysinternals/downloads/procmon", ""),
-                launch("perfmon.exe", "/rel"),
-                launch("rundll32.exe", "sysdm.cpl,EditEnvironmentVariables"),
+                launch("eventvwr.msc", ""),
+                launch("regedit.exe", ""),
+                launch("eventvwr.msc", ""),
             ]
         );
+
+        page.within(ToolMark(SystemTool::ProcessExplorer)).click(SystemMark::Pin).settle();
+        page.settle();
+        assert_eq!(favourites(&page), [SystemTool::EventViewer, SystemTool::RegistryEditor]);
     }
 }

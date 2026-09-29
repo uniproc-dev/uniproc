@@ -4,9 +4,9 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ComboBox, ContentControl, Expander, Grid,
-    GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation, PointerEventInfo,
-    StackPanel, ThemeBrush, Thickness, ToggleSwitch, VerticalAlignment, View,
+    Border, Button, ButtonStyle, Callback, ChildrenControl, ComboBox, ContentControl, Expander, Grid,
+    GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation, StackPanel, Thickness,
+    ToggleSwitch, VerticalAlignment, View,
 };
 
 use super::components::column_layout::ColumnLayout;
@@ -17,10 +17,11 @@ use super::marks::ProcessesSettingsMark;
 use super::page::ProcessesSettingsMaps;
 use crate::l10n::L10n;
 use crate::theme::{size, space, Palette};
+use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
 use crate::widgets::page::{action_button, settings_column};
 use crate::widgets::separator;
 use crate::widgets::setting_card::{setting_card, SettingCard};
-use crate::widgets::text::{caption, subtitle, text};
+use crate::widgets::text::{caption, text};
 
 struct Layout;
 
@@ -30,17 +31,6 @@ impl Layout {
     const RowMinHeight: f64 = 44.0;
     const HeaderInset: f64 = 12.0;
     const ChoiceWidth: f64 = 180.0;
-    const Hit: Color = Color::argb(0, 0, 0, 0);
-}
-
-struct Crumb;
-
-#[expect(non_upper_case_globals)]
-impl Crumb {
-    const ChevronSize: f64 = 12.0;
-    const ChevronLead: f64 = 2.0;
-    const ChevronTrail: f64 = 1.0;
-    const ChevronDrop: f64 = 2.0;
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -244,7 +234,7 @@ impl ProcessesSettingsPage {
         );
 
         settings_column((
-            breadcrumb(l10n, palette, self.back_hovered, &forward, back),
+            crumbs(l10n, palette, self.back_hovered, &forward, back),
             StackPanel::new()
                 .margin(Thickness::new(0.0, space::Section, 0.0, 0.0))
                 .spacing(Layout::ExpanderSpacing)
@@ -253,47 +243,27 @@ impl ProcessesSettingsPage {
     }
 }
 
-fn breadcrumb(
+fn crumbs(
     l10n: &L10n,
     palette: Palette,
     hovered: bool,
     forward: &Callback<ProcessesSettingsMsg>,
     back: Callback<()>,
 ) -> View {
-    let (entered, exited) = (forward.clone(), forward.clone());
-    let parent_text = subtitle(l10n.processes_title());
-    let parent_text = if hovered {
-        parent_text.foreground(ThemeBrush::PrimaryText)
-    } else {
-        parent_text.foreground(palette.secondary_text)
-    };
-    let parent = Border::new()
-        .mark(ProcessesSettingsMark::Back)
-        .background(Layout::Hit)
-        .vertical_alignment(VerticalAlignment::Center)
-        .on_pointer_entered(move |_: PointerEventInfo| {
-            let _ = entered.call(ProcessesSettingsMsg::BackHovered(true));
-        })
-        .on_pointer_exited(move |_: PointerEventInfo| {
-            let _ = exited.call(ProcessesSettingsMsg::BackHovered(false));
-        })
-        .on_pointer_released(move |_: PointerEventInfo| {
-            let _ = back.call(());
-        })
-        .content(parent_text);
-    let chevron = Grid::new()
-        .margin(Thickness::new(Crumb::ChevronLead, Crumb::ChevronDrop, Crumb::ChevronTrail, 0.0))
-        .vertical_alignment(VerticalAlignment::Center)
-        .children((icon!(chevron_right_regular).size(Crumb::ChevronSize).build_element(),));
-    StackPanel::new()
-        .orientation(Orientation::Horizontal)
-        .spacing(space::Compact)
-        .children((
-            parent,
-            chevron,
-            subtitle(l10n.processes_settings_title()).vertical_alignment(VerticalAlignment::Center),
-        ))
-        .into()
+    let forward = forward.clone();
+    breadcrumb(
+        ProcessesSettingsMark::Back,
+        Breadcrumb {
+            parent: l10n.processes_title(),
+            current: l10n.processes_settings_title(),
+            hovered,
+        },
+        palette,
+        Callback::new(move |hovered| {
+            let _ = forward.call(ProcessesSettingsMsg::BackHovered(hovered));
+        }),
+        back,
+    )
 }
 
 struct Heading {

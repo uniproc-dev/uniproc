@@ -1,5 +1,7 @@
 pub mod card;
+pub mod breadcrumb;
 pub mod distro_icon;
+pub mod link_card;
 pub mod metric_chart;
 pub mod page;
 pub mod selection;

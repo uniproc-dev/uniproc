@@ -16,8 +16,8 @@ use guinea::winui::{layout, Layout, LayoutCx, UpdateCx, UseNavigate, UseRoute};
 use guinea_widgets::chart::Chart;
 use windows_reactor::{Callback, ColorScheme, View, WindowBackdrop, WindowTheme, WindowVisuals};
 
-use crate::layouts::ProcessesArea;
-use crate::pages::{Services, Settings, System, Wsl};
+use crate::layouts::{ProcessesArea, SystemArea};
+use crate::pages::{Services, Settings, Wsl};
 use crate::route_memory;
 use crate::routes::Route;
 
@@ -139,7 +139,7 @@ impl Layout for ShellLayout {
             "wsl"
         } else if cx.child_is::<ProcessesArea>() {
             "processes"
-        } else if cx.child_is::<System>() {
+        } else if cx.child_is::<SystemArea>() {
             "system"
         } else if cx.child_is::<Settings>() {
             "settings"

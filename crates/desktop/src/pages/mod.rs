@@ -3,6 +3,7 @@ mod processes_settings;
 mod services;
 mod settings;
 mod system;
+mod system_tools;
 mod wsl;
 
 pub use processes::Processes;
@@ -10,4 +11,5 @@ pub use processes_settings::ProcessesSettings;
 pub use services::Services;
 pub use settings::Settings;
 pub use system::System;
+pub use system_tools::SystemTools;
 pub use wsl::Wsl;

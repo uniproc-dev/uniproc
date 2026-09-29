@@ -1,11 +1,15 @@
 system-title = System
+system-tools = Tools
+system-tools-description = Windows consoles, Settings pages and Sysinternals
+system-section-favourites = Pinned and frequently used
+system-favourites-empty = Tools you pin, and the ones you open most in the last month, show up here
 system-section-windows = Windows tools
 system-section-settings = Windows Settings
 system-section-sysinternals = Sysinternals
 system-sysinternals-hint = Found in Microsoft Store and winget installs and in the folders on PATH
 
-system-open = Open
-system-get = Download
+system-pin = Pin
+system-unpin = Unpin
 
 system-task-manager = Task Manager
 system-task-manager-description = The monitor that comes with Windows

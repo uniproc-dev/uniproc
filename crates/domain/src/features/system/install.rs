@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use app_contracts::features::system::SystemState;
 use guinea::prelude::*;
 
-use super::actor::{Rescan, SystemActor};
+use super::actor::{favourites, Rescan, SystemActor};
+use super::settings::SystemSettings;
 use super::tools::{self, Launch};
 
 #[derive(Clone, Copy, Debug)]
@@ -30,7 +31,17 @@ feature! {
 #[installs]
 fn system(cx: &FeatureInitContext, deps: &SystemDeps) -> anyhow::Result<SystemFeature> {
     let deps = *deps;
-    let (system, addr) = cx.state::<SystemState>().driven_by(|push| SystemActor::new(push, deps));
+    let settings = SystemSettings::new()?;
+    let (pinned, frequent) = favourites(&settings);
+    let seed = SystemState {
+        pinned,
+        frequent,
+        ..SystemState::default()
+    };
+    let (system, addr) = cx
+        .state::<SystemState>()
+        .seed(seed)
+        .driven_by(|push| SystemActor::new(push, deps, settings));
     addr.send(Rescan);
     Ok(SystemFeature(system))
 }

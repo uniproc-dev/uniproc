@@ -25,6 +25,9 @@ iconify = "fluent:pin-24-regular"
 [pin-off]
 iconify = "fluent:pin-off-24-regular"
 
+[pin-filled]
+iconify = "fluent:pin-24-filled"
+
 [checkmark]
 iconify = "fluent:checkmark-24-regular"
 
@@ -53,8 +56,15 @@ iconify = "fluent:ruler-24-regular"
 iconify = "fluent:data-trending-24-regular"
 
 [system]
+file = "system.svg"
+paint = "none"
+
+[toolbox]
 iconify = "fluent-color:toolbox-24"
 paint = "none"
+
+[open-external]
+iconify = "fluent:open-24-regular"
 
 [tool-task-manager]
 iconify = "fluent:data-usage-24-regular"
