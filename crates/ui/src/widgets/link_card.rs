@@ -19,6 +19,16 @@ impl LinkCardSize {
     fn icon_margin() -> Thickness {
         Thickness::new(2.0, 0.0, 20.0, 0.0)
     }
+
+    fn content_margin() -> Thickness {
+        let button = Thickness::new(11.0, 5.0, 11.0, 6.0);
+        Thickness::new(
+            space::Card - button.left(),
+            space::Card - button.top(),
+            space::Card - button.right(),
+            space::Card - button.bottom(),
+        )
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -53,7 +63,6 @@ fn card_look(palette: Palette) -> ResourceOverrides {
         .set("ButtonBorderBrush", palette.card_stroke)
         .set("ButtonBorderBrushPointerOver", palette.card_stroke)
         .set("ButtonBorderBrushPressed", palette.card_stroke)
-        .set("ButtonPadding", Thickness::uniform(space::Card))
 }
 
 pub fn link_card(mark: impl Mark, card: LinkCard, palette: Palette, on_click: impl Fn() + 'static) -> View {
@@ -100,6 +109,7 @@ pub fn link_card(mark: impl Mark, card: LinkCard, palette: Palette, on_click: im
         .on_click(on_click)
         .content(
             Grid::new()
+                .margin(LinkCardSize::content_margin())
                 .columns([GridLength::Auto, GridLength::Star(1.0), GridLength::Auto, GridLength::Auto])
                 .children((
                     icon,
