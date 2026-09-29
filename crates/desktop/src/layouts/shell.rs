@@ -456,14 +456,16 @@ mod tests {
         }
         assert!(page.find(ui::SidebarMark::Charts).is_some(), "the menu that picks them");
 
-        h.dispatch::<SettingsState>().emit(ShowSidebarChart(SidebarChart::Disk, false));
+        page.click(ui::SidebarMark::show(SidebarChart::Disk)).settle();
         page.settle();
         assert!(!tile_shown(&page, SidebarChart::Disk), "{:#?}", page.tree());
         assert!(tile_shown(&page, SidebarChart::Network));
+        assert!(!h.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Disk));
 
-        h.dispatch::<SettingsState>().emit(ShowSidebarChart(SidebarChart::Disk, true));
+        page.click(ui::SidebarMark::show(SidebarChart::Disk)).settle();
         page.settle();
         assert!(tile_shown(&page, SidebarChart::Disk), "{:#?}", page.tree());
+        assert!(h.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Disk));
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
