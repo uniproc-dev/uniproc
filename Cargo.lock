@@ -3341,7 +3341,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-agent"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.0#db136f715a307ee70cde5c2b5714435f8dc29a10"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.1#85ae4b7f929a60da15a65ae240bf402c9885745e"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -3363,7 +3363,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-core"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.0#db136f715a307ee70cde5c2b5714435f8dc29a10"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.1#85ae4b7f929a60da15a65ae240bf402c9885745e"
 dependencies = [
  "amethystate",
  "anyhow",
