@@ -167,12 +167,7 @@ impl UpdateInterval {
         let step = Self::Step.as_millis() as u64;
         let rounded = (ms + step / 2) / step * step;
         Duration::from_millis(rounded).clamp(Self::Min, Self::Max)
-    }
-
-    pub fn machine(ms: u64) -> Duration {
-        Self::clamp(ms).min(Self::Machine)
-    }
-}
+    }}
 
 #[cfg(test)]
 mod tests {
@@ -216,11 +211,4 @@ mod tests {
         assert_eq!(UpdateInterval::clamp(60_000), UpdateInterval::Max);
         assert_eq!(UpdateInterval::clamp(1_449), Duration::from_millis(1_400));
         assert_eq!(UpdateInterval::clamp(1_450), Duration::from_millis(1_500));
-    }
-
-    #[test]
-    fn the_machine_is_sampled_no_slower_than_its_own_cadence() {
-        assert_eq!(UpdateInterval::machine(1_500), UpdateInterval::Machine);
-        assert_eq!(UpdateInterval::machine(100), Duration::from_millis(100));
-    }
-}
+    }}
