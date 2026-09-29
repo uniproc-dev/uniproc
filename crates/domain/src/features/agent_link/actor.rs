@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use app_contracts::features::agent_link::{AgentLinkMsg, AgentLinkState, InProcess, StartInProcess};
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, ScanTick, WindowsActionRequest, WindowsActionResponse,
-    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsReportMessage,
+    AgentConnectionState, AgentStateRequest, WindowsActionRequest, WindowsActionResponse,
+    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsReport, WindowsReportMessage,
 };
 use guinea::prelude::*;
 
@@ -23,7 +23,16 @@ pub struct OfferInProcessLater;
 #[derive(Clone, Debug)]
 pub struct InProcessOfferDue;
 
+struct Reports;
+
+#[expect(non_upper_case_globals)]
+impl Reports {
+    const RetryAfter: Duration = Duration::from_secs(1);
+}
+
 struct InProcessStarted(Result<Arc<dyn InProcessAgent>, InProcessStartError>);
+
+struct InProcessReport(Option<WindowsReport>);
 
 pub struct AgentLinkActor {
     ui_port: Push<AgentLinkState>,
@@ -70,7 +79,7 @@ actor! {
             InProcessStarted,
             OfferInProcessLater,
             InProcessOfferDue,
-            ScanTick,
+            InProcessReport,
             WindowsActionRequest,
             AgentStateRequest,
         }
@@ -99,15 +108,16 @@ fn start_in_process(this: &mut AgentLinkActor, _msg: StartInProcess, cx: Cx) {
 }
 
 #[handler]
-fn on_in_process_started(this: &mut AgentLinkActor, InProcessStarted(started): InProcessStarted) {
+fn on_in_process_started(this: &mut AgentLinkActor, InProcessStarted(started): InProcessStarted, cx: Cx) {
     this.starting = false;
     match started {
         Ok(agent) => {
             tracing::info!("in-process agent started");
-            this.in_process = Some(agent);
+            this.in_process = Some(agent.clone());
             this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Running));
             GlobalEventBus::publish(WindowsAgentInProcess);
             this.announce_in_process();
+            cx.spawn_source(reports(agent), InProcessReport);
         }
         Err(InProcessStartError::NotElevated) => {
             tracing::warn!("in-process agent needs an elevated process");
@@ -120,18 +130,26 @@ fn on_in_process_started(this: &mut AgentLinkActor, InProcessStarted(started): I
     }
 }
 
+fn reports(agent: Arc<dyn InProcessAgent>) -> impl futures::Stream<Item = Option<WindowsReport>> + Send + 'static {
+    futures::stream::unfold(agent, |agent| async move {
+        let report = match agent.clone().report().await {
+            Ok(report) => report,
+            Err(error) => {
+                tracing::warn!(%error, "in-process agent did not report");
+                tokio::time::sleep(Reports::RetryAfter).await;
+                None
+            }
+        };
+        Some((report, agent))
+    })
+}
+
 #[handler]
-fn on_scan_tick(this: &AgentLinkActor, _msg: ScanTick, cx: Cx) {
-    let Some(agent) = this.in_process.clone() else {
-        return;
-    };
-    cx.spawn_bg_detached(async move {
-        match agent.report().await {
-            Ok(Some(report)) => GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(report))),
-            Ok(None) => tracing::debug!("process list kept moving under the states, skipping this scan"),
-            Err(error) => tracing::warn!(%error, "in-process agent did not report"),
-        }
-    });
+fn on_report(_this: &AgentLinkActor, InProcessReport(report): InProcessReport) {
+    match report {
+        Some(report) => GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(report))),
+        None => tracing::debug!("no report from the in-process agent this time"),
+    }
 }
 
 #[handler]

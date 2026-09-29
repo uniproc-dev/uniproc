@@ -4,7 +4,7 @@ use crate::features::agents::settings::AgentSettings;
 use crate::features::agents::windows_feed::WindowsFeed;
 use crate::features::settings::settings::GeneralSettings;
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, ScanTick, WindowsAction, WindowsActionRequest,
+    AgentConnectionState, AgentStateRequest, WindowsAction, WindowsActionRequest,
     WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsReport, WindowsReportMessage,
 };
 use app_contracts::features::settings::UpdateInterval;
@@ -70,6 +70,7 @@ impl AgentBackend for WindowsBackend {
     type RuntimeEvent = WindowsAgentRuntimeEvent;
     type ScanMessage = WindowsReportMessage;
     const NAME: &'static str = "Windows";
+    const STREAMS: bool = true;
 
     async fn connect(timeout: u64) -> anyhow::Result<Self::Client> {
         let interval = GeneralSettings::new()?.update_interval_ms();
@@ -89,7 +90,7 @@ impl AgentBackend for WindowsBackend {
                 GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(report)));
                 ratelimit!(3600, info!("Report published to event bus"));
             }
-            None => tracing::debug!("process list kept moving under the metrics, skipping this scan"),
+            None => tracing::debug!("process list kept moving under the metrics, skipping this update"),
         }
         Ok(())
     }
@@ -118,7 +119,6 @@ pub fn windows_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
     )
     .named("windows-agent-ping");
 
-    addr.subscribe_on::<ScanTick>(Bus::Global);
     addr.subscribe_on::<WindowsActionRequest>(Bus::Global);
     addr.subscribe_on::<AgentStateRequest>(Bus::Global);
     addr.subscribe_on::<WindowsAgentInProcess>(Bus::Global);

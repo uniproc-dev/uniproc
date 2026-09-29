@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, ScanTick, WindowsAction, WindowsAgentInProcess,
+    AgentConnectionState, AgentStateRequest, WindowsAction, WindowsAgentInProcess,
     WindowsAgentRuntimeEvent, WindowsReport, WindowsReportMessage,
 };
 use domain::features::agent_link::{InProcessAgent, InProcessStartError};
@@ -12,6 +12,13 @@ use domain::features::agents::backend::AgentBackend;
 use domain::features::agents::settings::AgentSettings;
 use futures::future::BoxFuture;
 use guinea::prelude::*;
+
+struct Pace;
+
+#[expect(non_upper_case_globals)]
+impl Pace {
+    const Report: Duration = Duration::from_millis(500);
+}
 
 static UP: AtomicBool = AtomicBool::new(false);
 static CONNECTS: AtomicU32 = AtomicU32::new(0);
@@ -53,7 +60,10 @@ impl InProcessAgent for FakeInProcess {
     fn report(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<Option<WindowsReport>>> {
         IN_PROCESS_REPORTS.fetch_add(1, Ordering::SeqCst);
         let report = REPORT.lock().unwrap().clone().unwrap_or_default();
-        Box::pin(async { Ok(Some(report)) })
+        Box::pin(async {
+            tokio::time::sleep(Pace::Report).await;
+            Ok(Some(report))
+        })
     }
 
     fn act(self: Arc<Self>, action: WindowsAction) -> BoxFuture<'static, u32> {
@@ -103,6 +113,7 @@ impl AgentBackend for FakeAgent {
     type ScanMessage = WindowsReportMessage;
 
     const NAME: &'static str = "Fake";
+    const STREAMS: bool = true;
 
     async fn connect(_timeout_secs: u64) -> anyhow::Result<()> {
         CONNECTS.fetch_add(1, Ordering::SeqCst);
@@ -119,6 +130,7 @@ impl AgentBackend for FakeAgent {
         if let Some(report) = report {
             GlobalEventBus::publish(WindowsReportMessage::Report(std::sync::Arc::new(report)));
         }
+        tokio::time::sleep(Pace::Report).await;
         Ok(())
     }
 
@@ -139,8 +151,6 @@ impl AppFeature for FakeAgentFeature {
         let addr = app.spawn(GenericAgentActor::<FakeAgent>::new(settings.connect_attempt_secs()));
 
         app.every(Duration::from_secs(1), &addr, || Ping);
-        app.repeat(Duration::from_millis(500), || GlobalEventBus::publish(ScanTick));
-        addr.subscribe_on::<ScanTick>(Bus::Global);
         addr.subscribe_on::<AgentStateRequest>(Bus::Global);
         addr.subscribe_on::<WindowsAgentInProcess>(Bus::Global);
         addr.send(Init);

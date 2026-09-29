@@ -190,8 +190,7 @@ mod tests {
 
     use app_contracts::features::agent_link::InProcess;
     use app_contracts::features::agents::{
-        AgentConnectionState, ScanTick, WindowsAction, WindowsActionRequest, WindowsActionResponse,
-        WindowsReportMessage,
+        AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsActionResponse,
     };
 
     use super::*;
@@ -376,10 +375,8 @@ mod tests {
         assert_eq!(test_agent::connects(), connects, "not even once it is up");
 
         let reports = test_agent::in_process_reports();
-        let tick = h.publish(ScanTick);
-        tick.settle();
-        assert!(tick.chain().published::<WindowsReportMessage>(), "{:#?}", tick.chain());
-        assert!(test_agent::in_process_reports() > reports);
+        after(h, &mut page, 2);
+        assert!(test_agent::in_process_reports() >= reports + 3, "the in-process agent reports without a tick");
 
         let kill = h.publish(WindowsActionRequest::new(Uuid::new_v4(), WindowsAction::Kill { pid: 42 }));
         kill.settle();

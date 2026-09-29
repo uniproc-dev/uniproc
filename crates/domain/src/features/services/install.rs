@@ -1,4 +1,4 @@
-use app_contracts::features::agents::{ScanTick, WindowsReportMessage};
+use app_contracts::features::agents::WindowsReportMessage;
 use app_contracts::features::services::ServicesState;
 use guinea::prelude::*;
 
@@ -14,8 +14,6 @@ feature! {
 fn services(cx: &FeatureInitContext) -> anyhow::Result<ServicesFeature> {
     let (services, addr) = cx.state::<ServicesState>().driven_by(ServicesActor::new);
     addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
-
-    GlobalEventBus::publish(ScanTick);
 
     Ok(ServicesFeature(services))
 }

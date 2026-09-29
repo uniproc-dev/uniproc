@@ -4,6 +4,8 @@ use amethystate::Field;
 use app_contracts::features::agents::{AgentConnectionState, AgentStateRequest, ScanTick, WindowsAgentInProcess};
 use guinea::prelude::*;
 use std::fmt::Debug;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::{info, warn};
 
 #[derive(Clone, Debug)]
@@ -30,6 +32,12 @@ pub struct PingResult(pub Option<i32>);
 #[derive(Clone, Debug)]
 pub struct ScanResult(pub bool);
 
+#[derive(Clone, Debug)]
+pub struct Streamed {
+    generation: u64,
+    ok: bool,
+}
+
 struct ConnectResult<C>(Option<C>);
 
 #[derive(Debug)]
@@ -37,10 +45,13 @@ pub struct GenericAgentActor<B: AgentBackend> {
     client: Option<B::Client>,
     connection: ConnectionMachine,
     ping_in_flight: bool,
+    scanning: bool,
     failed_scans: u32,
     attempt_secs: Field<u64>,
     attempt_started: Option<tokio::time::Instant>,
     dormant: bool,
+    stream: Option<(u64, Arc<AtomicBool>)>,
+    generation: u64,
 }
 
 impl<B: AgentBackend> GenericAgentActor<B> {
@@ -49,10 +60,47 @@ impl<B: AgentBackend> GenericAgentActor<B> {
             client: None,
             connection: ConnectionMachine::new(),
             ping_in_flight: false,
+            scanning: false,
             failed_scans: 0,
             attempt_secs,
             attempt_started: None,
             dormant: false,
+            stream: None,
+            generation: 0,
+        }
+    }
+
+    fn open_stream(&mut self, cx: &Cx<Self>) {
+        let Some(client) = self.client.clone() else {
+            return;
+        };
+        self.close_stream();
+        self.generation += 1;
+        let generation = self.generation;
+        let open = Arc::new(AtomicBool::new(true));
+        self.stream = Some((generation, open.clone()));
+        let updates = futures::stream::unfold(Some(client), move |client| {
+            let open = open.clone();
+            async move {
+                let client = client?;
+                if !open.load(Ordering::Relaxed) {
+                    return None;
+                }
+                match B::perform_scan(&client).await {
+                    Ok(()) => Some((true, Some(client))),
+                    Err(err) => {
+                        warn!("[{}] The update stream ended: {err}", B::NAME);
+                        Some((false, None))
+                    }
+                }
+            }
+        });
+        cx.spawn_source(updates, move |ok| Streamed { generation, ok });
+    }
+
+    fn close_stream(&mut self) {
+        if let Some((_, open)) = self.stream.take() {
+            open.store(false, Ordering::Relaxed);
         }
     }
 
@@ -95,6 +143,26 @@ impl<B: AgentBackend> GenericAgentActor<B> {
             }
         });
     }
+
+    fn spawn_scan(&mut self, cx: &Cx<Self>) {
+        if self.dormant || self.scanning || !matches!(self.connection.state(), AgentConnectionState::Connected) {
+            return;
+        }
+        let Some(client) = self.client.clone() else {
+            warn!("[{}] client is None (unexpected state)", B::NAME);
+            return;
+        };
+        self.scanning = true;
+        cx.spawn_bg(async move {
+            match B::perform_scan(&client).await {
+                Ok(()) => ScanResult(true),
+                Err(err) => {
+                    warn!("[{}] Scan failed: {err}", B::NAME);
+                    ScanResult(false)
+                }
+            }
+        });
+    }
 }
 
 actor! {
@@ -106,6 +174,7 @@ actor! {
             Ping,
             PingResult,
             ScanTick,
+            Streamed,
             ScanResult,
             TryConnectWithDelay,
             RetryTimerElapsed,
@@ -122,6 +191,7 @@ fn on_in_process<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Windows
     this.dormant = true;
     this.client = None;
     this.ping_in_flight = false;
+    this.close_stream();
 }
 
 #[handler]
@@ -167,6 +237,9 @@ fn on_connect_result<B: AgentBackend>(
                 this.ping_in_flight = false;
                 this.publish_state(None);
                 addr.send(Ping);
+                if B::STREAMS {
+                    this.open_stream(&cx.detach());
+                }
             }
         }
         None => {
@@ -217,31 +290,26 @@ fn on_ping_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, PingResult(m
 }
 
 #[handler]
-fn perform_scan_tick<B: AgentBackend>(this: &GenericAgentActor<B>, _msg: ScanTick, cx: Cx) {
-    if this.dormant || !matches!(this.connection.state(), AgentConnectionState::Connected) {
+fn perform_scan_tick<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: ScanTick, cx: Cx) {
+    if !B::STREAMS {
+        this.spawn_scan(&cx.detach());
+    }
+}
+
+#[handler]
+fn on_streamed<B: AgentBackend>(this: &mut GenericAgentActor<B>, Streamed { generation, ok }: Streamed, cx: Cx) {
+    if ok || this.stream.as_ref().is_none_or(|(current, _)| *current != generation) {
         return;
     }
-
-    let Some(client) = this.client.clone() else {
-        warn!("[{}] client is None (unexpected state)", B::NAME);
-        return;
-    };
-
-    cx.spawn_bg(async move {
-        match B::perform_scan(&client).await {
-            Ok(()) => ScanResult(true),
-            Err(err) => {
-                warn!("[{}] Scan failed: {err}", B::NAME);
-                ScanResult(false)
-            }
-        }
-    });
+    this.close_stream();
+    cx.addr().send(ConnectionLost);
 }
 
 #[handler]
 fn on_scan_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, ScanResult(ok): ScanResult, cx: Cx) {
     const FAILURES_BEFORE_GIVING_UP: u32 = 3;
 
+    this.scanning = false;
     if ok {
         this.failed_scans = 0;
         return;
@@ -289,6 +357,7 @@ fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Co
     this.client = None;
     this.ping_in_flight = false;
     this.failed_scans = 0;
+    this.close_stream();
     this.publish_state(None);
     cx.addr().send(StartConnect);
 }
