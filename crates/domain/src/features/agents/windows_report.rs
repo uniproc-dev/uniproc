@@ -3,32 +3,20 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use app_contracts::features::agents::{
-    ProcessPriority, SignatureStatus, WindowsAction, WindowsMachineStats, WindowsProcessStats,
-    WindowsReport, WindowsServiceState, WindowsServiceStats,
+    Architecture, DpiAwareness, ExtendedCfg, GpuEngineId, GpuEngineKind, IoPriority, Isolation, Mitigations,
+    ProcessPriority, ProcessRunState, SignatureStatus, StackProtection, UacVirtualization, WindowsAction,
+    WindowsGpu, WindowsGpuEngine, WindowsMachineStats, WindowsProcessStats, WindowsProcessorStats, WindowsReport,
+    WindowsServiceState, WindowsServiceStats,
 };
-use uniproc_windows_agent::api::{self, MachineMetrics, MetricSpec, ProcessMetric};
+use uniproc_windows_agent::api::{self, MachineMetrics, MetricSpec, ProcessMetrics};
 
 type Key = (u32, u64);
+type EngineKey = (u64, u32);
 
 pub fn spec(interval: Duration) -> MetricSpec {
     MetricSpec {
         interval,
-        processes: [
-            ProcessMetric::CpuUserTime,
-            ProcessMetric::CpuKernelTime,
-            ProcessMetric::WorkingSet,
-            ProcessMetric::PeakWorkingSet,
-            ProcessMetric::PrivateWorkingSet,
-            ProcessMetric::Commit,
-            ProcessMetric::DiskReadOps,
-            ProcessMetric::DiskWriteOps,
-            ProcessMetric::DiskReadBytes,
-            ProcessMetric::DiskWriteBytes,
-            ProcessMetric::NetRxBytes,
-            ProcessMetric::NetTxBytes,
-        ]
-        .into_iter()
-        .collect(),
+        processes: ProcessMetrics::all(),
         machine: MachineMetrics::all(),
     }
 }
@@ -36,9 +24,19 @@ pub fn spec(interval: Duration) -> MetricSpec {
 #[derive(Default)]
 pub struct Reports {
     passports: HashMap<Key, WindowsProcessStats>,
+    states: HashMap<Key, ProcessRunState>,
     services: Vec<WindowsServiceStats>,
     cpu_times: HashMap<Key, u64>,
+    gpu_times: HashMap<(Key, EngineKey), u64>,
+    engine_times: HashMap<EngineKey, u64>,
     machine_cpu: Option<api::MachineCpu>,
+    processors: Option<Arc<[api::MachineProcessor]>>,
+    sampled_at: Option<u64>,
+}
+
+struct ProcessGpu {
+    percent: f32,
+    engine: GpuEngineId,
 }
 
 impl Reports {
@@ -46,11 +44,14 @@ impl Reports {
     pub fn report(&mut self, update: &api::Update) -> WindowsReport {
         let api::Update { snapshot, sample, changes } = update;
         self.keep_passports(&snapshot.processes.value, changes);
+        self.keep_states(&snapshot.states.value, changes);
         if changes.full || changes.services {
             self.services = snapshot.services.value.iter().map(service).collect();
         }
 
         let elapsed = machine_time(self.machine_cpu, sample.machine.cpu);
+        let wall = self.sampled_at.map_or(0, |before| sample.sampled_at.saturating_sub(before));
+        let gpu = self.process_gpu(sample, wall);
         let columns = &sample.columns;
         let mut cpu_times = HashMap::with_capacity(sample.pids.len());
         let processes = sample
@@ -68,34 +69,194 @@ impl Reports {
                     cpu_times.insert(key, cpu_time);
                 }
                 let passport = self.passports.get(&key)?;
+                let gpu = gpu.get(&row);
                 Some(WindowsProcessStats {
                     cpu_percent: before
                         .zip(cpu_time)
                         .map_or(0.0, |(before, now)| share(now.saturating_sub(before), elapsed)),
+                    cpu_cycles: at(&columns.cpu_cycles, row),
                     working_set_bytes: at(&columns.working_set, row),
                     commit_bytes: at(&columns.commit, row),
                     peak_working_set_bytes: at(&columns.peak_working_set, row),
                     private_working_set_bytes: at(&columns.private_working_set, row),
+                    peak_commit_bytes: at(&columns.peak_commit, row),
+                    virtual_size_bytes: at(&columns.virtual_size, row),
+                    peak_virtual_size_bytes: at(&columns.peak_virtual_size, row),
+                    paged_pool_bytes: at(&columns.paged_pool, row),
+                    peak_paged_pool_bytes: at(&columns.peak_paged_pool, row),
+                    non_paged_pool_bytes: at(&columns.non_paged_pool, row),
+                    peak_non_paged_pool_bytes: at(&columns.peak_non_paged_pool, row),
+                    page_faults: wrapping(&columns.page_faults, row),
+                    hard_faults: wrapping(&columns.hard_faults, row),
+                    handles: at32(&columns.handles, row),
+                    threads: at32(&columns.threads, row),
+                    peak_threads: at32(&columns.peak_threads, row),
+                    context_switches: at(&columns.context_switches, row),
+                    user_objects: at32(&columns.user_objects, row),
+                    gdi_objects: at32(&columns.gdi_objects, row),
+                    io_read_ops: at(&columns.io_read_ops, row),
+                    io_write_ops: at(&columns.io_write_ops, row),
+                    io_other_ops: at(&columns.io_other_ops, row),
+                    io_read_bytes: at(&columns.io_read_bytes, row),
+                    io_write_bytes: at(&columns.io_write_bytes, row),
+                    io_other_bytes: at(&columns.io_other_bytes, row),
                     disk_read_bytes: at(&columns.disk_read_bytes, row),
                     disk_write_bytes: at(&columns.disk_write_bytes, row),
                     disk_read_iops: at(&columns.disk_read_ops, row),
                     disk_write_iops: at(&columns.disk_write_ops, row),
+                    disk_flush_ops: at(&columns.disk_flush_ops, row),
                     net_rx_bytes: at(&columns.net_rx_bytes, row),
                     net_tx_bytes: at(&columns.net_tx_bytes, row),
+                    gpu_percent: gpu.map_or(0.0, |gpu| gpu.percent),
+                    gpu_engine: gpu.map(|gpu| gpu.engine),
+                    gpu_dedicated_bytes: at(&columns.gpu_dedicated, row),
+                    gpu_shared_bytes: at(&columns.gpu_shared, row),
+                    state: self.states.get(&key).copied().unwrap_or_default(),
                     ..passport.clone()
                 })
             })
             .collect();
         self.cpu_times = cpu_times;
 
-        let machine = machine(&sample.machine, self.machine_cpu);
+        let machine = self.machine(&sample.machine, wall);
         self.machine_cpu = sample.machine.cpu;
+        self.processors = sample.machine.processors.clone();
+        self.sampled_at = Some(sample.sampled_at);
 
         WindowsReport {
             machine,
             processes,
             services: self.services.clone(),
         }
+    }
+
+    fn process_gpu(&mut self, sample: &api::Sample, wall: u64) -> HashMap<usize, ProcessGpu> {
+        let Some(engines) = sample.gpu_engines.as_deref() else {
+            self.gpu_times.clear();
+            return HashMap::new();
+        };
+        let mut times = HashMap::with_capacity(engines.len());
+        let mut busiest: HashMap<usize, ProcessGpu> = HashMap::new();
+        for entry in engines {
+            let row = entry.row as usize;
+            let (Some(&pid), Some(&sequence_number)) = (sample.pids.get(row), sample.sequence_numbers.get(row)) else {
+                continue;
+            };
+            let key = ((pid, sequence_number), (entry.adapter_luid, entry.engine));
+            let before = self.gpu_times.get(&key).copied();
+            times.insert(key, entry.running_time);
+            let percent = before.map_or(0.0, |before| share(entry.running_time.wrapping_sub(before), wall));
+            let engine = GpuEngineId { adapter_luid: entry.adapter_luid, ordinal: entry.engine };
+            match busiest.get(&row) {
+                Some(kept) if kept.percent >= percent => {}
+                _ => {
+                    busiest.insert(row, ProcessGpu { percent, engine });
+                }
+            }
+        }
+        self.gpu_times = times;
+        busiest
+    }
+
+    fn keep_states(&mut self, states: &api::ProcessStates, changes: &api::Changes) {
+        if changes.full {
+            self.states = states.states.iter().map(|state| (state_key(state), run_state(state))).collect();
+            return;
+        }
+        for left in &changes.left {
+            self.states.remove(left);
+        }
+        if changes.states.is_empty() {
+            return;
+        }
+        let changed: HashSet<Key> = changes.states.iter().copied().collect();
+        for state in states.states.iter().filter(|state| changed.contains(&state_key(state))) {
+            self.states.insert(state_key(state), run_state(state));
+        }
+    }
+
+    fn machine(&mut self, sample: &api::MachineSample, wall: u64) -> WindowsMachineStats {
+        let cpu = sample.cpu.unwrap_or_default();
+        let memory = sample.memory.unwrap_or_default();
+        let disk = sample.disk.unwrap_or_default();
+        let network = sample.network.unwrap_or_default();
+        let whole = breakdown(self.machine_cpu.map(Times::of_machine), sample.cpu.map(Times::of_machine));
+        let processors = match (self.processors.as_deref(), sample.processors.as_deref()) {
+            (Some(before), Some(now)) if before.len() == now.len() => before
+                .iter()
+                .zip(now)
+                .map(|(before, now)| breakdown(Some(Times::of_processor(before)), Some(Times::of_processor(now))))
+                .collect(),
+            (_, Some(now)) => now.iter().map(|_| WindowsProcessorStats::default()).collect(),
+            _ => Arc::from([]),
+        };
+        WindowsMachineStats {
+            total_physical_bytes: memory.total_physical,
+            available_physical_bytes: memory.available_physical,
+            commit_limit_bytes: memory.commit_limit,
+            committed_bytes: memory.committed,
+            cpu_percent: busy(self.machine_cpu, sample.cpu),
+            cpu_user_percent: whole.user_percent,
+            cpu_kernel_percent: whole.kernel_percent,
+            cpu_interrupt_percent: whole.interrupt_percent,
+            cpu_dpc_percent: whole.dpc_percent,
+            cpu_max_mhz: cpu.max_mhz.into(),
+            cpu_current_mhz: cpu.current_mhz.into(),
+            processors,
+            disk_read_bytes: disk.read_bytes,
+            disk_write_bytes: disk.write_bytes,
+            disk_read_iops: disk.read_ops,
+            disk_write_iops: disk.write_ops,
+            net_rx_bytes: network.rx_bytes,
+            net_tx_bytes: network.tx_bytes,
+            gpus: self.gpus(sample.gpus.as_deref(), wall),
+        }
+    }
+
+    fn gpus(&mut self, adapters: Option<&[api::GpuAdapter]>, wall: u64) -> Arc<[WindowsGpu]> {
+        let Some(adapters) = adapters else {
+            self.engine_times.clear();
+            return Arc::from([]);
+        };
+        let mut times = HashMap::new();
+        let gpus = adapters
+            .iter()
+            .map(|adapter| {
+                let engines = adapter
+                    .engines
+                    .iter()
+                    .map(|engine| {
+                        let key = (adapter.luid, engine.ordinal);
+                        let before = self.engine_times.get(&key).copied();
+                        times.insert(key, engine.running_time);
+                        WindowsGpuEngine {
+                            ordinal: engine.ordinal,
+                            kind: engine_kind(engine.kind),
+                            name: Arc::from(engine.name.as_str()),
+                            busy_percent: before
+                                .map_or(0.0, |before| share(engine.running_time.wrapping_sub(before), wall)),
+                            frequency_hz: engine.frequency,
+                            max_frequency_hz: engine.max_frequency,
+                        }
+                    })
+                    .collect();
+                WindowsGpu {
+                    luid: adapter.luid,
+                    name: Arc::from(adapter.name.as_str()),
+                    dedicated_limit_bytes: adapter.dedicated_limit,
+                    dedicated_usage_bytes: adapter.dedicated_usage,
+                    shared_limit_bytes: adapter.shared_limit,
+                    shared_usage_bytes: adapter.shared_usage,
+                    temperature_celsius: (adapter.temperature > 0).then(|| adapter.temperature as f32 / 10.0),
+                    fan_rpm: adapter.fan_rpm,
+                    power_percent: adapter.power as f32 / 10.0,
+                    memory_frequency_hz: adapter.memory_frequency,
+                    engines,
+                }
+            })
+            .collect();
+        self.engine_times = times;
+        gpus
     }
 
     fn keep_passports(&mut self, processes: &[api::ProcessInfo], changes: &api::Changes) {
@@ -130,6 +291,71 @@ fn read(column: &Option<Arc<[u64]>>, row: usize) -> Option<u64> {
 
 fn at(column: &Option<Arc<[u64]>>, row: usize) -> u64 {
     read(column, row).unwrap_or_default()
+}
+
+fn at32(column: &Option<Arc<[u32]>>, row: usize) -> u32 {
+    column
+        .as_deref()
+        .and_then(|values| values.get(row))
+        .copied()
+        .filter(|value| *value != api::NO_DATA_U32)
+        .unwrap_or_default()
+}
+
+fn wrapping(column: &Option<Arc<[u32]>>, row: usize) -> u32 {
+    column.as_deref().and_then(|values| values.get(row)).copied().unwrap_or_default()
+}
+
+fn state_key(state: &api::ProcessState) -> Key {
+    (state.pid, state.sequence_number)
+}
+
+#[derive(Clone, Copy)]
+struct Times {
+    idle: u64,
+    kernel: u64,
+    user: u64,
+    interrupt: u64,
+    dpc: u64,
+}
+
+impl Times {
+    fn of_machine(cpu: api::MachineCpu) -> Self {
+        Self {
+            idle: cpu.idle_time,
+            kernel: cpu.kernel_time,
+            user: cpu.user_time,
+            interrupt: cpu.interrupt_time,
+            dpc: cpu.dpc_time,
+        }
+    }
+
+    fn of_processor(processor: &api::MachineProcessor) -> Self {
+        Self {
+            idle: processor.idle_time,
+            kernel: processor.kernel_time,
+            user: processor.user_time,
+            interrupt: processor.interrupt_time,
+            dpc: processor.dpc_time,
+        }
+    }
+}
+
+fn breakdown(before: Option<Times>, now: Option<Times>) -> WindowsProcessorStats {
+    let (Some(before), Some(now)) = (before, now) else {
+        return WindowsProcessorStats::default();
+    };
+    let kernel = now.kernel.saturating_sub(before.kernel);
+    let user = now.user.saturating_sub(before.user);
+    let idle = now.idle.saturating_sub(before.idle);
+    let whole = kernel + user;
+    WindowsProcessorStats {
+        busy_percent: share(whole.saturating_sub(idle), whole),
+        user_percent: share(user, whole),
+        kernel_percent: share(kernel.saturating_sub(idle), whole),
+        interrupt_percent: share(now.interrupt.saturating_sub(before.interrupt), whole),
+        dpc_percent: share(now.dpc.saturating_sub(before.dpc), whole),
+    }
 }
 
 fn total(cpu: &api::MachineCpu) -> u64 {
@@ -175,27 +401,126 @@ fn passport(info: &api::ProcessInfo) -> WindowsProcessStats {
         image_path: Arc::from(info.image_path.as_str()),
         display_name: Arc::from(info.display_name.as_str()),
         console_host_pid: info.console_host_pid,
+        start_time: info.start_time,
+        user: Arc::from(info.user.as_str()),
+        architecture: architecture(info.architecture),
+        elevated: info.elevated,
+        uac_virtualization: uac_virtualization(info.uac_virtualization),
+        isolation: isolation(info.isolation),
+        dpi_awareness: dpi_awareness(info.dpi_awareness),
+        mitigations: info.mitigations.map(mitigations),
+        publisher: Arc::from(info.publisher.as_str()),
         ..WindowsProcessStats::default()
     }
 }
 
-fn machine(sample: &api::MachineSample, before: Option<api::MachineCpu>) -> WindowsMachineStats {
-    let cpu = sample.cpu.unwrap_or_default();
-    let memory = sample.memory.unwrap_or_default();
-    let disk = sample.disk.unwrap_or_default();
-    let network = sample.network.unwrap_or_default();
-    WindowsMachineStats {
-        total_physical_bytes: memory.total_physical,
-        available_physical_bytes: memory.available_physical,
-        cpu_percent: busy(before, sample.cpu),
-        cpu_max_mhz: cpu.max_mhz.into(),
-        cpu_current_mhz: cpu.current_mhz.into(),
-        disk_read_bytes: disk.read_bytes,
-        disk_write_bytes: disk.write_bytes,
-        disk_read_iops: disk.read_ops,
-        disk_write_iops: disk.write_ops,
-        net_rx_bytes: network.rx_bytes,
-        net_tx_bytes: network.tx_bytes,
+fn run_state(state: &api::ProcessState) -> ProcessRunState {
+    ProcessRunState {
+        suspended: state.suspended,
+        efficiency_mode: state.efficiency_mode,
+        base_priority: state.base_priority.map(priority_class),
+        power_throttling: state.power_throttling,
+        job_object_id: state.job_object_id,
+        io_priority: io_priority(state.io_priority),
+    }
+}
+
+fn architecture(architecture: api::Architecture) -> Architecture {
+    match architecture {
+        api::Architecture::Unknown => Architecture::Unknown,
+        api::Architecture::X86 => Architecture::X86,
+        api::Architecture::X64 => Architecture::X64,
+        api::Architecture::Arm => Architecture::Arm,
+        api::Architecture::Arm64 => Architecture::Arm64,
+        api::Architecture::Arm64X86Compatible => Architecture::Arm64X86Compatible,
+        api::Architecture::Arm64X64Compatible => Architecture::Arm64X64Compatible,
+    }
+}
+
+fn uac_virtualization(uac: api::UacVirtualization) -> UacVirtualization {
+    match uac {
+        api::UacVirtualization::Unknown => UacVirtualization::Unknown,
+        api::UacVirtualization::NotAllowed => UacVirtualization::NotAllowed,
+        api::UacVirtualization::Disabled => UacVirtualization::Disabled,
+        api::UacVirtualization::Enabled => UacVirtualization::Enabled,
+    }
+}
+
+fn isolation(isolation: api::Isolation) -> Isolation {
+    match isolation {
+        api::Isolation::Unknown => Isolation::Unknown,
+        api::Isolation::None => Isolation::None,
+        api::Isolation::AppContainer => Isolation::AppContainer,
+        api::Isolation::Uwp => Isolation::Uwp,
+        api::Isolation::Silo => Isolation::Silo,
+    }
+}
+
+fn dpi_awareness(dpi: api::DpiAwareness) -> DpiAwareness {
+    match dpi {
+        api::DpiAwareness::Unknown => DpiAwareness::Unknown,
+        api::DpiAwareness::Unaware => DpiAwareness::Unaware,
+        api::DpiAwareness::System => DpiAwareness::System,
+        api::DpiAwareness::PerMonitor => DpiAwareness::PerMonitor,
+        api::DpiAwareness::PerMonitorV2 => DpiAwareness::PerMonitorV2,
+        api::DpiAwareness::UnawareGdiScaled => DpiAwareness::UnawareGdiScaled,
+    }
+}
+
+fn mitigations(mitigations: api::Mitigations) -> Mitigations {
+    Mitigations {
+        dep: mitigations.dep,
+        stack_protection: match mitigations.stack_protection {
+            api::StackProtection::Unknown => StackProtection::Unknown,
+            api::StackProtection::Off => StackProtection::Off,
+            api::StackProtection::Compatible => StackProtection::Compatible,
+            api::StackProtection::Strict => StackProtection::Strict,
+            api::StackProtection::CompatibleAudit => StackProtection::CompatibleAudit,
+            api::StackProtection::StrictAudit => StackProtection::StrictAudit,
+        },
+        extended_cfg: match mitigations.extended_cfg {
+            api::ExtendedCfg::Unknown => ExtendedCfg::Unknown,
+            api::ExtendedCfg::Off => ExtendedCfg::Off,
+            api::ExtendedCfg::Audit => ExtendedCfg::Audit,
+            api::ExtendedCfg::On => ExtendedCfg::On,
+        },
+    }
+}
+
+fn io_priority(priority: api::IoPriority) -> IoPriority {
+    match priority {
+        api::IoPriority::Unknown => IoPriority::Unknown,
+        api::IoPriority::VeryLow => IoPriority::VeryLow,
+        api::IoPriority::Low => IoPriority::Low,
+        api::IoPriority::Normal => IoPriority::Normal,
+        api::IoPriority::High => IoPriority::High,
+        api::IoPriority::Critical => IoPriority::Critical,
+    }
+}
+
+fn priority_class(priority: api::ProcessPriority) -> ProcessPriority {
+    match priority {
+        api::ProcessPriority::Idle => ProcessPriority::Idle,
+        api::ProcessPriority::BelowNormal => ProcessPriority::BelowNormal,
+        api::ProcessPriority::Normal => ProcessPriority::Normal,
+        api::ProcessPriority::AboveNormal => ProcessPriority::AboveNormal,
+        api::ProcessPriority::High => ProcessPriority::High,
+        api::ProcessPriority::Realtime => ProcessPriority::Realtime,
+    }
+}
+
+fn engine_kind(kind: api::GpuEngineKind) -> GpuEngineKind {
+    match kind {
+        api::GpuEngineKind::Other => GpuEngineKind::Other,
+        api::GpuEngineKind::ThreeD => GpuEngineKind::ThreeD,
+        api::GpuEngineKind::VideoDecode => GpuEngineKind::VideoDecode,
+        api::GpuEngineKind::VideoEncode => GpuEngineKind::VideoEncode,
+        api::GpuEngineKind::VideoProcessing => GpuEngineKind::VideoProcessing,
+        api::GpuEngineKind::SceneAssembly => GpuEngineKind::SceneAssembly,
+        api::GpuEngineKind::Copy => GpuEngineKind::Copy,
+        api::GpuEngineKind::Overlay => GpuEngineKind::Overlay,
+        api::GpuEngineKind::Crypto => GpuEngineKind::Crypto,
+        api::GpuEngineKind::VideoCodec => GpuEngineKind::VideoCodec,
     }
 }
 
@@ -482,6 +807,120 @@ mod tests {
 
         assert_eq!(first.processes[0].working_set_bytes, 0);
         assert_eq!(second.processes[0].cpu_percent, 0.0);
+    }
+
+    fn engine(row: u32, ordinal: u32, running_time: u64) -> api::ProcessGpuEngine {
+        api::ProcessGpuEngine { row, adapter_luid: 5, engine: ordinal, running_time }
+    }
+
+    fn with_gpu(mut sample: api::Sample, sampled_at: u64, engines: Vec<api::ProcessGpuEngine>) -> api::Sample {
+        sample.sampled_at = sampled_at;
+        sample.gpu_engines = Some(Arc::from(engines));
+        sample
+    }
+
+    #[test]
+    fn a_process_gpu_is_its_busiest_engine_over_the_wall_time() {
+        let mut reports = Reports::default();
+        let list = snapshot(1, vec![info(7, "game.exe", &[])]);
+        reports.report(&full(list.clone(), with_gpu(sample(&[row(7, 0)], 0, 0), 1_000, vec![engine(0, 0, 0), engine(0, 3, 0)])));
+        let report = reports.report(&same(
+            list,
+            with_gpu(sample(&[row(7, 0)], 0, 0), 2_000, vec![engine(0, 0, 300), engine(0, 3, 600)]),
+        ));
+
+        let game = &report.processes[0];
+        assert_eq!(game.gpu_percent, 60.0);
+        assert_eq!(game.gpu_engine, Some(GpuEngineId { adapter_luid: 5, ordinal: 3 }));
+    }
+
+    #[test]
+    fn a_process_without_gpu_engines_shows_no_gpu() {
+        let report = Reports::default().report(&full(snapshot(1, vec![info(7, "a.exe", &[])]), sample(&[row(7, 0)], 0, 0)));
+
+        assert_eq!(report.processes[0].gpu_percent, 0.0);
+        assert_eq!(report.processes[0].gpu_engine, None);
+    }
+
+    #[test]
+    fn a_gpu_engine_is_busy_for_its_share_of_the_wall_time() {
+        let adapter = |running_time: u64| api::GpuAdapter {
+            luid: 5,
+            name: "RTX".into(),
+            temperature: 455,
+            power: 125,
+            engines: Arc::from([api::GpuEngine { ordinal: 0, running_time, ..api::GpuEngine::default() }]),
+            ..api::GpuAdapter::default()
+        };
+        let at = |sampled_at: u64, running_time: u64| {
+            let mut sample = sample(&[], 0, 0);
+            sample.sampled_at = sampled_at;
+            sample.machine.gpus = Some(Arc::from([adapter(running_time)]));
+            sample
+        };
+        let mut reports = Reports::default();
+        reports.report(&full(snapshot(1, vec![]), at(1_000, 100)));
+        let report = reports.report(&same(snapshot(1, vec![]), at(3_000, 600)));
+
+        let gpu = &report.machine.gpus[0];
+        assert_eq!(gpu.engines[0].busy_percent, 25.0);
+        assert_eq!(gpu.temperature_celsius, Some(45.5));
+        assert_eq!(gpu.power_percent, 12.5);
+    }
+
+    #[test]
+    fn each_processor_gets_its_own_share() {
+        let processors = |busy: u64| -> Arc<[api::MachineProcessor]> {
+            Arc::from([
+                api::MachineProcessor { kernel_time: 1_000, idle_time: 1_000 - busy, ..api::MachineProcessor::default() },
+                api::MachineProcessor { kernel_time: 1_000, idle_time: 1_000, ..api::MachineProcessor::default() },
+            ])
+        };
+        let at = |kernel: u64, busy: u64| {
+            let mut sample = sample(&[], kernel, 0);
+            sample.machine.processors = Some(processors(busy));
+            sample
+        };
+        let mut reports = Reports::default();
+        let first = reports.report(&full(snapshot(1, vec![]), at(0, 0)));
+        let mut second_sample = at(0, 0);
+        second_sample.machine.processors = Some(Arc::from([
+            api::MachineProcessor { kernel_time: 2_000, idle_time: 1_250, ..api::MachineProcessor::default() },
+            api::MachineProcessor { kernel_time: 2_000, idle_time: 2_000, ..api::MachineProcessor::default() },
+        ]));
+        let second = reports.report(&same(snapshot(1, vec![]), second_sample));
+
+        assert_eq!(first.machine.processors.len(), 2);
+        assert_eq!(first.machine.processors[0].busy_percent, 0.0);
+        assert_eq!(second.machine.processors[0].busy_percent, 75.0);
+        assert_eq!(second.machine.processors[1].busy_percent, 0.0);
+    }
+
+    #[test]
+    fn a_state_follows_its_process_and_changes_when_told() {
+        let state = |suspended: bool| api::ProcessState {
+            pid: 7,
+            sequence_number: sequence(7),
+            suspended: Some(suspended),
+            ..api::ProcessState::default()
+        };
+        let listed = |etag: u64, suspended: bool| {
+            let mut list = snapshot(etag, vec![info(7, "a.exe", &[])]);
+            list.states.value.states = Arc::from([state(suspended)]);
+            list
+        };
+        let mut reports = Reports::default();
+        let first = reports.report(&full(listed(1, false), sample(&[row(7, 0)], 0, 0)));
+        let unchanged = reports.report(&same(listed(1, true), sample(&[row(7, 0)], 0, 0)));
+        let changed = reports.report(&update(
+            listed(1, true),
+            sample(&[row(7, 0)], 0, 0),
+            api::Changes { states: vec![key(7)], ..api::Changes::default() },
+        ));
+
+        assert_eq!(first.processes[0].state.suspended, Some(false));
+        assert_eq!(unchanged.processes[0].state.suspended, Some(false), "nothing said it changed");
+        assert_eq!(changed.processes[0].state.suspended, Some(true));
     }
 
     #[test]

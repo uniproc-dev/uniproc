@@ -25,14 +25,170 @@ pub enum ProcessPriority {
     Realtime,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+pub enum Architecture {
+    #[default]
+    Unknown,
+    X86,
+    X64,
+    Arm,
+    Arm64,
+    Arm64X86Compatible,
+    Arm64X64Compatible,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+pub enum UacVirtualization {
+    #[default]
+    Unknown,
+    NotAllowed,
+    Disabled,
+    Enabled,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+pub enum Isolation {
+    #[default]
+    Unknown,
+    None,
+    AppContainer,
+    Uwp,
+    Silo,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+pub enum DpiAwareness {
+    #[default]
+    Unknown,
+    Unaware,
+    System,
+    PerMonitor,
+    PerMonitorV2,
+    UnawareGdiScaled,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+pub enum StackProtection {
+    #[default]
+    Unknown,
+    Off,
+    Compatible,
+    Strict,
+    CompatibleAudit,
+    StrictAudit,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+pub enum ExtendedCfg {
+    #[default]
+    Unknown,
+    Off,
+    Audit,
+    On,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+pub enum IoPriority {
+    #[default]
+    Unknown,
+    VeryLow,
+    Low,
+    Normal,
+    High,
+    Critical,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+pub struct Mitigations {
+    pub dep: Option<bool>,
+    pub stack_protection: StackProtection,
+    pub extended_cfg: ExtendedCfg,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+#[serde(default)]
+pub struct ProcessRunState {
+    pub suspended: Option<bool>,
+    pub efficiency_mode: Option<bool>,
+    pub base_priority: Option<ProcessPriority>,
+    pub power_throttling: Option<bool>,
+    pub job_object_id: u32,
+    pub io_priority: IoPriority,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, Deserialize)]
+pub enum GpuEngineKind {
+    #[default]
+    Other,
+    ThreeD,
+    VideoDecode,
+    VideoEncode,
+    VideoProcessing,
+    SceneAssembly,
+    Copy,
+    Overlay,
+    Crypto,
+    VideoCodec,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+pub struct GpuEngineId {
+    pub adapter_luid: u64,
+    pub ordinal: u32,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+#[serde(default)]
+pub struct WindowsGpuEngine {
+    pub ordinal: u32,
+    pub kind: GpuEngineKind,
+    pub name: Arc<str>,
+    pub busy_percent: f32,
+    pub frequency_hz: u64,
+    pub max_frequency_hz: u64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+#[serde(default)]
+pub struct WindowsGpu {
+    pub luid: u64,
+    pub name: Arc<str>,
+    pub dedicated_limit_bytes: u64,
+    pub dedicated_usage_bytes: u64,
+    pub shared_limit_bytes: u64,
+    pub shared_usage_bytes: u64,
+    pub temperature_celsius: Option<f32>,
+    pub fan_rpm: u32,
+    pub power_percent: f32,
+    pub memory_frequency_hz: u64,
+    pub engines: Arc<[WindowsGpuEngine]>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize)]
+#[serde(default)]
+pub struct WindowsProcessorStats {
+    pub busy_percent: f32,
+    pub user_percent: f32,
+    pub kernel_percent: f32,
+    pub interrupt_percent: f32,
+    pub dpc_percent: f32,
+}
+
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct WindowsMachineStats {
     pub total_physical_bytes: u64,
     pub available_physical_bytes: u64,
+    pub commit_limit_bytes: u64,
+    pub committed_bytes: u64,
     pub cpu_percent: f32,
+    pub cpu_user_percent: f32,
+    pub cpu_kernel_percent: f32,
+    pub cpu_interrupt_percent: f32,
+    pub cpu_dpc_percent: f32,
     pub cpu_max_mhz: u64,
     pub cpu_current_mhz: u64,
+    pub processors: Arc<[WindowsProcessorStats]>,
 
     pub disk_read_bytes: u64,
     pub disk_write_bytes: u64,
@@ -41,6 +197,8 @@ pub struct WindowsMachineStats {
 
     pub net_rx_bytes: u64,
     pub net_tx_bytes: u64,
+
+    pub gpus: Arc<[WindowsGpu]>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -54,18 +212,47 @@ pub struct WindowsProcessStats {
     pub package_full_name: Arc<str>,
     pub package_relative_app_id: Arc<str>,
     pub cpu_percent: f32,
+    pub cpu_cycles: u64,
     pub working_set_bytes: u64,
     pub commit_bytes: u64,
     pub peak_working_set_bytes: u64,
     pub private_working_set_bytes: u64,
+    pub peak_commit_bytes: u64,
+    pub virtual_size_bytes: u64,
+    pub peak_virtual_size_bytes: u64,
+    pub paged_pool_bytes: u64,
+    pub peak_paged_pool_bytes: u64,
+    pub non_paged_pool_bytes: u64,
+    pub peak_non_paged_pool_bytes: u64,
+    pub page_faults: u32,
+    pub hard_faults: u32,
+    pub handles: u32,
+    pub threads: u32,
+    pub peak_threads: u32,
+    pub context_switches: u64,
+    pub user_objects: u32,
+    pub gdi_objects: u32,
+
+    pub io_read_ops: u64,
+    pub io_write_ops: u64,
+    pub io_other_ops: u64,
+    pub io_read_bytes: u64,
+    pub io_write_bytes: u64,
+    pub io_other_bytes: u64,
 
     pub disk_read_bytes: u64,
     pub disk_write_bytes: u64,
     pub disk_read_iops: u64,
     pub disk_write_iops: u64,
+    pub disk_flush_ops: u64,
 
     pub net_rx_bytes: u64,
     pub net_tx_bytes: u64,
+
+    pub gpu_percent: f32,
+    pub gpu_engine: Option<GpuEngineId>,
+    pub gpu_dedicated_bytes: u64,
+    pub gpu_shared_bytes: u64,
 
     pub is_service: bool,
     pub is_kernel_process: bool,
@@ -74,6 +261,17 @@ pub struct WindowsProcessStats {
     pub image_path: Arc<str>,
     pub display_name: Arc<str>,
     pub console_host_pid: u32,
+    pub start_time: u64,
+    pub user: Arc<str>,
+    pub architecture: Architecture,
+    pub elevated: Option<bool>,
+    pub uac_virtualization: UacVirtualization,
+    pub isolation: Isolation,
+    pub dpi_awareness: DpiAwareness,
+    pub mitigations: Option<Mitigations>,
+    pub publisher: Arc<str>,
+
+    pub state: ProcessRunState,
 }
 
 impl WindowsMachineStats {
