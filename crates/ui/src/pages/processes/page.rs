@@ -332,7 +332,9 @@ impl ProcessesPage {
     ) -> View {
         self.selected_group_size.set(None);
         let body = match &state.rows {
-            Load::Ready(rows) => self.table(state, rows, dispatch, l10n, palette, forward.clone(), units),
+            Load::Ready(rows) => {
+                self.table(state, rows, dispatch, l10n, palette, forward.clone(), open_settings.clone(), units)
+            }
             Load::Failed(err) => text(l10n.processes_failed(err.to_string())).into(),
             _ => loading(),
         };
@@ -464,6 +466,7 @@ impl ProcessesPage {
         l10n: &L10n,
         palette: Palette,
         forward: Callback<ProcessesMsg>,
+        open_settings: Callback<()>,
         units: ByteUnits,
     ) -> View {
         let collapsed_sections: HashSet<SectionId> =
@@ -640,6 +643,9 @@ impl ProcessesPage {
                         }
                         MenuCommand::ToggleColumn(column) => {
                             let _ = command_forward.call(ProcessesMsg::ToggleColumn(column));
+                        }
+                        MenuCommand::OpenSettings => {
+                            let _ = open_settings.call(());
                         }
                     }
                     let _ = command_forward.call(ProcessesMsg::MenuDismiss);

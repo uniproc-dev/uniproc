@@ -199,6 +199,8 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
             memory_bytes: p.memory_bytes(),
             disk_bytes: p.disk_read_bytes + p.disk_write_bytes,
             net_bytes: p.net_rx_bytes + p.net_tx_bytes,
+            gpu_percent: p.gpu_percent,
+            gpu_memory_bytes: p.gpu_dedicated_bytes,
 
             exe_path: if p.image_path.is_empty() {
                 p.first_arg.clone()
@@ -266,6 +268,8 @@ fn on_windows_report(this: &mut ProcessesActor, msg: WindowsReportMessage) {
         cpu_max_mhz: machine.cpu_max_mhz,
         memory_used_bytes: machine.used_physical_bytes(),
         memory_total_bytes: machine.total_physical_bytes,
+        gpu_percent: machine.gpu_percent(),
+        gpu_memory_used_bytes: machine.gpu_dedicated_used_bytes(),
     };
 
     let windows = (this.windows)();

@@ -62,6 +62,8 @@ mod tests {
             memory_bytes: 0,
             disk_bytes: disk,
             net_bytes: net,
+            gpu_percent: 0.0,
+            gpu_memory_bytes: 0,
             exe_path: "".into(),
             package_full_name: "".into(),
             owner: None,

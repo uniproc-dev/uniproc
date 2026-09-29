@@ -38,6 +38,7 @@ processes-settings-reset = Reset
 processes-settings-shown-on = On
 processes-settings-shown-off = Off
 
+processes-menu-more-columns = More columns…
 processes-menu-pin = Pin
 processes-menu-unpin = Unpin
 processes-menu-end-task = End task

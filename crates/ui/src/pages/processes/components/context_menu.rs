@@ -74,6 +74,7 @@ pub(crate) enum MenuCommand {
     Process(ProcessCommand),
     Window { handle: isize, command: WindowCommand },
     ToggleColumn(ProcessColumn),
+    OpenSettings,
 }
 
 struct Entry {
@@ -228,18 +229,18 @@ fn window_lines(handle: isize, l10n: &L10n) -> Vec<Line> {
 
 fn column_mark(column: ProcessColumn) -> Option<ProcessesMark> {
     match column {
-        ProcessColumn::Name => None,
-        ProcessColumn::Pid => Some(ProcessesMark::MenuColumnPid),
-        ProcessColumn::ProcessName => Some(ProcessesMark::MenuColumnProcessName),
+        ProcessColumn::Name | ProcessColumn::Pid | ProcessColumn::ProcessName => None,
         ProcessColumn::Cpu => Some(ProcessesMark::MenuColumnCpu),
         ProcessColumn::Memory => Some(ProcessesMark::MenuColumnMemory),
         ProcessColumn::Net => Some(ProcessesMark::MenuColumnNet),
         ProcessColumn::Disk => Some(ProcessesMark::MenuColumnDisk),
+        ProcessColumn::Gpu => Some(ProcessesMark::MenuColumnGpu),
+        ProcessColumn::GpuMemory => Some(ProcessesMark::MenuColumnGpuMemory),
     }
 }
 
 fn column_lines(columns: &[(ProcessColumn, bool)], l10n: &L10n) -> Vec<Line> {
-    columns
+    let mut lines: Vec<Line> = columns
         .iter()
         .filter_map(|&(column, visible)| {
             let mark = column_mark(column)?;
@@ -250,7 +251,15 @@ fn column_lines(columns: &[(ProcessColumn, bool)], l10n: &L10n) -> Vec<Line> {
             };
             Some(entry(mark, icon, column_label(l10n, column), MenuCommand::ToggleColumn(column)))
         })
-        .collect()
+        .collect();
+    lines.push(Line::Separator);
+    lines.push(entry(
+        ProcessesMark::MenuMoreColumns,
+        icon!(more_horizontal).size(size::Icon).build_element(),
+        l10n.processes_menu_more_columns(),
+        MenuCommand::OpenSettings,
+    ));
+    lines
 }
 
 fn line_view(line: Line, on_command: &Callback<MenuCommand>, palette: Palette) -> View {

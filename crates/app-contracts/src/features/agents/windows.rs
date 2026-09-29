@@ -278,6 +278,18 @@ impl WindowsMachineStats {
     pub fn used_physical_bytes(&self) -> u64 {
         self.total_physical_bytes.saturating_sub(self.available_physical_bytes)
     }
+
+    pub fn gpu_percent(&self) -> f32 {
+        self.gpus
+            .iter()
+            .flat_map(|gpu| gpu.engines.iter())
+            .map(|engine| engine.busy_percent)
+            .fold(0.0, f32::max)
+    }
+
+    pub fn gpu_dedicated_used_bytes(&self) -> u64 {
+        self.gpus.iter().map(|gpu| gpu.dedicated_usage_bytes).sum()
+    }
 }
 
 impl WindowsProcessStats {

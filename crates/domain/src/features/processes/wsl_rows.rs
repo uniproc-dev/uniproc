@@ -19,6 +19,8 @@ fn counted_row(p: &LinuxProcessStats) -> ProcessRow {
             + p.tcp_tx_remote_bytes
             + p.udp_rx_remote_bytes
             + p.udp_tx_remote_bytes,
+        gpu_percent: 0.0,
+        gpu_memory_bytes: 0,
         exe_path: "".into(),
         package_full_name: "".into(),
         owner: None,

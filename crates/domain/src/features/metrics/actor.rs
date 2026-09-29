@@ -67,6 +67,8 @@ fn on_windows_report(this: &mut MetricsActor, msg: WindowsReportMessage) {
         cpu_max_mhz: machine.cpu_max_mhz,
         memory_used_bytes: machine.used_physical_bytes(),
         memory_total_bytes: machine.total_physical_bytes,
+        gpu_percent: machine.gpu_percent(),
+        gpu_memory_used_bytes: machine.gpu_dedicated_used_bytes(),
     };
     this.publish();
 }

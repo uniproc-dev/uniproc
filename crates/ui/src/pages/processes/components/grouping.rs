@@ -70,6 +70,8 @@ pub(crate) fn group_by_name(rows: &[ProcessRow], leader_pid: Option<u32>) -> Vec
                     memory_bytes: members.iter().map(|r| r.memory_bytes).sum(),
                     disk_bytes: members.iter().map(|r| r.disk_bytes).sum(),
                     net_bytes: members.iter().map(|r| r.net_bytes).sum(),
+                    gpu_percent: members.iter().map(|r| r.gpu_percent).sum(),
+                    gpu_memory_bytes: members.iter().map(|r| r.gpu_memory_bytes).sum(),
                     ..members[leader_idx].clone()
                 }
             } else {
@@ -195,6 +197,8 @@ impl Environment {
             memory_bytes: processes.iter().map(|p| p.row.memory_bytes).sum(),
             disk_bytes: processes.iter().map(|p| p.row.disk_bytes).sum(),
             net_bytes: processes.iter().map(|p| p.row.net_bytes).sum(),
+            gpu_percent: processes.iter().map(|p| p.row.gpu_percent).sum(),
+            gpu_memory_bytes: processes.iter().map(|p| p.row.gpu_memory_bytes).sum(),
             exe_path: "".into(),
             package_full_name: "".into(),
             owner: None,
@@ -434,6 +438,8 @@ struct SectionTotals {
     memory_bytes: u64,
     disk_bytes: u64,
     net_bytes: u64,
+    gpu_percent: f32,
+    gpu_memory_bytes: u64,
     group_count: usize,
     compressed_bytes: u64,
     idle_cpu_percent: f32,
@@ -445,6 +451,8 @@ impl SectionTotals {
         self.memory_bytes += row.memory_bytes;
         self.disk_bytes += row.disk_bytes;
         self.net_bytes += row.net_bytes;
+        self.gpu_percent += row.gpu_percent;
+        self.gpu_memory_bytes += row.gpu_memory_bytes;
     }
 
     fn of(section: &Section) -> Self {
@@ -696,6 +704,8 @@ fn compare_by(column: ProcessColumn, a: &ProcessRow, b: &ProcessRow) -> Ordering
         ProcessColumn::Memory => sorted_memory(a).cmp(&sorted_memory(b)),
         ProcessColumn::Disk => a.disk_bytes.cmp(&b.disk_bytes),
         ProcessColumn::Net => a.net_bytes.cmp(&b.net_bytes),
+        ProcessColumn::Gpu => tenths(a.gpu_percent).cmp(&tenths(b.gpu_percent)),
+        ProcessColumn::GpuMemory => a.gpu_memory_bytes.cmp(&b.gpu_memory_bytes),
     }
 }
 
@@ -1042,6 +1052,8 @@ impl DisplayRow {
                 memory_bytes: totals.memory_bytes.saturating_sub(totals.compressed_bytes),
                 disk_bytes: totals.disk_bytes,
                 net_bytes: totals.net_bytes,
+                gpu_percent: totals.gpu_percent,
+                gpu_memory_bytes: totals.gpu_memory_bytes,
                 exe_path: "".into(),
                 package_full_name: "".into(),
                 owner: None,
@@ -1085,6 +1097,8 @@ impl DisplayRow {
                 memory_bytes: 0,
                 disk_bytes: 0,
                 net_bytes: 0,
+                gpu_percent: 0.0,
+                gpu_memory_bytes: 0,
                 exe_path: pin.exe_path.as_str().into(),
                 package_full_name: pin.package_full_name.as_str().into(),
                 owner: None,
@@ -1178,6 +1192,8 @@ pub(crate) mod tests {
             memory_bytes: 0,
             disk_bytes: 0,
             net_bytes: 0,
+            gpu_percent: 0.0,
+            gpu_memory_bytes: 0,
             exe_path: "".into(),
             package_full_name: "".into(),
             owner: None,

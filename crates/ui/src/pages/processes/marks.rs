@@ -40,10 +40,11 @@ pub enum ProcessesMark {
     MenuMinimize,
     MenuMaximize,
     MenuCloseWindow,
-    MenuColumnPid,
-    MenuColumnProcessName,
     MenuColumnCpu,
     MenuColumnMemory,
     MenuColumnNet,
     MenuColumnDisk,
+    MenuColumnGpu,
+    MenuColumnGpuMemory,
+    MenuMoreColumns,
 }

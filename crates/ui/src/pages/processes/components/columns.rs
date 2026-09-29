@@ -673,6 +673,8 @@ pub(crate) fn column_label(l10n: &L10n, column: ProcessColumn) -> String {
         ProcessColumn::Memory => l10n.processes_col_memory(),
         ProcessColumn::Net => l10n.processes_col_net(),
         ProcessColumn::Disk => l10n.processes_col_disk(),
+        ProcessColumn::Gpu => l10n.processes_col_gpu(),
+        ProcessColumn::GpuMemory => l10n.processes_col_gpu_memory(),
     }
 }
 
@@ -798,6 +800,12 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
     let disk_total: u64 = rows.iter().map(|r| r.disk_bytes).sum();
     let memory_total_bytes = machine.as_ref().map_or(0, |m| m.memory_total_bytes);
     let cpu_total = machine.as_ref().map(|m| percent(m.cpu_percent)).unwrap_or_default();
+    let gpu_total = machine.as_ref().map(|m| percent(m.gpu_percent)).unwrap_or_default();
+    let gpu_memory_total = machine
+        .as_ref()
+        .map(|m| format::bytes(units, m.gpu_memory_used_bytes))
+        .unwrap_or_default();
+    let gpu_memory_max = rows.iter().map(|r| r.gpu_memory_bytes).max().unwrap_or(0).max(1) as f32;
     let memory_share = move |bytes: u64| {
         if memory_total_bytes > 0 {
             bytes as f32 / memory_total_bytes as f32
@@ -889,6 +897,24 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                     place,
                     value: move |r: &ProcessRow| (format::bytes_per_second(units, r.disk_bytes), r.disk_bytes == 0),
                     heat: move |r: &ProcessRow| (r.disk_bytes as f32 / disk_max, accent),
+                    threshold: Heat::Threshold,
+                }),
+                ProcessColumn::Gpu => metric_column(MetricColumn {
+                    id: ProcessColumn::Gpu,
+                    label: l10n.processes_col_gpu(),
+                    total: gpu_total.clone(),
+                    place,
+                    value: |r: &ProcessRow| (percent(r.gpu_percent), r.gpu_percent < Cpu::Zero),
+                    heat: move |r: &ProcessRow| (r.gpu_percent / 100.0, accent),
+                    threshold: Cpu::HeatThreshold,
+                }),
+                ProcessColumn::GpuMemory => metric_column(MetricColumn {
+                    id: ProcessColumn::GpuMemory,
+                    label: l10n.processes_col_gpu_memory(),
+                    total: gpu_memory_total.clone(),
+                    place,
+                    value: move |r: &ProcessRow| (format::bytes(units, r.gpu_memory_bytes), r.gpu_memory_bytes == 0),
+                    heat: move |r: &ProcessRow| (r.gpu_memory_bytes as f32 / gpu_memory_max, accent),
                     threshold: Heat::Threshold,
                 }),
             }

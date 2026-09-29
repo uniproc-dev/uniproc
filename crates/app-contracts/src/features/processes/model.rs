@@ -95,10 +95,12 @@ pub enum ProcessColumn {
     Memory,
     Net,
     Disk,
+    Gpu,
+    GpuMemory,
 }
 
 impl ProcessColumn {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 9] = [
         Self::Name,
         Self::Pid,
         Self::ProcessName,
@@ -106,6 +108,8 @@ impl ProcessColumn {
         Self::Memory,
         Self::Net,
         Self::Disk,
+        Self::Gpu,
+        Self::GpuMemory,
     ];
 
     pub fn id(self) -> &'static str {
@@ -117,6 +121,8 @@ impl ProcessColumn {
             Self::Memory => "memory",
             Self::Net => "net",
             Self::Disk => "disk",
+            Self::Gpu => "gpu",
+            Self::GpuMemory => "gpu_memory",
         }
     }
 
@@ -128,8 +134,14 @@ impl ProcessColumn {
             Self::Cpu => (120, true),
             Self::Memory => (140, true),
             Self::Net | Self::Disk => (110, true),
+            Self::Gpu => (100, true),
+            Self::GpuMemory => (130, false),
         };
         ColumnConfig { width, visible }
+    }
+
+    pub fn is_metric(self) -> bool {
+        !matches!(self, Self::Name | Self::Pid | Self::ProcessName)
     }
 
     pub fn sorts_ascending_first(self) -> bool {
@@ -163,6 +175,8 @@ pub struct ProcessRow {
     pub memory_bytes: u64,
     pub disk_bytes: u64,
     pub net_bytes: u64,
+    pub gpu_percent: f32,
+    pub gpu_memory_bytes: u64,
     pub exe_path: Arc<str>,
     pub package_full_name: Arc<str>,
     pub owner: Option<Arc<str>>,
@@ -193,4 +207,6 @@ pub struct MachineSummary {
     pub cpu_max_mhz: u64,
     pub memory_used_bytes: u64,
     pub memory_total_bytes: u64,
+    pub gpu_percent: f32,
+    pub gpu_memory_used_bytes: u64,
 }
