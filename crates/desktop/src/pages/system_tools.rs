@@ -88,6 +88,7 @@ mod tests {
         let mut page = mount(h);
         assert!(has_pin(&page, SystemTool::ProcessExplorer));
         assert!(!has_pin(&page, SystemTool::ProcessMonitor), "a missing tool is not pinned");
+        assert!(page.find(SystemMark::Forget).is_none(), "the catalog has nothing to take off");
 
         for tool in [
             SystemTool::ProcessExplorer,

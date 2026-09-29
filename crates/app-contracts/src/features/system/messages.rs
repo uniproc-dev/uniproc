@@ -24,3 +24,7 @@ pub struct GetTool(pub SystemTool);
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
 pub struct PinTool(pub SystemTool, pub bool);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct ForgetTool(pub SystemTool);

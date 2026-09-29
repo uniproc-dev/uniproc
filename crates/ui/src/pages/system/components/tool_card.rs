@@ -1,19 +1,22 @@
-use app_contracts::features::system::{GetTool, OpenTool, PinTool, SystemState, SystemTool, ToolGroup};
+use app_contracts::features::system::{ForgetTool, GetTool, OpenTool, PinTool, SystemState, SystemTool, ToolGroup};
 use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
-use windows_reactor::{Button, ButtonStyle, ChildrenControl, ContentControl, Grid, ResourceOverrides, Thickness, TooltipExt, View};
+use windows_reactor::{
+    Button, ButtonStyle, ChildrenControl, ContentControl, Grid, Orientation, ResourceOverrides, StackPanel, Thickness,
+    TooltipExt, View,
+};
 
 use super::super::marks::{SystemMark, ToolMark};
 use crate::l10n::L10n;
-use crate::theme::{size, Palette};
+use crate::theme::{size, space, Palette};
 use crate::widgets::link_card::{link_card, LinkCard, Trailing};
 use crate::widgets::setting_card::SettingCardSize;
 
-struct PinButton;
+struct CardButton;
 
 #[expect(non_upper_case_globals)]
-impl PinButton {
+impl CardButton {
     const Padding: f64 = 6.0;
 }
 
@@ -104,6 +107,22 @@ pub(in crate::pages::system) fn group_title(l10n: &L10n, group: ToolGroup) -> St
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(in crate::pages::system) enum CardPlace {
+    Favourites,
+    Catalog,
+}
+
+fn card_button(mark: SystemMark, glyph: View, hint: String, on_click: impl Fn() + 'static) -> View {
+    Button::new()
+        .mark(mark)
+        .style(ButtonStyle::Subtle)
+        .resource_overrides(ResourceOverrides::new().set("ButtonPadding", Thickness::uniform(CardButton::Padding)))
+        .on_click(on_click)
+        .content(glyph)
+        .tooltip(hint)
+}
+
 fn pin_button(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, tool: SystemTool) -> View {
     let pinned = state.is_pinned(tool);
     let dispatch = dispatch.clone();
@@ -112,13 +131,31 @@ fn pin_button(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, tool: Syste
     } else {
         (icon!(pin), l10n.system_pin())
     };
-    Button::new()
-        .mark(SystemMark::Pin)
-        .style(ButtonStyle::Subtle)
-        .resource_overrides(ResourceOverrides::new().set("ButtonPadding", Thickness::uniform(PinButton::Padding)))
-        .on_click(move || dispatch.emit(PinTool(tool, !pinned)))
-        .content(glyph.size(size::Icon).build())
-        .tooltip(hint)
+    card_button(SystemMark::Pin, glyph.size(size::Icon).build(), hint, move || {
+        dispatch.emit(PinTool(tool, !pinned))
+    })
+}
+
+fn forget_button(dispatch: &Dispatch, l10n: &L10n, tool: SystemTool) -> View {
+    let dispatch = dispatch.clone();
+    card_button(
+        SystemMark::Forget,
+        icon!(dismiss).size(size::Icon).build(),
+        l10n.system_forget(),
+        move || dispatch.emit(ForgetTool(tool)),
+    )
+}
+
+fn accessory(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, tool: SystemTool, place: CardPlace) -> View {
+    let forget = match place {
+        CardPlace::Favourites => forget_button(dispatch, l10n, tool),
+        CardPlace::Catalog => View::empty(),
+    };
+    StackPanel::new()
+        .orientation(Orientation::Horizontal)
+        .spacing(space::Compact)
+        .children((pin_button(state, dispatch, l10n, tool), forget))
+        .into()
 }
 
 pub(in crate::pages::system) fn tool_card(
@@ -127,6 +164,7 @@ pub(in crate::pages::system) fn tool_card(
     l10n: &L10n,
     palette: Palette,
     tool: SystemTool,
+    place: CardPlace,
 ) -> View {
     let (title, description) = tool_words(l10n, tool);
     let missing = state.found(tool) == Some(false);
@@ -138,7 +176,7 @@ pub(in crate::pages::system) fn tool_card(
             title,
             description: Some(description),
             trailing: if missing { Trailing::Download } else { Trailing::External },
-            accessory: (!missing).then(|| pin_button(state, dispatch, l10n, tool)),
+            accessory: (!missing).then(|| accessory(state, dispatch, l10n, tool, place)),
         },
         palette,
         move || {

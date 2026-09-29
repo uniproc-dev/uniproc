@@ -13,6 +13,7 @@ impl guinea::Mark for ToolMark {
 pub enum SystemMark {
     Open,
     Pin,
+    Forget,
     Tools,
     Favourites,
     NoFavourites,

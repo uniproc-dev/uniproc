@@ -60,8 +60,7 @@ file = "system.svg"
 paint = "none"
 
 [toolbox]
-iconify = "fluent-color:toolbox-24"
-paint = "none"
+iconify = "fluent:toolbox-24-regular"
 
 [open-external]
 iconify = "fluent:open-24-regular"

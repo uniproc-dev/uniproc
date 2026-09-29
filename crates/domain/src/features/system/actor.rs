@@ -1,7 +1,9 @@
 use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use app_contracts::features::system::{GetTool, OpenTool, PinTool, SystemMsg, SystemState, SystemTool};
+use app_contracts::features::system::{
+    ForgetTool, GetTool, OpenTool, PinTool, SystemMsg, SystemState, SystemTool,
+};
 use guinea::prelude::*;
 
 use super::favourites;
@@ -54,7 +56,7 @@ struct Used(SystemTool);
 
 actor! {
     SystemActor {
-        handlers { Rescan, Scanned, OpenTool, Used, GetTool, PinTool }
+        handlers { Rescan, Scanned, OpenTool, Used, GetTool, PinTool, ForgetTool }
     }
 }
 
@@ -120,6 +122,17 @@ fn pin(this: &mut SystemActor, PinTool(tool, pinned): PinTool) {
     };
     if let Err(err) = kept {
         tracing::warn!(?err, ?tool, pinned, "could not keep a system tool pin");
+    }
+    this.publish_favourites();
+}
+
+#[handler]
+fn forget(this: &mut SystemActor, ForgetTool(tool): ForgetTool) {
+    if let Err(err) = this.settings.pinned().remove(tool.id()) {
+        tracing::warn!(?err, ?tool, "could not unpin a system tool");
+    }
+    if let Err(err) = this.settings.uses().remove(tool.id()) {
+        tracing::warn!(?err, ?tool, "could not forget a system tool's uses");
     }
     this.publish_favourites();
 }

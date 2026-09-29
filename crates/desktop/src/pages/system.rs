@@ -34,6 +34,7 @@ impl Page for System {
 #[cfg(test)]
 mod tests {
     use app_contracts::features::system::{OpenTool, PinTool, SystemTool};
+    use domain::features::system::settings::SystemSettings;
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node};
     use ui::pages::system::{SystemMark, ToolMark};
@@ -108,5 +109,31 @@ mod tests {
         page.within(ToolMark(SystemTool::ProcessExplorer)).click(SystemMark::Pin).settle();
         page.settle();
         assert_eq!(favourites(&page), [SystemTool::EventViewer, SystemTool::RegistryEditor]);
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_cross_takes_a_tool_off_the_list(h: &mut Harness) {
+        let _store = test_system::start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        for tool in [SystemTool::EventViewer, SystemTool::EventViewer, SystemTool::Services] {
+            h.act::<SystemState>(OpenTool(tool)).settle();
+        }
+        h.act::<SystemState>(PinTool(SystemTool::ProcessExplorer, true)).settle();
+        page.settle();
+        assert_eq!(
+            favourites(&page),
+            [SystemTool::ProcessExplorer, SystemTool::EventViewer, SystemTool::Services]
+        );
+
+        page.within(ToolMark(SystemTool::ProcessExplorer)).click(SystemMark::Forget).settle();
+        page.within(ToolMark(SystemTool::EventViewer)).click(SystemMark::Forget).settle();
+        page.settle();
+
+        assert_eq!(favourites(&page), [SystemTool::Services]);
+        assert_eq!(launched().len(), 3, "the cross opens nothing");
+        let stored = SystemSettings::new().unwrap();
+        assert!(stored.pinned().get(SystemTool::ProcessExplorer.id()).is_none());
+        assert!(stored.uses().get(SystemTool::EventViewer.id()).is_none());
     }
 }

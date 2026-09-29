@@ -10,6 +10,7 @@ system-sysinternals-hint = Found in Microsoft Store and winget installs and in t
 
 system-pin = Pin
 system-unpin = Unpin
+system-forget = Remove from this list
 
 system-task-manager = Task Manager
 system-task-manager-description = The monitor that comes with Windows

@@ -3,7 +3,7 @@ use guinea::prelude::Dispatch;
 use guinea::Mark;
 use windows_reactor::{Callback, KeyedView, LayoutControl, Thickness, View};
 
-use super::components::tool_card::{group_title, tool_card};
+use super::components::tool_card::{group_title, tool_card, CardPlace};
 use super::marks::{SystemMark, ToolMark};
 use crate::l10n::L10n;
 use crate::theme::{space, Palette};
@@ -36,8 +36,12 @@ fn group_section(props: &ToolsProps<'_>, group: ToolGroup) -> View {
             .into(),
         _ => View::empty(),
     };
-    let cards = SystemTool::in_group(group)
-        .map(|tool| KeyedView::new(ToolMark(tool).name(), tool_card(state, dispatch, l10n, palette, tool)));
+    let cards = SystemTool::in_group(group).map(|tool| {
+        KeyedView::new(
+            ToolMark(tool).name(),
+            tool_card(state, dispatch, l10n, palette, tool, CardPlace::Catalog),
+        )
+    });
     settings_section(group_title(l10n, group), (hint, View::keyed_fragment(cards)))
 }
 

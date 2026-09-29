@@ -5,7 +5,7 @@ use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{Callback, ChildrenControl, KeyedView, LayoutControl, StackPanel, Thickness, View};
 
-use super::components::tool_card::tool_card;
+use super::components::tool_card::{tool_card, CardPlace};
 use super::marks::{SystemMark, ToolMark};
 use crate::l10n::L10n;
 use crate::theme::{space, Palette};
@@ -24,7 +24,12 @@ impl Layout {
 fn favourites(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let cards: Vec<KeyedView> = state
         .favourites()
-        .map(|tool| KeyedView::new(ToolMark(tool).name(), tool_card(state, dispatch, l10n, palette, tool)))
+        .map(|tool| {
+            KeyedView::new(
+                ToolMark(tool).name(),
+                tool_card(state, dispatch, l10n, palette, tool, CardPlace::Favourites),
+            )
+        })
         .collect();
     let content: View = if cards.is_empty() {
         caption(l10n.system_favourites_empty())
