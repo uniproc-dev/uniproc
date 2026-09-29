@@ -5,7 +5,7 @@ use crate::features::agents::windows_feed::WindowsFeed;
 use crate::features::settings::settings::GeneralSettings;
 use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, WindowsAction, WindowsActionRequest,
-    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsReport, WindowsReportMessage,
+    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
 };
 use app_contracts::features::settings::UpdateInterval;
 use guinea::prelude::*;
@@ -57,6 +57,10 @@ impl WindowsClient {
         self.feed.report().await
     }
 
+    pub async fn machine(&self) -> anyhow::Result<WindowsMachineSample> {
+        self.feed.machine().await
+    }
+
     pub async fn act(&self, action: WindowsAction) -> u32 {
         self.feed.act(action).await
     }
@@ -71,6 +75,7 @@ impl AgentBackend for WindowsBackend {
     type ScanMessage = WindowsReportMessage;
     const NAME: &'static str = "Windows";
     const STREAMS: bool = true;
+    const STREAMS_MACHINE: bool = true;
 
     async fn connect(timeout: u64) -> anyhow::Result<Self::Client> {
         let interval = GeneralSettings::new()?.update_interval_ms();
@@ -92,6 +97,11 @@ impl AgentBackend for WindowsBackend {
             }
             None => tracing::debug!("process list kept moving under the metrics, skipping this update"),
         }
+        Ok(())
+    }
+
+    async fn perform_machine_scan(client: &Self::Client) -> anyhow::Result<()> {
+        GlobalEventBus::publish(client.machine().await?);
         Ok(())
     }
 

@@ -1,6 +1,6 @@
 use app_contracts::features::metrics::MetricsState;
 use app_contracts::features::processes::MachineSummary;
-use app_contracts::features::settings::{ByteUnits, SidebarChart, SidebarCharts};
+use app_contracts::features::settings::{ByteUnits, SidebarChart, SidebarCharts, UpdateInterval};
 use guicons::icon;
 use guinea::prelude::Load;
 use guinea::winui::MarkExt;
@@ -138,6 +138,13 @@ fn history(metrics: &MetricsState, chart: SidebarChart) -> &Load<Vec<(u64, f32)>
     }
 }
 
+fn cadence_ms(chart: SidebarChart, update_ms: u64) -> u64 {
+    match chart {
+        SidebarChart::Disk | SidebarChart::Network => UpdateInterval::machine(update_ms).as_millis() as u64,
+        SidebarChart::Cpu | SidebarChart::Memory | SidebarChart::Gpu => update_ms,
+    }
+}
+
 fn scale(chart: SidebarChart, units: ByteUnits) -> Scale {
     match chart {
         SidebarChart::Disk | SidebarChart::Network => Scale::Rate(units),
@@ -211,7 +218,7 @@ fn metrics_pane_footer(props: &ShellProps<'_>) -> View {
                 kind: chart,
                 history: history(metrics, chart),
                 scale: scale(chart, props.units),
-                cadence_ms: props.cadence_ms,
+                cadence_ms: cadence_ms(chart, props.cadence_ms),
                 height: Sidebar::MetricHeight,
                 detail: detail(chart, machine, props.units),
                 palette,

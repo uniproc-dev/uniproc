@@ -364,6 +364,13 @@ pub enum WindowsReportMessage {
 
 #[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
 #[remote(event)]
+pub struct WindowsMachineSample {
+    pub machine: Arc<WindowsMachineStats>,
+    pub clock_100ns: u64,
+}
+
+#[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
+#[remote(event)]
 pub struct WindowsAgentRuntimeEvent {
     pub state: AgentConnectionState,
     pub latency_ms: Option<i32>,

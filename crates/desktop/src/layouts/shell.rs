@@ -193,9 +193,10 @@ mod tests {
     use uuid::Uuid;
 
     use app_contracts::features::agent_link::InProcess;
-    use app_contracts::features::settings::SidebarChart;
+    use app_contracts::features::settings::{ByteUnits, SidebarChart};
     use app_contracts::features::agents::{
-        AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsActionResponse,
+        AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsActionResponse, WindowsMachineSample,
+        WindowsMachineStats,
     };
 
     use super::*;
@@ -502,5 +503,35 @@ mod tests {
         assert!(scale(SidebarChart::Disk), "{tree:#?}");
         assert!(scale(SidebarChart::Network), "{tree:#?}");
         assert!(!scale(SidebarChart::Cpu), "a percent chart needs no scale");
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn disk_and_network_rates_come_from_the_machine_samples(h: &mut Harness) {
+        let _store = start(h, true);
+        let h = &*h;
+        let mut page = mount(h);
+        open_pane(h, &mut page);
+
+        let sample = |clock_100ns, bytes| WindowsMachineSample {
+            machine: std::sync::Arc::new(WindowsMachineStats {
+                disk_read_bytes: bytes,
+                net_rx_bytes: bytes / 2,
+                ..WindowsMachineStats::default()
+            }),
+            clock_100ns,
+        };
+        h.publish(sample(0, 0));
+        h.publish(sample(10_000_000, 2 << 20));
+        page.settle();
+
+        let tree = page.tree();
+        let reads = |chart: SidebarChart, rate: u64| {
+            tree.find(ui::SidebarMark::tile(chart))
+                .unwrap_or_else(|| panic!("{chart:?}: {tree:#?}"))
+                .find_text(&ui::format::bytes_per_second(ByteUnits::default(), rate))
+                .is_some()
+        };
+        assert!(reads(SidebarChart::Disk, 2 << 20), "{tree:#?}");
+        assert!(reads(SidebarChart::Network, 1 << 20), "{tree:#?}");
     }
 }

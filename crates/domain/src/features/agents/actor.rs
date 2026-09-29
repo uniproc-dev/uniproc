@@ -40,6 +40,28 @@ pub struct Streamed {
 
 struct ConnectResult<C>(Option<C>);
 
+#[derive(Clone, Copy, Debug)]
+enum Feed {
+    Report,
+    Machine,
+}
+
+impl Feed {
+    fn streams<B: AgentBackend>(self) -> bool {
+        match self {
+            Feed::Report => B::STREAMS,
+            Feed::Machine => B::STREAMS_MACHINE,
+        }
+    }
+
+    async fn scan<B: AgentBackend>(self, client: &B::Client) -> anyhow::Result<()> {
+        match self {
+            Feed::Report => B::perform_scan(client).await,
+            Feed::Machine => B::perform_machine_scan(client).await,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct GenericAgentActor<B: AgentBackend> {
     client: Option<B::Client>,
@@ -79,23 +101,26 @@ impl<B: AgentBackend> GenericAgentActor<B> {
         let generation = self.generation;
         let open = Arc::new(AtomicBool::new(true));
         self.stream = Some((generation, open.clone()));
-        let updates = futures::stream::unfold(Some(client), move |client| {
+        for feed in [Feed::Report, Feed::Machine].into_iter().filter(|feed| feed.streams::<B>()) {
             let open = open.clone();
-            async move {
-                let client = client?;
-                if !open.load(Ordering::Relaxed) {
-                    return None;
-                }
-                match B::perform_scan(&client).await {
-                    Ok(()) => Some((true, Some(client))),
-                    Err(err) => {
-                        warn!("[{}] The update stream ended: {err}", B::NAME);
-                        Some((false, None))
+            let updates = futures::stream::unfold(Some(client.clone()), move |client| {
+                let open = open.clone();
+                async move {
+                    let client = client?;
+                    if !open.load(Ordering::Relaxed) {
+                        return None;
+                    }
+                    match feed.scan::<B>(&client).await {
+                        Ok(()) => Some((true, Some(client))),
+                        Err(err) => {
+                            warn!("[{}] The {feed:?} stream ended: {err}", B::NAME);
+                            Some((false, None))
+                        }
                     }
                 }
-            }
-        });
-        cx.spawn_source(updates, move |ok| Streamed { generation, ok });
+            });
+            cx.spawn_source(updates, move |ok| Streamed { generation, ok });
+        }
     }
 
     fn close_stream(&mut self) {

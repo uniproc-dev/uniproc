@@ -8,7 +8,7 @@ use app_contracts::features::agents::{
     WindowsGpu, WindowsGpuEngine, WindowsMachineStats, WindowsProcessStats, WindowsProcessorStats, WindowsReport,
     WindowsServiceState, WindowsServiceStats,
 };
-use uniproc_windows_agent::api::{self, MachineMetrics, MetricSpec, ProcessMetrics};
+use uniproc_windows_agent::api::{self, MachineMetric, MachineMetrics, MetricSpec, ProcessMetrics};
 
 type Key = (u32, u64);
 type EngineKey = (u64, u32);
@@ -18,6 +18,14 @@ pub fn spec(interval: Duration) -> MetricSpec {
         interval,
         processes: ProcessMetrics::all(),
         machine: MachineMetrics::all(),
+    }
+}
+
+pub fn machine_spec(interval: Duration) -> MetricSpec {
+    MetricSpec {
+        interval,
+        processes: ProcessMetrics::empty(),
+        machine: MachineMetric::Disk | MachineMetric::Network,
     }
 }
 
@@ -118,16 +126,20 @@ impl Reports {
             .collect();
         self.cpu_times = cpu_times;
 
+        WindowsReport {
+            machine: self.machine_sample(sample),
+            processes,
+            services: self.services.clone(),
+        }
+    }
+
+    pub fn machine_sample(&mut self, sample: &api::Sample) -> WindowsMachineStats {
+        let wall = self.sampled_at.map_or(0, |before| sample.sampled_at.saturating_sub(before));
         let machine = self.machine(&sample.machine, wall);
         self.machine_cpu = sample.machine.cpu;
         self.processors = sample.machine.processors.clone();
         self.sampled_at = Some(sample.sampled_at);
-
-        WindowsReport {
-            machine,
-            processes,
-            services: self.services.clone(),
-        }
+        machine
     }
 
     fn process_gpu(&mut self, sample: &api::Sample, wall: u64) -> HashMap<usize, ProcessGpu> {

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, WindowsAction, WindowsAgentInProcess,
-    WindowsAgentRuntimeEvent, WindowsReport, WindowsReportMessage,
+    WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
 };
 use domain::features::agent_link::{InProcessAgent, InProcessStartError};
 use domain::features::agents::actor::{GenericAgentActor, Init, Ping};
@@ -64,6 +64,10 @@ impl InProcessAgent for FakeInProcess {
             tokio::time::sleep(Pace::Report).await;
             Ok(Some(report))
         })
+    }
+
+    fn machine(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<WindowsMachineSample>> {
+        Box::pin(std::future::pending())
     }
 
     fn act(self: Arc<Self>, action: WindowsAction) -> BoxFuture<'static, u32> {

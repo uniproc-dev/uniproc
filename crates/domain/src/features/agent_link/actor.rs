@@ -4,7 +4,7 @@ use std::time::Duration;
 use app_contracts::features::agent_link::{AgentLinkMsg, AgentLinkState, InProcess, StartInProcess};
 use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, WindowsActionRequest, WindowsActionResponse,
-    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsReport, WindowsReportMessage,
+    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
 };
 use guinea::prelude::*;
 
@@ -33,6 +33,8 @@ impl Reports {
 struct InProcessStarted(Result<Arc<dyn InProcessAgent>, InProcessStartError>);
 
 struct InProcessReport(Option<WindowsReport>);
+
+struct InProcessMachine(Option<WindowsMachineSample>);
 
 pub struct AgentLinkActor {
     ui_port: Push<AgentLinkState>,
@@ -80,6 +82,7 @@ actor! {
             OfferInProcessLater,
             InProcessOfferDue,
             InProcessReport,
+            InProcessMachine,
             WindowsActionRequest,
             AgentStateRequest,
         }
@@ -117,6 +120,7 @@ fn on_in_process_started(this: &mut AgentLinkActor, InProcessStarted(started): I
             this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Running));
             GlobalEventBus::publish(WindowsAgentInProcess);
             this.announce_in_process();
+            cx.spawn_source(machine_samples(agent.clone()), InProcessMachine);
             cx.spawn_source(reports(agent), InProcessReport);
         }
         Err(InProcessStartError::NotElevated) => {
@@ -142,6 +146,29 @@ fn reports(agent: Arc<dyn InProcessAgent>) -> impl futures::Stream<Item = Option
         };
         Some((report, agent))
     })
+}
+
+fn machine_samples(
+    agent: Arc<dyn InProcessAgent>,
+) -> impl futures::Stream<Item = Option<WindowsMachineSample>> + Send + 'static {
+    futures::stream::unfold(agent, |agent| async move {
+        let sample = match agent.clone().machine().await {
+            Ok(sample) => Some(sample),
+            Err(error) => {
+                tracing::warn!(%error, "in-process agent did not sample the machine");
+                tokio::time::sleep(Reports::RetryAfter).await;
+                None
+            }
+        };
+        Some((sample, agent))
+    })
+}
+
+#[handler]
+fn on_machine(_this: &AgentLinkActor, InProcessMachine(sample): InProcessMachine) {
+    if let Some(sample) = sample {
+        GlobalEventBus::publish(sample);
+    }
 }
 
 #[handler]

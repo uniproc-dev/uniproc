@@ -1,4 +1,4 @@
-use app_contracts::features::agents::WindowsReportMessage;
+use app_contracts::features::agents::{WindowsMachineSample, WindowsReportMessage};
 use app_contracts::features::metrics::{MetricsMsg, MetricsState};
 use app_contracts::features::processes::MachineSummary;
 use guinea::prelude::*;
@@ -10,14 +10,19 @@ struct History;
 
 #[expect(non_upper_case_globals)]
 impl History {
-    const Points: usize = 120;
+    const Points: usize = 600;
 }
 
 #[derive(Clone, Copy, Debug)]
 struct Totals {
-    at_ms: u64,
+    clock_100ns: u64,
     disk_bytes: u64,
     network_bytes: u64,
+}
+
+#[expect(non_upper_case_globals)]
+impl Totals {
+    const TicksPerMs: u64 = 10_000;
 }
 
 #[derive(Debug)]
@@ -81,8 +86,15 @@ fn per_second(before: u64, now: u64, elapsed_ms: u64) -> u64 {
 
 actor! {
     MetricsActor {
-        handlers { WindowsReportMessage }
+        handlers { WindowsReportMessage, WindowsMachineSample }
     }
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 #[handler]
@@ -95,35 +107,15 @@ fn on_windows_report(this: &mut MetricsActor, msg: WindowsReportMessage) {
         }
     };
     let machine = &report.machine;
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0);
+    let timestamp = now_ms();
     let memory_percent = if machine.total_physical_bytes > 0 {
         (machine.used_physical_bytes() as f32 / machine.total_physical_bytes as f32) * 100.0
     } else {
         0.0
     };
-    let totals = Totals {
-        at_ms: timestamp,
-        disk_bytes: machine.disk_read_bytes + machine.disk_write_bytes,
-        network_bytes: machine.net_rx_bytes + machine.net_tx_bytes,
-    };
-    let (disk, network) = match this.totals.replace(totals) {
-        Some(before) => {
-            let elapsed = totals.at_ms.saturating_sub(before.at_ms);
-            (
-                per_second(before.disk_bytes, totals.disk_bytes, elapsed),
-                per_second(before.network_bytes, totals.network_bytes, elapsed),
-            )
-        }
-        None => (0, 0),
-    };
 
     this.cpu_history.push((timestamp, machine.cpu_percent));
     this.memory_history.push((timestamp, memory_percent));
-    this.disk_history.push((timestamp, disk as f32));
-    this.network_history.push((timestamp, network as f32));
     this.gpu_history.push((timestamp, machine.gpu_percent()));
     this.machine = MachineSummary {
         cpu_percent: machine.cpu_percent,
@@ -133,9 +125,35 @@ fn on_windows_report(this: &mut MetricsActor, msg: WindowsReportMessage) {
         memory_total_bytes: machine.total_physical_bytes,
         gpu_percent: machine.gpu_percent(),
         gpu_memory_used_bytes: machine.gpu_dedicated_used_bytes(),
-        disk_bytes_per_sec: disk,
-        network_bytes_per_sec: network,
+        ..this.machine.clone()
     };
+    this.publish();
+}
+
+#[handler]
+fn on_machine_sample(this: &mut MetricsActor, sample: WindowsMachineSample) {
+    let machine = &sample.machine;
+    let totals = Totals {
+        clock_100ns: sample.clock_100ns,
+        disk_bytes: machine.disk_read_bytes + machine.disk_write_bytes,
+        network_bytes: machine.net_rx_bytes + machine.net_tx_bytes,
+    };
+    let (disk, network) = match this.totals.replace(totals) {
+        Some(before) => {
+            let elapsed = totals.clock_100ns.saturating_sub(before.clock_100ns) / Totals::TicksPerMs;
+            (
+                per_second(before.disk_bytes, totals.disk_bytes, elapsed),
+                per_second(before.network_bytes, totals.network_bytes, elapsed),
+            )
+        }
+        None => return,
+    };
+
+    let timestamp = now_ms();
+    this.disk_history.push((timestamp, disk as f32));
+    this.network_history.push((timestamp, network as f32));
+    this.machine.disk_bytes_per_sec = disk;
+    this.machine.network_bytes_per_sec = network;
     this.publish();
 }
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use app_contracts::features::agents::{WindowsAction, WindowsReport};
+use app_contracts::features::agents::{WindowsAction, WindowsMachineSample, WindowsReport};
 use futures::future::BoxFuture;
 
 pub enum InProcessStartError {
@@ -10,6 +10,7 @@ pub enum InProcessStartError {
 
 pub trait InProcessAgent: Send + Sync + 'static {
     fn report(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<Option<WindowsReport>>>;
+    fn machine(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<WindowsMachineSample>>;
     fn act(self: Arc<Self>, action: WindowsAction) -> BoxFuture<'static, u32>;
 }
 
@@ -21,7 +22,7 @@ pub use local::start_local;
 mod local {
     use std::sync::Arc;
 
-    use app_contracts::features::agents::{WindowsAction, WindowsReport};
+    use app_contracts::features::agents::{WindowsAction, WindowsMachineSample, WindowsReport};
     use app_contracts::features::settings::UpdateInterval;
     use futures::future::BoxFuture;
     use uniproc_windows_agent::agent::Agent;
@@ -56,6 +57,10 @@ mod local {
     impl InProcessAgent for LocalAgent {
         fn report(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<Option<WindowsReport>>> {
             Box::pin(async move { self.feed.report().await })
+        }
+
+        fn machine(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<WindowsMachineSample>> {
+            Box::pin(async move { self.feed.machine().await })
         }
 
         fn act(self: Arc<Self>, action: WindowsAction) -> BoxFuture<'static, u32> {
