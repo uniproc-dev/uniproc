@@ -52,7 +52,7 @@ fn on_windows_report(this: &mut MetricsActor, msg: WindowsReportMessage) {
     let machine = &report.machine;
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
+        .map(|d| d.as_millis() as u64)
         .unwrap_or(0);
     let memory_percent = if machine.total_physical_bytes > 0 {
         (machine.used_physical_bytes() as f32 / machine.total_physical_bytes as f32) * 100.0

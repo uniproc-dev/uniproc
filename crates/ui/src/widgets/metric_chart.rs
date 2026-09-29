@@ -1,11 +1,10 @@
 use guinea::prelude::Load;
-use guinea_widgets::chart::{Chart, HoverInfo, Interpolation, LineChartOptions, Series};
-use guinea_widgets::color::hex;
+use guinea_widgets::chart::{Chart, ChartGrid, HoverInfo, Interpolation, LineChartOptions, Series};
+use guinea_widgets::color::{hex, hex_alpha};
 use windows_canvas::ColorF;
 use windows_reactor::{
-    Border, ChildrenControl, Color, ContentControl, Grid, GridChildExt, GridLength,
-    HorizontalAlignment, LayoutControl, Orientation, StackPanel, ThemeBrush, Thickness,
-    VerticalAlignment, View,
+    Border, ChildrenControl, Color, ContentControl, Grid, HorizontalAlignment, LayoutControl,
+    StackPanel, ThemeBrush, Thickness, VerticalAlignment, View,
 };
 
 use crate::l10n::tr;
@@ -33,24 +32,20 @@ impl MetricChartKind {
         }
     }
 
+    fn fill(&self) -> ColorF {
+        const FILL_ALPHA: u8 = 36;
+        match self {
+            Self::Cpu => hex_alpha(0x60a5fa, FILL_ALPHA),
+            Self::Memory => hex_alpha(0x34d399, FILL_ALPHA),
+        }
+    }
+
     fn color_direct(&self) -> Color {
         match self {
             Self::Cpu => Color::rgb(0x60, 0xa5, 0xfa),
             Self::Memory => Color::rgb(0x34, 0xd3, 0x99),
         }
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct MetricChartStyle {
-    pub show_grid: bool,
-    pub card: bool,
-}
-
-#[expect(non_upper_case_globals)]
-impl MetricChartStyle {
-    pub const Card: Self = Self { show_grid: true, card: true };
-    pub const Sparkline: Self = Self { show_grid: false, card: false };
 }
 
 struct MiniBar;
@@ -112,12 +107,24 @@ pub fn metric_mini_bar(
         .content(fill)
 }
 
+struct Timeline;
+
+#[expect(non_upper_case_globals)]
+impl Timeline {
+    const Tick: u64 = 5_000;
+    const Window: u64 = 60_000;
+    const Half: f32 = 50.0;
+}
+
+fn color_f(color: Color) -> ColorF {
+    ColorF::from_rgba8(color.r, color.g, color.b, color.a)
+}
+
 pub struct MetricChart<'a> {
     pub chart: &'a Chart,
     pub kind: MetricChartKind,
     pub history: &'a Load<Vec<(u64, f32)>>,
     pub height: f64,
-    pub style: MetricChartStyle,
     pub detail: Option<String>,
     pub palette: Palette,
 }
@@ -128,7 +135,6 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
         kind,
         history,
         height,
-        style,
         detail,
         palette,
     } = props;
@@ -140,53 +146,39 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
         vec![Series {
             color: kind.color(),
             interpolation: Interpolation::Linear,
-            fill: None,
+            fill: Some(kind.fill()),
             points,
         }],
         LineChartOptions {
             background: None,
             border: None,
-            show_grid: style.show_grid,
+            grid: Some(ChartGrid {
+                every_t: Some(Timeline::Tick),
+                at_v: vec![Timeline::Half],
+                color: color_f(palette.divider_stroke),
+            }),
+            x_window: Some(Timeline::Window),
             y_range: Some((0.0, 100.0)),
         },
     );
-    let surface = Border::new()
-        .height(height)
-        .content(chart.view(|_: Option<HoverInfo>| {}));
 
-    let label: View = match detail {
-        Some(detail) => StackPanel::new()
-            .orientation(Orientation::Horizontal)
-            .spacing(space::Control)
-            .children((
-                caption(kind.title()),
-                caption(detail).foreground(palette.tertiary_text),
-            )),
-        None => caption(kind.title()).into(),
+    let value = match detail {
+        Some(detail) => format!("{current:.1}% · {detail}"),
+        None => format!("{current:.1}%"),
     };
-    let header = Grid::new()
-        .columns([GridLength::Auto, GridLength::Star(1.0)])
+    let label = StackPanel::new()
+        .margin(Thickness::xy(space::Header, space::Compact))
+        .vertical_alignment(VerticalAlignment::Top)
         .children((
-            Border::new().grid_column(0).content(label),
-            caption(format!("{current:.1}%"))
-                .foreground(palette.secondary_text)
-                .horizontal_alignment(HorizontalAlignment::Right)
-                .grid_column(1),
+            caption(kind.title()),
+            caption(value).foreground(palette.secondary_text),
         ));
 
-    let content = StackPanel::new()
-        .spacing(space::Compact)
-        .children((header, surface));
-
-    if style.card {
-        Border::new()
-            .background(ThemeBrush::CardBackground)
-            .border_brush(ThemeBrush::CardStroke)
-            .border_thickness(Thickness::uniform(1.0))
-            .corner_radius(radius::Overlay)
-            .padding(Thickness::uniform(space::Control))
-            .content(content)
-    } else {
-        content
-    }
+    Border::new()
+        .height(height)
+        .background(ThemeBrush::CardBackground)
+        .border_brush(ThemeBrush::CardStroke)
+        .border_thickness(Thickness::uniform(1.0))
+        .corner_radius(radius::Control)
+        .content(Grid::new().children((chart.view(|_: Option<HoverInfo>| {}), label)))
 }

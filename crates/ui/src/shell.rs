@@ -14,7 +14,7 @@ use crate::format;
 use crate::l10n::L10n;
 use crate::theme::{size, space, Palette};
 use crate::widgets::metric_chart::{
-    metric_chart, metric_mini_bar, MetricChart, MetricChartKind, MetricChartStyle,
+    metric_chart, metric_mini_bar, MetricChart, MetricChartKind,
 };
 use crate::widgets::separator;
 
@@ -31,7 +31,7 @@ struct Sidebar;
 impl Sidebar {
     const MinWidth: f64 = 200.0;
     const MaxWidth: f64 = 500.0;
-    const SparklineHeight: f64 = 28.0;
+    const MetricHeight: f64 = 48.0;
 }
 
 pub struct ShellProps<'a> {
@@ -110,8 +110,7 @@ fn metrics_pane_footer(props: &ShellProps<'_>) -> View {
         chart: props.cpu_chart,
         kind: MetricChartKind::Cpu,
         history: &metrics.cpu_history,
-        height: Sidebar::SparklineHeight,
-        style: MetricChartStyle::Sparkline,
+        height: Sidebar::MetricHeight,
         detail: cpu_detail,
         palette,
     });
@@ -119,8 +118,7 @@ fn metrics_pane_footer(props: &ShellProps<'_>) -> View {
         chart: props.memory_chart,
         kind: MetricChartKind::Memory,
         history: &metrics.memory_history,
-        height: Sidebar::SparklineHeight,
-        style: MetricChartStyle::Sparkline,
+        height: Sidebar::MetricHeight,
         detail: memory_detail,
         palette,
     });
@@ -128,12 +126,7 @@ fn metrics_pane_footer(props: &ShellProps<'_>) -> View {
     Border::new()
         .padding(Thickness::xy(space::Compact, space::Control))
         .horizontal_alignment(HorizontalAlignment::Stretch)
-        .content(StackPanel::new().spacing(space::Control).children((
-            separator(palette),
-            cpu_chart,
-            memory_chart,
-            separator(palette),
-        )))
+        .content(StackPanel::new().spacing(space::Compact).children((cpu_chart, memory_chart)))
 }
 
 pub fn shell_view(mut props: ShellProps<'_>) -> View {
