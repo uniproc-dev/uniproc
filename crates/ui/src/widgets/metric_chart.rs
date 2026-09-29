@@ -196,7 +196,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
             (
                 ceiling as f32,
                 format::bytes_per_second(units, now.max(0.0) as u64),
-                Some(tr().metric_chart_scale(format::rate_bound(units, ceiling))),
+                Some(format::rate_bound(units, ceiling)),
             )
         }
     };

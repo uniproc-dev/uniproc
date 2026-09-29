@@ -495,7 +495,7 @@ mod tests {
         let scale = |chart: SidebarChart| {
             tree.find(ui::SidebarMark::tile(chart))
                 .unwrap_or_else(|| panic!("{chart:?}: {tree:#?}"))
-                .find_text("100%: \u{2068}100 KB/s\u{2069}")
+                .find_text("100 KB/s")
                 .is_some()
         };
         assert!(scale(SidebarChart::Disk), "{tree:#?}");
