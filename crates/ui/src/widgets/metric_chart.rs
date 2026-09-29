@@ -65,7 +65,7 @@ struct Timeline;
 impl Timeline {
     const Tick: u64 = 5_000;
     const Window: u64 = 60_000;
-    const Half: f32 = 50.0;
+    const Levels: [f32; 3] = [25.0, 50.0, 75.0];
 }
 
 struct RateScale;
@@ -213,7 +213,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
             border: None,
             grid: Some(ChartGrid {
                 every_t: Some(Timeline::Tick),
-                at_v: vec![ceiling * Timeline::Half / 100.0],
+                at_v: Timeline::Levels.iter().map(|level| ceiling * level / 100.0).collect(),
                 color: color_f(palette.divider_stroke),
             }),
             x_window: Some(Timeline::Window),
