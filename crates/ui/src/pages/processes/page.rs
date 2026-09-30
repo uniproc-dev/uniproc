@@ -409,7 +409,7 @@ impl ProcessesPage {
                     ProcessesMark::EndTask,
                     l10n.processes_end_task(),
                     Some(icon!(prohibited).size(size::CommandIcon).build_element()),
-                    live.is_some_and(|row| row.category.takes_actions()),
+                    live.is_some_and(|row| row.category.takes_actions()) && self.selected_group_size.get().is_none(),
                     move || terminate.emit(Terminate),
                 )),
                 Border::new().grid_column(5).content(icon_button(

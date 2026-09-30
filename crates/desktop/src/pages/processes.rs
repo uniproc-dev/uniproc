@@ -1042,6 +1042,19 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
+    fn end_task_does_not_offer_to_end_one_member_of_a_selected_group(h: &mut Harness) {
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        select(&mut page, "chrome.exe (3)");
+        assert!(!end_task_enabled(&page));
+
+        select(&mut page, "notepad.exe");
+        assert!(end_task_enabled(&page));
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_window_row_menu_acts_on_the_window(h: &mut Harness) {
         let _store = start(h);
         let h = &*h;
