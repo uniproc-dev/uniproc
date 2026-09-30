@@ -141,6 +141,9 @@ takes it with `ctx.require_or_default::<F Deps>()`: what tests put there with
   directory gets one JSON object per line (`ts`, `level`, `target`, `cause`, then the
   fields), recreated on every start. guinea's own points are under `guinea::<kind>`
   targets; `cause` ties an application event to the guinea point it ran under.
+  A release build writes the same file to `%LOCALAPPDATA%\<app name>\logs\` instead: an
+  elevated uniproc usually starts in `System32`, and the working directory is not ours to
+  write to.
 - `cargo ragent` runs the agent task from `xtask`.
 - `UNIPROC_AGENT_PIPE=<name>` (debug builds only) connects to another Windows agent service
   name. A name nobody serves shows the splash, then the give-up state after 5 attempts.
