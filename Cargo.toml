@@ -60,7 +60,7 @@ capnp-rpc = "0.27"
 
 # --- Async & Networking ---
 tokio = { version = "1.49.0", features = ["full"] }
-compio = { version = "0.18.0", features = ["net", "io-compat", "process", "macros", "time"] }
+compio = { version = "0.19.2", features = ["net", "io-compat", "process", "macros", "time"] }
 futures = "0.3.31"
 flume = { version = "0.12.0", features = ["async"] }
 
@@ -82,7 +82,7 @@ windows = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45", 
 
 # --- Utilities ---
 anyhow = "1.0.100"
-fluent-templates = "0.14.0"
+fluent-templates = "0.15.1"
 fluent-bundle = "0.16.0"
 unic-langid = { version = "0.9.6", features = ["macros"] }
 
