@@ -17,19 +17,19 @@ members = [
 
 [workspace.dependencies]
 # --- guinea ---
-guinea = { git = "https://github.com/uniproc-dev/guinea", tag = "v0.15.1" }
-guinea-meta-build = { git = "https://github.com/uniproc-dev/guinea", tag = "v0.15.1" }
+guinea = "0.16.1"
+guinea-meta-build = "0.16.1"
 
-guinea-plugin-store = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.12.3" }
-guinea-plugin-l10n = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.12.3", features = ["winui"] }
-guinea-plugin-devtools = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.12.3" }
-guinea-plugin-single-instance = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.12.3" }
-guinea-widgets = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.12.3" }
-guinea-plugin-l10n-build = { git = "https://github.com/uniproc-dev/guinea-plugins", tag = "v0.12.3" }
+guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1" }
+guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1", features = ["winui"] }
+guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1" }
+guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1" }
+guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1" }
+guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1" }
 
 # --- guicons ---
-guicons = "0.6.0"
-guicons-build = "0.6.0"
+guicons = "0.8.0"
+guicons-build = "0.8.0"
 
 # --- amethystate ---
 # Same minor as guinea-plugin-store's own amethystate dep: the store is a thin
@@ -37,15 +37,12 @@ guicons-build = "0.6.0"
 amethystate = "0.22.1"
 
 # --- windows-rs ---
-# Pinned to the exact rev guinea's own workspace pins, for the same reason
-# guinea pins it: two separate lockfiles resolving an unpinned `git = "..."`
-# dep independently can silently drift onto different commits.
-windows-reactor = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
-windows-reactor-setup = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
-windows-canvas = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45", features = ["reactor"] }
-windows-collections = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
-windows-core = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
-windows-reference = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
+windows-reactor = { package = "windows-reactor-pre", version = "0.100" }
+windows-reactor-setup = "0.100"
+windows-canvas = { package = "windows-canvas-pre", version = "0.100", features = ["reactor"] }
+windows-collections = "0.100"
+windows-core = "0.100"
+windows-reference = "0.100"
 
 # --- RPC & protocol ---
 ogurpchik = { git = "https://github.com/uniproc-dev/oguRPChik", tag = "v0.7.0" }
@@ -90,16 +87,6 @@ unic-langid = { version = "0.9.6", features = ["macros"] }
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
-
-# guicons (pulled from crates.io) declares its own optional
-# `windows-reactor` dependency as a plain crates.io version (crates.io
-# strips the git/rev spec on publish, requiring *some* version) - since
-# windows-reactor was never actually published there, that edge needs
-# its own patch redirecting it to the same git rev pinned above (Cargo
-# doesn't chain one [patch] block's target through another, so this has
-# to name the same rev by hand, not just point at the git source).
-[patch.crates-io]
-windows-reactor = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
 
 # --- Profiles ---
 [profile.release]
