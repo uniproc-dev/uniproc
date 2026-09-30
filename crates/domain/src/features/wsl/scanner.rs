@@ -1,15 +1,22 @@
+use anyhow::Context as _;
 use app_contracts::features::wsl::{AgentPresence, DistroRow};
-use std::os::windows::process::CommandExt;
-use std::process::Command;
+use std::pin::Pin;
+use std::time::Duration;
+use tokio::process::Command;
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-pub fn scan_distros() -> anyhow::Result<Vec<DistroRow>> {
+pub type DistroScan = Pin<Box<dyn Future<Output = anyhow::Result<Vec<DistroRow>>> + Send>>;
+
+pub async fn scan_distros(timeout: Duration) -> anyhow::Result<Vec<DistroRow>> {
     let mut command = Command::new("wsl.exe");
     command.args(["-l", "-v"]);
     command.creation_flags(CREATE_NO_WINDOW);
+    command.kill_on_drop(true);
 
-    let output = command.output()?;
+    let output = tokio::time::timeout(timeout, command.output())
+        .await
+        .with_context(|| format!("wsl.exe did not answer in {timeout:?}"))??;
 
     let text = decode_utf16le(&output.stdout);
 

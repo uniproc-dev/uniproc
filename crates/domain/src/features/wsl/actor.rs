@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use app_contracts::features::agents::RemoteScanResult;
 use app_contracts::features::wsl::{
@@ -7,7 +7,7 @@ use app_contracts::features::wsl::{
 };
 use guinea::prelude::*;
 
-use super::scanner;
+use super::scanner::DistroScan;
 
 #[derive(Clone, Copy, Debug)]
 struct CpuSample {
@@ -36,10 +36,19 @@ pub struct WslActor {
     machine: Option<LinuxMachineSummary>,
     previous_cpu: Option<CpuSample>,
     published: Option<(Rc<[DistroRow]>, Option<LinuxMachineSummary>)>,
+    scan: fn(Duration) -> DistroScan,
+    scanning: bool,
+}
+
+struct Scan;
+
+#[expect(non_upper_case_globals)]
+impl Scan {
+    const Timeout: Duration = Duration::from_secs(10);
 }
 
 impl WslActor {
-    pub fn new(ui_port: Push<WslState>, configured: String) -> Self {
+    pub fn new(ui_port: Push<WslState>, configured: String, scan: fn(Duration) -> DistroScan) -> Self {
         Self {
             ui_port,
             distros: Rc::from(Vec::new()),
@@ -47,6 +56,8 @@ impl WslActor {
             machine: None,
             previous_cpu: None,
             published: None,
+            scan,
+            scanning: false,
         }
     }
 
@@ -124,27 +135,26 @@ actor! {
 }
 
 #[handler]
-async fn handle_refresh(ctx: AsyncContext<WslActor>, _: RefreshDistros) {
-    let scanned = tokio::task::spawn_blocking(scanner::scan_distros);
-    let Some(scanned) = ctx.until_gone(scanned).await else {
+fn handle_refresh(this: &mut WslActor, _: RefreshDistros, cx: Cx) {
+    if this.scanning {
         return;
-    };
-
-    match scanned {
-        Ok(Ok(distros)) => ctx.send(ScanResult::Distros(distros)),
-        Ok(Err(err)) => {
-            tracing::warn!(%err, "wsl distribution scan failed");
-            ctx.send(ScanResult::Failed);
-        }
-        Err(err) => {
-            tracing::warn!(%err, "wsl distribution scan did not finish");
-            ctx.send(ScanResult::Failed);
-        }
     }
+    this.scanning = true;
+    let scan = (this.scan)(Scan::Timeout);
+    cx.spawn_bg(async move {
+        match scan.await {
+            Ok(distros) => ScanResult::Distros(distros),
+            Err(err) => {
+                tracing::warn!(%err, "wsl distribution scan failed");
+                ScanResult::Failed
+            }
+        }
+    });
 }
 
 #[handler]
 fn on_scan_result(this: &mut WslActor, msg: ScanResult) {
+    this.scanning = false;
     let ScanResult::Distros(mut distros) = msg else {
         return;
     };
@@ -258,7 +268,7 @@ mod tests {
     }
 
     fn actor_with(distros: Vec<DistroRow>) -> WslActor {
-        let mut actor = WslActor::new(detached_port(), "Ubuntu".to_string());
+        let mut actor = WslActor::new(detached_port(), "Ubuntu".to_string(), |_| Box::pin(std::future::pending()));
         actor.distros = Rc::from(distros);
         actor
     }

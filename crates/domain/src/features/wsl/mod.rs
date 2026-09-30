@@ -2,4 +2,5 @@ mod actor;
 mod install;
 mod scanner;
 
-pub use install::WslFeature;
+pub use install::{WslDeps, WslFeature};
+pub use scanner::DistroScan;
