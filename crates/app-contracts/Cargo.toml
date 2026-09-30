@@ -2,6 +2,7 @@
 name = "app-contracts"
 version.workspace = true
 edition.workspace = true
+publish = false
 
 [dependencies]
 guinea = { workspace = true }

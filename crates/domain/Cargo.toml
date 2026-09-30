@@ -2,6 +2,7 @@
 name = "domain"
 version.workspace = true
 edition.workspace = true
+publish = false
 
 [dependencies]
 app-contracts = { workspace = true }

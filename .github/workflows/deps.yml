@@ -1,0 +1,27 @@
+name: deps
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    uses: guinea-rs/.github/.github/workflows/deps-audit.yml@02c22ffa63298c80099e037effd27005e0e78939
+    with:
+      manifests: '["Cargo.toml"]'
+
+  tags:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      issues: write
+    uses: guinea-rs/.github/.github/workflows/deps-tags.yml@02c22ffa63298c80099e037effd27005e0e78939
+    with:
+      manifests: '["Cargo.toml"]'
