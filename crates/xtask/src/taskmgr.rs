@@ -111,6 +111,37 @@ fn fluent_value(text: &str) -> String {
     text.replace('{', "{\"{\"}").replace('}', "{\"}\"}")
 }
 
+fn merge(existing: &str, generated: &[(&str, String)]) -> String {
+    let mut written = vec![false; generated.len()];
+    let mut out = String::new();
+    let mut replacing = false;
+    for line in existing.lines() {
+        if replacing && line.starts_with(char::is_whitespace) && !line.trim().is_empty() {
+            continue;
+        }
+        replacing = false;
+        let key = line.split_once('=').map(|(key, _)| key.trim());
+        match key.and_then(|key| generated.iter().position(|(k, _)| *k == key)) {
+            Some(index) => {
+                let (key, value) = &generated[index];
+                out.push_str(&format!("{key} = {value}\n"));
+                written[index] = true;
+                replacing = true;
+            }
+            None => {
+                out.push_str(line);
+                out.push('\n');
+            }
+        }
+    }
+    for ((key, value), written) in generated.iter().zip(written) {
+        if !written {
+            out.push_str(&format!("{key} = {value}\n"));
+        }
+    }
+    out
+}
+
 fn locale_dir(windows_locale: &str) -> &str {
     if windows_locale == REFERENCE_LOCALE {
         "en"
@@ -169,11 +200,11 @@ pub fn run(args: &[String], workspace_root: &Path) -> anyhow::Result<()> {
 
     for locale in &locales {
         let table = StringTable::open(&root.join(locale).join(MUI))?;
-        let mut body = String::new();
+        let mut generated = Vec::new();
         let mut missing = Vec::new();
         for entry in ENTRIES {
             match table.get(entry.id) {
-                Some(text) => body.push_str(&format!("{} = {}\n", entry.key, fluent_value(&text))),
+                Some(text) => generated.push((entry.key, fluent_value(&text))),
                 None => missing.push(entry.key),
             }
         }
@@ -181,7 +212,13 @@ pub fn run(args: &[String], workspace_root: &Path) -> anyhow::Result<()> {
         let dir = workspace_root.join("locales").join(locale_dir(locale));
         fs::create_dir_all(&dir)?;
         let target = dir.join(OUTPUT_FILE);
-        fs::write(&target, body).with_context(|| format!("cannot write {}", target.display()))?;
+        let existing = match fs::read_to_string(&target) {
+            Ok(text) => text,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(err) => return Err(err).with_context(|| format!("cannot read {}", target.display())),
+        };
+        fs::write(&target, merge(&existing, &generated))
+            .with_context(|| format!("cannot write {}", target.display()))?;
 
         if missing.is_empty() {
             println!("{locale}: {} strings -> {}", ENTRIES.len(), target.display());
@@ -195,4 +232,44 @@ pub fn run(args: &[String], workspace_root: &Path) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keys_written_by_hand_survive_a_regeneration() {
+        let existing = "processes-title = Processes\nprocesses-run-new-task = Run new task\nprocesses-end-task = End task\n";
+        let generated = [
+            ("processes-title", "Процессы".to_string()),
+            ("processes-end-task", "Снять задачу".to_string()),
+        ];
+
+        assert_eq!(
+            merge(existing, &generated),
+            "processes-title = Процессы\nprocesses-run-new-task = Run new task\nprocesses-end-task = Снять задачу\n"
+        );
+    }
+
+    #[test]
+    fn a_new_generated_key_goes_to_the_end() {
+        let generated = [("services-title", "Services".to_string())];
+
+        assert_eq!(
+            merge("processes-col-pid = PID\n", &generated),
+            "processes-col-pid = PID\nservices-title = Services\n"
+        );
+    }
+
+    #[test]
+    fn a_replaced_multiline_value_leaves_no_tail() {
+        let existing = "services-title =\n    Old\n    value\nservices-col-pid = PID\n";
+        let generated = [("services-title", "Services".to_string())];
+
+        assert_eq!(
+            merge(existing, &generated),
+            "services-title = Services\nservices-col-pid = PID\n"
+        );
+    }
 }
