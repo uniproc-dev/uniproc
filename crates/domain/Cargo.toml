@@ -15,6 +15,7 @@ tracing = { workspace = true }
 ogurpchik = { workspace = true }
 uniproc-protocol = { workspace = true }
 capnp = { workspace = true }
+capnp-rpc = { workspace = true }
 compio = { workspace = true }
 flume = { workspace = true }
 futures = { workspace = true }

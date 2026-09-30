@@ -914,6 +914,7 @@ dependencies = [
  "anyhow",
  "app-contracts",
  "capnp",
+ "capnp-rpc",
  "compio",
  "flume 0.12.0",
  "futures",
@@ -923,7 +924,7 @@ dependencies = [
  "serde",
  "tokio",
  "tracing",
- "uniproc-protocol 0.12.5",
+ "uniproc-protocol",
  "uniproc-windows-agent",
  "uuid",
  "windows 0.100.0",
@@ -3322,18 +3323,8 @@ dependencies = [
 
 [[package]]
 name = "uniproc-protocol"
-version = "0.12.5"
-source = "git+https://github.com/uniproc-dev/uniproc-protocol?tag=v0.12.5#31124f0f8576202b3e6de1216701d0b88fa021ab"
-dependencies = [
- "capnp",
- "capnp-rpc",
- "capnpc",
-]
-
-[[package]]
-name = "uniproc-protocol"
-version = "0.14.0"
-source = "git+https://github.com/uniproc-dev/uniproc-protocol?tag=v0.14.0#55e94c87a877738ba37027d9eae09e90b2545a72"
+version = "0.14.2"
+source = "git+https://github.com/uniproc-dev/uniproc-protocol?tag=v0.14.2#891dd82011118a8eb42f363a7608d7246dfbe842"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -3343,7 +3334,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-agent"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.1#85ae4b7f929a60da15a65ae240bf402c9885745e"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.2#d564e10d340c79dffc725adb57ea750018038d20"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -3357,7 +3348,7 @@ dependencies = [
  "parking_lot",
  "tracing",
  "uniproc-agent-kit",
- "uniproc-protocol 0.14.0",
+ "uniproc-protocol",
  "uniproc-windows-core",
  "windows 0.100.0",
 ]
@@ -3365,7 +3356,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-core"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.1#85ae4b7f929a60da15a65ae240bf402c9885745e"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.2#d564e10d340c79dffc725adb57ea750018038d20"
 dependencies = [
  "amethystate",
  "anyhow",

@@ -2,6 +2,7 @@ pub mod actor;
 pub mod backend;
 pub mod connection;
 pub mod decode;
+pub mod linux_report;
 pub mod providers;
 pub mod rpc;
 pub mod settings;

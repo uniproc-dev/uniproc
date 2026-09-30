@@ -46,8 +46,8 @@ windows-reference = "0.100"
 
 # --- RPC & protocol ---
 ogurpchik = { git = "https://github.com/uniproc-dev/oguRPChik", tag = "v0.7.0" }
-uniproc-protocol = { git = "https://github.com/uniproc-dev/uniproc-protocol", tag = "v0.12.5" }
-uniproc-windows-agent = { git = "https://github.com/uniproc-dev/uniproc-windows-agent", tag = "v0.14.1",default-features = false }
+uniproc-protocol = { git = "https://github.com/uniproc-dev/uniproc-protocol", tag = "v0.14.2" }
+uniproc-windows-agent = { git = "https://github.com/uniproc-dev/uniproc-windows-agent", tag = "v0.14.2", default-features = false }
 
 # --- Internal ---
 app-contracts = { path = "crates/app-contracts" }
@@ -56,6 +56,7 @@ domain = { path = "crates/domain" }
 ui = { path = "crates/ui" }
 
 capnp = "0.27"
+capnp-rpc = "0.27"
 
 # --- Async & Networking ---
 tokio = { version = "1.49.0", features = ["full"] }

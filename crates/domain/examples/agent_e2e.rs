@@ -188,8 +188,7 @@ mod wsl {
     use anyhow::{Context, bail};
     use app_contracts::features::agents::{LinuxProcessStats, LinuxReport};
     use domain::features::agents::backend::AgentBackend;
-    use domain::features::agents::providers::wsl::{WslBackend, WslReply, WslRequest, WslRpc};
-    use domain::features::agents::rpc::RpcHandle;
+    use domain::features::agents::providers::wsl::{WslBackend, WslClient};
     use std::time::Instant;
 
     const CONNECT_TIMEOUT_SECS: u64 = 40;
@@ -204,7 +203,7 @@ mod wsl {
         domain::features::agents::providers::wsl::set_launch_config(distro.clone(), agent_path);
 
         let started = Instant::now();
-        let handle = RpcHandle::<WslRpc>::connect(CONNECT_TIMEOUT_SECS)
+        let handle = WslClient::connect(CONNECT_TIMEOUT_SECS, || std::time::Duration::from_secs(1))
             .await
             .context("connect failed - is the Linux agent running inside WSL?")?;
         println!("connect: ok ({} ms)", started.elapsed().as_millis());
@@ -212,11 +211,10 @@ mod wsl {
         let latency = WslBackend::ping(&handle).await.context("ping failed")?;
         println!("ping via AgentBackend: {latency} ms");
 
-        let _ = handle.call(WslRequest::GetReport).await?;
-        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        let _ = handle.report().await?;
 
-        match handle.call(WslRequest::GetReport).await? {
-            WslReply::Report(report) => {
+        match handle.report().await {
+            Ok(report) => {
                 let m = &report.machine;
                 println!(
                     "getReport: {} processes, {} environments, {} docker containers",
@@ -285,7 +283,7 @@ mod wsl {
                 let unnamed = report.processes.iter().filter(|p| p.name.is_empty()).count();
                 println!("  unnamed processes: {unnamed}");
             }
-            _ => bail!("agent answered getReport with the wrong reply"),
+            Err(err) => bail!("the agent's second update did not arrive: {err:#}"),
         }
 
         load_probe(&handle, &distro).await
@@ -308,11 +306,8 @@ wait
 rm -f /tmp/uniproc-probe
 "#;
 
-    async fn report(handle: &RpcHandle<WslRpc>) -> anyhow::Result<LinuxReport> {
-        match handle.call(WslRequest::GetReport).await? {
-            WslReply::Report(report) => Ok(report),
-            _ => bail!("agent answered getReport with the wrong reply"),
-        }
+    async fn report(handle: &WslClient) -> anyhow::Result<LinuxReport> {
+        handle.report().await
     }
 
     fn started<'a>(report: &'a LinuxReport, before: &LinuxReport, name: &str) -> Option<&'a LinuxProcessStats> {
@@ -332,7 +327,7 @@ rm -f /tmp/uniproc-probe
         }
     }
 
-    async fn load_probe(handle: &RpcHandle<WslRpc>, distro: &str) -> anyhow::Result<()> {
+    async fn load_probe(handle: &WslClient, distro: &str) -> anyhow::Result<()> {
         println!("\n== wsl load: {LOAD_SECS}s of yes, fsync'd writes, a 4 MB/s download ==");
         let before = report(handle).await?;
         let began = Instant::now();
