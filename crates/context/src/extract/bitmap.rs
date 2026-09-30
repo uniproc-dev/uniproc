@@ -1,6 +1,6 @@
 use windows::Win32::{
     DeleteObject, GetDC, GetDIBits, GetIconInfo, GetObjectW, ReleaseDC, BITMAP, BITMAPINFOHEADER,
-    BI_RGB, DIB_RGB_COLORS, HANDLE, HBITMAP, HDC, HGDIOBJ, HICON, HWND, ICONINFO,
+    BI_RGB, DIB_RGB_COLORS, HANDLE, HBITMAP, HDC, HGDIOBJ, HICON, HWND, ICONINFO, RGBQUAD,
 };
 
 pub struct RgbaImage {
@@ -88,14 +88,17 @@ unsafe fn read_and_mask(hdc: HDC, hbmp: HBITMAP, w: i32, h: i32) -> Option<Vec<u
     unsafe {
         let stride = ((w as usize).div_ceil(32)) * 4;
         let mut buffer = vec![0u8; stride * h as usize];
-        let mut bmi = BITMAPINFOHEADER {
-            biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-            biWidth: w,
-            biHeight: -h,
-            biPlanes: 1,
-            biBitCount: 1,
-            biCompression: BI_RGB as u32,
-            ..std::mem::zeroed()
+        let mut bmi = MonochromeInfo {
+            header: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: w,
+                biHeight: -h,
+                biPlanes: 1,
+                biBitCount: 1,
+                biCompression: BI_RGB as u32,
+                ..std::mem::zeroed()
+            },
+            colors: [RGBQUAD::default(); 2],
         };
         let scan_lines = GetDIBits(
             hdc,
@@ -111,6 +114,12 @@ unsafe fn read_and_mask(hdc: HDC, hbmp: HBITMAP, w: i32, h: i32) -> Option<Vec<u
         }
         Some(buffer)
     }
+}
+
+#[repr(C)]
+struct MonochromeInfo {
+    header: BITMAPINFOHEADER,
+    colors: [RGBQUAD; 2],
 }
 
 fn apply_and_mask(buffer: &mut [u8], mask: &[u8], w: i32, h: i32) {
