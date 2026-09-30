@@ -166,8 +166,8 @@ fn spec(interval: Duration, mut out: linux_capnp::metric_spec::Builder<'_>) {
     const PROCESSES: [ProcessMetric; 8] = [
         ProcessMetric::CpuRunTime,
         ProcessMetric::ResidentSet,
-        ProcessMetric::DiskReadBytes,
-        ProcessMetric::DiskWriteBytes,
+        ProcessMetric::FileReadBytes,
+        ProcessMetric::FileWriteBytes,
         ProcessMetric::PipeReadBytes,
         ProcessMetric::PipeWriteBytes,
         ProcessMetric::SendfileBytes,

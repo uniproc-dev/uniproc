@@ -126,8 +126,8 @@ fn columns(r: process_columns::Reader<'_>) -> anyhow::Result<Columns> {
     let sequence_numbers = r.get_sequence_numbers()?;
     let cpu_run_time = optional(r.has_cpu_run_time(), r.get_cpu_run_time())?;
     let resident_set = optional(r.has_resident_set(), r.get_resident_set())?;
-    let disk_read = optional(r.has_disk_read_bytes(), r.get_disk_read_bytes())?;
-    let disk_write = optional(r.has_disk_write_bytes(), r.get_disk_write_bytes())?;
+    let disk_read = optional(r.has_file_read_bytes(), r.get_file_read_bytes())?;
+    let disk_write = optional(r.has_file_write_bytes(), r.get_file_write_bytes())?;
     let pipe_read = optional(r.has_pipe_read_bytes(), r.get_pipe_read_bytes())?;
     let pipe_write = optional(r.has_pipe_write_bytes(), r.get_pipe_write_bytes())?;
     let sendfile = optional(r.has_sendfile_bytes(), r.get_sendfile_bytes())?;
