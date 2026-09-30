@@ -13,7 +13,7 @@ use guinea::ratelimit;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::instrument;
-use uniproc_protocol::WINDOWS_AGENT_SERVICE;
+pub use uniproc_protocol::WINDOWS_AGENT_SERVICE;
 use uniproc_windows_agent::agent::Agent;
 use uniproc_windows_agent::remote::Remote;
 

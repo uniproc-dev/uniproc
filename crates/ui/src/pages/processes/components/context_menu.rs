@@ -166,7 +166,7 @@ fn group_lines(leader: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
 }
 
 fn process_lines(row: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
-    let actions = row.category.takes_actions();
+    let actions = row.takes_actions();
     let mut lines = Vec::from(pin_lines(pinned, l10n));
     lines.extend(
         [

@@ -29,6 +29,7 @@ fn counted_row(p: &LinuxProcessStats) -> ProcessRow {
         services: None,
         windows: None,
         details: Default::default(),
+        is_monitor: false,
     }
 }
 

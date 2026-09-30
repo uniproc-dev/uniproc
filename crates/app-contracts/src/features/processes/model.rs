@@ -250,6 +250,13 @@ pub struct ProcessRow {
     pub services: Option<Arc<[HostedService]>>,
     pub windows: Option<Arc<[ProcessWindow]>>,
     pub details: Arc<ProcessDetails>,
+    pub is_monitor: bool,
+}
+
+impl ProcessRow {
+    pub fn takes_actions(&self) -> bool {
+        self.category.takes_actions() && !self.is_monitor
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]

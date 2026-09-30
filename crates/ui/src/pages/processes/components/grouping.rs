@@ -207,6 +207,7 @@ impl Environment {
             services: None,
             windows: None,
             details: Default::default(),
+            is_monitor: false,
         };
         Self {
             pid_ns: environment.pid_ns,
@@ -1079,6 +1080,7 @@ impl DisplayRow {
                 services: None,
                 windows: None,
                 details: Default::default(),
+                is_monitor: false,
             },
             depth: 0,
             has_children: totals.group_count > 0,
@@ -1125,6 +1127,7 @@ impl DisplayRow {
                 services: None,
                 windows: None,
                 details: Default::default(),
+                is_monitor: false,
             },
             depth: 1,
             has_children: false,
@@ -1221,6 +1224,7 @@ pub(crate) mod tests {
             services: None,
             windows: None,
             details: Default::default(),
+            is_monitor: false,
         }
     }
 

@@ -14,6 +14,7 @@ use app_contracts::features::processes::{
 use app_contracts::features::window::PressedAway;
 use guinea::prelude::*;
 use tracing::instrument;
+use uniproc_protocol::WINDOWS_AGENT_SERVICE;
 use uuid::Uuid;
 
 use super::rates::IoRates;
@@ -189,6 +190,12 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
         }
         None
     };
+    let service = report
+        .services
+        .iter()
+        .find(|s| s.pid != 0 && *s.name == *WINDOWS_AGENT_SERVICE)
+        .map(|s| s.pid);
+    let is_monitor = |pid: u32| pid == std::process::id() || Some(pid) == service;
 
     report
         .processes
@@ -227,6 +234,7 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
                 .filter(|windows| !windows.is_empty())
                 .map(Arc::from),
             details: Arc::new(details(p, &report.machine.gpus)),
+            is_monitor: is_monitor(p.pid),
         })
         .collect()
 }
@@ -364,8 +372,8 @@ fn terminate(this: &mut ProcessesActor, _msg: Terminate) {
     let Some(row) = this.selected_row() else {
         return;
     };
-    if !row.category.takes_actions() {
-        tracing::debug!(pid = row.pid, "a kernel process is not ended");
+    if !row.takes_actions() {
+        tracing::debug!(pid = row.pid, "a kernel process or the monitor itself is not ended");
         return;
     }
     GlobalEventBus::publish(WindowsActionRequest::new(
@@ -386,10 +394,10 @@ fn run_process_command(this: &mut ProcessesActor, RunProcessCommand(command): Ru
         _ => None,
     };
     if let Some(action) = action {
-        if row.category.takes_actions() {
+        if row.takes_actions() {
             GlobalEventBus::publish(WindowsActionRequest::new(Uuid::new_v4(), action));
         } else {
-            tracing::debug!(pid, "a kernel process is not suspended or resumed");
+            tracing::debug!(pid, "a kernel process or the monitor itself is not suspended or resumed");
         }
         return;
     }

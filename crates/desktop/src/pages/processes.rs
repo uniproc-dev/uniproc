@@ -95,6 +95,7 @@ mod tests {
     };
     use guinea::prelude::GlobalEventBus;
     use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
+    use domain::features::agents::providers::windows::WINDOWS_AGENT_SERVICE;
     use domain::features::processes::{ProcessesDeps, ProcessesFeature};
     use domain::features::settings::SettingsFeature;
     use app_contracts::features::settings::{ByteUnits, SetByteUnits};
@@ -1135,6 +1136,46 @@ mod tests {
         dispatch.emit(Terminate);
         dispatch.emit(RunProcessCommand(ProcessCommand::Suspend));
         page.settle();
+        assert_eq!(asked.get(), 0, "the actor refuses what the buttons do not offer");
+
+        select(&mut page, "notepad.exe");
+        assert!(end_task_enabled(&page));
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn uniproc_and_its_service_cannot_be_ended_or_suspended_from_uniproc(h: &mut Harness) {
+        const SERVICE: u32 = 70;
+        let _store = start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        let mut processes = machine();
+        processes.push(process(std::process::id(), "uniproc.exe", 0.1));
+        processes.push(process(SERVICE, "uniproc-windows-agent.exe", 0.1));
+        h.publish(WindowsReportMessage::Report(Arc::new(WindowsReport {
+            processes,
+            services: vec![WindowsServiceStats {
+                pid: SERVICE,
+                ..service(WINDOWS_AGENT_SERVICE, "Uniproc Process Monitor")
+            }],
+            ..Default::default()
+        })))
+        .settle();
+        page.settle();
+        let asked = Rc::new(Cell::new(0));
+        let counted = asked.clone();
+        let _watch = GlobalEventBus::subscribe_fn(move |_: WindowsActionRequest| counted.set(counted.get() + 1));
+
+        for name in ["uniproc.exe", "uniproc-windows-agent.exe"] {
+            right_click(&mut page, name);
+            assert!(!end_task_enabled(&page), "{name}");
+            for mark in [ProcessesMark::MenuEndTask, ProcessesMark::MenuSuspend, ProcessesMark::MenuResume] {
+                assert!(disabled(&page, mark), "{name}: {mark:?}");
+            }
+            let dispatch = h.dispatch::<ProcessesState>();
+            dispatch.emit(Terminate);
+            dispatch.emit(RunProcessCommand(ProcessCommand::Suspend));
+            page.settle();
+        }
         assert_eq!(asked.get(), 0, "the actor refuses what the buttons do not offer");
 
         select(&mut page, "notepad.exe");

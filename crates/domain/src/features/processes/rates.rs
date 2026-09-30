@@ -72,6 +72,7 @@ mod tests {
             services: None,
             windows: None,
             details: Default::default(),
+            is_monitor: false,
         }
     }
 

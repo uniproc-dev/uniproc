@@ -53,6 +53,7 @@ fn rows(exes: &[String], processes: usize, tick: u32) -> Rc<[ProcessRow]> {
                 services: None,
                 windows: None,
                 details: Default::default(),
+                is_monitor: false,
             }
         })
         .collect()
