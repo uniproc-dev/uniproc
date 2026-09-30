@@ -17,15 +17,15 @@ members = [
 
 [workspace.dependencies]
 # --- guinea ---
-guinea = "0.16.1"
-guinea-meta-build = "0.16.1"
+guinea = "0.18.0"
+guinea-meta-build = "0.18.0"
 
-guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1" }
-guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1", features = ["winui"] }
-guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1" }
-guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1" }
-guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1" }
-guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.13.1" }
+guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.14.0" }
+guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.14.0", features = ["winui"] }
+guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.14.0" }
+guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.14.0" }
+guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.14.0" }
+guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.14.0" }
 
 # --- guicons ---
 guicons = "0.8.0"
@@ -45,7 +45,7 @@ windows-core = "0.100"
 windows-reference = "0.100"
 
 # --- RPC & protocol ---
-ogurpchik = { git = "https://github.com/uniproc-dev/oguRPChik", tag = "v0.7.0" }
+ogurpchik = { git = "https://github.com/uniproc-dev/oguRPChik", tag = "v0.7.1" }
 uniproc-protocol = { git = "https://github.com/uniproc-dev/uniproc-protocol", tag = "v0.14.2" }
 uniproc-windows-agent = { git = "https://github.com/uniproc-dev/uniproc-windows-agent", tag = "v0.14.2", default-features = false }
 
