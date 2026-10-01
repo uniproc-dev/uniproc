@@ -114,6 +114,7 @@ pub struct ProcessRunState {
     pub power_throttling: Option<bool>,
     pub job_object_id: u32,
     pub io_priority: IoPriority,
+    pub vm_host: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, Deserialize)]
@@ -295,7 +296,9 @@ impl WindowsMachineStats {
 
 impl WindowsProcessStats {
     pub fn memory_bytes(&self) -> u64 {
-        if self.private_working_set_bytes > 0 {
+        if self.state.vm_host == Some(true) {
+            self.working_set_bytes
+        } else if self.private_working_set_bytes > 0 {
             self.private_working_set_bytes
         } else {
             self.working_set_bytes

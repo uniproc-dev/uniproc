@@ -633,6 +633,30 @@ mod tests {
         assert_eq!(rows[1].details.status, ProcessStatus::Running);
     }
 
+    #[test]
+    fn a_vm_host_counts_the_guest_memory_it_maps() {
+        let sized = |pid: u32, vm_host: Option<bool>| WindowsProcessStats {
+            working_set_bytes: 2_000,
+            private_working_set_bytes: 300,
+            state: ProcessRunState {
+                vm_host,
+                ..Default::default()
+            },
+            ..stats(pid, 1, "vmware-vmx.exe", "")
+        };
+        let report = WindowsReport {
+            processes: vec![sized(1, Some(true)), sized(2, Some(false)), sized(3, None)],
+            ..WindowsReport::default()
+        };
+
+        let rows = rows_from_report(&report, &AppWindows::default());
+        let memory = |pid: u32| rows.iter().find(|r| r.pid == pid).unwrap().memory_bytes;
+
+        assert_eq!(memory(1), 2_000, "the guest's RAM is mapped, the private set leaves it out");
+        assert_eq!(memory(2), 300);
+        assert_eq!(memory(3), 300, "not yet checked reads as an ordinary process");
+    }
+
     fn owned_by(rows: &[ProcessRow], pid: u32) -> Option<(&str, usize)> {
         let owner = rows.iter().find(|r| r.pid == pid)?.owner.as_ref()?;
         Some((&*owner.name, owner.others))

@@ -446,6 +446,7 @@ fn run_state(state: &api::ProcessState) -> ProcessRunState {
         power_throttling: state.power_throttling,
         job_object_id: state.job_object_id,
         io_priority: io_priority(state.io_priority),
+        vm_host: state.vm_host,
     }
 }
 
