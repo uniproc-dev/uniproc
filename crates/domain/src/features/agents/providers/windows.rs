@@ -74,7 +74,6 @@ impl AgentBackend for WindowsBackend {
     type RuntimeEvent = WindowsAgentRuntimeEvent;
     type ScanMessage = WindowsReportMessage;
     const NAME: &'static str = "Windows";
-    const STREAMS: bool = true;
     const STREAMS_MACHINE: bool = true;
 
     async fn connect(timeout: u64) -> anyhow::Result<Self::Client> {

@@ -7,7 +7,6 @@ pub trait AgentBackend: std::fmt::Debug + Send + Sync + 'static {
     type ScanMessage: Event;
 
     const NAME: &'static str;
-    const STREAMS: bool = false;
     const STREAMS_MACHINE: bool = false;
 
     fn connect(timeout_secs: u64) -> impl Future<Output=anyhow::Result<Self::Client>> + Send;

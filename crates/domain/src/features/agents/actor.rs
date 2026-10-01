@@ -1,7 +1,7 @@
 use super::backend::AgentBackend;
 use super::connection::*;
 use amethystate::Field;
-use app_contracts::features::agents::{AgentConnectionState, AgentStateRequest, ScanTick, WindowsAgentInProcess};
+use app_contracts::features::agents::{AgentConnectionState, AgentStateRequest, WindowsAgentInProcess};
 use guinea::prelude::*;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -30,9 +30,6 @@ pub struct ConnectionLost;
 pub struct PingResult(pub Option<i32>);
 
 #[derive(Clone, Debug)]
-pub struct ScanResult(pub bool);
-
-#[derive(Clone, Debug)]
 pub struct Streamed {
     generation: u64,
     ok: bool,
@@ -49,7 +46,7 @@ enum Feed {
 impl Feed {
     fn streams<B: AgentBackend>(self) -> bool {
         match self {
-            Feed::Report => B::STREAMS,
+            Feed::Report => true,
             Feed::Machine => B::STREAMS_MACHINE,
         }
     }
@@ -67,8 +64,6 @@ pub struct GenericAgentActor<B: AgentBackend> {
     client: Option<B::Client>,
     connection: ConnectionMachine,
     ping_in_flight: bool,
-    scanning: bool,
-    failed_scans: u32,
     attempt_secs: Field<u64>,
     attempt_started: Option<tokio::time::Instant>,
     dormant: bool,
@@ -82,8 +77,6 @@ impl<B: AgentBackend> GenericAgentActor<B> {
             client: None,
             connection: ConnectionMachine::new(),
             ping_in_flight: false,
-            scanning: false,
-            failed_scans: 0,
             attempt_secs,
             attempt_started: None,
             dormant: false,
@@ -168,26 +161,6 @@ impl<B: AgentBackend> GenericAgentActor<B> {
             }
         });
     }
-
-    fn spawn_scan(&mut self, cx: &Cx<Self>) {
-        if self.dormant || self.scanning || !matches!(self.connection.state(), AgentConnectionState::Connected) {
-            return;
-        }
-        let Some(client) = self.client.clone() else {
-            warn!("[{}] client is None (unexpected state)", B::NAME);
-            return;
-        };
-        self.scanning = true;
-        cx.spawn_bg(async move {
-            match B::perform_scan(&client).await {
-                Ok(()) => ScanResult(true),
-                Err(err) => {
-                    warn!("[{}] Scan failed: {err}", B::NAME);
-                    ScanResult(false)
-                }
-            }
-        });
-    }
 }
 
 actor! {
@@ -198,9 +171,7 @@ actor! {
             ConnectResult<B::Client>,
             Ping,
             PingResult,
-            ScanTick,
             Streamed,
-            ScanResult,
             TryConnectWithDelay,
             RetryTimerElapsed,
             ConnectionLost,
@@ -262,9 +233,7 @@ fn on_connect_result<B: AgentBackend>(
                 this.ping_in_flight = false;
                 this.publish_state(None);
                 addr.send(Ping);
-                if B::STREAMS {
-                    this.open_stream(&cx.detach());
-                }
+                this.open_stream(&cx.detach());
             }
         }
         None => {
@@ -315,37 +284,12 @@ fn on_ping_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, PingResult(m
 }
 
 #[handler]
-fn perform_scan_tick<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: ScanTick, cx: Cx) {
-    if !B::STREAMS {
-        this.spawn_scan(&cx.detach());
-    }
-}
-
-#[handler]
 fn on_streamed<B: AgentBackend>(this: &mut GenericAgentActor<B>, Streamed { generation, ok }: Streamed, cx: Cx) {
     if ok || this.stream.as_ref().is_none_or(|(current, _)| *current != generation) {
         return;
     }
     this.close_stream();
     cx.addr().send(ConnectionLost);
-}
-
-#[handler]
-fn on_scan_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, ScanResult(ok): ScanResult, cx: Cx) {
-    const FAILURES_BEFORE_GIVING_UP: u32 = 3;
-
-    this.scanning = false;
-    if ok {
-        this.failed_scans = 0;
-        return;
-    }
-
-    this.failed_scans += 1;
-    if this.failed_scans >= FAILURES_BEFORE_GIVING_UP {
-        warn!("[{}] {} scans in a row failed, treating the agent as gone", B::NAME, this.failed_scans);
-        this.failed_scans = 0;
-        cx.addr().send(ConnectionLost);
-    }
 }
 
 #[handler]
@@ -381,7 +325,6 @@ fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Co
     warn!("[{}] Connection lost", B::NAME);
     this.client = None;
     this.ping_in_flight = false;
-    this.failed_scans = 0;
     this.close_stream();
     this.publish_state(None);
     cx.addr().send(StartConnect);

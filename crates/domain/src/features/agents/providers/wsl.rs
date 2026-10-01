@@ -365,7 +365,6 @@ impl AgentBackend for WslBackend {
     type RuntimeEvent = WslAgentRuntimeEvent;
     type ScanMessage = RemoteScanResult;
     const NAME: &'static str = "WSL";
-    const STREAMS: bool = true;
 
     async fn connect(timeout: u64) -> anyhow::Result<Self::Client> {
         let interval = GeneralSettings::new()?.update_interval_ms();

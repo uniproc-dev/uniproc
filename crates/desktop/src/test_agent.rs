@@ -117,7 +117,6 @@ impl AgentBackend for FakeAgent {
     type ScanMessage = WindowsReportMessage;
 
     const NAME: &'static str = "Fake";
-    const STREAMS: bool = true;
 
     async fn connect(_timeout_secs: u64) -> anyhow::Result<()> {
         CONNECTS.fetch_add(1, Ordering::SeqCst);

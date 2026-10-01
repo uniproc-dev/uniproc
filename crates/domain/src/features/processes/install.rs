@@ -1,5 +1,5 @@
 use app_contracts::features::agents::{
-    AgentStateRequest, RemoteScanResult, ScanTick, WindowsReportMessage,
+    AgentStateRequest, RemoteScanResult, WindowsReportMessage,
 };
 use app_contracts::features::processes::ProcessesState;
 use app_contracts::features::window::PressedAway;
@@ -41,7 +41,6 @@ fn processes(cx: &FeatureInitContext, deps: &ProcessesDeps) -> anyhow::Result<Pr
     addr.subscribe_on::<PressedAway>(Bus::Global);
 
     GlobalEventBus::publish(AgentStateRequest);
-    GlobalEventBus::publish(ScanTick);
 
     Ok(ProcessesFeature(processes))
 }
