@@ -16,7 +16,7 @@ use windows_reactor::{
 
 use crate::format::{self, percent};
 use crate::l10n::L10n;
-use crate::theme::{accent_color, opacity, radius, size, space, Palette};
+use crate::theme::{accent_color, radius, size, space, Palette};
 use crate::widgets::distro_icon::distro_icon;
 use crate::widgets::separator;
 use crate::widgets::table_cell::{self, metric_cell, Heat, Highlight, Metric};
@@ -191,7 +191,7 @@ fn runs_from_package(exe_path: &str, package_full_name: &str) -> bool {
 
 fn process_icon(icons: &context::IconCache, row: &ProcessRow) -> View {
     if is_service_host(row) {
-        return icon!(gears).size(size::Icon).build_element();
+        return table_cell::service_icon();
     }
     let package = Some(&*row.package_full_name)
         .filter(|package| runs_from_package(&row.exe_path, package));
@@ -353,11 +353,7 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
         count,
     });
 
-    let line: View = if d.exited || d.absent {
-        Border::new().opacity(opacity::Stopped).content(line).into()
-    } else {
-        line
-    };
+    let line = table_cell::dimmed(line, d.exited || d.absent);
 
     name_row(d, line, cell.palette)
 }
@@ -408,7 +404,7 @@ fn service_name_cell(cell: &NameCell<'_>, d: &DisplayRow, service: &HostedServic
     let line = name_line(NameLine {
         indent: indent(d.depth),
         chevron: chevron_slot(View::empty(), None, d.height()),
-        icon: Some(icon!(gears).size(size::Icon).build_element()),
+        icon: Some(table_cell::service_icon()),
         label: table_cell::cell_text(&*service.display_name)
             .vertical_alignment(VerticalAlignment::Center)
             .into(),
@@ -466,11 +462,7 @@ fn section_name_cell(cell: &NameCell<'_>, d: &DisplayRow, section: &SectionRow) 
         label,
         count: group_count(d.group_size, cell.palette),
     });
-    let line: View = if d.lifted {
-        Border::new().opacity(opacity::Stopped).content(line).into()
-    } else {
-        line
-    };
+    let line = table_cell::dimmed(line, d.lifted);
 
     section_grip(&cell.actions.section_gesture, section.id)
         .content(

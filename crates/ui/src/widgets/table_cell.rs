@@ -3,7 +3,9 @@ use windows_reactor::{
     TextBlock, TextTrimming, TextWrapping, Thickness, VerticalAlignment, View,
 };
 
-use crate::theme::{radius, size, space, Palette};
+use guicons::icon;
+
+use crate::theme::{opacity, radius, size, space, Palette};
 use crate::widgets::text::caption;
 
 #[derive(Clone, Copy)]
@@ -48,6 +50,19 @@ pub fn cell_text(content: impl Into<String>) -> TextBlock {
     caption(content)
         .text_wrapping(TextWrapping::NoWrap)
         .text_trimming(TextTrimming::CharacterEllipsis)
+}
+
+pub fn dimmed(content: impl Into<View>, dim: bool) -> View {
+    let content = content.into();
+    if dim {
+        Border::new().opacity(opacity::Stopped).content(content).into()
+    } else {
+        content
+    }
+}
+
+pub fn service_icon() -> View {
+    icon!(gears).size(size::Icon).build_element()
 }
 
 fn text_cell(content: impl Into<String>) -> TextBlock {

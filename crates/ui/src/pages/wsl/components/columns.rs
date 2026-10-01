@@ -8,7 +8,7 @@ use windows_reactor::{
 
 use crate::format;
 use crate::l10n::L10n;
-use crate::theme::{accent_color, opacity, size, space, Palette};
+use crate::theme::{accent_color, size, space, Palette};
 use crate::widgets::distro_icon::distro_icon;
 use crate::widgets::table_cell;
 use crate::widgets::text::text;
@@ -40,8 +40,7 @@ impl AgentDot {
 }
 
 fn dimmed(content: impl Into<View>, running: bool) -> View {
-    let opacity = if running { 1.0 } else { opacity::Stopped };
-    Border::new().opacity(opacity).content(content)
+    table_cell::dimmed(content, !running)
 }
 
 fn agent_dot(presence: AgentPresence, palette: Palette) -> View {

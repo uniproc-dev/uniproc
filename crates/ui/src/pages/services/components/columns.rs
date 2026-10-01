@@ -1,22 +1,14 @@
 use app_contracts::features::agents::WindowsServiceState;
 use app_contracts::features::services::{ServiceColumn, ServiceRow};
-use guicons::icon;
 use guinea_widgets::table::ColumnSpec;
-use windows_reactor::{
-    Border, ChildrenControl, ContentControl, LayoutControl, Orientation, StackPanel, View,
-};
+use windows_reactor::{ChildrenControl, Orientation, StackPanel, View};
 
 use crate::l10n::L10n;
-use crate::theme::{opacity, size, space, Palette};
+use crate::theme::{space, Palette};
 use crate::widgets::table_cell;
 
-fn service_icon() -> View {
-    icon!(gears).size(size::Icon).build_element()
-}
-
 fn dimmed(content: impl Into<View>, running: bool) -> View {
-    let opacity = if running { 1.0 } else { opacity::Stopped };
-    Border::new().opacity(opacity).content(content)
+    table_cell::dimmed(content, !running)
 }
 
 fn state_label(l10n: &L10n, state: WindowsServiceState) -> String {
@@ -53,7 +45,7 @@ pub(crate) fn build_columns(l10n: &L10n, palette: Palette) -> Vec<Column> {
                 .orientation(Orientation::Horizontal)
                 .spacing(space::Control)
                 .children((
-                    service_icon(),
+                    table_cell::service_icon(),
                     table_cell::cell_text(&*row.display_name),
                 ));
             dimmed(content, row.is_running())
