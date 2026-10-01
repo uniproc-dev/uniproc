@@ -5,7 +5,7 @@ use app_contracts::features::processes::ProcessesState;
 use app_contracts::features::window::PressedAway;
 use guinea::prelude::*;
 
-use super::actor::ProcessesActor;
+use super::actor::{ProcessesActor, Woke};
 use super::shell::{self, ShellRequest};
 use super::windows_scan::{self, AppWindows};
 
@@ -41,6 +41,10 @@ fn processes(cx: &FeatureInitContext, deps: &ProcessesDeps) -> anyhow::Result<Pr
     addr.subscribe_on::<PressedAway>(Bus::Global);
 
     GlobalEventBus::publish(AgentStateRequest);
+    cx.on_wake(move || {
+        addr.send(Woke);
+        GlobalEventBus::publish(AgentStateRequest);
+    });
 
     Ok(ProcessesFeature(processes))
 }

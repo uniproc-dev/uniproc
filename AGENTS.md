@@ -61,7 +61,10 @@ polish it.
   settings). App-lifetime features implement `AppFeature` and go in `main.rs` (`agents`).
 
 Routes are in `desktop/src/routes.rs`. `ShellLayout` is the root and is `restorable`: the
-last route survives a restart, see `route_memory.rs`.
+last route survives a restart, see `route_memory.rs`. `ProcessesArea` is `keep`: leaving it
+puts its scope to sleep instead of tearing it down, so coming back shows the rows at once.
+Asleep, its timers and bus subscriptions are paused; `cx.on_wake` is where a feature
+catches up (Processes resets its rates and asks for the service state).
 
 ## Agents
 

@@ -22,6 +22,9 @@ use super::shell::ShellRequest;
 use super::windows_scan::AppWindows;
 use super::wsl_rows::environments_from_scan;
 
+#[derive(Clone, Debug)]
+pub struct Woke;
+
 #[derive(Debug)]
 pub struct ProcessesActor {
     ui_port: Push<ProcessesState>,
@@ -276,8 +279,14 @@ fn details(p: &WindowsProcessStats, gpus: &[WindowsGpu]) -> ProcessDetails {
 
 actor! {
     ProcessesActor {
-        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway }
+        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway, Woke }
     }
+}
+
+#[handler]
+fn on_woke(this: &mut ProcessesActor, Woke: Woke) {
+    this.io_rates = IoRates::default();
+    this.linux_rates = IoRates::default();
 }
 
 #[handler]
