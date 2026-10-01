@@ -1,13 +1,22 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::time::Duration;
 
 use tokio::time::Instant;
 
 use app_contracts::features::processes::ProcessRow;
 
+type Counters = HashMap<u32, (u64, u64)>;
+
+struct Window;
+
+#[expect(non_upper_case_globals)]
+impl Window {
+    const Span: Duration = Duration::from_secs(1);
+}
+
 #[derive(Debug, Default)]
 pub struct IoRates {
-    at: Option<Instant>,
-    previous: HashMap<u32, (u64, u64)>,
+    seen: VecDeque<(Instant, Counters)>,
 }
 
 fn per_second(now: u64, before: u64, seconds: f64) -> u64 {
@@ -18,33 +27,45 @@ fn per_second(now: u64, before: u64, seconds: f64) -> u64 {
 impl IoRates {
     #[tracing::instrument(skip_all, level = "debug", fields(rows = rows.len()))]
     pub fn apply(&mut self, rows: &mut [ProcessRow], now: Instant) {
-        let seconds = self
-            .at
-            .map(|at| now.duration_since(at).as_secs_f64())
-            .filter(|seconds| *seconds > 0.0);
-        let mut current = HashMap::with_capacity(rows.len());
+        if let Some(start) = now.checked_sub(Window::Span) {
+            while self.seen.get(1).is_some_and(|(at, _)| *at <= start) {
+                self.seen.pop_front();
+            }
+        }
+        let current: Counters = rows
+            .iter()
+            .map(|row| (row.pid, (row.disk_bytes, row.net_bytes)))
+            .collect();
 
         for row in rows.iter_mut() {
-            let counters = (row.disk_bytes, row.net_bytes);
-            let (disk, net) = match (seconds, self.previous.get(&row.pid)) {
-                (Some(seconds), Some(&(disk, net))) => (
-                    per_second(counters.0, disk, seconds),
-                    per_second(counters.1, net, seconds),
+            let since = self.seen.iter().find_map(|(at, counters)| {
+                let seconds = now.duration_since(*at).as_secs_f64();
+                counters.get(&row.pid).filter(|_| seconds > 0.0).map(|&before| (before, seconds))
+            });
+            let (disk, net) = match since {
+                Some(((disk, net), seconds)) => (
+                    per_second(row.disk_bytes, disk, seconds),
+                    per_second(row.net_bytes, net, seconds),
                 ),
-                _ => (0, 0),
+                None => (0, 0),
             };
-            current.insert(row.pid, counters);
             row.disk_bytes = disk;
             row.net_bytes = net;
         }
 
-        self.previous = current;
-        self.at = Some(now);
+        for (_, counters) in &mut self.seen {
+            counters.retain(|pid, _| current.contains_key(pid));
+        }
+        self.seen.push_back((now, current));
     }
 
     #[cfg(test)]
     fn tracked(&self) -> usize {
-        self.previous.len()
+        self.seen
+            .iter()
+            .flat_map(|(_, counters)| counters.keys())
+            .collect::<std::collections::HashSet<_>>()
+            .len()
     }
 }
 
@@ -87,6 +108,23 @@ mod tests {
 
         assert_eq!(rows[0].disk_bytes, 4_000);
         assert_eq!(rows[0].net_bytes, 2_000);
+    }
+
+    #[test]
+    fn a_burst_in_one_short_tick_counts_over_the_whole_second() {
+        let mut rates = IoRates::default();
+        let start = Instant::now();
+        let tick = |ms: u64, disk: u64, rates: &mut IoRates| {
+            let mut rows = [row(1, disk, 0)];
+            rates.apply(&mut rows, start + Duration::from_millis(ms));
+            rows[0].disk_bytes
+        };
+        for ms in [0, 200, 400, 600, 800] {
+            tick(ms, 0, &mut rates);
+        }
+        assert_eq!(tick(1_000, 1_000, &mut rates), 1_000, "not 5000/s from 1000 bytes in 200 ms");
+        assert_eq!(tick(1_200, 1_000, &mut rates), 1_000, "still inside the last second");
+        assert_eq!(tick(2_000, 1_000, &mut rates), 0, "the burst left the window");
     }
 
     #[test]
