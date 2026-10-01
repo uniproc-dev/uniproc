@@ -16,7 +16,7 @@ use windows_reactor::{
 
 use crate::format::{self, percent};
 use crate::l10n::L10n;
-use crate::theme::{accent_color, radius, size, space, Palette};
+use crate::theme::{accent_color, size, space, Palette};
 use crate::widgets::distro_icon::distro_icon;
 use crate::widgets::separator;
 use crate::widgets::table_cell::{self, metric_cell, Heat, Highlight, Metric};
@@ -34,6 +34,25 @@ struct Header;
 #[expect(non_upper_case_globals)]
 impl Header {
     const Padding: f64 = 8.0;
+    const Height: f64 = 36.0;
+}
+
+struct Chevron;
+
+#[expect(non_upper_case_globals)]
+impl Chevron {
+    const Size: f64 = 10.0;
+    const Slot: f64 = 14.0;
+}
+
+struct SelectionBar;
+
+#[expect(non_upper_case_globals)]
+impl SelectionBar {
+    const Width: f64 = 3.0;
+    const Height: f64 = 16.0;
+    const Radius: f64 = 2.0;
+    const Inset: f64 = 5.0;
 }
 
 struct DropLine;
@@ -53,9 +72,9 @@ impl Cpu {
 
 pub(crate) fn sort_indicator_icon(descending: bool) -> View {
     if descending {
-        icon!(chevron_down_regular).size(size::Chevron).build_element()
+        icon!(chevron_down_regular).size(Chevron::Size).build_element()
     } else {
-        icon!(chevron_up_regular).size(size::Chevron).build_element()
+        icon!(chevron_up_regular).size(Chevron::Size).build_element()
     }
 }
 
@@ -69,9 +88,9 @@ fn memory_heat_color(row: &ProcessRow, accent: Color, palette: Palette) -> Color
 
 fn expand_chevron(expanded: bool) -> View {
     if expanded {
-        icon!(chevron_down_regular).size(size::Chevron).build_element()
+        icon!(chevron_down_regular).size(Chevron::Size).build_element()
     } else {
-        icon!(chevron_right_regular).size(size::Chevron).build_element()
+        icon!(chevron_right_regular).size(Chevron::Size).build_element()
     }
 }
 
@@ -82,7 +101,7 @@ fn fallback_process_icon() -> View {
 fn chevron_slot(content: View, on_press: Option<Callback<()>>, height: f64) -> View {
     let reach = NameLine::Spacing / 2.0;
     let slot = Border::new()
-        .width(space::Cell + size::ChevronSlot + reach)
+        .width(space::Cell + Chevron::Slot + reach)
         .height(height)
         .padding(Thickness::new(space::Cell, 0.0, reach, 0.0))
         .margin(Thickness::new(-space::Cell, 0.0, -reach, 0.0))
@@ -101,13 +120,13 @@ fn chevron_slot(content: View, on_press: Option<Callback<()>>, height: f64) -> V
 
 fn selection_bar() -> View {
     Border::new()
-        .width(size::SelectionBarWidth)
-        .height(size::SelectionBarHeight)
-        .corner_radius(radius::SelectionBar)
+        .width(SelectionBar::Width)
+        .height(SelectionBar::Height)
+        .corner_radius(SelectionBar::Radius)
         .background(ThemeBrush::Accent)
         .horizontal_alignment(HorizontalAlignment::Left)
         .vertical_alignment(VerticalAlignment::Center)
-        .margin(Thickness::new(space::SelectionBar, 0.0, 0.0, 0.0))
+        .margin(Thickness::new(SelectionBar::Inset, 0.0, 0.0, 0.0))
         .into()
 }
 
@@ -115,7 +134,7 @@ fn group_count(count: usize, palette: Palette) -> View {
     text(format!("({count})"))
         .foreground(palette.tertiary_text)
         .vertical_alignment(VerticalAlignment::Center)
-        .margin(Thickness::new(space::Count, 0.0, 0.0, 0.0))
+        .margin(Thickness::new(space::Compact, 0.0, 0.0, 0.0))
         .into()
 }
 
@@ -228,13 +247,13 @@ struct NameCell<'a> {
 }
 
 fn selection_bar_for(height: f64, band: Highlight) -> View {
-    let reach = (height + size::SelectionBarHeight) / 2.0;
-    let radius = radius::SelectionBar;
+    let reach = (height + SelectionBar::Height) / 2.0;
+    let radius = SelectionBar::Radius;
     let bar = Border::new()
-        .width(size::SelectionBarWidth)
+        .width(SelectionBar::Width)
         .background(ThemeBrush::Accent)
         .horizontal_alignment(HorizontalAlignment::Left)
-        .margin(Thickness::new(space::SelectionBar, 0.0, 0.0, 0.0))
+        .margin(Thickness::new(SelectionBar::Inset, 0.0, 0.0, 0.0))
         .corner_radius(CornerRadius::new(
             if band.top { radius } else { 0.0 },
             if band.top { radius } else { 0.0 },
@@ -252,7 +271,7 @@ fn selection_bar_for(height: f64, band: Highlight) -> View {
 
 fn header_frame() -> Grid {
     Grid::new()
-        .height(size::TableHeader)
+        .height(Header::Height)
 }
 
 fn with_column_menu(menu: &Callback<()>, header: impl Into<View>) -> View {
@@ -541,7 +560,7 @@ fn name_header(label: String, place: &Place, group_by_type: &GroupByType) -> Vie
             .foreground(palette.tertiary_text)
             .vertical_alignment(VerticalAlignment::Bottom)
             .margin(Thickness::new(
-                space::Cell + size::ChevronSlot + NameLine::Spacing,
+                space::Cell + Chevron::Slot + NameLine::Spacing,
                 0.0,
                 0.0,
                 0.0,

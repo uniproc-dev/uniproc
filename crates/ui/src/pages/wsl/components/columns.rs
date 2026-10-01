@@ -29,13 +29,14 @@ struct NameHeader;
 
 #[expect(non_upper_case_globals)]
 impl NameHeader {
-    const TextInset: f64 = size::Dot + size::Icon + space::Control * 2.0 + 6.0;
+    const TextInset: f64 = AgentDot::Size + size::Icon + space::Control * 2.0 + 6.0;
 }
 
 struct AgentDot;
 
 #[expect(non_upper_case_globals)]
 impl AgentDot {
+    const Size: f64 = 8.0;
     const NotChecked: Color = Color::argb(90, 128, 128, 128);
 }
 
@@ -51,9 +52,9 @@ fn agent_dot(presence: AgentPresence, palette: Palette) -> View {
     };
 
     Border::new()
-        .width(size::Dot)
-        .height(size::Dot)
-        .corner_radius(size::Dot / 2.0)
+        .width(AgentDot::Size)
+        .height(AgentDot::Size)
+        .corner_radius(AgentDot::Size / 2.0)
         .background(color)
         .vertical_alignment(VerticalAlignment::Center)
         .content(View::empty())

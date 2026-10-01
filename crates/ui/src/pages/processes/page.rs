@@ -46,6 +46,7 @@ struct Header;
 impl Header {
     const DividerWidth: f64 = 1.0;
     const DividerHeight: f64 = 20.0;
+    const CommandIcon: f64 = 18.0;
 }
 
 pub struct ProcessesSettingsMaps {
@@ -395,7 +396,7 @@ impl ProcessesPage {
                 Border::new().grid_column(2).content(command_button(
                     ProcessesMark::RunNewTask,
                     l10n.processes_run_new_task(),
-                    Some(icon!(new_task).size(size::CommandIcon).build_element()),
+                    Some(icon!(new_task).size(Header::CommandIcon).build_element()),
                     true,
                     move || run_new_task.emit(RunNewTask),
                 )),
@@ -409,13 +410,13 @@ impl ProcessesPage {
                 Border::new().mark(SelectionMark::Keeper).grid_column(4).content(command_button(
                     ProcessesMark::EndTask,
                     l10n.processes_end_task(),
-                    Some(icon!(prohibited).size(size::CommandIcon).build_element()),
+                    Some(icon!(prohibited).size(Header::CommandIcon).build_element()),
                     live.is_some_and(ProcessRow::takes_actions) && self.selected_group_size.get().is_none(),
                     move || terminate.emit(Terminate),
                 )),
                 Border::new().grid_column(5).content(icon_button(
                     ProcessesMark::OpenSettings,
-                    icon!(more_horizontal).size(size::CommandIcon).build_element(),
+                    icon!(more_horizontal).size(Header::CommandIcon).build_element(),
                     move || {
                         let _ = open_settings.call(());
                     },
