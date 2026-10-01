@@ -3,11 +3,11 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use app_contracts::features::agents::{
-    ActionOutcome, AgentConnectionState, GpuEngineId, ProcessRunState, RemoteScanResult, SignatureStatus,
+    ActionFailure, ActionOutcome, AgentConnectionState, GpuEngineId, ProcessRunState, RemoteScanResult, SignatureStatus,
     WindowsAction, WindowsGpu, WindowsProcessStats, WindowsReport, WindowsReportMessage,
 };
 use app_contracts::features::processes::{
-    Deselect, GpuEngineLabel, HostedService, MachineSummary, Owner, ProcessCategory, ProcessColumn, ProcessCommand,
+    Deselect, DismissFailure, GpuEngineLabel, HostedService, MachineSummary, Owner, ProcessCategory, ProcessColumn, ProcessCommand,
     ProcessDetails, ProcessRow, ProcessStatus, ProcessesMsg, ProcessesState, RunImageCommand, RunProcessCommand,
     RunWindowCommand, Select, RunNewTask, SelectLinux, Sort, Terminate, WslEnvironment,
 };
@@ -283,7 +283,7 @@ fn details(p: &WindowsProcessStats, gpus: &[WindowsGpu]) -> ProcessDetails {
 
 actor! {
     ProcessesActor {
-        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway, Woke, Acted }
+        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway, Woke, Acted, DismissFailure }
     }
 }
 
@@ -382,21 +382,29 @@ fn run_new_task(this: &mut ProcessesActor, _msg: RunNewTask) {
 
 pub struct Acted {
     action: WindowsAction,
+    target: Arc<str>,
     outcome: ActionOutcome,
 }
 
-fn act(action: WindowsAction, cx: &Cx<ProcessesActor>) {
+fn act(action: WindowsAction, target: Arc<str>, cx: &Cx<ProcessesActor>) {
     cx.spawn_bg(async move {
         let outcome = actions::request(action.clone()).await;
-        Acted { action, outcome }
+        Acted { action, target, outcome }
     });
 }
 
 #[handler]
-fn on_acted(_this: &mut ProcessesActor, Acted { action, outcome }: Acted) {
-    if outcome != ActionOutcome::Done {
-        tracing::warn!(?action, ?outcome, "the action did not go through");
+fn on_acted(this: &mut ProcessesActor, Acted { action, target, outcome }: Acted) {
+    if outcome == ActionOutcome::Done {
+        return;
     }
+    tracing::warn!(?action, ?outcome, "the action did not go through");
+    this.ui_port.send(ProcessesMsg::SetFailure(Some(ActionFailure { action, target, outcome })));
+}
+
+#[handler]
+fn dismiss_failure(this: &mut ProcessesActor, _msg: DismissFailure) {
+    this.ui_port.send(ProcessesMsg::SetFailure(None));
 }
 
 #[handler]
@@ -408,7 +416,7 @@ fn terminate(this: &mut ProcessesActor, _msg: Terminate, cx: Cx) {
         tracing::debug!(pid = row.pid, "a kernel process or the monitor itself is not ended");
         return;
     }
-    act(WindowsAction::Kill { pid: row.pid }, &cx.detach());
+    act(WindowsAction::Kill { pid: row.pid }, row.display_name.clone(), &cx.detach());
 }
 
 #[handler]
@@ -424,7 +432,7 @@ fn run_process_command(this: &mut ProcessesActor, RunProcessCommand(command): Ru
     };
     if let Some(action) = action {
         if row.takes_actions() {
-            act(action, &cx.detach());
+            act(action, row.display_name.clone(), &cx.detach());
         } else {
             tracing::debug!(pid, "a kernel process or the monitor itself is not suspended or resumed");
         }

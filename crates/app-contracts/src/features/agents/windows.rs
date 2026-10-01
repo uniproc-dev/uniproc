@@ -401,3 +401,10 @@ impl RpcCall for WindowsActionRequest {
     type Response = ActionOutcome;
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ActionFailure {
+    pub action: WindowsAction,
+    pub target: Arc<str>,
+    pub outcome: ActionOutcome,
+}
+

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use amethystate::{Field, ReactiveMap};
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::processes::{
-    ColumnConfig, Deselect, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState, RunNewTask,
+    ColumnConfig, Deselect, DismissFailure, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState, RunNewTask,
     RunProcessCommand,
     RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate,
 };
@@ -35,6 +35,7 @@ use super::components::status::{status_bar, StatusCounts};
 use super::marks::ProcessesMark;
 use crate::l10n::L10n;
 use crate::theme::{radius, size, space, Palette};
+use crate::widgets::action_failure::action_failure;
 use crate::widgets::button::{command_button, icon_button};
 use crate::widgets::page::{loading, page_frame, page_title};
 use crate::widgets::selection::SelectionMark;
@@ -437,13 +438,13 @@ impl ProcessesPage {
             deselect.emit(Deselect);
         });
 
-        page_frame(
-            header,
-            body,
-            Self::status(state, l10n, palette),
-            palette,
-            Some(blank),
-        )
+        let dismiss = dispatch.clone();
+        Grid::new()
+            .children((
+                page_frame(header, body, Self::status(state, l10n, palette), palette, Some(blank)),
+                action_failure(state.failure.as_ref(), l10n, move || dismiss.emit(DismissFailure)),
+            ))
+            .into()
     }
 
     fn status(state: &ProcessesState, l10n: &L10n, palette: Palette) -> View {

@@ -1,16 +1,17 @@
 use std::sync::Arc;
 
 use app_contracts::features::services::{
-    Command, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesState, Sort,
+    Command, DismissFailure, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesState, Sort,
 };
 use guinea::prelude::{Dispatch, Load};
 use guinea_widgets::table::{table, ColumnWidths, Resized, SortState};
-use windows_reactor::{Callback, ChildrenControl, Orientation, StackPanel, View};
+use windows_reactor::{Callback, ChildrenControl, Grid, Orientation, StackPanel, View};
 
 use super::components::columns::build_columns;
 use super::marks::ServicesMark;
 use crate::l10n::L10n;
 use crate::theme::{space, Palette};
+use crate::widgets::action_failure::action_failure;
 use crate::widgets::button::command_button;
 use crate::widgets::page::{loading, page_frame, page_title, status_text};
 use crate::widgets::text::text;
@@ -108,12 +109,18 @@ impl ServicesPage {
             _ => loading(),
         };
 
-        page_frame(
-            header,
-            body,
-            status_text(l10n.services_status(state.total() as i64), palette),
-            palette,
-            None,
-        )
+        let dismiss = dispatch.clone();
+        Grid::new()
+            .children((
+                page_frame(
+                    header,
+                    body,
+                    status_text(l10n.services_status(state.total() as i64), palette),
+                    palette,
+                    None,
+                ),
+                action_failure(state.failure.as_ref(), l10n, move || dismiss.emit(DismissFailure)),
+            ))
+            .into()
     }
 }

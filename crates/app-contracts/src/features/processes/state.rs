@@ -1,4 +1,4 @@
-use crate::features::agents::AgentConnectionState;
+use crate::features::agents::{ActionFailure, AgentConnectionState};
 use guinea::prelude::*;
 use std::rc::Rc;
 
@@ -15,6 +15,7 @@ pub struct ProcessesState {
     pub sort_column: ProcessColumn,
     pub descending: bool,
     pub agent_state: AgentConnectionState,
+    pub failure: Option<ActionFailure>,
 }
 
 impl Default for ProcessesState {
@@ -28,6 +29,7 @@ impl Default for ProcessesState {
             agent_state: AgentConnectionState::Disconnected,
             sort_column: ProcessColumn::Cpu,
             descending: true,
+            failure: None,
         }
     }
 }
@@ -68,5 +70,6 @@ fn processes(this: &mut ProcessesState, update: ProcessesMsg) {
             this.sort_column = column;
             this.descending = descending;
         }
+        ProcessesMsg::SetFailure(failure) => this.failure = failure,
     }
 }

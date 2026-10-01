@@ -2,6 +2,7 @@ use guinea::prelude::*;
 use std::rc::Rc;
 
 use super::messages::ServicesMsg;
+use crate::features::agents::ActionFailure;
 use super::model::{ServiceColumn, ServiceRow};
 
 #[derive(Clone, PartialEq, Debug)]
@@ -10,6 +11,7 @@ pub struct ServicesState {
     pub selected: Option<String>,
     pub sort_column: ServiceColumn,
     pub descending: bool,
+    pub failure: Option<ActionFailure>,
 }
 
 impl Default for ServicesState {
@@ -19,6 +21,7 @@ impl Default for ServicesState {
             selected: None,
             sort_column: ServiceColumn::Name,
             descending: false,
+            failure: None,
         }
     }
 }
@@ -42,5 +45,6 @@ fn services(this: &mut ServicesState, update: ServicesMsg) {
             this.sort_column = column;
             this.descending = descending;
         }
+        ServicesMsg::SetFailure(failure) => this.failure = failure,
     }
 }

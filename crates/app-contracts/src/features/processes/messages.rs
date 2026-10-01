@@ -1,4 +1,4 @@
-use crate::features::agents::AgentConnectionState;
+use crate::features::agents::{ActionFailure, AgentConnectionState};
 use serde::Deserialize;
 use std::rc::Rc;
 
@@ -18,7 +18,12 @@ pub enum ProcessesMsg {
         column: ProcessColumn,
         descending: bool,
     },
+    SetFailure(Option<ActionFailure>),
 }
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct DismissFailure;
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]

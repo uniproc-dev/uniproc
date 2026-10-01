@@ -79,7 +79,7 @@ mod tests {
     use std::sync::Arc;
 
     use app_contracts::features::agents::{
-        AgentConnectionState, EnvironmentKind, LinuxEnvironmentInfo, LinuxProcessStats, RemoteScan,
+        ActionOutcome, AgentConnectionState, EnvironmentKind, LinuxEnvironmentInfo, LinuxProcessStats, RemoteScan,
         RemoteScanResult, SignatureStatus, WindowsActionRequest, WindowsMachineStats, WindowsProcessStats, WindowsReport,
         WindowsReportMessage, WindowsServiceState, WindowsServiceStats,
     };
@@ -90,7 +90,7 @@ mod tests {
     use std::rc::Rc;
 
     use app_contracts::features::processes::{
-        ColumnConfig, Deselect, PinnedProcess, ProcessColumn, ProcessCommand, ProcessesState, RunProcessCommand,
+        ColumnConfig, Deselect, DismissFailure, PinnedProcess, ProcessColumn, ProcessCommand, ProcessesState, RunProcessCommand,
         Sort, Terminate, WindowCommand,
     };
     use guinea::prelude::GlobalEventBus;
@@ -102,8 +102,9 @@ mod tests {
     use domain::features::processes::shell::ShellRequest;
     use domain::features::processes::windows_scan::AppWindows;
     use guinea::app::Harness;
-    use guinea::core::actor::event_bus::RpcRequest;
+    use guinea::core::actor::event_bus::{AsyncBus, RpcRequest};
     use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
+    use ui::widgets::action_failure::ActionFailureMark;
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::StorePlugin;
     use app_contracts::features::processes::ProcessCategory;
@@ -679,6 +680,42 @@ mod tests {
         assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
         assert_eq!(marked_selected(&mut page), ["notepad.exe Exited"]);
         assert!(!end_task_enabled(&page));
+    }
+
+    fn tip(page: &Mounted<'_, Processes>, property: PropertyId) -> Option<PropertyValue> {
+        let tip = page.find(ActionFailureMark::Tip).expect("the failure tip is on the page");
+        page.property(tip, property).cloned()
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "store")]
+    fn a_refused_end_task_says_why_until_dismissed(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        let _service = GlobalEventBus::subscribe_fn(
+            |RpcRequest { correlation_id, .. }: RpcRequest<WindowsActionRequest>| {
+                AsyncBus::reply(correlation_id, ActionOutcome::Denied);
+            },
+        );
+        assert_eq!(tip(&page, PropertyId::TeachingTipIsOpen), Some(PropertyValue::Bool(false)));
+
+        select(&mut page, "notepad.exe");
+        page.click(ProcessesMark::EndTask).settle();
+        page.settle();
+        assert_eq!(tip(&page, PropertyId::TeachingTipIsOpen), Some(PropertyValue::Bool(true)));
+        let Some(PropertyValue::Str(title)) = tip(&page, PropertyId::TeachingTipTitle) else {
+            panic!("the tip has a title");
+        };
+        assert_eq!(title.replace(['\u{2068}', '\u{2069}'], ""), "Couldn’t end notepad.exe");
+        assert_eq!(
+            tip(&page, PropertyId::TeachingTipSubtitle),
+            Some(PropertyValue::Str("Access is denied.".into()))
+        );
+
+        h.dispatch::<ProcessesState>().emit(DismissFailure);
+        page.settle();
+        assert_eq!(tip(&page, PropertyId::TeachingTipIsOpen), Some(PropertyValue::Bool(false)));
+        assert_eq!(h.state::<ProcessesState>().failure, None);
     }
 
     #[guinea::test(iterations = 8, exclusive = "store")]

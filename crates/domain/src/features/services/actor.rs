@@ -1,8 +1,11 @@
 use std::rc::Rc;
+use std::sync::Arc;
 
-use app_contracts::features::agents::{ActionOutcome, WindowsAction, WindowsReportMessage, WindowsServiceStats};
+use app_contracts::features::agents::{
+    ActionFailure, ActionOutcome, WindowsAction, WindowsReportMessage, WindowsServiceStats,
+};
 use app_contracts::features::services::{
-    Command, Deselect, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesMsg,
+    Command, Deselect, DismissFailure, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesMsg,
     ServicesState, Sort,
 };
 use guinea::prelude::*;
@@ -76,7 +79,7 @@ fn sort_rows(rows: &mut [ServiceRow], column: ServiceColumn, descending: bool) {
 
 actor! {
     ServicesActor {
-        handlers { Sort, Select, Deselect, Command, WindowsReportMessage, Acted }
+        handlers { Sort, Select, Deselect, Command, WindowsReportMessage, Acted, DismissFailure }
     }
 }
 
@@ -129,6 +132,7 @@ fn deselect(this: &mut ServicesActor, _msg: Deselect) {
 
 pub struct Acted {
     action: WindowsAction,
+    target: Arc<str>,
     outcome: ActionOutcome,
 }
 
@@ -137,6 +141,11 @@ fn command(this: &mut ServicesActor, Command(kind): Command, cx: Cx) {
     let Some(name) = this.selected.clone() else {
         return;
     };
+    let target = this
+        .rows
+        .iter()
+        .find(|row| *row.name == *name)
+        .map_or_else(|| Arc::from(name.as_str()), |row| row.display_name.clone());
     let action = match kind {
         ServiceActionKind::Start => WindowsAction::ServiceStart { name },
         ServiceActionKind::Stop => WindowsAction::ServiceStop { name },
@@ -146,15 +155,22 @@ fn command(this: &mut ServicesActor, Command(kind): Command, cx: Cx) {
     };
     cx.spawn_bg(async move {
         let outcome = actions::request(action.clone()).await;
-        Acted { action, outcome }
+        Acted { action, target, outcome }
     });
 }
 
 #[handler]
-fn on_acted(_this: &mut ServicesActor, Acted { action, outcome }: Acted) {
-    if outcome != ActionOutcome::Done {
-        tracing::warn!(?action, ?outcome, "the action did not go through");
+fn on_acted(this: &mut ServicesActor, Acted { action, target, outcome }: Acted) {
+    if outcome == ActionOutcome::Done {
+        return;
     }
+    tracing::warn!(?action, ?outcome, "the action did not go through");
+    this.ui_port.send(ServicesMsg::SetFailure(Some(ActionFailure { action, target, outcome })));
+}
+
+#[handler]
+fn dismiss_failure(this: &mut ServicesActor, _msg: DismissFailure) {
+    this.ui_port.send(ServicesMsg::SetFailure(None));
 }
 
 #[cfg(test)]
