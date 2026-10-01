@@ -33,8 +33,10 @@ pub fn install() {
 }
 
 fn on_focus(_: Ref<IInspectable>, args: Ref<FocusManagerGotFocusEventArgs>) {
-    if let Err(err) = listen_at_root(&args) {
-        tracing::warn!(%err, "could not listen to presses on the window root");
+    match listen_at_root(&args) {
+        Ok(()) => {}
+        Err(err) if err.code().is_ok() => tracing::trace!("the newly focused element has no window root"),
+        Err(err) => tracing::warn!(%err, "could not listen to presses on the window root"),
     }
 }
 
