@@ -80,17 +80,20 @@ fn scale(chart: SidebarChart, units: Units) -> Scale {
     }
 }
 
-fn detail(l10n: &L10n, chart: SidebarChart, machine: Option<&MachineSummary>, units: Units) -> Option<String> {
+fn detail(chart: SidebarChart, machine: Option<&MachineSummary>, units: Units) -> Option<String> {
     let units = units.bytes;
     let machine = machine?;
     match chart {
-        SidebarChart::Cpu => Some(l10n.metric_chart_cpu_frequency(
-            format::ghz(machine.cpu_current_mhz),
-            format::ghz(machine.cpu_max_mhz),
-        )),
         SidebarChart::Memory => Some(format::bytes(units, machine.memory_total_bytes)),
         SidebarChart::Gpu => Some(format::bytes(units, machine.gpu_memory_used_bytes)),
-        SidebarChart::Disk | SidebarChart::Network => None,
+        SidebarChart::Cpu | SidebarChart::Disk | SidebarChart::Network => None,
+    }
+}
+
+fn corner(l10n: &L10n, chart: SidebarChart, machine: Option<&MachineSummary>) -> Option<String> {
+    match chart {
+        SidebarChart::Cpu => Some(l10n.metric_chart_cpu_frequency(format::ghz(machine?.cpu_current_mhz))),
+        SidebarChart::Memory | SidebarChart::Gpu | SidebarChart::Disk | SidebarChart::Network => None,
     }
 }
 
@@ -159,7 +162,8 @@ pub(super) fn metrics_pane(props: &ShellProps<'_>) -> View {
                 scale: scale(chart, props.units),
                 cadence_ms: props.cadence_ms,
                 height: Pane::MetricHeight,
-                detail: detail(props.l10n, chart, machine, props.units),
+                detail: detail(chart, machine, props.units),
+                corner: corner(props.l10n, chart, machine),
                 palette,
             })),
         )

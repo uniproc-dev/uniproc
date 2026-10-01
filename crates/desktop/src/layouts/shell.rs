@@ -202,7 +202,7 @@ mod tests {
     use app_contracts::features::settings::SidebarChart;
     use app_contracts::features::agents::{
         ActionOutcome, AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsMachineSample,
-        WindowsMachineStats,
+        WindowsMachineStats, WindowsReport, WindowsReportMessage,
     };
 
     use super::*;
@@ -574,6 +574,40 @@ mod tests {
         assert!(scale(SidebarChart::Disk, "100 KB/s"), "{tree:#?}");
         assert!(scale(SidebarChart::Network, "100 Kbps"), "{tree:#?}");
         assert!(!scale(SidebarChart::Cpu, "100 KB/s"), "a percent chart needs no scale");
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_cpu_chart_names_its_frequency_where_rate_charts_name_their_scale(h: &mut Harness) {
+        start(h, true);
+        let h = &*h;
+        let mut page = mount(h);
+        open_pane(h, &mut page);
+        after(h, &mut page, 1);
+        h.publish(WindowsReportMessage::Report(std::sync::Arc::new(WindowsReport {
+            machine: WindowsMachineStats {
+                cpu_current_mhz: 3_800,
+                cpu_max_mhz: 2_900,
+                ..WindowsMachineStats::default()
+            },
+            ..WindowsReport::default()
+        })))
+        .settle();
+        page.settle();
+
+        let tree = page.tree();
+        let cpu = tree
+            .find(ui::SidebarMark::tile(SidebarChart::Cpu))
+            .unwrap_or_else(|| panic!("{tree:#?}"));
+        fn texts(node: &guinea::winui::harness::Node, out: &mut Vec<String>) {
+            out.extend(node.text.as_deref().map(|text| text.replace(['\u{2068}', '\u{2069}'], "")));
+            for child in &node.children {
+                texts(child, out);
+            }
+        }
+        let mut shown = Vec::new();
+        texts(cpu, &mut shown);
+        assert!(shown.contains(&"3.8 GHz".to_string()), "{shown:?}");
+        assert!(!shown.iter().any(|text| text.contains('/') || text.contains("2.9")), "{shown:?}");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

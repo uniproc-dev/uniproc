@@ -189,6 +189,7 @@ pub struct MetricChart<'a> {
     pub cadence_ms: u64,
     pub height: f64,
     pub detail: Option<String>,
+    pub corner: Option<String>,
     pub palette: Palette,
 }
 
@@ -202,6 +203,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
         cadence_ms,
         height,
         detail,
+        corner,
         palette,
     } = props;
 
@@ -252,8 +254,8 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
         .columns([GridLength::Auto, GridLength::Star(1.0)])
         .children((
             caption(chart_title(l10n, kind)).grid_column(0),
-            match bound {
-                Some(bound) => caption(bound)
+            match bound.or(corner) {
+                Some(corner) => caption(corner)
                     .foreground(palette.tertiary_text)
                     .horizontal_alignment(HorizontalAlignment::Right)
                     .grid_column(1)
