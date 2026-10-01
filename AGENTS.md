@@ -2,153 +2,197 @@
 
 ## What this is
 
-`uniproc` is a system monitor for Windows 11 and WSL: processes, services, machine
-metrics, WSL distributions. The UI is WinUI 3 driven from Rust through
-`windows-reactor`, with `guinea` on top providing routing, features, reducers and
-actors. Metrics are collected by out-of-process agents (a Windows service, and an
-eBPF agent inside WSL) and arrive over capnp-rpc.
+Uniproc is a task manager for Windows 11 and WSL: processes, services, machine metrics,
+WSL distributions. The UI is WinUI 3, driven from Rust through `windows-reactor`, with
+`guinea` on top for routing, features, actors and reducers.
 
-The only target is Windows. There are no `cfg(windows)` gates or non-Windows fallbacks:
-Windows APIs are used directly, and a Linux build is not supported. "Linux" in the code
-means the agent inside a WSL distribution, which the Windows host talks to.
+Uniproc reads nothing heavy itself. Numbers come from two out-of-process agents over
+capnp-rpc (`ogurpchik`):
+
+- **the Windows service** (`uniproc-windows-agent`, LocalSystem, session 0) — processes,
+  services, machine;
+- **the Linux agent** inside a WSL distribution (`uniproc-linux-agent`, eBPF) — Linux
+  processes, containers, the WSL machine.
+
+Windows is the only target. No `cfg(windows)` gates, no fallbacks. "Linux" in the code
+means the WSL agent the Windows host talks to.
+
+Taskmgr is the reference for what to show, not for how it gets it wrong: where it is wrong
+we show the right thing.
 
 ## Crates
 
-| crate | role |
+| crate | owns |
 |---|---|
-| `app-contracts` | Contracts shared by domain and UI: row types, messages, `#[port]`, `#[reducer]`, `#[actions]`. No logic, no platform calls. |
-| `domain` | One module per feature: actor, scanner, settings, `install`. Owns all behaviour. |
-| `ui` | Views. Pages, widgets, theme tokens, localization accessors. Reads reducer state, dispatches actions. |
-| `context` | Encoding/extraction helpers and the icon cache. |
-| `desktop` | Binary: routes, layouts, page wiring, app features, tracing. |
-| `xtask` | Dev tasks (`cargo ragent`). |
+| `app-contracts` | What domain and UI agree on: rows, states, reducers, messages, actions. No behaviour, no platform calls. |
+| `domain` | Behaviour. One module per feature: actor, installer, settings, platform code. |
+| `ui` | Views. Pages, widgets, theme, formatting. Reads state, dispatches actions. |
+| `context` | Icon and metadata extraction from executables, packages and windows. |
+| `desktop` | The binary: routes, layouts, page wiring, tracing, test fakes. |
+| `xtask` | Dev tasks. |
 
-Direction of dependencies: `desktop` → `ui` → `app-contracts` ← `domain`.
-`ui` never depends on `domain`; they meet only at contracts.
+`desktop` → `ui` → `app-contracts` ← `domain`. `ui` never depends on `domain`.
 
-## How a feature is assembled
+`desktop` is scaffolding and will be rewritten once guinea settles; keep it working, do not
+polish it.
 
-Four files, one per layer:
+## A feature
 
-1. `app-contracts/src/features/<f>/contracts.rs` — rows, `<F>Msg`, `#[port]`,
-   `#[reducer]`, `#[actions]`.
-2. `domain/src/features/<f>/actor.rs` — an actor with `#[handler]` functions and a
-   `handlers!` list; scanning, sorting, selection.
-3. `domain/src/features/<f>/install.rs` — spawns the actor, subscribes it to the
-   global bus, binds actions to messages, owns any heartbeat in `ctx.scope`.
-4. `ui/src/pages/<f>/` — the view.
+| layer | file |
+|---|---|
+| contract | `app-contracts/src/features/<f>/{model,state,messages}.rs` |
+| behaviour | `domain/src/features/<f>/{actor,install}.rs` |
+| view | `ui/src/pages/<f>/` |
+| wiring | `desktop/src/pages/<f>.rs` or a layout in `desktop/src/layouts/` |
 
-`desktop/src/pages/<f>.rs` ties them: `Page::install` calls the domain installer,
-`Page::view` calls the UI view. Routes are declared in `desktop/src/routes.rs`.
+- **State** is a `#[reducer]` over `<F>Msg`. Only the feature's actor sends `<F>Msg`,
+  through its `Push<State>` port.
+- **Actions** are `#[derive(guinea::Remote)] #[remote(action)]` structs. The view
+  dispatches them; the actor handles them.
+- **The installer** (`#[installs]`) builds the state with `cx.state::<S>().driven_by(..)`,
+  subscribes the actor to the global bus, and starts timers with `cx.every(..)`. Anything
+  long-lived belongs to the scope it was installed in — a dropped handle stops silently.
+- **`<F>Deps`** (`ProcessesDeps`, `WslDeps`, `SystemDeps`, `AgentLinkDeps`) is what the
+  installer calls into the platform with. `Default` is the real thing; tests swap fakes.
+  The segment takes it with `ctx.require_or_default::<FDeps>()`. It is not route params.
+- **Where it is installed decides how long it lives.** A page's own state goes in the page
+  or in the area layout above it (`ProcessesArea`, `SystemArea`), never in `ShellLayout`:
+  the shell installs only what the shell itself shows (sidebar, metrics, agent link,
+  settings). App-lifetime features implement `AppFeature` and go in `main.rs` (`agents`).
 
-App-scoped features (those that outlive a page, like `agents`) implement
-`AppFeature` and are installed in `desktop/src/main.rs` instead.
-
-Anything long-lived — heartbeats, subscriptions — must be **owned**: `ctx.scope.own(..)`
-for page scope, `ctx.tracker.track_loop(..)` for app scope. A dropped handle stops the
-timer silently.
-
-## Page layout
-
-Every page has the same shape:
-
-```
-ui/src/pages/<name>/
-  mod.rs          mod components; mod page; pub use page::<name>_view;
-  page.rs         the view only
-  components/     columns, overlays, cells
-```
-
-`components` is a private module: nothing from one page is reachable from another.
-
-## Styles
-
-Tokens live in `ui/src/theme/`: `space` (WinUI scale 4/8/12/16/24/36/48), `radius`,
-`size`, and `palette` for the few brushes WinUI does not define.
-
-Rules:
-
-- Colours come from `windows_reactor::tokens` (`SystemSuccess`, `DividerStroke`,
-  `LayerFill`, …). They resolve natively and follow theme and high contrast.
-  Do not hardcode RGB for anything the system already names.
-- Own brushes go through `Palette::of(cx.use_color_scheme())`, never as a bare
-  constant — a constant has one value for both themes.
-- Type comes from the ramp factories (`caption`, `body`, `body_strong`, `title`),
-  not from `.font_size(..)`.
-- A token is what must match **between** components. Arithmetic inside one component
-  (`CHEVRON_SLOT_WIDTH`, `NAME_TEXT_INSET`) stays local.
-
-Table cell styling is in `ui/src/widgets/table_cell.rs`; byte formatting is
-`ui/src/format.rs` and is not a style.
-
-## Localization
-
-Strings live in `locales/en/`, mirroring the UI tree:
-
-```
-common.ftl              terms shared across surfaces
-layouts/shell.ftl
-pages/{processes,services,wsl}.ftl
-widgets/metric-chart.ftl
-```
-
-Fluent ids are flat and global — the file is packaging, the **prefix** is the
-namespace. Prefix by file name (`processes-col-name`). Do not share a string just
-because two surfaces spell it the same in English.
-
-Accessors are generated from the `.ftl` files. In components use `use_tr(cx)`, which
-re-renders on language change; in free functions without a `cx` use `tr()` and let the
-parent re-render.
-
-Never use a localized string as a persistence key. `ProcessCategory` has `id()` for
-storage and a `category_label(&l10n, ..)` for display, for exactly this reason.
-
-## Never edit by hand
-
-- `app-contracts/src/icons.rs` and the generated l10n accessors — produced by
-  `app-contracts/build.rs` from `icons.gui.toml` and `locales/`.
-- Anything under `target/*/out/`.
-- `desktop/build.rs` generates app metadata from `app.toml`.
-- `desktop/src/window_press/bindings.rs` — WinUI bindings produced by
-  `cargo run -p xtask -- winui-bindings` from `bindings.txt` next to it, out of the
-  WinUI metadata in the pinned windows-rs checkout.
+Routes are in `desktop/src/routes.rs`. `ShellLayout` is the root and is `restorable`: the
+last route survives a restart, see `route_memory.rs`.
 
 ## Agents
 
-`domain/features/agents` owns the connection: an actor per target, retry with a 5 s
-cap, a scan heartbeat at app scope. Scan results arrive as `RemoteScanResult` on the
-global bus; each feature subscribes to what it needs.
+`domain/features/agents` owns the connections: one `GenericAgentActor<B>` per backend
+(`WindowsBackend`, `WslBackend`), with `ConnectionMachine` as its state machine.
 
-The Windows agent runs as a service in session 0, so it cannot enumerate user windows;
-that is done in-process by `domain/features/processes/windows_scan.rs`.
+- Connecting: one attempt per window (`connect_attempt_secs`, 3 s). After 5 failures the
+  state is `GaveUp`, and attempts continue. A service too old to `watch` is `Outdated`, also
+  retried. A connection lost before one window has passed waits out the rest of it.
+- Data is pushed, not polled: once connected the actor runs the backend's streams with
+  `spawn_source`. Reports land on the global bus as `WindowsReportMessage`,
+  `WindowsMachineSample` and `RemoteScanResult`; features subscribe to what they need.
+- Windows: `WindowsFeed` and `windows_report::Reports` turn the service's lists and columns
+  into `WindowsReport`. The service runs in session 0 and cannot see user windows; those
+  come from `domain/features/processes/windows_scan.rs`, in-process.
+- WSL: uniproc starts the agent through `wsl.exe` (distro and path from `AgentSettings`)
+  and connects over vsock. `linux_report::LinuxReports` applies `watch` updates (full,
+  delta against a `baseEtag`, unchanged); anything it cannot apply asks for a resync.
+  Disk is the agent's file I/O (`fileRead/WriteBytes`), not the block layer.
+- When the service does not answer, the splash offers "Open monitor in process" after 5 s.
+  `agent_link` then runs `uniproc_windows_agent::local::Local` inside uniproc (needs an
+  elevated uniproc, otherwise `NotElevated`) and publishes `WindowsAgentInProcess`: the
+  service actor goes dormant and `agent_link` answers for it.
+- Uniproc never offers to end or suspend itself or its service (`ProcessRow::is_monitor`).
 
-When the service does not answer, the splash offers "Open monitor in process" after 5 s.
-`domain/features/agent_link` then starts `uniproc_windows_agent::local::Local`
-inside uniproc (it needs an elevated uniproc, otherwise `NotElevated` is shown) and
-publishes `WindowsAgentInProcess`: the service actor goes dormant for the rest of the
-run, and `agent_link` answers `ScanTick`, `WindowsActionRequest` and `AgentStateRequest`
-itself. Tests replace the starter through `AgentLinkDeps::start_in_process`.
+UI text says **service**, never "agent".
 
-A feature's `<F>Deps` (`ProcessesDeps`, `AgentLinkDeps`) is what its installer runs on:
-the platform functions tests swap for fakes. It is not a route's params. The segment
-takes it with `ctx.require_or_default::<F Deps>()`: what tests put there with
-`h.provide(..)`, otherwise `Default`, the real functions.
+## UI
 
-## Testing and running
+```
+ui/src/pages/<name>/
+  mod.rs          modules and re-exports only
+  page.rs         the page view
+  <sub>.rs        a second page sharing this page's components (processes/settings.rs)
+  marks.rs        the page's marks
+  components/     private to the page
+```
 
-- `cargo test --workspace`.
-- `cargo run` starts the app. Plain text goes to stderr; `run_desktop.log` in the working
-  directory gets one JSON object per line (`ts`, `level`, `target`, `cause`, then the
-  fields), recreated on every start. guinea's own points are under `guinea::<kind>`
-  targets; `cause` ties an application event to the guinea point it ran under.
-  A release build writes the same file to `%LOCALAPPDATA%\<app name>\logs\` instead: an
-  elevated uniproc usually starts in `System32`, and the working directory is not ours to
-  write to.
-- `cargo ragent` runs the agent task from `xtask`.
-- `UNIPROC_AGENT_PIPE=<name>` (debug builds only) connects to another Windows agent service
-  name. A name nobody serves shows the splash, then the give-up state after 5 attempts.
-- Trace scopes are configured in `trace-scopes.toml`.
+- Nothing in one page's `components` is reachable from another page. What two pages share
+  goes to `widgets/`; what one page uses stays in its `components`.
+- Views get `&L10n` and a `Palette` from the desktop page, which calls `use_tr(cx)` and
+  `Palette::of(..)`; ui views have no `cx`.
+- Marks (`#[derive(guinea::Mark)]`) are how tests find things. Add one when a test needs it.
+
+### Theme
+
+`ui/src/theme/`: `space`, `size`, `radius`, `opacity`, `palette`.
+
+- A token is a value that must match **between** components. Arithmetic inside one
+  component stays a local constant in that component.
+- System brushes: `ThemeBrush` where it has one. The pinned reactor has only eight, so the
+  rest of WinUI's named brushes are in `Palette`, light and dark, until the reactor exposes
+  them. Never a bare colour constant: it has one value for both themes.
+- Type: the factories in `widgets/text.rs` (`text`, `caption`, `body_strong`, `body_large`,
+  `subtitle`). They are the only place with `.font_size(..)`.
+- Bytes, rates and percents are formatted in `ui/src/format.rs`.
+
+### Localization
+
+`locales/en/` mirrors where a string is shown: `common.ftl`, `layouts/shell.ftl`,
+`pages/<page>.ftl`, `widgets/<widget>.ftl`. `taskmgr.ftl` holds strings taken from
+Taskmgr's own resources by `cargo run -p xtask -- l10n-taskmgr`.
+
+- Ids are global; the file-name prefix is the namespace (`processes-col-name`).
+- Do not share a string because two surfaces spell it the same in English.
+- Sentences, counts and separators are composed in Fluent, not with `format!`.
+- Never use a localized string as a key. Persisted enums have `id()`; display goes through
+  a label function.
+
+## Settings
+
+Settings are `#[amethystate(prefix = ..)]` structs per feature, stored by
+`guinea-plugin-store`. There are no users yet: when a key changes, drop the old one; no
+migrations or compatibility shims for old local data.
+
+## Generated, do not edit
+
+- `app-contracts/src/icons.rs` and the l10n accessors — `app-contracts/build.rs`, from
+  `icons.gui.toml` (+ `icons.vendor.gui.toml`) and `locales/`.
+- Icon SVGs: fetched by guicons into `.cache/guicons/`, pinned by `icons.lock`. Both are
+  committed.
+- App metadata — `desktop/build.rs`, from `app.toml`.
+- `desktop/src/window_press/bindings.rs` — `cargo run -p xtask -- winui-bindings`, from
+  `bindings.txt` next to it.
+- Anything under `target/`.
+
+## Tests
+
+`cargo test --workspace`. Behaviour is proved by tests, not by clicking through the app.
+
+- UI behaviour: guinea harness tests in `desktop` (`#[guinea::test(iterations = .., exclusive = "store")]`).
+  A page: `h.install::<F>(..)` + `Mounted::mount_at(&h.child(), ..)`. A layout:
+  `Mounted::mount_at(&h.segment(), ..)`; its outlet is `Outlet`, navigation is read with
+  `navigated()`. No probe pages.
+- Fakes: `<F>Deps` through `h.provide(..)`; `test_agent.rs` is a fake Windows agent
+  (`FakeAgentFeature`, switches for up, outdated, dropping); `test_system.rs` for the
+  System page.
+- Time is virtual: `h.advance(..)`, then `settle()`.
+- Don't test guinea, the harness or the reactor; don't keep snapshot lists that change with
+  every feature.
+
+## Running
+
+- `cargo run` (or `cargo rdesk`) starts the app; the Windows service must be installed and
+  running. `cargo ragent` waits for a manually started service, then runs the app.
+- `cargo run -p xtask -- agent-check [--wsl]` runs `domain/examples/agent_e2e.rs` against the
+  live agents.
+- Logs: plain text on stderr, and one JSON object per line in `run_desktop.log` (`ts`,
+  `level`, `target`, `cause`, fields), recreated on every start. Debug builds write it in
+  the working directory; release builds in `%LOCALAPPDATA%\<app name>\logs\`.
+  `trace-scopes.toml` configures scopes.
+- Environment (debug builds):
+  - `UNIPROC_AGENT_PIPE=<name>` — another Windows service pipe name.
+  - `UNIPROC_NO_DEVTOOLS` — don't launch guinea devtools.
+  - `UNIPROC_SYNTHETIC_AGENT=<n>` (+ `UNIPROC_SYNTHETIC_UNIQUE`, `UNIPROC_SYNTHETIC_JITTER`) —
+    a generated Windows report of `n` processes instead of the service.
+  - `dhat-heap` feature + `UNIPROC_DHAT_FILE` — heap profile.
+
+## Dependencies
+
+- Our crates come from two organisations: `guinea-rs` (guinea, guinea-plugins, guicons,
+  amethystate) and `uniproc-dev` (the agents, `uniproc-protocol`, `ogurpchik`). Each repo
+  has its own owner; problems found there are reported to it, not patched here.
+- `windows` stays on a git rev of microsoft/windows-rs until 0.100 is published; the
+  reactor crates come from crates.io (`-pre`).
+- CI: `.github/workflows/deps.yml` calls the shared `guinea-rs/.github` workflows
+  (cargo-deny with `deny.toml`, one version of each of our crates, a weekly issue listing
+  newer tags). Dependabot ignores our own crates; those are bumped by hand.
 
 ## Code style
 
-No comments in code — rationale belongs in commit messages and in this file.
+- No comments in code. Rationale goes in the commit message or here.
+- Destructure messages in a handler's signature.
+- Constants that belong together live in a namespace (`impl Pace { const Report: .. }`).
