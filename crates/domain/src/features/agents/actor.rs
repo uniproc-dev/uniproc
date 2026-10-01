@@ -376,20 +376,19 @@ mod windows {
     #[handler]
     fn handle_windows_action(
         this: &GenericAgentActor<WindowsBackend>,
-        msg: WindowsActionRequest,
+        WindowsActionRequest { action, correlation_id }: WindowsActionRequest,
         cx: Cx,
     ) {
         if this.dormant {
             return;
         }
         let Some(client) = this.client.clone() else {
-            error!("Dropping {:?}: not connected to the agent", msg.action);
+            error!("Dropping {action:?}: not connected to the agent");
             return;
         };
 
-        let correlation_id = msg.correlation_id;
         cx.spawn_bg_detached(async move {
-            let code = client.act(msg.action).await;
+            let code = client.act(action).await;
             GlobalEventBus::publish(WindowsActionResponse::new(correlation_id, code));
         });
     }

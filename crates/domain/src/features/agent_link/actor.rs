@@ -90,8 +90,7 @@ actor! {
 }
 
 #[handler]
-fn on_windows_agent(this: &mut AgentLinkActor, msg: WindowsAgentRuntimeEvent) {
-    let state = msg.state;
+fn on_windows_agent(this: &mut AgentLinkActor, WindowsAgentRuntimeEvent { state, .. }: WindowsAgentRuntimeEvent) {
     if this.last == Some(state) {
         return;
     }
