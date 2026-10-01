@@ -232,7 +232,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
     );
 
     let reading = match detail {
-        Some(detail) => format!("{reading} · {detail}"),
+        Some(detail) => l10n.metric_chart_reading_detail(reading, detail),
         None => reading,
     };
     let title = Grid::new()

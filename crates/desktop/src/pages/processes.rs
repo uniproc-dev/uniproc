@@ -244,7 +244,7 @@ mod tests {
 
     fn texts(node: &Node, out: &mut Vec<String>) {
         if let Some(text) = &node.text {
-            out.push(text.clone());
+            out.push(text.replace(['\u{2068}', '\u{2069}'], ""));
         }
         for child in &node.children {
             texts(child, out);
@@ -723,7 +723,7 @@ mod tests {
     }
 
     fn overlay(page: &Mounted<'_, Processes>) -> Option<&'static str> {
-        ["Connecting...", "Can't reach the service. Still trying."]
+        ["Connecting…", "Can’t reach the service. Still trying."]
             .into_iter()
             .find(|text| page.find_text(text).is_some())
     }
@@ -761,13 +761,13 @@ mod tests {
 
         crate::test_agent::set_up(false);
         after(2, &mut page);
-        assert_eq!(overlay(&page), Some("Connecting..."), "{:#?}", page.tree());
+        assert_eq!(overlay(&page), Some("Connecting…"), "{:#?}", page.tree());
         assert!(labels(&mut page).contains(&"notepad.exe".to_string()), "the last rows stay");
 
         after(25, &mut page);
         assert_eq!(
             overlay(&page),
-            Some("Can't reach the service. Still trying."),
+            Some("Can’t reach the service. Still trying."),
             "connects: {}",
             crate::test_agent::connects()
         );
@@ -1592,7 +1592,7 @@ mod tests {
             return;
         }
         if let Some(text) = &node.text {
-            out.push(text.clone());
+            out.push(text.replace(['\u{2068}', '\u{2069}'], ""));
         }
         for child in &node.children {
             shown_texts(child, out);

@@ -11,8 +11,9 @@ use windows_reactor::{
 
 use super::shell::ShellProps;
 use crate::format;
+use crate::l10n::L10n;
 use crate::theme::{size, space};
-use crate::widgets::metric_chart::{chart_level, chart_title, metric_chart, metric_mini_bar, MetricChart, Scale};
+use crate::widgets::metric_chart::{chart_level, metric_chart, metric_mini_bar, MetricChart, Scale};
 use crate::widgets::separator;
 use crate::widgets::text::text;
 
@@ -78,17 +79,26 @@ fn scale(chart: SidebarChart, units: ByteUnits) -> Scale {
     }
 }
 
-fn detail(chart: SidebarChart, machine: Option<&MachineSummary>, units: ByteUnits) -> Option<String> {
+fn detail(l10n: &L10n, chart: SidebarChart, machine: Option<&MachineSummary>, units: ByteUnits) -> Option<String> {
     let machine = machine?;
     match chart {
-        SidebarChart::Cpu => Some(format!(
-            "{:.1} / {:.1} GHz",
-            machine.cpu_current_mhz as f64 / 1000.0,
-            machine.cpu_max_mhz as f64 / 1000.0
+        SidebarChart::Cpu => Some(l10n.metric_chart_cpu_frequency(
+            format::ghz(machine.cpu_current_mhz),
+            format::ghz(machine.cpu_max_mhz),
         )),
         SidebarChart::Memory => Some(format::bytes(units, machine.memory_total_bytes)),
         SidebarChart::Gpu => Some(format::bytes(units, machine.gpu_memory_used_bytes)),
         SidebarChart::Disk | SidebarChart::Network => None,
+    }
+}
+
+fn chart_toggle_label(l10n: &L10n, chart: SidebarChart) -> String {
+    match chart {
+        SidebarChart::Cpu => l10n.shell_chart_cpu(),
+        SidebarChart::Memory => l10n.shell_chart_memory(),
+        SidebarChart::Disk => l10n.shell_chart_disk(),
+        SidebarChart::Network => l10n.shell_chart_network(),
+        SidebarChart::Gpu => l10n.shell_chart_gpu(),
     }
 }
 
@@ -101,7 +111,7 @@ fn charts_menu(props: &ShellProps<'_>) -> View {
             .on_is_checked_changed(move |shown: bool| {
                 let _ = on_show.call((chart, shown));
             })
-            .content(text(chart_title(props.l10n, chart)))
+            .content(text(chart_toggle_label(props.l10n, chart)))
     });
     Button::new()
         .mark(SidebarMark::Charts)
@@ -147,7 +157,7 @@ pub(super) fn metrics_pane(props: &ShellProps<'_>) -> View {
                 scale: scale(chart, props.units),
                 cadence_ms: props.cadence_ms,
                 height: Pane::MetricHeight,
-                detail: detail(chart, machine, props.units),
+                detail: detail(props.l10n, chart, machine, props.units),
                 palette,
             })),
         )

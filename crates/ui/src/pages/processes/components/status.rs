@@ -64,12 +64,12 @@ fn parts(counts: &StatusCounts, l10n: &L10n, palette: Palette) -> Vec<Part> {
     };
     let mut parts = vec![
         part(counts.apps, palette.share_apps, &|n| l10n.processes_status_apps(n)),
-        part(counts.background, palette.share_background, &|_| l10n.processes_status_background()),
+        part(counts.background, palette.share_background, &|n| l10n.processes_status_background(n)),
         part(counts.services, palette.share_services, &|n| l10n.processes_status_services(n)),
-        part(counts.kernel, palette.share_kernel, &|_| l10n.processes_status_kernel()),
+        part(counts.kernel, palette.share_kernel, &|n| l10n.processes_status_kernel(n)),
     ];
     if counts.linux > 0 {
-        parts.push(part(counts.linux, palette.share_wsl, &|_| l10n.processes_status_wsl()));
+        parts.push(part(counts.linux, palette.share_wsl, &|n| l10n.processes_status_wsl(n)));
     }
     parts
 }
@@ -126,11 +126,7 @@ fn legend_item(part: &Part, palette: Palette) -> View {
                 .corner_radius(Share::SwatchRadius)
                 .background(part.color)
                 .vertical_alignment(VerticalAlignment::Center),
-            reserved(
-                format!("{} {}", part.count, part.label),
-                format!("{} {}", widest(Share::PartDigits), part.widest_label),
-                palette,
-            ),
+            reserved(part.label.clone(), part.widest_label.clone(), palette),
         ))
         .into()
 }
@@ -145,8 +141,8 @@ pub(crate) fn status_bar(counts: &StatusCounts, l10n: &L10n, palette: Palette) -
         .grid_column(0)
         .children((keyed(parts.iter().map(|part| legend_item(part, palette)).collect()),));
     let total = Border::new().grid_column(2).content(reserved(
-        format!("{total} {}", l10n.processes_status_processes(total as i64)),
-        format!("{most} {}", l10n.processes_status_processes(most as i64)),
+        l10n.processes_status_processes(total as i64),
+        l10n.processes_status_processes(most as i64),
         palette,
     ));
 

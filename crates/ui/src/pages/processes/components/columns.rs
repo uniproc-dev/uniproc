@@ -130,8 +130,8 @@ fn selection_bar() -> View {
         .into()
 }
 
-fn group_count(count: usize, palette: Palette) -> View {
-    text(format!("({count})"))
+fn group_count(count: usize, l10n: &L10n, palette: Palette) -> View {
+    text(l10n.processes_group_count(count as i64))
         .foreground(palette.tertiary_text)
         .vertical_alignment(VerticalAlignment::Center)
         .margin(Thickness::new(space::Compact, 0.0, 0.0, 0.0))
@@ -336,13 +336,13 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
     } else if d.exited {
         note(ProcessesMark::Exited, cell.l10n.processes_exited())
     } else if d.has_children {
-        group_count(d.group_size, cell.palette)
+        group_count(d.group_size, cell.l10n, cell.palette)
     } else {
         View::empty()
     };
     let label = match (&d.row.owner, &d.wsl) {
         (Some(owner), _) if !d.has_children && d.child.is_none() => {
-            format!("{owner} — {}", d.row.display_name)
+            cell.l10n.processes_owned_name(owner.to_string(), d.row.display_name.to_string())
         }
         (_, Some(WslRow::Environment { pid_ns, .. })) if d.row.display_name.is_empty() => {
             cell.l10n.processes_wsl_namespace(pid_ns.to_string())
@@ -479,7 +479,7 @@ fn section_name_cell(cell: &NameCell<'_>, d: &DisplayRow, section: &SectionRow) 
         chevron: chevron_slot(expand_chevron(d.is_expanded), None, d.height()),
         icon: None,
         label,
-        count: group_count(d.group_size, cell.palette),
+        count: group_count(d.group_size, cell.l10n, cell.palette),
     });
     let line = table_cell::dimmed(line, d.lifted);
 

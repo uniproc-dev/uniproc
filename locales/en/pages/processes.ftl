@@ -1,22 +1,24 @@
-processes-connecting = Connecting...
-processes-agent-gave-up = Can't reach the service. Still trying.
+processes-connecting = Connecting…
+processes-agent-gave-up = Can’t reach the service. Still trying.
 processes-agent-outdated = The service is older than this Uniproc. Update it.
 processes-failed = Failed to load processes: { $error }
 processes-status-processes = { $count ->
-    [one] process
-   *[other] processes
+    [one] { $count } process
+   *[other] { $count } processes
     }
 processes-status-apps = { $count ->
-    [one] app
-   *[other] apps
+    [one] { $count } app
+   *[other] { $count } apps
     }
-processes-status-background = background
+processes-status-background = { $count } background
 processes-status-services = { $count ->
-    [one] service
-   *[other] services
+    [one] { $count } service
+   *[other] { $count } services
     }
-processes-status-kernel = kernel
-processes-status-wsl = WSL
+processes-status-kernel = { $count } kernel
+processes-status-wsl = { $count } WSL
+processes-group-count = ({ $count })
+processes-owned-name = { $owner } — { $name }
 processes-exited = Exited
 processes-not-running = Not running
 processes-selected = Selected: { $name } | PID { $pid }

@@ -4,6 +4,10 @@ pub fn percent(value: f32) -> String {
     format!("{value:.1}%")
 }
 
+pub fn ghz(mhz: u64) -> String {
+    format!("{:.1}", mhz as f64 / 1000.0)
+}
+
 pub fn bytes_per_second(units: ByteUnits, v: u64) -> String {
     format!("{}/s", bytes(units, v))
 }
@@ -59,6 +63,12 @@ mod tests {
         assert_eq!(bytes(ByteUnits::Iec, 3 << 30), "3.0 GiB");
         assert_eq!(bytes_per_second(ByteUnits::Windows, 20 << 10), "20 KB/s");
         assert_eq!(bytes(ByteUnits::Iec, 512), "512 B");
+    }
+
+    #[test]
+    fn megahertz_read_as_gigahertz() {
+        assert_eq!(ghz(3_701), "3.7");
+        assert_eq!(ghz(0), "0.0");
     }
 
     #[test]
