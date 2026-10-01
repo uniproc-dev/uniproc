@@ -103,11 +103,11 @@ fn on_windows_report(this: &mut ServicesActor, msg: WindowsReportMessage) {
 }
 
 #[handler]
-fn sort(this: &mut ServicesActor, msg: Sort) {
-    if this.sort_column == msg.0 {
+fn sort(this: &mut ServicesActor, Sort(column): Sort) {
+    if this.sort_column == column {
         this.descending = !this.descending;
     } else {
-        this.sort_column = msg.0;
+        this.sort_column = column;
         this.descending = false;
     }
     this.resort();

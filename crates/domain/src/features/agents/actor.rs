@@ -316,8 +316,11 @@ fn on_streamed<B: AgentBackend>(this: &mut GenericAgentActor<B>, Streamed { gene
 }
 
 #[handler]
-async fn schedule_retry<B: AgentBackend>(ctx: AsyncContext<GenericAgentActor<B>>, msg: TryConnectWithDelay) {
-    let waited = ctx.until_gone(tokio::time::sleep(msg.0)).await;
+async fn schedule_retry<B: AgentBackend>(
+    ctx: AsyncContext<GenericAgentActor<B>>,
+    TryConnectWithDelay(delay): TryConnectWithDelay,
+) {
+    let waited = ctx.until_gone(tokio::time::sleep(delay)).await;
     if waited.is_none() {
         return;
     }
@@ -365,8 +368,11 @@ fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Co
 }
 
 #[handler]
-async fn reconnect_after<B: AgentBackend>(ctx: AsyncContext<GenericAgentActor<B>>, msg: ReconnectAfter) {
-    if ctx.until_gone(tokio::time::sleep(msg.0)).await.is_some() {
+async fn reconnect_after<B: AgentBackend>(
+    ctx: AsyncContext<GenericAgentActor<B>>,
+    ReconnectAfter(rest): ReconnectAfter,
+) {
+    if ctx.until_gone(tokio::time::sleep(rest)).await.is_some() {
         ctx.send(StartConnect);
     }
 }

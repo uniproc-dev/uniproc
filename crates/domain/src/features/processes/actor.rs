@@ -338,12 +338,12 @@ fn on_windows_report(this: &mut ProcessesActor, msg: WindowsReportMessage) {
 }
 
 #[handler]
-fn sort(this: &mut ProcessesActor, msg: Sort) {
-    if this.sort_column == msg.0 {
+fn sort(this: &mut ProcessesActor, Sort(column): Sort) {
+    if this.sort_column == column {
         this.descending = !this.descending;
     } else {
-        this.descending = !msg.0.sorts_ascending_first();
-        this.sort_column = msg.0;
+        this.descending = !column.sorts_ascending_first();
+        this.sort_column = column;
     }
     this.ui_port.send(ProcessesMsg::SetSort {
         column: this.sort_column,
@@ -465,20 +465,17 @@ fn image_request(command: ProcessCommand, exe_path: &Arc<str>, name: &Arc<str>) 
 }
 
 #[handler]
-fn run_image_command(this: &mut ProcessesActor, msg: RunImageCommand) {
-    let exe_path: Arc<str> = Arc::from(msg.exe_path);
-    let name: Arc<str> = Arc::from(msg.name);
-    if let Some(request) = image_request(msg.command, &exe_path, &name) {
+fn run_image_command(this: &mut ProcessesActor, RunImageCommand { command, exe_path, name }: RunImageCommand) {
+    let exe_path: Arc<str> = Arc::from(exe_path);
+    let name: Arc<str> = Arc::from(name);
+    if let Some(request) = image_request(command, &exe_path, &name) {
         (this.shell)(request);
     }
 }
 
 #[handler]
-fn run_window_command(this: &mut ProcessesActor, msg: RunWindowCommand) {
-    (this.shell)(ShellRequest::Window {
-        handle: msg.handle,
-        command: msg.command,
-    });
+fn run_window_command(this: &mut ProcessesActor, RunWindowCommand { handle, command }: RunWindowCommand) {
+    (this.shell)(ShellRequest::Window { handle, command });
 }
 
 #[cfg(test)]
