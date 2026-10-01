@@ -342,7 +342,11 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
     };
     let label = match (&d.row.owner, &d.wsl) {
         (Some(owner), _) if !d.has_children && d.child.is_none() => {
-            cell.l10n.processes_owned_name(owner.to_string(), d.row.display_name.to_string())
+            cell.l10n.processes_owned_name(
+                owner.others as i64,
+                owner.name.to_string(),
+                d.row.display_name.to_string(),
+            )
         }
         (_, Some(WslRow::Environment { pid_ns, .. })) if d.row.display_name.is_empty() => {
             cell.l10n.processes_wsl_namespace(pid_ns.to_string())

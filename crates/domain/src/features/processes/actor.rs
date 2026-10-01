@@ -7,7 +7,7 @@ use app_contracts::features::agents::{
     WindowsActionRequest, WindowsGpu, WindowsProcessStats, WindowsReport, WindowsReportMessage,
 };
 use app_contracts::features::processes::{
-    Deselect, GpuEngineLabel, HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessCommand,
+    Deselect, GpuEngineLabel, HostedService, MachineSummary, Owner, ProcessCategory, ProcessColumn, ProcessCommand,
     ProcessDetails, ProcessRow, ProcessStatus, ProcessesMsg, ProcessesState, RunImageCommand, RunProcessCommand,
     RunWindowCommand, Select, RunNewTask, SelectLinux, Sort, Terminate, WslEnvironment,
 };
@@ -182,13 +182,17 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
         .collect();
     let owner_of = |p: &WindowsProcessStats| {
         if is_console_host(p) {
-            return console_owner(p, &console_clients, &by_pid).map(shown_name);
+            return console_owner(p, &console_clients, &by_pid).map(|owner| Owner {
+                name: shown_name(owner),
+                others: 0,
+            });
         }
         if is_service_host(p) {
-            return services.get(&p.pid).and_then(|list| match list.len() {
-                0 => None,
-                1 => Some(list[0].display_name.clone()),
-                more => Some(Arc::from(format!("{} +{}", list[0].display_name, more - 1))),
+            return services.get(&p.pid).and_then(|list| {
+                list.first().map(|first| Owner {
+                    name: first.display_name.clone(),
+                    others: list.len() - 1,
+                })
             });
         }
         None
@@ -468,7 +472,7 @@ mod tests {
         };
 
         let rows = rows_from_report(&report, &AppWindows::default());
-        let owner = |pid: u32| rows.iter().find(|r| r.pid == pid).and_then(|r| r.owner.as_deref());
+        let owner = |pid: u32| owned_by(&rows, pid).map(|(name, _)| name);
 
         assert_eq!(owner(11), Some("cargo.exe"));
         assert_eq!(owner(12), None, "the parent is not in this report");
@@ -541,6 +545,11 @@ mod tests {
         assert_eq!(rows[1].details.status, ProcessStatus::Running);
     }
 
+    fn owned_by(rows: &[ProcessRow], pid: u32) -> Option<(&str, usize)> {
+        let owner = rows.iter().find(|r| r.pid == pid)?.owner.as_ref()?;
+        Some((&*owner.name, owner.others))
+    }
+
     fn client(pid: u32, parent_pid: u32, name: &str, console_host_pid: u32) -> WindowsProcessStats {
         WindowsProcessStats {
             console_host_pid,
@@ -565,7 +574,7 @@ mod tests {
         };
 
         let rows = rows_from_report(&report, &AppWindows::default());
-        let owner = |pid: u32| rows.iter().find(|r| r.pid == pid).and_then(|r| r.owner.as_deref());
+        let owner = |pid: u32| owned_by(&rows, pid).map(|(name, _)| name);
 
         assert_eq!(owner(20), Some("app.exe"), "its creator is gone, the client remains");
         let owner_pid = |pid: u32| rows.iter().find(|r| r.pid == pid).and_then(|r| r.owner_pid);
@@ -607,10 +616,10 @@ mod tests {
         };
 
         let rows = rows_from_report(&report, &AppWindows::default());
-        let owner = |pid: u32| rows.iter().find(|r| r.pid == pid).and_then(|r| r.owner.as_deref());
+        let owner = |pid: u32| owned_by(&rows, pid);
 
-        assert_eq!(owner(20), Some("Windows Audio"));
-        assert_eq!(owner(21), Some("DCOM Server Process Launcher +2"));
+        assert_eq!(owner(20), Some(("Windows Audio", 0)));
+        assert_eq!(owner(21), Some(("DCOM Server Process Launcher", 2)));
         assert_eq!(owner(22), None, "no running service in this host");
         assert_eq!(owner(23), None, "only generic service hosts get a name");
     }

@@ -178,6 +178,12 @@ pub struct ProcessDetails {
 }
 
 #[derive(Clone, PartialEq, Debug)]
+pub struct Owner {
+    pub name: Arc<str>,
+    pub others: usize,
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub struct ProcessRow {
     pub pid: u32,
     pub name: Arc<str>,
@@ -190,7 +196,7 @@ pub struct ProcessRow {
     pub gpu_memory_bytes: u64,
     pub exe_path: Arc<str>,
     pub package_full_name: Arc<str>,
-    pub owner: Option<Arc<str>>,
+    pub owner: Option<Owner>,
     pub owner_pid: Option<u32>,
     pub category: ProcessCategory,
     pub services: Option<Arc<[HostedService]>>,

@@ -18,7 +18,10 @@ processes-status-services = { $count ->
 processes-status-kernel = { $count } kernel
 processes-status-wsl = { $count } WSL
 processes-group-count = ({ $count })
-processes-owned-name = { $owner } — { $name }
+processes-owned-name = { $others ->
+    [0] { $owner } — { $name }
+   *[other] { $owner } +{ $others } — { $name }
+    }
 processes-run-new-task = Run new task
 processes-gpu-engine = GPU { $adapter } - { $engine }
 processes-platform-x86 = 32-bit
