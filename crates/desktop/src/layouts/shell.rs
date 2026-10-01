@@ -6,7 +6,6 @@ use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarState};
 use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
 use domain::features::agents::providers::windows::AGENT_SERVICE_DISPLAY_NAME;
 use domain::features::metrics::MetricsFeature;
-use domain::features::processes::{ProcessesDeps, ProcessesFeature};
 use domain::features::settings::SettingsFeature;
 use domain::features::sidebar::SidebarFeature;
 use guinea::feature::FeatureInitContext;
@@ -79,19 +78,12 @@ pub enum ShellMsg {
 #[layout]
 impl Layout for ShellLayout {
     type Params = crate::routes::ShellLayoutParams;
-    type Installs = (SidebarFeature, MetricsFeature, AgentLinkFeature, SettingsFeature, ProcessesFeature);
+    type Installs = (SidebarFeature, MetricsFeature, AgentLinkFeature, SettingsFeature);
     type Message = ShellMsg;
 
     fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
         let link = ctx.require_or_default::<AgentLinkDeps>();
-        let processes = ctx.require_or_default::<ProcessesDeps>();
-        Ok((
-            ctx.install(&())?,
-            ctx.install(&())?,
-            ctx.install(&link)?,
-            ctx.install(&())?,
-            ctx.install(&processes)?,
-        ))
+        Ok((ctx.install(&())?, ctx.install(&())?, ctx.install(&link)?, ctx.install(&())?))
     }
 
     fn init(_ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
@@ -210,10 +202,6 @@ mod tests {
         WindowsMachineStats,
     };
 
-    use app_contracts::features::agents::{WindowsProcessStats, WindowsReport};
-    use app_contracts::features::processes::ProcessesState;
-    use domain::features::processes::windows_scan::AppWindows;
-
     use super::*;
     use crate::test_agent;
 
@@ -245,10 +233,6 @@ mod tests {
             .unwrap()
             .provide(AgentLinkDeps {
                 start_in_process: test_agent::start_in_process,
-            })
-            .provide(ProcessesDeps {
-                windows: AppWindows::default,
-                shell: |_| {},
             });
         dir
     }
@@ -385,28 +369,6 @@ mod tests {
             test_agent::connects()
         );
         assert!(test_agent::connects() >= 3, "still reconnecting: {}", test_agent::connects());
-    }
-
-    #[guinea::test(iterations = 4, exclusive = "store")]
-    fn the_process_list_is_kept_while_another_page_is_open(h: &mut Harness) {
-        let _store = start(h, true);
-        test_agent::serve(WindowsReport {
-            processes: vec![WindowsProcessStats {
-                pid: 10,
-                name: "notepad.exe".into(),
-                ..Default::default()
-            }],
-            ..Default::default()
-        });
-        let h = &*h;
-        let mut page =
-            Mounted::<ShellLayout>::mount_at(&h.segment(), crate::routes::ShellLayoutParams::default(), Route::Services {})
-                .unwrap();
-
-        after(h, &mut page, 1);
-        let state = h.state::<ProcessesState>();
-        let rows = state.rows.ready().unwrap_or_else(|| panic!("{:?}", state.rows.is_loading()));
-        assert!(rows.iter().any(|row| row.pid == 10), "rows arrive on Services, ready for the way back");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
