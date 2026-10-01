@@ -14,7 +14,7 @@ use windows_reactor::{
 
 use crate::l10n::L10n;
 use crate::theme::{setting, space, Palette};
-use crate::widgets::page::{settings_column, settings_section};
+use crate::widgets::settings_column::{settings_column, settings_section};
 use crate::widgets::setting_card::{card_words, choice, setting_card, SettingCard};
 use crate::widgets::text::{subtitle, text};
 

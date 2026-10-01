@@ -35,7 +35,8 @@ use super::components::status::{status_bar, StatusCounts};
 use super::marks::ProcessesMark;
 use crate::l10n::L10n;
 use crate::theme::{radius, size, space, Palette};
-use crate::widgets::page::{command_button, icon_button, loading, page_frame, page_title};
+use crate::widgets::button::{command_button, icon_button};
+use crate::widgets::page::{loading, page_frame, page_title};
 use crate::widgets::selection::SelectionMark;
 use crate::widgets::text::text;
 

@@ -8,7 +8,7 @@ use super::marks::{SystemMark, ToolMark};
 use crate::l10n::L10n;
 use crate::theme::{setting, space, Palette};
 use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
-use crate::widgets::page::{settings_column, settings_section};
+use crate::widgets::settings_column::{settings_column, settings_section};
 use crate::widgets::text::caption;
 
 pub struct ToolsProps<'a> {

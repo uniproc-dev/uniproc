@@ -10,7 +10,7 @@ use super::marks::{SystemMark, ToolMark};
 use crate::l10n::L10n;
 use crate::theme::{setting, space, Palette};
 use crate::widgets::link_card::{link_card, LinkCard, Trailing};
-use crate::widgets::page::{settings_column, settings_section};
+use crate::widgets::settings_column::{settings_column, settings_section};
 use crate::widgets::text::{caption, subtitle};
 
 fn favourites(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {

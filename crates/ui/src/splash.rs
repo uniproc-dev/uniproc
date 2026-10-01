@@ -8,7 +8,7 @@ use windows_reactor::{
 
 use crate::l10n::L10n;
 use crate::theme::{size, space, Palette};
-use crate::widgets::page::action_button;
+use crate::widgets::button::action_button;
 use crate::widgets::text::{subtitle, text};
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
