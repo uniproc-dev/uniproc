@@ -1,10 +1,8 @@
-mod shell;
-mod splash;
+mod layouts;
 pub mod format;
 pub mod l10n;
 pub mod pages;
 pub mod theme;
 pub mod widgets;
 
-pub use shell::{shell_view, ShellProps, SidebarMark};
-pub use splash::{splash_view, ServiceTrouble, SplashMark, SplashProps};
+pub use layouts::{shell_view, splash_view, ServiceTrouble, ShellProps, SidebarMark, SplashMark, SplashProps};
