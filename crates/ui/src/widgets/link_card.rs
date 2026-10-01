@@ -3,11 +3,11 @@ use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
     Button, ChildrenControl, ContentControl, Grid, GridChildExt, GridLength, HorizontalAlignment, LayoutControl,
-    ResourceOverrides, StackPanel, Thickness, VerticalAlignment, View,
+    ResourceOverrides, Thickness, VerticalAlignment, View,
 };
 
 use crate::theme::{setting, space, Palette};
-use crate::widgets::text::{caption, text};
+use crate::widgets::setting_card::card_words;
 
 struct LinkCardSize;
 
@@ -69,13 +69,7 @@ pub fn link_card(mark: impl Mark, card: LinkCard, palette: Palette, on_click: im
         accessory,
     } = card;
 
-    let words = StackPanel::new().vertical_alignment(VerticalAlignment::Center).children((
-        text(title),
-        match description {
-            Some(description) => caption(description).foreground(palette.secondary_text).into(),
-            None => View::empty(),
-        },
-    ));
+    let words = card_words(title, description, palette);
     let icon = match icon {
         Some(icon) => Grid::new()
             .grid_column(0)

@@ -1,5 +1,7 @@
+use guinea::winui::MarkExt;
+use guinea::Mark;
 use windows_reactor::{
-    ChildrenControl, ContentControl, Grid, GridChildExt, GridLength, LayoutControl, StackPanel,
+    ChildrenControl, ComboBox, ContentControl, Grid, GridChildExt, GridLength, LayoutControl, StackPanel,
     ThemeBrush, Thickness, VerticalAlignment, View,
 };
 
@@ -22,6 +24,36 @@ pub struct SettingCard {
     pub control: View,
 }
 
+pub fn card_words(title: impl Into<String>, description: Option<String>, palette: Palette) -> View {
+    let description: View = match description {
+        Some(description) => caption(description).foreground(palette.secondary_text).into(),
+        None => View::empty(),
+    };
+    StackPanel::new()
+        .vertical_alignment(VerticalAlignment::Center)
+        .children((text(title), description))
+}
+
+pub fn choice<T: Copy + PartialEq + 'static>(
+    mark: impl Mark,
+    all: &'static [T],
+    current: T,
+    label: impl Fn(T) -> String,
+    pick: impl Fn(T) + 'static,
+) -> View {
+    ComboBox::new()
+        .mark(mark)
+        .width(setting::Choice)
+        .items_source(all.iter().map(|item| label(*item)))
+        .selected_index(all.iter().position(|item| *item == current))
+        .on_selection_changed(move |index: Option<usize>| {
+            if let Some(item) = index.and_then(|index| all.get(index)) {
+                pick(*item);
+            }
+        })
+        .into()
+}
+
 pub fn setting_card(setting: SettingCard, palette: Palette) -> View {
     let SettingCard {
         icon,
@@ -30,12 +62,7 @@ pub fn setting_card(setting: SettingCard, palette: Palette) -> View {
         control,
     } = setting;
 
-    let words = StackPanel::new()
-        .vertical_alignment(VerticalAlignment::Center)
-        .children((
-            text(title),
-            caption(description).foreground(palette.secondary_text),
-        ));
+    let words = card_words(title, Some(description), palette);
     let icon = match icon {
         Some(icon) => Grid::new()
             .grid_column(0)

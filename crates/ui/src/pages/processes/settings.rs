@@ -4,7 +4,7 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, ChildrenControl, ComboBox, ContentControl, Expander, Grid,
+    Border, Button, ButtonStyle, Callback, ChildrenControl, ContentControl, Expander, Grid,
     GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation, StackPanel, Thickness,
     ToggleSwitch, VerticalAlignment, View,
 };
@@ -20,8 +20,8 @@ use crate::theme::{setting, size, space, Palette};
 use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
 use crate::widgets::page::{action_button, settings_column};
 use crate::widgets::separator;
-use crate::widgets::setting_card::{setting_card, SettingCard};
-use crate::widgets::text::{caption, text};
+use crate::widgets::setting_card::{card_words, choice, setting_card, SettingCard};
+use crate::widgets::text::text;
 
 struct Layout;
 
@@ -143,25 +143,24 @@ impl ProcessesSettingsPage {
 
     fn memory_card(&self, l10n: &L10n, palette: Palette, forward: &Callback<ProcessesSettingsMsg>) -> View {
         let forward = forward.clone();
-        let choice = ComboBox::new()
-            .mark(ProcessesSettingsMark::MemoryValues)
-            .width(setting::Choice)
-            .items_source([
-                l10n.processes_settings_memory_values(),
-                l10n.processes_settings_memory_percents(),
-            ])
-            .selected_index(usize::from(self.memory_as_percent))
-            .on_selection_changed(move |index: Option<usize>| {
-                if let Some(index) = index {
-                    let _ = forward.call(ProcessesSettingsMsg::MemoryAsPercent(index == 1));
-                }
-            });
+        let choice = choice(
+            ProcessesSettingsMark::MemoryValues,
+            &[false, true],
+            self.memory_as_percent,
+            |percent| match percent {
+                false => l10n.processes_settings_memory_values(),
+                true => l10n.processes_settings_memory_percents(),
+            },
+            move |percent| {
+                let _ = forward.call(ProcessesSettingsMsg::MemoryAsPercent(percent));
+            },
+        );
         setting_card(
             SettingCard {
                 icon: None,
                 title: l10n.processes_settings_memory(),
                 description: l10n.processes_settings_memory_description(),
-                control: choice.into(),
+                control: choice,
             },
             palette,
         )
@@ -283,10 +282,9 @@ fn expander(
         description,
         open,
     } = heading;
-    let header = StackPanel::new()
+    let header = Border::new()
         .margin(Thickness::xy(0.0, setting::ExpanderHeaderInset))
-        .vertical_alignment(VerticalAlignment::Center)
-        .children((text(title), caption(description).foreground(palette.secondary_text)));
+        .content(card_words(title, Some(description), palette));
     let expanded = forward.clone();
     Expander::new()
         .mark(group.mark())

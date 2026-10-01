@@ -8,15 +8,15 @@ use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, CheckBox, ChildrenControl, ComboBox, ContentControl, Expander, HorizontalAlignment, LayoutControl,
+    Border, CheckBox, ChildrenControl, ContentControl, Expander, HorizontalAlignment, LayoutControl,
     NumberBox, Orientation, Slider, StackPanel, Thickness, VerticalAlignment, View,
 };
 
 use crate::l10n::L10n;
 use crate::theme::{setting, space, Palette};
 use crate::widgets::page::{settings_column, settings_section};
-use crate::widgets::setting_card::{setting_card, SettingCard};
-use crate::widgets::text::{caption, subtitle, text};
+use crate::widgets::setting_card::{card_words, choice, setting_card, SettingCard};
+use crate::widgets::text::{subtitle, text};
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SettingsMark {
@@ -67,22 +67,18 @@ fn start_page_label(l10n: &L10n, page: StartPage) -> String {
 
 fn theme_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let dispatch = dispatch.clone();
-    let choice = ComboBox::new()
-        .mark(SettingsMark::Theme)
-        .width(setting::Choice)
-        .items_source(AppTheme::ALL.map(|theme| theme_label(l10n, theme)))
-        .selected_index(AppTheme::ALL.iter().position(|theme| *theme == state.theme))
-        .on_selection_changed(move |index: Option<usize>| {
-            if let Some(theme) = index.and_then(|index| AppTheme::ALL.get(index)) {
-                dispatch.emit(SetTheme(*theme));
-            }
-        });
     setting_card(
         SettingCard {
             icon: Some(icon!(color).size(setting::Icon).build()),
             title: l10n.settings_theme(),
             description: l10n.settings_theme_description(),
-            control: choice.into(),
+            control: choice(
+                SettingsMark::Theme,
+                &AppTheme::ALL,
+                state.theme,
+                |theme| theme_label(l10n, theme),
+                move |theme| dispatch.emit(SetTheme(theme)),
+            ),
         },
         palette,
     )
@@ -90,22 +86,18 @@ fn theme_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: 
 
 fn start_page_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let dispatch = dispatch.clone();
-    let choice = ComboBox::new()
-        .mark(SettingsMark::StartPage)
-        .width(setting::Choice)
-        .items_source(StartPage::ALL.map(|page| start_page_label(l10n, page)))
-        .selected_index(StartPage::ALL.iter().position(|page| *page == state.start_page))
-        .on_selection_changed(move |index: Option<usize>| {
-            if let Some(page) = index.and_then(|index| StartPage::ALL.get(index)) {
-                dispatch.emit(SetStartPage(*page));
-            }
-        });
     setting_card(
         SettingCard {
             icon: Some(icon!(start_page).size(setting::Icon).build()),
             title: l10n.settings_start_page(),
             description: l10n.settings_start_page_description(),
-            control: choice.into(),
+            control: choice(
+                SettingsMark::StartPage,
+                &StartPage::ALL,
+                state.start_page,
+                |page| start_page_label(l10n, page),
+                move |page| dispatch.emit(SetStartPage(page)),
+            ),
         },
         palette,
     )
@@ -120,22 +112,18 @@ fn byte_units_label(l10n: &L10n, units: ByteUnits) -> String {
 
 fn byte_units_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let dispatch = dispatch.clone();
-    let choice = ComboBox::new()
-        .mark(SettingsMark::ByteUnits)
-        .width(setting::Choice)
-        .items_source(ByteUnits::ALL.map(|units| byte_units_label(l10n, units)))
-        .selected_index(ByteUnits::ALL.iter().position(|units| *units == state.byte_units))
-        .on_selection_changed(move |index: Option<usize>| {
-            if let Some(units) = index.and_then(|index| ByteUnits::ALL.get(index)) {
-                dispatch.emit(SetByteUnits(*units));
-            }
-        });
     setting_card(
         SettingCard {
             icon: Some(icon!(byte_units).size(setting::Icon).build()),
             title: l10n.settings_byte_units(),
             description: l10n.settings_byte_units_description(),
-            control: choice.into(),
+            control: choice(
+                SettingsMark::ByteUnits,
+                &ByteUnits::ALL,
+                state.byte_units,
+                |units| byte_units_label(l10n, units),
+                move |units| dispatch.emit(SetByteUnits(units)),
+            ),
         },
         palette,
     )
@@ -180,10 +168,11 @@ fn sidebar_charts_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, 
             Border::new()
                 .vertical_alignment(VerticalAlignment::Center)
                 .content(icon!(sidebar_charts).size(setting::Icon).build()),
-            StackPanel::new().vertical_alignment(VerticalAlignment::Center).children((
-                text(l10n.settings_sidebar_charts()),
-                caption(l10n.settings_sidebar_charts_description()).foreground(palette.secondary_text),
-            )),
+            card_words(
+                l10n.settings_sidebar_charts(),
+                Some(l10n.settings_sidebar_charts_description()),
+                palette,
+            ),
         ));
     Expander::new()
         .mark(SettingsMark::SidebarCharts)
