@@ -1,5 +1,9 @@
 use app_contracts::features::settings::ByteUnits;
 
+pub fn percent(value: f32) -> String {
+    format!("{value:.1}%")
+}
+
 pub fn bytes_per_second(units: ByteUnits, v: u64) -> String {
     format!("{}/s", bytes(units, v))
 }
@@ -55,6 +59,12 @@ mod tests {
         assert_eq!(bytes(ByteUnits::Iec, 3 << 30), "3.0 GiB");
         assert_eq!(bytes_per_second(ByteUnits::Windows, 20 << 10), "20 KB/s");
         assert_eq!(bytes(ByteUnits::Iec, 512), "512 B");
+    }
+
+    #[test]
+    fn a_percent_keeps_one_decimal() {
+        assert_eq!(percent(0.0), "0.0%");
+        assert_eq!(percent(12.345), "12.3%");
     }
 
     #[test]

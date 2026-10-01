@@ -130,7 +130,7 @@ pub(crate) fn build_columns(l10n: &L10n, palette: Palette, units: ByteUnits) -> 
         metric_column(WslColumn::Cpu, l10n.wsl_col_cpu(), 110.0, palette, |m| {
             (
                 m.cpu_percent
-                    .map(|p| format!("{p:.1}%"))
+                    .map(format::percent)
                     .unwrap_or_else(|| "-".into()),
                 m.cpu_percent.unwrap_or(0.0) / 100.0,
             )

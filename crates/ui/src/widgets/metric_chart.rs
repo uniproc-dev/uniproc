@@ -193,7 +193,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
     let points = history.ready().cloned().unwrap_or_default();
     let now = points.last().map_or(0.0, |&(_, v)| v);
     let (ceiling, reading, bound) = match scale {
-        Scale::Percent => (100.0, format!("{now:.1}%"), None),
+        Scale::Percent => (100.0, format::percent(now), None),
         Scale::Rate(units) => {
             let ceiling = rate_ceiling(&points);
             (

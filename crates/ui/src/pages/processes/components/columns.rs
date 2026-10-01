@@ -14,7 +14,7 @@ use windows_reactor::{
     VerticalAlignment, View,
 };
 
-use crate::format;
+use crate::format::{self, percent};
 use crate::l10n::L10n;
 use crate::theme::{accent_color, opacity, radius, size, space, Palette};
 use crate::widgets::distro_icon::distro_icon;
@@ -828,10 +828,6 @@ where
     .min_width(min_width)
     .flush()
     .sortable()
-}
-
-fn percent(value: f32) -> String {
-    format!("{value:.1}%")
 }
 
 pub(crate) struct ColumnInputs<'a> {
