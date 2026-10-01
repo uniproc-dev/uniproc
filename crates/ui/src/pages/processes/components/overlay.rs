@@ -11,6 +11,7 @@ use crate::widgets::text::text;
 pub(crate) fn disconnected_overlay(l10n: &L10n, palette: Palette, agent: AgentConnectionState) -> View {
     let status = match agent {
         AgentConnectionState::GaveUp => l10n.processes_agent_gave_up(),
+        AgentConnectionState::Outdated => l10n.processes_agent_outdated(),
         _ => l10n.processes_connecting(),
     };
     Border::new()

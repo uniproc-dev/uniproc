@@ -1,4 +1,4 @@
-use super::backend::AgentBackend;
+use super::backend::{AgentBackend, Outdated};
 use super::connection::*;
 use amethystate::Field;
 use app_contracts::features::agents::{AgentConnectionState, AgentStateRequest, WindowsAgentInProcess};
@@ -35,7 +35,15 @@ pub struct Streamed {
     ok: bool,
 }
 
-struct ConnectResult<C>(Option<C>);
+#[derive(Clone, Debug)]
+pub struct ReconnectAfter(pub std::time::Duration);
+
+enum Refused {
+    Failed,
+    Outdated,
+}
+
+struct ConnectResult<C>(Result<C, Refused>);
 
 #[derive(Clone, Copy, Debug)]
 enum Feed {
@@ -66,6 +74,7 @@ pub struct GenericAgentActor<B: AgentBackend> {
     ping_in_flight: bool,
     attempt_secs: Field<u64>,
     attempt_started: Option<tokio::time::Instant>,
+    connected_at: Option<tokio::time::Instant>,
     dormant: bool,
     stream: Option<(u64, Arc<AtomicBool>)>,
     generation: u64,
@@ -79,6 +88,7 @@ impl<B: AgentBackend> GenericAgentActor<B> {
             ping_in_flight: false,
             attempt_secs,
             attempt_started: None,
+            connected_at: None,
             dormant: false,
             stream: None,
             generation: 0,
@@ -153,10 +163,14 @@ impl<B: AgentBackend> GenericAgentActor<B> {
         let timeout = self.attempt_secs.get().max(1);
         cx.spawn_bg(async move {
             match B::connect(timeout).await {
-                Ok(client) => ConnectResult(Some(client)),
+                Ok(client) => ConnectResult(Ok(client)),
+                Err(err) if err.downcast_ref::<Outdated>().is_some() => {
+                    warn!(agent = B::NAME, error = %err, "connect refused");
+                    ConnectResult(Err(Refused::Outdated))
+                }
                 Err(err) => {
                     warn!(agent = B::NAME, error = %err, "connect failed");
-                    ConnectResult(None)
+                    ConnectResult(Err(Refused::Failed))
                 }
             }
         });
@@ -174,6 +188,7 @@ actor! {
             Streamed,
             TryConnectWithDelay,
             RetryTimerElapsed,
+            ReconnectAfter,
             ConnectionLost,
             AgentStateRequest,
             WindowsAgentInProcess,
@@ -226,18 +241,23 @@ fn on_connect_result<B: AgentBackend>(
     }
     let addr = cx.addr();
     match client {
-        Some(client) => {
+        Ok(client) => {
             if this.apply(ConnectionEvent::ConnectSucceeded).is_some() {
                 info!("[{}] Connected", B::NAME);
                 this.client = Some(client);
+                this.connected_at = Some(tokio::time::Instant::now());
                 this.ping_in_flight = false;
                 this.publish_state(None);
                 addr.send(Ping);
                 this.open_stream(&cx.detach());
             }
         }
-        None => {
-            if let Some(t) = this.apply(ConnectionEvent::ConnectFailed) {
+        Err(refused) => {
+            let event = match refused {
+                Refused::Failed => ConnectionEvent::ConnectFailed,
+                Refused::Outdated => ConnectionEvent::ConnectOutdated,
+            };
+            if let Some(t) = this.apply(event) {
                 this.client = None;
                 this.publish_state(None);
                 if t.effect == TransitionEffect::ScheduleRetry {
@@ -327,7 +347,24 @@ fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Co
     this.ping_in_flight = false;
     this.close_stream();
     this.publish_state(None);
-    cx.addr().send(StartConnect);
+    let lasted = this
+        .connected_at
+        .take()
+        .map_or(std::time::Duration::MAX, |at| at.elapsed());
+    match retry_in(this.attempt_window(), lasted) {
+        std::time::Duration::ZERO => cx.addr().send(StartConnect),
+        rest => {
+            warn!("[{}] the connection lasted {lasted:?}; reconnecting in {rest:?}", B::NAME);
+            cx.addr().send(ReconnectAfter(rest));
+        }
+    }
+}
+
+#[handler]
+async fn reconnect_after<B: AgentBackend>(ctx: AsyncContext<GenericAgentActor<B>>, msg: ReconnectAfter) {
+    if ctx.until_gone(tokio::time::sleep(msg.0)).await.is_some() {
+        ctx.send(StartConnect);
+    }
 }
 
 mod windows {

@@ -12,4 +12,5 @@ pub enum AgentConnectionState {
     Connected,
     WaitingRetry,
     GaveUp,
+    Outdated,
 }

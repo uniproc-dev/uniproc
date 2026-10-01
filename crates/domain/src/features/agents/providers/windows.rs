@@ -1,5 +1,5 @@
 use crate::features::agents::actor::{GenericAgentActor, Init, Ping};
-use crate::features::agents::backend::AgentBackend;
+use crate::features::agents::backend::{AgentBackend, Outdated};
 use crate::features::agents::settings::AgentSettings;
 use crate::features::agents::windows_feed::WindowsFeed;
 use crate::features::settings::settings::GeneralSettings;
@@ -44,6 +44,9 @@ impl WindowsClient {
         interval: impl Fn() -> Duration + Send + Sync + 'static,
     ) -> anyhow::Result<Self> {
         let remote = Remote::connect_to(&agent_service(), give_up_after).await?;
+        if !remote.can_watch() {
+            return Err(Outdated(remote.agent_version().to_string()).into());
+        }
         Ok(Self {
             feed: Arc::new(WindowsFeed::new(Agent::Remote(remote), interval)),
         })

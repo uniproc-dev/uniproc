@@ -6,6 +6,7 @@ shell-splash-name = Uniproc
 shell-splash-open-in-process = Open monitor in process
 shell-splash-slow = Starting is taking longer than usual
 shell-splash-unreachable = Can’t connect to the “{ $service }” service
+shell-splash-outdated = The “{ $service }” service is older than this Uniproc. Update it.
 shell-splash-in-process-not-elevated = Monitoring in process needs Uniproc to run as administrator
 shell-splash-in-process-failed = Couldn’t start monitoring in process
 shell-search = Search

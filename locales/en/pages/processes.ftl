@@ -1,5 +1,6 @@
 processes-connecting = Connecting...
 processes-agent-gave-up = Can't reach the service. Still trying.
+processes-agent-outdated = The service is older than this Uniproc. Update it.
 processes-failed = Failed to load processes: { $error }
 processes-status-processes = { $count ->
     [one] process

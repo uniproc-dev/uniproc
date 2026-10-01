@@ -39,8 +39,11 @@ pub(crate) fn splash(
         palette,
         in_process_offered: link.in_process_offered,
         in_process: link.in_process,
-        unreachable_service: (link.windows == AgentConnectionState::GaveUp)
-            .then_some(AGENT_SERVICE_DISPLAY_NAME),
+        service_trouble: match link.windows {
+            AgentConnectionState::GaveUp => Some(ui::ServiceTrouble::Unreachable(AGENT_SERVICE_DISPLAY_NAME)),
+            AgentConnectionState::Outdated => Some(ui::ServiceTrouble::Outdated(AGENT_SERVICE_DISPLAY_NAME)),
+            _ => None,
+        },
         on_start_in_process: Callback::new(move |()| dispatch.emit(StartInProcess)),
     }))
 }
@@ -323,6 +326,49 @@ mod tests {
         test_agent::set_up(true);
         after(h, &mut page, 3);
         assert_eq!(unreachable_line(&page), None, "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "store")]
+    fn the_splash_says_the_service_is_older_than_uniproc_and_keeps_trying(h: &mut Harness) {
+        let _store = start(h, false);
+        test_agent::set_outdated(true);
+        let h = &*h;
+        let mut page = mount(h);
+
+        after(h, &mut page, 6);
+        assert_eq!(agent(h), AgentConnectionState::Outdated);
+        let line = page
+            .tree()
+            .find(ui::SplashMark::Outdated)
+            .and_then(|node| node.text.clone())
+            .unwrap_or_else(|| panic!("{:#?}", page.tree()));
+        assert_eq!(
+            line,
+            format!("The “\u{2068}{AGENT_SERVICE_DISPLAY_NAME}\u{2069}” service is older than this Uniproc. Update it.")
+        );
+        assert!(page.find(ui::SplashMark::Unreachable).is_none(), "it answered; it is not unreachable");
+        assert!(test_agent::connects() >= 2, "still tried: {}", test_agent::connects());
+
+        test_agent::set_outdated(false);
+        test_agent::set_up(true);
+        after(h, &mut page, 3);
+        assert!(!splash_shown(&page), "an updated service is picked up: {:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "store")]
+    fn a_service_that_drops_every_connection_at_once_is_not_hammered(h: &mut Harness) {
+        let _store = start(h, true);
+        test_agent::set_drops(true);
+        let h = &*h;
+        let mut page = mount(h);
+
+        after(h, &mut page, 9);
+        assert!(
+            test_agent::connects() <= 4,
+            "one connection per three-second window, not a reconnect loop: {}",
+            test_agent::connects()
+        );
+        assert!(test_agent::connects() >= 3, "still reconnecting: {}", test_agent::connects());
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

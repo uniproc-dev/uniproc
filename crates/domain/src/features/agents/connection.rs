@@ -7,6 +7,7 @@ pub enum ConnectionEvent {
     BeginConnect,
     ConnectSucceeded,
     ConnectFailed,
+    ConnectOutdated,
     RetryDelayElapsed,
     ConnectionLost,
 }
@@ -46,6 +47,7 @@ impl Attempts {
 pub struct ConnectionMachine {
     state: AgentConnectionState,
     failures: u32,
+    outdated: bool,
 }
 
 impl Default for ConnectionMachine {
@@ -59,6 +61,7 @@ impl ConnectionMachine {
         Self {
             state: AgentConnectionState::Disconnected,
             failures: 0,
+            outdated: false,
         }
     }
 
@@ -71,10 +74,16 @@ impl ConnectionMachine {
             }
             (AgentConnectionState::Connecting, ConnectionEvent::ConnectSucceeded) => {
                 self.failures = 0;
+                self.outdated = false;
                 (AgentConnectionState::Connected, TransitionEffect::None)
             }
             (AgentConnectionState::Connecting, ConnectionEvent::ConnectFailed) => {
                 self.failures = self.failures.saturating_add(1);
+                (AgentConnectionState::WaitingRetry, TransitionEffect::ScheduleRetry)
+            }
+            (AgentConnectionState::Connecting, ConnectionEvent::ConnectOutdated) => {
+                self.failures = self.failures.saturating_add(1);
+                self.outdated = true;
                 (AgentConnectionState::WaitingRetry, TransitionEffect::ScheduleRetry)
             }
             (AgentConnectionState::WaitingRetry, ConnectionEvent::RetryDelayElapsed) => {
@@ -94,6 +103,9 @@ impl ConnectionMachine {
     }
 
     pub fn state(&self) -> AgentConnectionState {
+        if self.state != AgentConnectionState::Connected && self.outdated {
+            return AgentConnectionState::Outdated;
+        }
         if self.state != AgentConnectionState::Connected && self.failures >= Attempts::BeforeGivingUp {
             return AgentConnectionState::GaveUp;
         }
@@ -174,6 +186,21 @@ mod tests {
 
         fail_once(&mut machine);
         assert_eq!(machine.state(), AgentConnectionState::Connecting);
+    }
+
+    #[test]
+    fn an_outdated_service_says_so_at_once_and_is_still_tried() {
+        let mut machine = ConnectionMachine::new();
+        machine.apply(ConnectionEvent::BeginConnect).unwrap();
+
+        let t = machine.apply(ConnectionEvent::ConnectOutdated).unwrap();
+        assert_eq!(t.effect, TransitionEffect::ScheduleRetry, "an update of the service is picked up");
+        assert_eq!(machine.state(), AgentConnectionState::Outdated);
+
+        machine.apply(ConnectionEvent::RetryDelayElapsed).unwrap();
+        assert_eq!(machine.state(), AgentConnectionState::Outdated, "not forgotten while trying again");
+        machine.apply(ConnectionEvent::ConnectSucceeded).unwrap();
+        assert_eq!(machine.state(), AgentConnectionState::Connected);
     }
 
     #[test]

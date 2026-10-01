@@ -267,12 +267,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
 
 [[package]]
-name = "byteorder"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
-
-[[package]]
 name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1302,15 +1296,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fxhash"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c31b6d751ae2c7f11320402d34e41349dd1016f8d5d45e48c4312bc8625af50c"
-dependencies = [
- "byteorder",
-]
-
-[[package]]
 name = "generator"
 version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1321,8 +1306,8 @@ dependencies = [
  "libc",
  "log",
  "rustversion",
- "windows-link 0.1.3",
- "windows-result 0.4.1",
+ "windows-link 0.2.1",
+ "windows-result 0.3.4",
 ]
 
 [[package]]
@@ -2936,7 +2921,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -3303,8 +3288,8 @@ dependencies = [
 
 [[package]]
 name = "uniproc-windows-agent"
-version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.4#7cc485da0a4977a16cfa1ee9e098d2cfd5abf55e"
+version = "0.14.6"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.6#7229a3a27748a8ce74ef819370e9dba002dd28c6"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -3325,18 +3310,18 @@ dependencies = [
 
 [[package]]
 name = "uniproc-windows-core"
-version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.4#7cc485da0a4977a16cfa1ee9e098d2cfd5abf55e"
+version = "0.14.6"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.6#7229a3a27748a8ce74ef819370e9dba002dd28c6"
 dependencies = [
  "amethystate",
  "anyhow",
  "binrw",
  "crossbeam-channel",
  "enumset",
- "fxhash",
  "ntapi",
  "parking_lot",
  "roxmltree",
+ "rustc-hash 2.1.3",
  "serde",
  "smol_str",
  "tracing",
@@ -3859,15 +3844,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56f42bd332cc6c8eac5af113fc0c1fd6a8fd2aa08a0119358686e5160d0586c6"
 dependencies = [
  "windows-link 0.1.3",
-]
-
-[[package]]
-name = "windows-result"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7781fa89eaf60850ac3d2da7af8e5242a5ea78d1a11c49bf2910bb5a73853eb5"
-dependencies = [
- "windows-link 0.2.1",
 ]
 
 [[package]]

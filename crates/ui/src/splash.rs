@@ -16,7 +16,14 @@ pub enum SplashMark {
     Splash,
     OpenInProcess,
     Unreachable,
+    Outdated,
     InProcessError,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ServiceTrouble<'a> {
+    Unreachable(&'a str),
+    Outdated(&'a str),
 }
 
 struct Splash;
@@ -33,7 +40,7 @@ pub struct SplashProps<'a> {
     pub palette: Palette,
     pub in_process_offered: bool,
     pub in_process: InProcess,
-    pub unreachable_service: Option<&'a str>,
+    pub service_trouble: Option<ServiceTrouble<'a>>,
     pub on_start_in_process: Callback<()>,
 }
 
@@ -67,10 +74,17 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
 
     let (slow, corner): (View, View) = if props.in_process_offered {
         let start_in_process = props.on_start_in_process;
-        let unreachable: View = match props.unreachable_service {
-            Some(service) => line(props.l10n.shell_splash_unreachable(service.to_string()), props.palette)
-                .mark(SplashMark::Unreachable)
-                .into(),
+        let trouble: View = match props.service_trouble {
+            Some(ServiceTrouble::Unreachable(service)) => {
+                line(props.l10n.shell_splash_unreachable(service.to_string()), props.palette)
+                    .mark(SplashMark::Unreachable)
+                    .into()
+            }
+            Some(ServiceTrouble::Outdated(service)) => {
+                line(props.l10n.shell_splash_outdated(service.to_string()), props.palette)
+                    .mark(SplashMark::Outdated)
+                    .into()
+            }
             None => View::empty(),
         };
         let in_process_error: View = match props.in_process {
@@ -95,7 +109,7 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
             ))
             .children((
                 line(props.l10n.shell_splash_slow(), props.palette),
-                unreachable,
+                trouble,
                 in_process_error,
             ))
             .into();

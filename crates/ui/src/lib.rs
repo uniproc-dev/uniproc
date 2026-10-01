@@ -7,4 +7,4 @@ pub mod theme;
 pub mod widgets;
 
 pub use shell::{shell_view, ShellProps, SidebarMark};
-pub use splash::{splash_view, SplashMark, SplashProps};
+pub use splash::{splash_view, ServiceTrouble, SplashMark, SplashProps};

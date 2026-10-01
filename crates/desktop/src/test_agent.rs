@@ -8,7 +8,7 @@ use app_contracts::features::agents::{
 };
 use domain::features::agent_link::{InProcessAgent, InProcessStartError};
 use domain::features::agents::actor::{GenericAgentActor, Init, Ping};
-use domain::features::agents::backend::AgentBackend;
+use domain::features::agents::backend::{AgentBackend, Outdated};
 use domain::features::agents::settings::AgentSettings;
 use futures::future::BoxFuture;
 use guinea::prelude::*;
@@ -21,6 +21,8 @@ impl Pace {
 }
 
 static UP: AtomicBool = AtomicBool::new(false);
+static OUTDATED: AtomicBool = AtomicBool::new(false);
+static DROPS: AtomicBool = AtomicBool::new(false);
 static CONNECTS: AtomicU32 = AtomicU32::new(0);
 static REPORT: std::sync::Mutex<Option<WindowsReport>> = std::sync::Mutex::new(None);
 static ELEVATED: AtomicBool = AtomicBool::new(false);
@@ -30,6 +32,8 @@ static IN_PROCESS_ACTIONS: std::sync::Mutex<Vec<WindowsAction>> = std::sync::Mut
 
 pub fn reset(up: bool) {
     UP.store(up, Ordering::SeqCst);
+    OUTDATED.store(false, Ordering::SeqCst);
+    DROPS.store(false, Ordering::SeqCst);
     CONNECTS.store(0, Ordering::SeqCst);
     *REPORT.lock().unwrap() = None;
     ELEVATED.store(false, Ordering::SeqCst);
@@ -92,6 +96,14 @@ pub fn set_up(up: bool) {
     UP.store(up, Ordering::SeqCst);
 }
 
+pub fn set_outdated(outdated: bool) {
+    OUTDATED.store(outdated, Ordering::SeqCst);
+}
+
+pub fn set_drops(drops: bool) {
+    DROPS.store(drops, Ordering::SeqCst);
+}
+
 pub fn connects() -> u32 {
     CONNECTS.load(Ordering::SeqCst)
 }
@@ -120,6 +132,9 @@ impl AgentBackend for FakeAgent {
 
     async fn connect(_timeout_secs: u64) -> anyhow::Result<()> {
         CONNECTS.fetch_add(1, Ordering::SeqCst);
+        if OUTDATED.load(Ordering::SeqCst) {
+            return Err(Outdated("windows 2.1.0".into()).into());
+        }
         up()
     }
 
@@ -129,6 +144,9 @@ impl AgentBackend for FakeAgent {
 
     async fn perform_scan(_client: &()) -> anyhow::Result<()> {
         up()?;
+        if DROPS.load(Ordering::SeqCst) {
+            anyhow::bail!("the agent dropped the watch");
+        }
         let report = REPORT.lock().unwrap().clone();
         if let Some(report) = report {
             GlobalEventBus::publish(WindowsReportMessage::Report(std::sync::Arc::new(report)));
