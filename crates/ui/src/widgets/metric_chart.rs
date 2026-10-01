@@ -9,17 +9,17 @@ use windows_reactor::{
 };
 
 use crate::format;
-use crate::l10n::tr;
+use crate::l10n::L10n;
 use crate::theme::{radius, space, Palette};
 use crate::widgets::text::caption;
 
-pub fn chart_title(chart: SidebarChart) -> String {
+pub fn chart_title(l10n: &L10n, chart: SidebarChart) -> String {
     match chart {
-        SidebarChart::Cpu => tr().metric_chart_cpu(),
-        SidebarChart::Memory => tr().metric_chart_memory(),
-        SidebarChart::Disk => tr().metric_chart_disk(),
-        SidebarChart::Network => tr().metric_chart_network(),
-        SidebarChart::Gpu => tr().metric_chart_gpu(),
+        SidebarChart::Cpu => l10n.metric_chart_cpu(),
+        SidebarChart::Memory => l10n.metric_chart_memory(),
+        SidebarChart::Disk => l10n.metric_chart_disk(),
+        SidebarChart::Network => l10n.metric_chart_network(),
+        SidebarChart::Gpu => l10n.metric_chart_gpu(),
     }
 }
 
@@ -168,6 +168,7 @@ fn color_f(color: Color) -> ColorF {
 }
 
 pub struct MetricChart<'a> {
+    pub l10n: &'a L10n,
     pub chart: &'a Chart,
     pub kind: SidebarChart,
     pub history: &'a Load<Vec<(u64, f32)>>,
@@ -180,6 +181,7 @@ pub struct MetricChart<'a> {
 
 pub fn metric_chart(props: MetricChart<'_>) -> View {
     let MetricChart {
+        l10n,
         chart,
         kind,
         history,
@@ -236,7 +238,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
     let title = Grid::new()
         .columns([GridLength::Auto, GridLength::Star(1.0)])
         .children((
-            caption(chart_title(kind)).grid_column(0),
+            caption(chart_title(l10n, kind)).grid_column(0),
             match bound {
                 Some(bound) => caption(bound)
                     .foreground(palette.tertiary_text)

@@ -168,7 +168,7 @@ fn charts_menu(props: &ShellProps<'_>) -> View {
             .on_is_checked_changed(move |shown: bool| {
                 let _ = on_show.call((chart, shown));
             })
-            .content(text(chart_title(chart)))
+            .content(text(chart_title(props.l10n, chart)))
     });
     Button::new()
         .mark(SidebarMark::Charts)
@@ -207,6 +207,7 @@ fn metrics_pane_footer(props: &ShellProps<'_>) -> View {
         KeyedView::new(
             chart.id(),
             Border::new().mark(SidebarMark::tile(chart)).content(metric_chart(MetricChart {
+                l10n: props.l10n,
                 chart: &props.charts[chart as usize],
                 kind: chart,
                 history: history(metrics, chart),
