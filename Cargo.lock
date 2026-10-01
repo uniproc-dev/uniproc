@@ -314,9 +314,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.4.7"
+version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54413ede23c2daf518f35156dfde027feb2374004d63bd497f983c8db9c0e313"
+checksum = "f360145194ee8e21db5ee7f3fcd4fe52210864c75c985dae33218202c8bbe040"
 dependencies = [
  "find-msvc-tools",
  "shlex",
@@ -1051,9 +1051,9 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "find-msvc-tools"
-version = "0.1.13"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef25905e51abafe4dcea6c15fec58c57b601cdbd0ee53d22ea1d3016c587d39b"
+checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
 
 [[package]]
 name = "fixedbitset"
@@ -1307,7 +1307,7 @@ dependencies = [
  "log",
  "rustversion",
  "windows-link 0.2.1",
- "windows-result 0.3.4",
+ "windows-result 0.4.1",
 ]
 
 [[package]]
@@ -1440,9 +1440,9 @@ dependencies = [
 
 [[package]]
 name = "guinea"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc0fac230701f1578685e3e5514c70d9f0fd8b8935be113ab3ed26e9be7af195"
+checksum = "29bd7d42e3407e962ba3135763d1767dbc3822ee94482ae1f02088bf6d6d9417"
 dependencies = [
  "guinea-app",
  "guinea-codegen",
@@ -1455,9 +1455,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-app"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "978bb51e3205ee09095c7d737dd14e7aa495919e97b299c317f2b6ef495955fb"
+checksum = "41d387ef9d1bd1d39f23330f648682c9823007ef4a11f02b96ad8d478ef58c7a"
 dependencies = [
  "anyhow",
  "guinea-core",
@@ -1468,9 +1468,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-codegen"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa5d85a636f0a09434676fdb19d0d675e62f6f25aae1337fc1a03957ead252c8"
+checksum = "5cedaf4e1423454631792751e760e3d37441bd75ef94d980d52f45efe8709c34"
 dependencies = [
  "guinea-meta-build",
  "heck",
@@ -1484,9 +1484,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-core"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77a7d763c67e5ebe8bca91b25729e7b9b9aa03c4ce208bf5a35ff9c5928d894c"
+checksum = "9f679ac258ceac0846fd8e2f9c58a8a6b21e247b495c04c2a5210aa5582870f6"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1521,9 +1521,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-macros"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e2b70f662e3879f32db2eee73b036979ef1684fb6e8e8a2455e54747899aa51"
+checksum = "75f6b162be67a9ad8e1bab46fbeaa40d8c4b99d17551d57bfd1f93f9eacb953b"
 dependencies = [
  "guinea-codegen",
  "guinea-route-dsl",
@@ -1537,21 +1537,21 @@ dependencies = [
 
 [[package]]
 name = "guinea-mark"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24750d98a6ba6302464f6cc04a70dcc41fe63ebe8e4c35b8bb56a467dff317e5"
+checksum = "d871eca9b09abf4016a916d66f34663b6f9ed3a705ef45be9772f0bdbc4a7fd1"
 
 [[package]]
 name = "guinea-meta"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2b346cefe0607ed3be645672ac3f450efebf7d2123caabe545a12a8cc279bcc"
+checksum = "a4f7206a7da9cd381c6f0100b12f5f615408a3460f5ed22fb8ff9badeaae221d"
 
 [[package]]
 name = "guinea-meta-build"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7efe2638807114a4ec0cde14e89762755ec668a5ebb23c3c75a4f7c1dca473e"
+checksum = "261c5eaf8194d8ac0df9d2bc5fb1e09196d9fb278b198302f5503c448547ac7a"
 dependencies = [
  "serde",
  "toml 0.9.12+spec-1.1.0",
@@ -1627,9 +1627,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-route-dsl"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3a702b82ed40f7e524a81ad5121f314b8d2d419744c6c445ed98218c127171a"
+checksum = "b054372f1f60128b1f3e3b531d4f0b41d4c136d7129b7605903845ddb442f5d2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1639,9 +1639,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-router"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c47b3190d16854509203bfc5819f0617839983ab35fa762fe916a529cad8273"
+checksum = "a51aeba6a6767b0fb580e0cc83f1dac8c919c9e62a4b824b1d0b0029ccba09a1"
 dependencies = [
  "anyhow",
  "guinea-app",
@@ -1653,9 +1653,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-trace"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec5462802075378bac1e60932ca3a692c9ef4f6c94a869008995bf2555701bc2"
+checksum = "98cb2566ce087446a785c09ec100390a8674091c2c642657c2e4733326b44193"
 dependencies = [
  "serde_json",
  "tracing",
@@ -1678,9 +1678,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-winui"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10debbf451d5589809dedd85b6f2b9b76dc684e757f6c8716e9d91845421aa5e"
+checksum = "bf89e68118261877729bfcf938008c9f46d18512ac535e5b6fac13e61615e6d9"
 dependencies = [
  "anyhow",
  "guinea-app",
@@ -1958,9 +1958,9 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "js-sys"
-version = "0.3.105"
+version = "0.3.106"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce57d20d1ea864ce2ac172ab472d409214f4fd359f0b2a2775abdf522e2af99e"
+checksum = "7883d941dae510fb2d978fc3fe018c71c9e2892fd38854de3e8b92c2e5ad9cc5"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -2001,9 +2001,9 @@ checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
 name = "libredox"
-version = "0.1.24"
+version = "0.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6480ccc157a1389bb2e4891b24751b0f798ba640d22386f23143fbcc89da195a"
+checksum = "61ff90caf6077a803a240f62fdbe88645a890bbca49ef8174c3cb0404362171d"
 dependencies = [
  "libc",
 ]
@@ -2394,9 +2394,9 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.11.18"
+version = "0.11.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9746dbde176634f4f2f1faf2404e30a31b2bc1e9cafb5329c95d8177a18c9fc"
+checksum = "0e750cca55fe4f0439a15d0bb529da9651e79993e8e72c61a899a36d462befbe"
 dependencies = [
  "bytes",
  "getrandom 0.4.3",
@@ -2810,9 +2810,9 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "smallvec"
-version = "1.16.1"
+version = "1.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba467056f1b547ed52077911161fc86985becbc60e8e1857c8a144dab0def891"
+checksum = "f9395f0f0eee849a9b707b2f06bb92a6a422090e2123bb2ef8e87a0e61892a8e"
 
 [[package]]
 name = "smol_str"
@@ -2935,18 +2935,18 @@ checksum = "4164c6c316ba9733b0ab021e7f9852c788a4b991b49c25820f1be48e1d41345b"
 
 [[package]]
 name = "thiserror"
-version = "2.0.20"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f"
+checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.20"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
+checksum = "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3420,9 +3420,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.128"
+version = "0.2.129"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aecb87a33d3b0c5e3b7aa46336eaf486cffafbd281b195e4c8b80d50df2351bf"
+checksum = "9bb54f33acc68fd454578d9820b0bde1a1a3d17aa17bb7b6595806d02886d409"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -3433,9 +3433,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.128"
+version = "0.2.129"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a690d511e3c1a8b3a55e33511e3c2c00c78415cd23650f32b808627f5696b9ed"
+checksum = "2e29d0c35b16e224a7eeb5cd2d25e3e1968fbd65604117b44d3b789d00ee8535"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -3443,9 +3443,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.128"
+version = "0.2.129"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "411e4887f0071ef2d2164a9d5fdf2d20efbef78fccd3a78b0c10a1dc5295e48a"
+checksum = "6f501a8bc3719dba86ef8ae4728879c08001bea749eb1333ac5b91e040e2a6b7"
 dependencies = [
  "bumpalo",
  "proc-macro2",
@@ -3456,9 +3456,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.128"
+version = "0.2.129"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81941cd78d0c92026c33e5e01312845a4cb1e9af3407f9134b100dd03144103e"
+checksum = "23f0c9c52aa7cd7d77769a4cfe2a9adb1b331f489a41d912ce14513d5ab995c6"
 dependencies = [
  "unicode-ident",
 ]
@@ -3848,6 +3848,15 @@ dependencies = [
 
 [[package]]
 name = "windows-result"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7781fa89eaf60850ac3d2da7af8e5242a5ea78d1a11c49bf2910bb5a73853eb5"
+dependencies = [
+ "windows-link 0.2.1",
+]
+
+[[package]]
+name = "windows-result"
 version = "0.100.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44873a1ef61c85d5e2991db91fe656cfcf0731097e00dff1ac860f1cb3b752a0"
@@ -4085,9 +4094,9 @@ dependencies = [
 
 [[package]]
 name = "xxhash-rust"
-version = "0.8.18"
+version = "0.8.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aee1b19627c7c60102ab80d3a9cbe18de90bfe03bfa6c3715447681f0e8c8af6"
+checksum = "550a2b930b62486a393c52d5c3b84bff264b28aa437ed64694d31e93b1757af7"
 
 [[package]]
 name = "yoke"
