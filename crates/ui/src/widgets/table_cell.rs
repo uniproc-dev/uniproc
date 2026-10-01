@@ -50,7 +50,7 @@ pub fn cell_text(content: impl Into<String>) -> TextBlock {
         .text_trimming(TextTrimming::CharacterEllipsis)
 }
 
-pub fn text_cell(content: impl Into<String>) -> TextBlock {
+fn text_cell(content: impl Into<String>) -> TextBlock {
     cell_text(content)
         .height(size::TableRow)
         .max_height(size::TableRow)

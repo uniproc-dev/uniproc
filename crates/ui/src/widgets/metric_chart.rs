@@ -78,7 +78,7 @@ impl RateScale {
     const Steps: [u64; 9] = [1, 2, 5, 10, 20, 50, 100, 200, 500];
 }
 
-pub fn rate_ceiling(points: &[(u64, f32)]) -> u64 {
+fn rate_ceiling(points: &[(u64, f32)]) -> u64 {
     let latest = points.last().map_or(0, |&(t, _)| t);
     let peak = points
         .iter()

@@ -106,10 +106,6 @@ fn chevron_slot(content: View, on_press: Option<Callback<()>>, height: f64) -> V
     }
 }
 
-fn row_height(d: &DisplayRow) -> f64 {
-    d.height()
-}
-
 fn selection_bar() -> View {
     Border::new()
         .width(size::SelectionBarWidth)
@@ -290,7 +286,7 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
     }
 
     let chevron = if matches!(d.wsl, Some(WslRow::Environment { .. })) {
-        chevron_slot(expand_chevron(d.is_expanded), None, row_height(d))
+        chevron_slot(expand_chevron(d.is_expanded), None, d.height())
     } else if d.has_children {
         let toggle = cell.actions.toggle_group.clone();
         let group = d.row.name.to_string();
@@ -299,7 +295,7 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
             Some(Callback::new(move |()| {
                 let _ = toggle.call(group.clone());
             })),
-            row_height(d),
+            d.height(),
         )
     } else if d.details {
         let toggle = cell.actions.toggle_process.clone();
@@ -309,10 +305,10 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
             Some(Callback::new(move |()| {
                 let _ = toggle.call(pid);
             })),
-            row_height(d),
+            d.height(),
         )
     } else {
-        chevron_slot(View::empty(), None, row_height(d))
+        chevron_slot(View::empty(), None, d.height())
     };
 
     let note = |mark: ProcessesMark, label: String| -> View {
@@ -406,11 +402,11 @@ fn has_rules(d: &DisplayRow) -> bool {
 
 fn name_row(d: &DisplayRow, line: View, palette: Palette) -> View {
     let bar = match d.highlight {
-        Some(band) => selection_bar_for(row_height(d), band),
+        Some(band) => selection_bar_for(d.height(), band),
         None => View::empty(),
     };
     Grid::new()
-        .height(row_height(d))
+        .height(d.height())
         .children((bar, line, rules(d, palette)))
         .into()
 }
@@ -418,7 +414,7 @@ fn name_row(d: &DisplayRow, line: View, palette: Palette) -> View {
 fn service_name_cell(cell: &NameCell<'_>, d: &DisplayRow, service: &HostedService) -> View {
     let line = name_line(NameLine {
         indent: indent(d.depth),
-        chevron: chevron_slot(View::empty(), None, row_height(d)),
+        chevron: chevron_slot(View::empty(), None, d.height()),
         icon: Some(icon!(gears).size(size::Icon).build_element()),
         label: table_cell::cell_text(&*service.display_name)
             .vertical_alignment(VerticalAlignment::Center)
@@ -437,7 +433,7 @@ fn window_name_cell(cell: &NameCell<'_>, d: &DisplayRow, window: &ProcessWindow)
     };
     let line = name_line(NameLine {
         indent: indent(d.depth),
-        chevron: chevron_slot(View::empty(), None, row_height(d)),
+        chevron: chevron_slot(View::empty(), None, d.height()),
         icon: Some(window_icon(&cell.actions.icons, window, &d.row)),
         label: table_cell::cell_text(title)
             .foreground(cell.palette.secondary_text)
@@ -472,7 +468,7 @@ fn section_name_cell(cell: &NameCell<'_>, d: &DisplayRow, section: &SectionRow) 
     };
     let line = name_line(NameLine {
         indent: 0.0,
-        chevron: chevron_slot(expand_chevron(d.is_expanded), None, row_height(d)),
+        chevron: chevron_slot(expand_chevron(d.is_expanded), None, d.height()),
         icon: None,
         label,
         count: group_count(d.group_size, cell.palette),
@@ -486,7 +482,7 @@ fn section_name_cell(cell: &NameCell<'_>, d: &DisplayRow, section: &SectionRow) 
     section_grip(&cell.actions.section_gesture, section.id)
         .content(
             Grid::new()
-                .height(row_height(d))
+                .height(d.height())
                 .children((line, rules(d, cell.palette))),
         )
         .into()
@@ -655,7 +651,7 @@ where
             None => View::empty(),
         };
         Grid::new()
-            .height(row_height(d))
+            .height(d.height())
             .children((text, rules(d, palette)))
             .into()
     })
@@ -806,7 +802,7 @@ where
     ColumnSpec::new_with_header(id, header, width, move |d: &DisplayRow| {
         if d.absent || d.child.as_ref().is_some_and(|child| !child.has_metrics()) {
             return Grid::new()
-                .height(row_height(d))
+                .height(d.height())
                 .children((rules(d, palette),))
                 .into();
         }
@@ -826,7 +822,7 @@ where
                 text,
                 zero,
                 heat,
-                height: row_height(d),
+                height: d.height(),
             },
             palette,
         );

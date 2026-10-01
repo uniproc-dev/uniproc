@@ -343,11 +343,6 @@ fn one_section(groups: Vec<ProcessGroup>, pins: &Pins, wsl: &[WslEnvironment]) -
     sections
 }
 
-#[cfg(test)]
-pub(crate) fn split_by_category(groups: Vec<ProcessGroup>) -> Vec<Section> {
-    split_keeping(groups, &Pins::new(), &[], None, &SectionOrder::default())
-}
-
 fn split_keeping(
     groups: Vec<ProcessGroup>,
     pins: &Pins,
@@ -1192,6 +1187,10 @@ pub(crate) fn keep_group_place(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    fn split_by_category(groups: Vec<ProcessGroup>) -> Vec<Section> {
+        split_keeping(groups, &Pins::new(), &[], None, &SectionOrder::default())
+    }
 
     pub(crate) fn heading(id: SectionId) -> DisplayRow {
         DisplayRow::section(id, SectionTotals::default(), true)
