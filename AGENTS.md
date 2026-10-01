@@ -92,8 +92,10 @@ catches up (Processes resets its rates and asks for the service state).
   with `ActionOutcome`, asked through `agents::actions::request`. Only `WindowsActions`
   answers. It hears which transport is current — the service (`WindowsTransport::Remote`,
   announced by the service actor on connect and on loss) or the monitor in process
-  (`Local`, which wins for the rest of the run) — and calls `act` on it. Nobody else
-  declares an answering handler for it.
+  (`Local`, which wins for the rest of the run) — and calls `act` on it. Guinea allows
+  one answerer per request type and panics on a second; with none, the request fails
+  at once without being published. Page tests that act fake the service with
+  `GlobalEventBus::answer_fn`.
 - Uniproc never offers to end or suspend itself or its service (`ProcessRow::is_monitor`).
 
 UI text says **service**, never "agent".

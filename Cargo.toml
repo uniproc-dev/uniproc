@@ -17,8 +17,8 @@ members = [
 
 [workspace.dependencies]
 # --- guinea ---
-guinea = "0.18.4"
-guinea-meta-build = "0.18.4"
+guinea = "0.18.6"
+guinea-meta-build = "0.18.6"
 
 guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.14.3" }
 guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.14.3", features = ["winui"] }

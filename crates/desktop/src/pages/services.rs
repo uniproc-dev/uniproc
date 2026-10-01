@@ -43,7 +43,6 @@ mod tests {
         WindowsServiceStats,
     };
     use guinea::app::Harness;
-    use guinea::core::actor::event_bus::{AsyncBus, RpcRequest};
     use guinea::prelude::GlobalEventBus;
     use guinea::winui::harness::{Mounted, PropertyId, PropertyValue};
     use guinea_plugin_l10n::L10nPlugin;
@@ -78,11 +77,7 @@ mod tests {
             ..Default::default()
         };
         h.publish(WindowsReportMessage::Report(Arc::new(report))).settle();
-        let _service = GlobalEventBus::subscribe_fn(
-            |RpcRequest { correlation_id, .. }: RpcRequest<WindowsActionRequest>| {
-                AsyncBus::reply(correlation_id, ActionOutcome::Busy);
-            },
-        );
+        let _service = GlobalEventBus::answer_fn(|_: WindowsActionRequest| ActionOutcome::Busy);
 
         page.settle();
         page.item(0).click_here();

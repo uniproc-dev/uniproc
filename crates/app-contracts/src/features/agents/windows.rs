@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use guinea::core::actor::event_bus::rpc::RpcCall;
 use guinea::prelude::Event;
 use serde::Deserialize;
 
@@ -384,7 +383,8 @@ pub enum WindowsAction {
     ServiceRestart { name: String },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, guinea::Request)]
+#[request(reply = ActionOutcome)]
 pub struct WindowsActionRequest(pub WindowsAction);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -395,10 +395,6 @@ pub enum ActionOutcome {
     Busy,
     NotConnected,
     Failed(u32),
-}
-
-impl RpcCall for WindowsActionRequest {
-    type Response = ActionOutcome;
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -86,7 +86,6 @@ mod tests {
     use std::time::Duration;
 
     use app_contracts::features::agent_link::AgentLinkState;
-    use std::cell::Cell;
     use std::rc::Rc;
 
     use app_contracts::features::processes::{
@@ -102,7 +101,7 @@ mod tests {
     use domain::features::processes::shell::ShellRequest;
     use domain::features::processes::windows_scan::AppWindows;
     use guinea::app::Harness;
-    use guinea::core::actor::event_bus::{AsyncBus, RpcRequest};
+    use guinea::core::actor::event_bus::RpcRequest;
     use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
     use ui::widgets::action_failure::ActionFailureMark;
     use guinea_plugin_l10n::L10nPlugin;
@@ -136,6 +135,16 @@ mod tests {
 
     fn shell_requests() -> Vec<ShellRequest> {
         SHELL.with_borrow(Clone::clone)
+    }
+
+    fn fake_service() -> (impl Sized, Rc<std::cell::RefCell<Vec<WindowsAction>>>) {
+        let asked = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let heard = asked.clone();
+        let service = GlobalEventBus::answer_fn(move |WindowsActionRequest(action)| {
+            heard.borrow_mut().push(action);
+            ActionOutcome::Done
+        });
+        (service, asked)
     }
 
     fn desktop_windows() -> AppWindows {
@@ -666,12 +675,14 @@ mod tests {
         start(h);
         let h = &*h;
         let mut page = mount(h);
+        let (_service, asked) = fake_service();
 
         select(&mut page, "notepad.exe");
         let end_task = page.click(ProcessesMark::EndTask);
         end_task.settle();
         assert!(end_task.chain().published::<RpcRequest<WindowsActionRequest>>(), "{:#?}", end_task.chain());
         page.settle();
+        assert_eq!(*asked.borrow(), [WindowsAction::Kill { pid: NOTEPAD }]);
         assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
         assert!(end_task_enabled(&page));
 
@@ -692,11 +703,7 @@ mod tests {
         start(h);
         let h = &*h;
         let mut page = mount(h);
-        let _service = GlobalEventBus::subscribe_fn(
-            |RpcRequest { correlation_id, .. }: RpcRequest<WindowsActionRequest>| {
-                AsyncBus::reply(correlation_id, ActionOutcome::Denied);
-            },
-        );
+        let _service = GlobalEventBus::answer_fn(|_: WindowsActionRequest| ActionOutcome::Denied);
         assert_eq!(tip(&page, PropertyId::TeachingTipIsOpen), Some(PropertyValue::Bool(false)));
 
         select(&mut page, "notepad.exe");
@@ -936,6 +943,7 @@ mod tests {
         start(h);
         let h = &*h;
         let mut page = mount(h);
+        let (_service, asked) = fake_service();
 
         right_click(&mut page, "notepad.exe");
         assert!(menu_open(&page), "{:#?}", page.tree());
@@ -945,6 +953,7 @@ mod tests {
         suspend.settle();
         assert!(suspend.chain().published::<RpcRequest<WindowsActionRequest>>(), "{:#?}", suspend.chain());
         page.settle();
+        assert_eq!(*asked.borrow(), [WindowsAction::Suspend { pid: NOTEPAD }]);
         assert!(!menu_open(&page), "a command closes the menu");
     }
 
@@ -1082,11 +1091,7 @@ mod tests {
         start(h);
         let h = &*h;
         let mut page = mount(h);
-        let asked = Rc::new(std::cell::RefCell::new(Vec::new()));
-        let heard = asked.clone();
-        let _watch = GlobalEventBus::subscribe_fn(move |RpcRequest { payload, .. }: RpcRequest<WindowsActionRequest>| {
-            heard.borrow_mut().push(payload.0)
-        });
+        let (_service, asked) = fake_service();
 
         right_click(&mut page, "chrome.exe (3)");
         let end = page.find(ProcessesMark::MenuEndGroup).expect("the group menu ends the group");
@@ -1187,9 +1192,7 @@ mod tests {
         let mut page = mount(h);
         report(h, with_kernel());
         page.settle();
-        let asked = Rc::new(Cell::new(0));
-        let counted = asked.clone();
-        let _watch = GlobalEventBus::subscribe_fn(move |_: RpcRequest<WindowsActionRequest>| counted.set(counted.get() + 1));
+        let (_service, asked) = fake_service();
 
         right_click(&mut page, "System");
         assert_eq!(h.state::<ProcessesState>().selected, Some(KERNEL));
@@ -1203,7 +1206,7 @@ mod tests {
         dispatch.emit(Terminate);
         dispatch.emit(RunProcessCommand(ProcessCommand::Suspend));
         page.settle();
-        assert_eq!(asked.get(), 0, "the actor refuses what the buttons do not offer");
+        assert!(asked.borrow().is_empty(), "the actor refuses what the buttons do not offer");
 
         select(&mut page, "notepad.exe");
         assert!(end_task_enabled(&page));
@@ -1228,9 +1231,7 @@ mod tests {
         })))
         .settle();
         page.settle();
-        let asked = Rc::new(Cell::new(0));
-        let counted = asked.clone();
-        let _watch = GlobalEventBus::subscribe_fn(move |_: RpcRequest<WindowsActionRequest>| counted.set(counted.get() + 1));
+        let (_service, asked) = fake_service();
 
         for name in ["uniproc.exe", "uniproc-windows-agent.exe"] {
             right_click(&mut page, name);
@@ -1243,7 +1244,7 @@ mod tests {
             dispatch.emit(RunProcessCommand(ProcessCommand::Suspend));
             page.settle();
         }
-        assert_eq!(asked.get(), 0, "the actor refuses what the buttons do not offer");
+        assert!(asked.borrow().is_empty(), "the actor refuses what the buttons do not offer");
 
         select(&mut page, "notepad.exe");
         assert!(end_task_enabled(&page));
