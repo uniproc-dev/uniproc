@@ -196,11 +196,12 @@ mod wsl {
     pub async fn probe() -> anyhow::Result<()> {
         println!("== wsl agent ==");
 
-        let distro = std::env::var("WSL_DISTRO").unwrap_or_else(|_| "Ubuntu".to_string());
+        let distro = std::env::var("WSL_DISTRO").unwrap_or_default();
         let agent_path = std::env::var("WSL_AGENT_PATH")
             .unwrap_or_else(|_| "/usr/local/bin/uniproc-agent".to_string());
-        println!("launching {agent_path} in {distro}");
-        domain::features::agents::providers::wsl::set_launch_config(distro.clone(), agent_path);
+        println!("launching {agent_path} in {}", if distro.is_empty() { "the default distribution" } else { &distro });
+        let launch = (distro.clone(), agent_path);
+        domain::features::agents::providers::wsl::set_launch_config(move || launch.clone());
 
         let started = Instant::now();
         let handle = WslClient::connect(CONNECT_TIMEOUT, || std::time::Duration::from_secs(1))

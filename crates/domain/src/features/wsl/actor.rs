@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use amethystate::Field;
 use app_contracts::features::agents::RemoteScanResult;
 use app_contracts::features::wsl::{
     AgentPresence, DistroRow, LinuxMachineSummary, WslMsg, WslState,
@@ -32,7 +33,7 @@ fn cpu_percent(previous: Option<CpuSample>, current: CpuSample, cpu_count: u32) 
 pub struct WslActor {
     ui_port: Push<WslState>,
     distros: Rc<[DistroRow]>,
-    configured: String,
+    configured: Field<String>,
     machine: Option<LinuxMachineSummary>,
     previous_cpu: Option<CpuSample>,
     published: Option<(Rc<[DistroRow]>, Option<LinuxMachineSummary>)>,
@@ -48,7 +49,7 @@ impl Scan {
 }
 
 impl WslActor {
-    pub fn new(ui_port: Push<WslState>, configured: String, scan: fn(Duration) -> DistroScan) -> Self {
+    pub fn new(ui_port: Push<WslState>, configured: Field<String>, scan: fn(Duration) -> DistroScan) -> Self {
         Self {
             ui_port,
             distros: Rc::from(Vec::new()),
@@ -76,13 +77,23 @@ impl WslActor {
         });
     }
 
+    fn agent_distro(&self) -> Option<String> {
+        let configured = self.configured.get();
+        if !configured.is_empty() {
+            return Some(configured);
+        }
+        self.distros.iter().find(|row| row.is_default).map(|row| row.name.clone())
+    }
+
     fn apply_presence(&mut self) {
         let answering = self.machine.is_some();
-        let configured = self.configured.clone();
+        let Some(agent_distro) = self.agent_distro() else {
+            return;
+        };
 
         let mut rows = self.distros.to_vec();
         for row in &mut rows {
-            if row.name == configured {
+            if row.name == agent_distro {
                 row.agent = if answering {
                     AgentPresence::Answering
                 } else {
@@ -107,11 +118,13 @@ impl WslActor {
     }
 
     fn forget_metrics(&mut self) {
-        let configured = self.configured.clone();
+        let Some(agent_distro) = self.agent_distro() else {
+            return;
+        };
 
         let mut rows = self.distros.to_vec();
         for row in &mut rows {
-            if row.name == configured {
+            if row.name == agent_distro {
                 row.metrics = None;
             }
         }
@@ -252,6 +265,7 @@ mod tests {
         DistroRow {
             name: name.to_string(),
             running,
+            is_default: false,
             agent: AgentPresence::NotChecked,
             metrics: None,
         }
@@ -267,10 +281,27 @@ mod tests {
             .port()
     }
 
-    fn actor_with(distros: Vec<DistroRow>) -> WslActor {
-        let mut actor = WslActor::new(detached_port(), "Ubuntu".to_string(), |_| Box::pin(std::future::pending()));
+    fn configured_for(distro: &str, distros: Vec<DistroRow>) -> WslActor {
+        let configured = Field::new_volatile(["wsl-test", "distro"], distro.to_string());
+        let mut actor = WslActor::new(detached_port(), configured, |_| Box::pin(std::future::pending()));
         actor.distros = Rc::from(distros);
         actor
+    }
+
+    fn actor_with(distros: Vec<DistroRow>) -> WslActor {
+        configured_for("Ubuntu", distros)
+    }
+
+    #[test]
+    fn with_no_distribution_chosen_the_agent_is_in_the_wsl_default() {
+        let mut actor = configured_for(
+            "",
+            vec![distro("Ubuntu", true), DistroRow { is_default: true, ..distro("Ubuntu-24.04", true) }],
+        );
+        actor.apply_presence();
+
+        assert_eq!(actor.distros[0].agent, AgentPresence::NotChecked);
+        assert_eq!(actor.distros[1].agent, AgentPresence::Silent);
     }
 
     #[test]

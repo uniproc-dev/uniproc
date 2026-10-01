@@ -65,16 +65,25 @@ fn wsl() -> Command {
     command
 }
 
+fn as_root_in(distro: &str) -> Command {
+    let mut command = wsl();
+    if !distro.is_empty() {
+        command.args(["-d", distro]);
+    }
+    command.args(["-u", "root", "--"]);
+    command
+}
+
 fn launch_agent(distro: &str, agent_path: &str, secret: &str) -> anyhow::Result<Child> {
     let process_name = agent_path.rsplit(['/', '\\']).next().unwrap_or(agent_path);
-    let _ = wsl()
-        .args(["-d", distro, "-u", "root", "--", "pkill", "-x", process_name])
+    let _ = as_root_in(distro)
+        .args(["pkill", "-x", process_name])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
 
-    let mut child = wsl()
-        .args(["-d", distro, "-u", "root", "--", agent_path])
+    let mut child = as_root_in(distro)
+        .arg(agent_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -191,10 +200,12 @@ fn spec(interval: Duration, mut out: linux_capnp::metric_spec::Builder<'_>) {
 
 pub struct WslRpc;
 
-static LAUNCH: OnceLock<(String, String)> = OnceLock::new();
+type Launch = Box<dyn Fn() -> (String, String) + Send + Sync>;
 
-pub fn set_launch_config(distro: impl Into<String>, agent_path: impl Into<String>) {
-    let _ = LAUNCH.set((distro.into(), agent_path.into()));
+static LAUNCH: OnceLock<Launch> = OnceLock::new();
+
+pub fn set_launch_config(read: impl Fn() -> (String, String) + Send + Sync + 'static) {
+    let _ = LAUNCH.set(Box::new(read));
 }
 
 impl RpcService for WslRpc {
@@ -205,12 +216,13 @@ impl RpcService for WslRpc {
     const NAME: &'static str = "WSL";
 
     async fn connect(timeout: Duration) -> anyhow::Result<Self::Session> {
-        let (distro, agent_path) = LAUNCH
+        let launch = LAUNCH
             .get()
             .ok_or_else(|| anyhow!("WSL launch settings were never published"))?;
+        let (distro, agent_path) = launch();
 
         let secret = generate_secret();
-        let child = launch_agent(distro, agent_path, &secret)?;
+        let child = launch_agent(&distro, &agent_path, &secret)?;
 
         let endpoint =
             Endpoint::vsock_to_wsl(WSL_AGENT_VSOCK_PORT).map_err(|e| anyhow!("{e:#}"))?;
@@ -405,7 +417,8 @@ pub fn wsl_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
     let settings = AgentSettings::new()?;
     let ping_interval = settings.ping_interval_ms();
 
-    set_launch_config(settings.wsl_distro().get(), settings.wsl_agent_path().get());
+    let (distro, agent_path) = (settings.wsl_distro(), settings.wsl_agent_path());
+    set_launch_config(move || (distro.get(), agent_path.get()));
 
     let addr = app.spawn(GenericAgentActor::<WslBackend>::new(settings.wsl_connect_timeout_secs()));
 

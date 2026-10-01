@@ -9,6 +9,7 @@ pub enum AgentPresence {
 pub struct DistroRow {
     pub name: String,
     pub running: bool,
+    pub is_default: bool,
     pub agent: AgentPresence,
     pub metrics: Option<LinuxMachineSummary>,
 }

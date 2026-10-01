@@ -22,9 +22,10 @@ pub async fn scan_distros(timeout: Duration) -> anyhow::Result<Vec<DistroRow>> {
 
     Ok(parse_wsl_output(&text)
         .into_iter()
-        .map(|(name, running)| DistroRow {
+        .map(|Listed { name, running, is_default }| DistroRow {
             name,
             running,
+            is_default,
             agent: AgentPresence::NotChecked,
             metrics: None,
         })
@@ -39,7 +40,14 @@ fn decode_utf16le(bytes: &[u8]) -> String {
     String::from_utf16_lossy(&units)
 }
 
-pub fn parse_wsl_output(output: &str) -> Vec<(String, bool)> {
+#[derive(Debug, PartialEq)]
+pub struct Listed {
+    pub name: String,
+    pub running: bool,
+    pub is_default: bool,
+}
+
+pub fn parse_wsl_output(output: &str) -> Vec<Listed> {
     let clean = output.replace('\0', "");
 
     clean
@@ -48,16 +56,17 @@ pub fn parse_wsl_output(output: &str) -> Vec<(String, bool)> {
         .filter_map(|line| {
             let parts: Vec<&str> = line.trim().split_whitespace().collect();
 
-            let (name, state) = match parts.as_slice() {
-                ["*", name, state, ..] => (name, state),
-                [name, state, ..] => (name, state),
+            let (name, state, is_default) = match parts.as_slice() {
+                ["*", name, state, ..] => (name, state, true),
+                [name, state, ..] => (name, state, false),
                 _ => return None,
             };
 
-            Some((
-                (*name).to_string(),
-                state.eq_ignore_ascii_case("running"),
-            ))
+            Some(Listed {
+                name: (*name).to_string(),
+                running: state.eq_ignore_ascii_case("running"),
+                is_default,
+            })
         })
         .collect()
 }
@@ -66,18 +75,23 @@ pub fn parse_wsl_output(output: &str) -> Vec<(String, bool)> {
 mod tests {
     use super::*;
 
+    fn listed(name: &str, running: bool, is_default: bool) -> Listed {
+        Listed {
+            name: name.to_string(),
+            running,
+            is_default,
+        }
+    }
+
     #[test]
-    fn reads_names_and_running_state() {
+    fn reads_names_running_state_and_the_default() {
         let output = "  NAME      STATE           VERSION\n\
                       * Ubuntu    Running         2\n\
                         Debian    Stopped         2\n";
 
         assert_eq!(
             parse_wsl_output(output),
-            vec![
-                ("Ubuntu".to_string(), true),
-                ("Debian".to_string(), false),
-            ]
+            vec![listed("Ubuntu", true, true), listed("Debian", false, false)]
         );
     }
 
@@ -86,14 +100,15 @@ mod tests {
         let starred = parse_wsl_output("HEADER\n* Ubuntu Running 2\n");
         let plain = parse_wsl_output("HEADER\nUbuntu Running 2\n");
 
-        assert_eq!(starred, plain);
+        assert_eq!(starred, vec![listed("Ubuntu", true, true)]);
+        assert_eq!(plain, vec![listed("Ubuntu", true, false)]);
     }
 
     #[test]
     fn utf16_padding_and_blank_lines_are_ignored() {
         let output = "N\0A\0M\0E\0\n\0*\0 \0U\0b\0u\0n\0t\0u\0 \0R\0u\0n\0n\0i\0n\0g\0 \02\0\n\n";
 
-        assert_eq!(parse_wsl_output(output), vec![("Ubuntu".to_string(), true)]);
+        assert_eq!(parse_wsl_output(output), vec![listed("Ubuntu", true, true)]);
     }
 
     #[test]

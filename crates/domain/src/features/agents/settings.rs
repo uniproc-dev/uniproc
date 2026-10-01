@@ -14,7 +14,7 @@ pub struct AgentSettings {
     #[amestate(default = 90u64, check = Limits::wsl_connect_timeout)]
     pub wsl_connect_timeout_secs: u64,
 
-    #[amestate(default = "Ubuntu".to_string())]
+    #[amestate(default = String::new())]
     pub wsl_distro: String,
 
     #[amestate(default = "/usr/local/bin/uniproc-agent".to_string())]
