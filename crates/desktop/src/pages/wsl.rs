@@ -32,7 +32,7 @@ impl Page for Wsl {
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: WslMsg| message);
         let (settings, _) = cx.use_reducer::<SettingsState, _>();
-        self.0.view(&state, &l10n, palette, forward, settings.byte_units)
+        self.0.view(&state, &l10n, palette, forward, settings.units.bytes)
     }
 }
 

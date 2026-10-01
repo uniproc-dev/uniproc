@@ -69,7 +69,7 @@ impl Page for Processes {
         let nav = cx.navigate::<Route>();
         let open_settings = Callback::new(move |()| nav.to(Route::ProcessesSettings {}));
         let (settings, _) = cx.use_reducer::<SettingsState, _>();
-        let units = settings.byte_units;
+        let units = settings.units;
         self.0.view(&state, &dispatch, &l10n, palette, forward, open_settings, units)
     }
 }
@@ -98,7 +98,7 @@ mod tests {
     use domain::features::agents::providers::windows::{SERVICE_DISPLAY_NAME, SERVICE_NAME};
     use domain::features::processes::{ProcessesDeps, ProcessesFeature};
     use domain::features::settings::SettingsFeature;
-    use app_contracts::features::settings::{ByteUnits, SetByteUnits};
+    use app_contracts::features::settings::{ByteUnits, NetworkUnits, SetByteUnits, SetNetworkUnits};
     use domain::features::processes::shell::ShellRequest;
     use domain::features::processes::windows_scan::AppWindows;
     use guinea::app::Harness;
@@ -1989,6 +1989,41 @@ mod tests {
         h.dispatch::<SettingsState>().emit(SetByteUnits(ByteUnits::Iec));
         page.settle();
         assert!(page.find_text("4.0 GiB").is_some(), "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn network_speed_is_in_bits_unless_bytes_are_chosen(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        report(
+            h,
+            machine()
+                .into_iter()
+                .map(|mut p| {
+                    if p.pid == NOTEPAD {
+                        p.net_rx_bytes = 1_250_000;
+                        p.disk_read_bytes = 1_250_000;
+                    }
+                    p
+                })
+                .collect(),
+        );
+        page.settle();
+        let notepad = |page: &mut Mounted<'_, Processes>, column| {
+            let item = page.item_where(|item| label(item) == "notepad.exe").tree();
+            cell(&item, column)
+        };
+
+        let net = notepad(&mut page, ProcessColumn::Net);
+        assert!(net.ends_with("bps"), "{net}");
+        let disk = notepad(&mut page, ProcessColumn::Disk);
+        assert!(disk.ends_with("B/s"), "{disk}");
+
+        h.dispatch::<SettingsState>().emit(SetNetworkUnits(NetworkUnits::Bytes));
+        page.settle();
+        let net = notepad(&mut page, ProcessColumn::Net);
+        assert!(net.ends_with("B/s"), "{net}");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

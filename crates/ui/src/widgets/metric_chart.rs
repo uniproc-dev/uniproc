@@ -1,4 +1,4 @@
-use app_contracts::features::settings::{ByteUnits, SidebarChart};
+use app_contracts::features::settings::SidebarChart;
 use guinea::prelude::Load;
 use guinea_widgets::chart::{Chart, ChartGrid, HoverInfo, Interpolation, LineChartOptions, Live, Series};
 use guinea_widgets::color::{hex, hex_alpha};
@@ -8,7 +8,7 @@ use windows_reactor::{
     LayoutControl, StackPanel, ThemeBrush, Thickness, VerticalAlignment, View,
 };
 
-use crate::format;
+use crate::format::{self, Rate};
 use crate::l10n::L10n;
 use crate::theme::{radius, space, Palette};
 use crate::widgets::text::caption;
@@ -50,7 +50,7 @@ fn bar_color(chart: SidebarChart) -> Color {
 #[derive(Clone, Copy, Debug)]
 pub enum Scale {
     Percent,
-    Rate(ByteUnits),
+    Rate(Rate),
 }
 
 impl Scale {
@@ -75,10 +75,22 @@ struct RateScale;
 impl RateScale {
     const Least: u64 = 100 << 10;
     const Units: [u64; 4] = [1 << 10, 1 << 20, 1 << 30, 1 << 40];
+    const LeastBits: u64 = 100_000;
+    const BitUnits: [u64; 4] = [1_000, 1_000_000, 1_000_000_000, 1_000_000_000_000];
     const Steps: [u64; 9] = [1, 2, 5, 10, 20, 50, 100, 200, 500];
+    const BitsInByte: u64 = 8;
 }
 
-fn rate_ceiling(points: &[(u64, f32)]) -> u64 {
+fn round_up(peak: u64, least: u64, units: &[u64]) -> u64 {
+    units
+        .iter()
+        .flat_map(|unit| RateScale::Steps.iter().map(move |step| step * unit))
+        .filter(|ceiling| *ceiling >= least)
+        .find(|ceiling| *ceiling >= peak)
+        .unwrap_or(peak)
+}
+
+fn rate_ceiling(points: &[(u64, f32)], rate: Rate) -> u64 {
     let latest = points.last().map_or(0, |&(t, _)| t);
     let peak = points
         .iter()
@@ -86,12 +98,13 @@ fn rate_ceiling(points: &[(u64, f32)]) -> u64 {
         .map(|&(_, v)| v.max(0.0) as u64)
         .max()
         .unwrap_or(0);
-    RateScale::Units
-        .iter()
-        .flat_map(|unit| RateScale::Steps.iter().map(move |step| step * unit))
-        .filter(|ceiling| *ceiling >= RateScale::Least)
-        .find(|ceiling| *ceiling >= peak)
-        .unwrap_or(peak)
+    match rate {
+        Rate::Bytes(_) => round_up(peak, RateScale::Least, &RateScale::Units),
+        Rate::Bits => {
+            let bits = peak.saturating_mul(RateScale::BitsInByte);
+            round_up(bits, RateScale::LeastBits, &RateScale::BitUnits).div_ceil(RateScale::BitsInByte)
+        }
+    }
 }
 
 fn current(history: &Load<Vec<(u64, f32)>>) -> f32 {
@@ -102,8 +115,8 @@ pub fn chart_level(history: &Load<Vec<(u64, f32)>>, scale: Scale) -> f32 {
     let value = current(history);
     match scale {
         Scale::Percent => value,
-        Scale::Rate(_) => {
-            let ceiling = history.ready().map_or(0, |points| rate_ceiling(points));
+        Scale::Rate(rate) => {
+            let ceiling = history.ready().map_or(0, |points| rate_ceiling(points, rate));
             if ceiling == 0 {
                 0.0
             } else {
@@ -196,12 +209,12 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
     let now = points.last().map_or(0.0, |&(_, v)| v);
     let (ceiling, reading, bound) = match scale {
         Scale::Percent => (100.0, format::percent(now), None),
-        Scale::Rate(units) => {
-            let ceiling = rate_ceiling(&points);
+        Scale::Rate(rate) => {
+            let ceiling = rate_ceiling(&points, rate);
             (
                 ceiling as f32,
-                format::bytes_per_second(units, now.max(0.0) as u64),
-                Some(format::rate_bound(units, ceiling)),
+                format::rate(rate, now.max(0.0) as u64),
+                Some(format::rate_bound(rate, ceiling)),
             )
         }
     };
@@ -264,20 +277,31 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
 
 #[cfg(test)]
 mod tests {
+    use app_contracts::features::settings::ByteUnits;
+
     use super::*;
+
+    const BYTES: Rate = Rate::Bytes(ByteUnits::Windows);
 
     #[test]
     fn a_rate_scale_rounds_the_peak_up_to_a_step() {
-        assert_eq!(rate_ceiling(&[]), 100 << 10);
-        assert_eq!(rate_ceiling(&[(0, 3_000.0)]), 100 << 10);
-        assert_eq!(rate_ceiling(&[(0, 150.0 * 1024.0)]), 200 << 10);
-        assert_eq!(rate_ceiling(&[(0, 60.0 * 1024.0 * 1024.0)]), 100 << 20);
-        assert_eq!(rate_ceiling(&[(1_000, 3.0 * 1024.0 * 1024.0)]), 5 << 20);
+        assert_eq!(rate_ceiling(&[], BYTES), 100 << 10);
+        assert_eq!(rate_ceiling(&[(0, 3_000.0)], BYTES), 100 << 10);
+        assert_eq!(rate_ceiling(&[(0, 150.0 * 1024.0)], BYTES), 200 << 10);
+        assert_eq!(rate_ceiling(&[(0, 60.0 * 1024.0 * 1024.0)], BYTES), 100 << 20);
+        assert_eq!(rate_ceiling(&[(1_000, 3.0 * 1024.0 * 1024.0)], BYTES), 5 << 20);
+    }
+
+    #[test]
+    fn a_scale_in_bits_lands_on_a_round_number_of_bits() {
+        assert_eq!(rate_ceiling(&[], Rate::Bits) * 8, 100_000);
+        assert_eq!(rate_ceiling(&[(0, 1_000_000.0)], Rate::Bits) * 8, 10_000_000);
+        assert_eq!(format::rate_bound(Rate::Bits, rate_ceiling(&[(0, 1_000_000.0)], Rate::Bits)), "10 Mbps");
     }
 
     #[test]
     fn a_peak_that_left_the_window_no_longer_holds_the_scale() {
         let points = [(0, 90.0 * 1024.0 * 1024.0), (Timeline::Window + 1, 1_000.0)];
-        assert_eq!(rate_ceiling(&points), 100 << 10);
+        assert_eq!(rate_ceiling(&points, BYTES), 100 << 10);
     }
 }

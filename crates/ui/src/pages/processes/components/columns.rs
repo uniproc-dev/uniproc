@@ -4,7 +4,7 @@ use app_contracts::features::agents::{Architecture, EnvironmentKind, Isolation};
 use app_contracts::features::processes::{
     HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessRow, ProcessStatus, ProcessWindow,
 };
-use app_contracts::features::settings::ByteUnits;
+use app_contracts::features::settings::Units;
 use guicons::icon;
 use guinea_widgets::table::ColumnSpec;
 use windows_reactor::{
@@ -14,7 +14,7 @@ use windows_reactor::{
     VerticalAlignment, View,
 };
 
-use crate::format::{self, percent};
+use crate::format::{self, percent, Rate};
 use crate::l10n::L10n;
 use crate::theme::{accent_color, size, space, Palette};
 use crate::widgets::distro_icon::distro_icon;
@@ -850,7 +850,7 @@ pub(crate) struct ColumnInputs<'a> {
     pub(crate) machine: Option<MachineSummary>,
     pub(crate) rows: &'a [ProcessRow],
     pub(crate) memory_as_percent: bool,
-    pub(crate) units: ByteUnits,
+    pub(crate) units: Units,
     pub(crate) actions: NameCellActions,
     pub(crate) group_by_type: GroupByType,
     pub(crate) sort_column: ProcessColumn,
@@ -875,8 +875,11 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
         l10n,
         header_menu,
     } = inputs;
+    let network = Rate::network(units);
+    let disk = Rate::disk(units);
+    let units = units.bytes;
 
-    let net_max = rows.iter().map(|r| r.net_bytes).max().unwrap_or(0).max(1) as f32;
+    let net_max =rows.iter().map(|r| r.net_bytes).max().unwrap_or(0).max(1) as f32;
     let disk_max = rows.iter().map(|r| r.disk_bytes).max().unwrap_or(0).max(1) as f32;
     let net_total: u64 = rows.iter().map(|r| r.net_bytes).sum();
     let disk_total: u64 = rows.iter().map(|r| r.disk_bytes).sum();
@@ -966,18 +969,18 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                 ProcessColumn::Net => metric_column(MetricColumn {
                     id: ProcessColumn::Net,
                     label: l10n.processes_col_net(),
-                    total: format::bytes_per_second(units, net_total),
+                    total: format::rate(network, net_total),
                     place,
-                    value: move |r: &ProcessRow| (format::bytes_per_second(units, r.net_bytes), r.net_bytes == 0),
+                    value: move |r: &ProcessRow| (format::rate(network, r.net_bytes), r.net_bytes == 0),
                     heat: move |r: &ProcessRow| (r.net_bytes as f32 / net_max, accent),
                     threshold: Heat::Threshold,
                 }),
                 ProcessColumn::Disk => metric_column(MetricColumn {
                     id: ProcessColumn::Disk,
                     label: l10n.processes_col_disk(),
-                    total: format::bytes_per_second(units, disk_total),
+                    total: format::rate(disk, disk_total),
                     place,
-                    value: move |r: &ProcessRow| (format::bytes_per_second(units, r.disk_bytes), r.disk_bytes == 0),
+                    value: move |r: &ProcessRow| (format::rate(disk, r.disk_bytes), r.disk_bytes == 0),
                     heat: move |r: &ProcessRow| (r.disk_bytes as f32 / disk_max, accent),
                     threshold: Heat::Threshold,
                 }),

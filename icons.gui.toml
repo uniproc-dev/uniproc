@@ -52,6 +52,9 @@ iconify = "fluent:top-speed-24-regular"
 [byte-units]
 iconify = "fluent:ruler-24-regular"
 
+[network-units]
+iconify = "fluent:arrow-swap-24-regular"
+
 [sidebar-charts]
 iconify = "fluent:data-trending-24-regular"
 

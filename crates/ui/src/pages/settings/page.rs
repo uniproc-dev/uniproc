@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use app_contracts::features::settings::{
-    AppTheme, ByteUnits, SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsState, ShowSidebarChart,
+    AppTheme, ByteUnits, NetworkUnits, SetByteUnits, SetNetworkUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsState, ShowSidebarChart,
     SidebarChart, StartPage, UpdateInterval,
 };
 use guicons::icon;
@@ -106,9 +106,35 @@ fn byte_units_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
             control: choice(
                 SettingsMark::ByteUnits,
                 &ByteUnits::ALL,
-                state.byte_units,
+                state.units.bytes,
                 |units| byte_units_label(l10n, units),
                 move |units| dispatch.emit(SetByteUnits(units)),
+            ),
+        },
+        palette,
+    )
+}
+
+fn network_units_label(l10n: &L10n, units: NetworkUnits) -> String {
+    match units {
+        NetworkUnits::Bits => l10n.settings_network_units_bits(),
+        NetworkUnits::Bytes => l10n.settings_network_units_bytes(),
+    }
+}
+
+fn network_units_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+    let dispatch = dispatch.clone();
+    setting_card(
+        SettingCard {
+            icon: Some(icon!(network_units).size(setting::Icon).build()),
+            title: l10n.settings_network_units(),
+            description: l10n.settings_network_units_description(),
+            control: choice(
+                SettingsMark::NetworkUnits,
+                &NetworkUnits::ALL,
+                state.units.network,
+                |units| network_units_label(l10n, units),
+                move |units| dispatch.emit(SetNetworkUnits(units)),
             ),
         },
         palette,
@@ -214,6 +240,7 @@ pub fn settings_view(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
             start_page_card(state, dispatch, l10n, palette),
             update_speed_card(state, dispatch, l10n, palette),
             byte_units_card(state, dispatch, l10n, palette),
+            network_units_card(state, dispatch, l10n, palette),
             sidebar_charts_card(state, dispatch, l10n, palette),
         ),
     );

@@ -172,7 +172,7 @@ impl Layout for ShellLayout {
             content,
             splash: splash(&link, &link_dispatch, &l10n, palette),
             metrics: &metrics,
-            units: settings.byte_units,
+            units: settings.units,
             cadence_ms: settings.update_interval_ms,
             charts: &self.charts,
             shown: settings.sidebar_charts,
@@ -199,7 +199,7 @@ mod tests {
     use uuid::Uuid;
 
     use app_contracts::features::agent_link::InProcess;
-    use app_contracts::features::settings::{ByteUnits, SidebarChart};
+    use app_contracts::features::settings::SidebarChart;
     use app_contracts::features::agents::{
         ActionOutcome, AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsMachineSample,
         WindowsMachineStats,
@@ -565,15 +565,15 @@ mod tests {
         after(h, &mut page, 1);
 
         let tree = page.tree();
-        let scale = |chart: SidebarChart| {
+        let scale = |chart: SidebarChart, top: &str| {
             tree.find(ui::SidebarMark::tile(chart))
                 .unwrap_or_else(|| panic!("{chart:?}: {tree:#?}"))
-                .find_text("100 KB/s")
+                .find_text(top)
                 .is_some()
         };
-        assert!(scale(SidebarChart::Disk), "{tree:#?}");
-        assert!(scale(SidebarChart::Network), "{tree:#?}");
-        assert!(!scale(SidebarChart::Cpu), "a percent chart needs no scale");
+        assert!(scale(SidebarChart::Disk, "100 KB/s"), "{tree:#?}");
+        assert!(scale(SidebarChart::Network, "100 Kbps"), "{tree:#?}");
+        assert!(!scale(SidebarChart::Cpu, "100 KB/s"), "a percent chart needs no scale");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -596,13 +596,13 @@ mod tests {
         page.settle();
 
         let tree = page.tree();
-        let reads = |chart: SidebarChart, rate: u64| {
+        let reads = |chart: SidebarChart, rate: &str| {
             tree.find(ui::SidebarMark::tile(chart))
                 .unwrap_or_else(|| panic!("{chart:?}: {tree:#?}"))
-                .find_text(&ui::format::bytes_per_second(ByteUnits::default(), rate))
+                .find_text(rate)
                 .is_some()
         };
-        assert!(reads(SidebarChart::Disk, 2 << 20), "{tree:#?}");
-        assert!(reads(SidebarChart::Network, 1 << 20), "{tree:#?}");
+        assert!(reads(SidebarChart::Disk, "2.0 MB/s"), "{tree:#?}");
+        assert!(reads(SidebarChart::Network, "8.4 Mbps"), "{tree:#?}");
     }
 }

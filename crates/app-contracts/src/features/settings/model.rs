@@ -33,6 +33,21 @@ ids! {
 }
 
 ids! {
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Deserialize)]
+    pub enum NetworkUnits {
+        #[default]
+        Bits => "bits",
+        Bytes => "bytes",
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct Units {
+    pub bytes: ByteUnits,
+    pub network: NetworkUnits,
+}
+
+ids! {
     #[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Deserialize)]
     pub enum SidebarChart {
         Cpu => "cpu",
@@ -119,6 +134,9 @@ mod tests {
         }
         for units in ByteUnits::ALL {
             assert_eq!(ByteUnits::from_id(units.id()), Some(units));
+        }
+        for units in NetworkUnits::ALL {
+            assert_eq!(NetworkUnits::from_id(units.id()), Some(units));
         }
         for chart in SidebarChart::ALL {
             assert_eq!(SidebarChart::from_id(chart.id()), Some(chart));

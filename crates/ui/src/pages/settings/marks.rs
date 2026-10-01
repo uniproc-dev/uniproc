@@ -7,6 +7,7 @@ pub enum SettingsMark {
     UpdateSpeed,
     UpdateSpeedValue,
     ByteUnits,
+    NetworkUnits,
     SidebarCharts,
     SidebarCpu,
     SidebarMemory,

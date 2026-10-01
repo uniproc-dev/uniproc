@@ -11,7 +11,7 @@ use app_contracts::features::processes::{
     RunProcessCommand,
     RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate, TerminateGroup,
 };
-use app_contracts::features::settings::ByteUnits;
+use app_contracts::features::settings::Units;
 use guicons::icon;
 use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
@@ -331,7 +331,7 @@ impl ProcessesPage {
         palette: Palette,
         forward: Callback<ProcessesMsg>,
         open_settings: Callback<()>,
-        units: ByteUnits,
+        units: Units,
     ) -> View {
         self.selected_group_size.set(None);
         let body = match &state.rows {
@@ -470,7 +470,7 @@ impl ProcessesPage {
         palette: Palette,
         forward: Callback<ProcessesMsg>,
         open_settings: Callback<()>,
-        units: ByteUnits,
+        units: Units,
     ) -> View {
         let collapsed_sections: HashSet<SectionId> =
             enabled_keys(self.collapsed_sections.as_ref())

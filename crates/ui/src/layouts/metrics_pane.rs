@@ -1,6 +1,6 @@
 use app_contracts::features::metrics::MetricsState;
 use app_contracts::features::processes::MachineSummary;
-use app_contracts::features::settings::{ByteUnits, SidebarChart};
+use app_contracts::features::settings::{SidebarChart, Units};
 use guicons::icon;
 use guinea::prelude::Load;
 use guinea::winui::MarkExt;
@@ -10,7 +10,7 @@ use windows_reactor::{
 };
 
 use super::shell::ShellProps;
-use crate::format;
+use crate::format::{self, Rate};
 use crate::l10n::L10n;
 use crate::theme::{size, space};
 use crate::widgets::metric_chart::{chart_level, metric_chart, metric_mini_bar, MetricChart, Scale};
@@ -72,14 +72,16 @@ fn history(metrics: &MetricsState, chart: SidebarChart) -> &Load<Vec<(u64, f32)>
     }
 }
 
-fn scale(chart: SidebarChart, units: ByteUnits) -> Scale {
+fn scale(chart: SidebarChart, units: Units) -> Scale {
     match chart {
-        SidebarChart::Disk | SidebarChart::Network => Scale::Rate(units),
+        SidebarChart::Disk => Scale::Rate(Rate::disk(units)),
+        SidebarChart::Network => Scale::Rate(Rate::network(units)),
         SidebarChart::Cpu | SidebarChart::Memory | SidebarChart::Gpu => Scale::Percent,
     }
 }
 
-fn detail(l10n: &L10n, chart: SidebarChart, machine: Option<&MachineSummary>, units: ByteUnits) -> Option<String> {
+fn detail(l10n: &L10n, chart: SidebarChart, machine: Option<&MachineSummary>, units: Units) -> Option<String> {
+    let units = units.bytes;
     let machine = machine?;
     match chart {
         SidebarChart::Cpu => Some(l10n.metric_chart_cpu_frequency(

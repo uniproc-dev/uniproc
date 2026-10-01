@@ -1,5 +1,5 @@
 use app_contracts::features::settings::{
-    SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsMsg, SettingsState, ShowSidebarChart,
+    SetByteUnits, SetNetworkUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsMsg, SettingsState, ShowSidebarChart,
     UpdateInterval, UpdateIntervalChanged,
 };
 use guinea::prelude::*;
@@ -23,7 +23,7 @@ impl SettingsActor {
             theme: state.theme,
             start_page: state.start_page,
             update_interval_ms: state.update_interval_ms,
-            byte_units: state.byte_units,
+            units: state.units,
             sidebar_charts: state.sidebar_charts,
         });
     }
@@ -31,7 +31,7 @@ impl SettingsActor {
 
 actor! {
     SettingsActor {
-        handlers { SetTheme, SetStartPage, SetUpdateInterval, SetByteUnits, ShowSidebarChart }
+        handlers { SetTheme, SetStartPage, SetUpdateInterval, SetByteUnits, SetNetworkUnits, ShowSidebarChart }
     }
 }
 
@@ -48,6 +48,14 @@ fn show_sidebar_chart(this: &mut SettingsActor, ShowSidebarChart(chart, shown): 
 fn set_byte_units(this: &mut SettingsActor, SetByteUnits(units): SetByteUnits) {
     if let Err(err) = this.settings.byte_units().set(units.id().to_string()) {
         tracing::warn!(?err, "byte units setting write failed");
+    }
+    this.publish();
+}
+
+#[handler]
+fn set_network_units(this: &mut SettingsActor, SetNetworkUnits(units): SetNetworkUnits) {
+    if let Err(err) = this.settings.network_units().set(units.id().to_string()) {
+        tracing::warn!(?err, "network units setting write failed");
     }
     this.publish();
 }

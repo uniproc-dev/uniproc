@@ -24,6 +24,11 @@ settings-byte-units-description = How memory, disk and network amounts are writt
 settings-byte-units-windows = KB, MB, GB
 settings-byte-units-iec = KiB, MiB, GiB
 
+settings-network-units = Network speed units
+settings-network-units-description = Whether network speed is written in bits or in bytes
+settings-network-units-bits = Kbps, Mbps, Gbps
+settings-network-units-bytes = The size units above, per second
+
 settings-sidebar-charts = Charts in the navigation pane
 settings-sidebar-charts-description = Which resources the pane charts under its items
 settings-sidebar-chart-cpu = CPU

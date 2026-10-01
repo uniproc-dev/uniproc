@@ -1,4 +1,62 @@
-use app_contracts::features::settings::ByteUnits;
+use app_contracts::features::settings::{ByteUnits, NetworkUnits, Units};
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Rate {
+    Bytes(ByteUnits),
+    Bits,
+}
+
+impl Rate {
+    pub fn network(units: Units) -> Self {
+        match units.network {
+            NetworkUnits::Bits => Self::Bits,
+            NetworkUnits::Bytes => Self::Bytes(units.bytes),
+        }
+    }
+
+    pub fn disk(units: Units) -> Self {
+        Self::Bytes(units.bytes)
+    }
+}
+
+pub fn rate(rate: Rate, bytes: u64) -> String {
+    match rate {
+        Rate::Bytes(units) => bytes_per_second(units, bytes),
+        Rate::Bits => bits_per_second(bytes.saturating_mul(8)),
+    }
+}
+
+struct Decimal;
+
+#[expect(non_upper_case_globals)]
+impl Decimal {
+    const Kilo: f64 = 1000.0;
+}
+
+fn bits_per_second(bits: u64) -> String {
+    let f = bits as f64;
+    if f >= Decimal::Kilo.powi(3) {
+        format!("{:.1} Gbps", f / Decimal::Kilo.powi(3))
+    } else if f >= Decimal::Kilo.powi(2) {
+        format!("{:.1} Mbps", f / Decimal::Kilo.powi(2))
+    } else if f >= Decimal::Kilo {
+        format!("{:.0} Kbps", f / Decimal::Kilo)
+    } else {
+        format!("{bits} bps")
+    }
+}
+
+fn bits_bound(bits: u64) -> String {
+    let f = bits as f64;
+    let (value, suffix) = if f >= Decimal::Kilo.powi(3) {
+        (f / Decimal::Kilo.powi(3), "Gbps")
+    } else if f >= Decimal::Kilo.powi(2) {
+        (f / Decimal::Kilo.powi(2), "Mbps")
+    } else {
+        (f / Decimal::Kilo, "Kbps")
+    };
+    format!("{value:.0} {suffix}")
+}
 
 pub fn percent(value: f32) -> String {
     format!("{value:.1}%")
@@ -26,7 +84,11 @@ fn suffixes(units: ByteUnits) -> [&'static str; 3] {
     }
 }
 
-pub fn rate_bound(units: ByteUnits, v: u64) -> String {
+pub fn rate_bound(rate: Rate, v: u64) -> String {
+    let units = match rate {
+        Rate::Bytes(units) => units,
+        Rate::Bits => return bits_bound(v.saturating_mul(8)),
+    };
     let [kilo, mega, giga] = suffixes(units);
     let f = v as f64;
     let (value, suffix) = if f >= Binary::Kib.powi(3) {
@@ -79,8 +141,36 @@ mod tests {
 
     #[test]
     fn a_rate_bound_is_written_whole() {
-        assert_eq!(rate_bound(ByteUnits::Windows, 100 << 20), "100 MB/s");
-        assert_eq!(rate_bound(ByteUnits::Iec, 500 << 10), "500 KiB/s");
-        assert_eq!(rate_bound(ByteUnits::Windows, 1 << 30), "1 GB/s");
+        assert_eq!(rate_bound(Rate::Bytes(ByteUnits::Windows), 100 << 20), "100 MB/s");
+        assert_eq!(rate_bound(Rate::Bytes(ByteUnits::Iec), 500 << 10), "500 KiB/s");
+        assert_eq!(rate_bound(Rate::Bytes(ByteUnits::Windows), 1 << 30), "1 GB/s");
+        assert_eq!(rate_bound(Rate::Bits, 12_500_000), "100 Mbps");
+    }
+
+    #[test]
+    fn network_in_bits_counts_in_thousands() {
+        assert_eq!(rate(Rate::Bits, 0), "0 bps");
+        assert_eq!(rate(Rate::Bits, 100), "800 bps");
+        assert_eq!(rate(Rate::Bits, 2_500), "20 Kbps");
+        assert_eq!(rate(Rate::Bits, 1_250_000), "10.0 Mbps");
+        assert_eq!(rate(Rate::Bits, 125_000_000), "1.0 Gbps");
+        assert_eq!(rate(Rate::Bytes(ByteUnits::Windows), 20 << 10), "20 KB/s");
+    }
+
+    #[test]
+    fn disk_stays_in_bytes_whatever_network_is_in() {
+        let units = Units {
+            bytes: ByteUnits::Iec,
+            network: NetworkUnits::Bits,
+        };
+        assert_eq!(Rate::disk(units), Rate::Bytes(ByteUnits::Iec));
+        assert_eq!(Rate::network(units), Rate::Bits);
+        assert_eq!(
+            Rate::network(Units {
+                network: NetworkUnits::Bytes,
+                ..units
+            }),
+            Rate::Bytes(ByteUnits::Iec)
+        );
     }
 }

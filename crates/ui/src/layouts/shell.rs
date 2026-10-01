@@ -1,5 +1,5 @@
 use app_contracts::features::metrics::MetricsState;
-use app_contracts::features::settings::{ByteUnits, SidebarChart, SidebarCharts};
+use app_contracts::features::settings::{SidebarChart, SidebarCharts, Units};
 use guicons::icon;
 use guinea_widgets::chart::Chart;
 use guinea_widgets::resize::{resize_handle, RESIZE_HANDLE_WIDTH};
@@ -37,7 +37,7 @@ pub struct ShellProps<'a> {
     pub content: View,
     pub splash: Option<View>,
     pub metrics: &'a MetricsState,
-    pub units: ByteUnits,
+    pub units: Units,
     pub cadence_ms: u64,
     pub charts: &'a [Chart; 5],
     pub shown: SidebarCharts,
