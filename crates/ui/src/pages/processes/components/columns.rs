@@ -6,7 +6,7 @@ use app_contracts::features::processes::{
 };
 use app_contracts::features::settings::Units;
 use guicons::icon;
-use guinea_widgets::table::ColumnSpec;
+use crate::widgets::table::ColumnSpec;
 use windows_reactor::{
     Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, CornerRadius, EncodedImage, Grid,
     GridChildExt, GridLength, HorizontalAlignment, Image, LayoutControl, PointerEventInfo,

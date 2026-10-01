@@ -1,6 +1,6 @@
 use app_contracts::features::settings::ByteUnits;
 use app_contracts::features::wsl::{AgentPresence, DistroRow, LinuxMachineSummary};
-use guinea_widgets::table::ColumnSpec;
+use crate::widgets::table::ColumnSpec;
 use windows_reactor::{
     Border, ChildrenControl, Color, ContentControl, LayoutControl, Orientation, StackPanel,
     Thickness, VerticalAlignment, View,

@@ -15,7 +15,7 @@ use app_contracts::features::settings::Units;
 use guicons::icon;
 use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
-use guinea_widgets::table::{table, Look, Reordered, Resized, SortState};
+use crate::widgets::table::{table, Look, Reordered, Resized, SortState};
 use windows_reactor::{
     Border, Callback, ChildrenControl, ContentControl, Grid, GridChildExt, GridLength, LayoutControl,
     PointerEventInfo, Orientation, StackPanel, Thickness,

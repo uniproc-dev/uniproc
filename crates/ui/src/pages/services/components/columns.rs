@@ -1,6 +1,6 @@
 use app_contracts::features::agents::WindowsServiceState;
 use app_contracts::features::services::{ServiceColumn, ServiceRow};
-use guinea_widgets::table::ColumnSpec;
+use crate::widgets::table::ColumnSpec;
 use windows_reactor::{ChildrenControl, Orientation, StackPanel, View};
 
 use crate::l10n::L10n;

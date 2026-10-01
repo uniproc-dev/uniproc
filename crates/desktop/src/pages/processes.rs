@@ -111,6 +111,7 @@ mod tests {
     use ui::pages::processes::ProcessesMark;
     use ui::widgets::page::PageMark;
     use ui::widgets::selection::SelectionMark;
+    use ui::widgets::table::TableMark;
     use app_contracts::features::window::PressedAway;
 
     use super::*;
@@ -830,14 +831,6 @@ mod tests {
         assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
     }
 
-    struct EmptyArea;
-
-    impl guinea::Mark for EmptyArea {
-        fn name(&self) -> &'static str {
-            guinea_widgets::table::EMPTY_AREA
-        }
-    }
-
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_click_below_the_rows_drops_the_selection(h: &mut Harness) {
         start(h);
@@ -847,7 +840,7 @@ mod tests {
         select(&mut page, "chrome.exe (3)");
         assert_eq!(h.state::<ProcessesState>().selected, Some(CHROME[0]));
 
-        page.click(EmptyArea).settle();
+        page.click(TableMark::EmptyArea).settle();
         page.settle();
 
         assert_eq!(h.state::<ProcessesState>().selected, None);

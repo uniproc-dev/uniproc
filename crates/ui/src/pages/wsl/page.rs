@@ -1,7 +1,7 @@
 use app_contracts::features::settings::ByteUnits;
 use app_contracts::features::wsl::WslState;
 use guinea::prelude::Load;
-use guinea_widgets::table::{table, ColumnWidths, Resized};
+use crate::widgets::table::{table, ColumnWidths, Resized};
 use windows_reactor::{Callback, View};
 
 use super::components::columns::build_columns;

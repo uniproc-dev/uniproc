@@ -10,6 +10,7 @@ pub mod selection;
 pub mod separator;
 pub mod setting_card;
 pub mod settings_column;
+pub mod table;
 pub mod table_cell;
 pub mod text;
 

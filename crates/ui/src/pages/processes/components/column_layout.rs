@@ -1,7 +1,7 @@
 use amethystate::ReactiveMap;
 use app_contracts::features::processes::{ColumnConfig, ProcessColumn};
 use guinea::Mark;
-use guinea_widgets::table::{ColumnOrder, ColumnWidths, Reordered, Resized};
+use crate::widgets::table::{ColumnOrder, ColumnWidths, Reordered, Resized};
 
 use super::Step;
 

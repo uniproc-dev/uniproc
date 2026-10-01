@@ -4,7 +4,7 @@ use app_contracts::features::services::{
     Command, DismissFailure, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesState, Sort,
 };
 use guinea::prelude::{Dispatch, Load};
-use guinea_widgets::table::{table, ColumnWidths, Resized, SortState};
+use crate::widgets::table::{table, ColumnWidths, Resized, SortState};
 use windows_reactor::{Callback, ChildrenControl, Grid, Orientation, StackPanel, View};
 
 use super::components::columns::build_columns;
