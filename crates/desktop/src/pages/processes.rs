@@ -432,6 +432,26 @@ mod tests {
         );
     }
 
+    #[guinea::test(iterations = 32, exclusive = "store")]
+    fn of_two_reports_built_at_once_the_newer_one_stays(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        let message = |processes| {
+            WindowsReportMessage::Report(Arc::new(WindowsReport {
+                processes,
+                ..Default::default()
+            }))
+        };
+        h.publish(message(without(&[IDLE])));
+        h.publish(message(without(&[IDLE, NOTEPAD]))).settle();
+        page.settle();
+
+        let after = labels(&mut page);
+        assert!(!after.iter().any(|l| l.starts_with("notepad.exe")), "{after:?}");
+    }
+
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn a_process_that_exits_unselected_drops_out_at_once(h: &mut Harness) {
         start(h);

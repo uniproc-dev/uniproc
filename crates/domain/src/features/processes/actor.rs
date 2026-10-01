@@ -37,6 +37,9 @@ pub struct ProcessesActor {
     selected_linux: Option<u32>,
     agent_state: AgentConnectionState,
     io_rates: IoRates,
+    building: bool,
+    pending: Option<Arc<WindowsReport>>,
+    epoch: u64,
     linux_rates: IoRates,
     windows: fn() -> AppWindows,
     shell: fn(ShellRequest),
@@ -55,6 +58,9 @@ impl ProcessesActor {
             machine_summary: MachineSummary::default(),
             agent_state: AgentConnectionState::Disconnected,
             io_rates: IoRates::default(),
+            building: false,
+            pending: None,
+            epoch: 0,
             linux_rates: IoRates::default(),
             sort_column: ProcessColumn::Cpu,
             descending: true,
@@ -284,12 +290,13 @@ fn details(p: &WindowsProcessStats, gpus: &[WindowsGpu]) -> ProcessDetails {
 
 actor! {
     ProcessesActor {
-        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunGroupCommand, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway, Woke, Acted, DismissFailure }
+        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunGroupCommand, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, Built, RemoteScanResult, PressedAway, Woke, Acted, DismissFailure }
     }
 }
 
 #[handler]
 fn on_woke(this: &mut ProcessesActor, Woke: Woke) {
+    this.epoch += 1;
     this.io_rates = IoRates::default();
     this.linux_rates = IoRates::default();
 }
@@ -308,19 +315,9 @@ fn on_linux_scan(this: &mut ProcessesActor, msg: RemoteScanResult) {
     this.publish_wsl(environments);
 }
 
-#[handler]
-fn on_windows_report(this: &mut ProcessesActor, msg: WindowsReportMessage) {
-    let report = match msg {
-        WindowsReportMessage::Report(report) => report,
-        WindowsReportMessage::Unavailable(state) => {
-            this.agent_state = state;
-            this.publish_rows();
-            return;
-        }
-    };
-    this.agent_state = AgentConnectionState::Connected;
+fn machine_summary(report: &WindowsReport) -> MachineSummary {
     let machine = &report.machine;
-    this.machine_summary = MachineSummary {
+    MachineSummary {
         cpu_percent: machine.cpu_percent,
         cpu_current_mhz: machine.cpu_current_mhz,
         cpu_max_mhz: machine.cpu_max_mhz,
@@ -329,13 +326,63 @@ fn on_windows_report(this: &mut ProcessesActor, msg: WindowsReportMessage) {
         gpu_percent: machine.gpu_percent(),
         gpu_memory_used_bytes: machine.gpu_dedicated_used_bytes(),
         ..MachineSummary::default()
-    };
+    }
+}
 
-    let windows = (this.windows)();
-    let mut rows = rows_from_report(&report, &windows);
-    this.io_rates.apply(&mut rows, tokio::time::Instant::now());
-    this.rows = Rc::from(rows);
-    this.publish_rows();
+pub struct Built {
+    epoch: u64,
+    rows: Vec<ProcessRow>,
+    machine: MachineSummary,
+    rates: IoRates,
+}
+
+fn build(this: &mut ProcessesActor, report: Arc<WindowsReport>, cx: &Cx<ProcessesActor>) {
+    if this.building {
+        this.pending = Some(report);
+        return;
+    }
+    this.building = true;
+    let epoch = this.epoch;
+    let windows = this.windows;
+    let mut rates = std::mem::take(&mut this.io_rates);
+    cx.spawn_bg(async move {
+        let mut rows = rows_from_report(&report, &windows());
+        rates.apply(&mut rows, tokio::time::Instant::now());
+        Built {
+            epoch,
+            rows,
+            machine: machine_summary(&report),
+            rates,
+        }
+    });
+}
+
+#[handler]
+fn on_windows_report(this: &mut ProcessesActor, msg: WindowsReportMessage, cx: Cx) {
+    match msg {
+        WindowsReportMessage::Report(report) => build(this, report, &cx.detach()),
+        WindowsReportMessage::Unavailable(state) => {
+            this.epoch += 1;
+            this.pending = None;
+            this.agent_state = state;
+            this.publish_rows();
+        }
+    }
+}
+
+#[handler]
+fn on_built(this: &mut ProcessesActor, Built { epoch, rows, machine, rates }: Built, cx: Cx) {
+    this.building = false;
+    if epoch == this.epoch {
+        this.io_rates = rates;
+        this.agent_state = AgentConnectionState::Connected;
+        this.machine_summary = machine;
+        this.rows = Rc::from(rows);
+        this.publish_rows();
+    }
+    if let Some(report) = this.pending.take() {
+        build(this, report, &cx.detach());
+    }
 }
 
 #[handler]
