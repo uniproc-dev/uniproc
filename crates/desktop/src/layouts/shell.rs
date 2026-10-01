@@ -191,7 +191,6 @@ mod tests {
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Outlet};
     use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
     use uuid::Uuid;
 
@@ -222,10 +221,9 @@ mod tests {
         h.state::<AgentLinkState>().windows
     }
 
-    fn start(h: &mut Harness, agent_up: bool) -> tempfile::TempDir {
-        let dir = tempfile::tempdir().unwrap();
+    fn start(h: &mut Harness, agent_up: bool) {
         test_agent::reset(agent_up);
-        h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json))
+        h.plugin(StorePlugin::in_memory())
             .unwrap()
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
             .unwrap()
@@ -234,7 +232,6 @@ mod tests {
             .provide(AgentLinkDeps {
                 start_in_process: test_agent::start_in_process,
             });
-        dir
     }
 
     fn after(h: &Harness, page: &mut Mounted<'_, ShellLayout>, seconds: u64) {
@@ -244,7 +241,7 @@ mod tests {
 
     #[guinea::test(iterations = 16, exclusive = "store")]
     fn the_splash_gives_up_after_five_attempts_and_keeps_trying(h: &mut Harness) {
-        let _store = start(h, false);
+        start(h, false);
         let h = &*h;
         let mut page = mount(h);
         assert!(splash_shown(&page), "{:#?}", page.tree());
@@ -274,7 +271,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_settings_item_opens_the_settings_page(h: &mut Harness) {
-        let _store = start(h, true);
+        start(h, true);
         let h = &*h;
         let mut page = mount(h);
 
@@ -286,7 +283,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_system_item_opens_the_system_page(h: &mut Harness) {
-        let _store = start(h, true);
+        start(h, true);
         let h = &*h;
         let mut page = mount(h);
 
@@ -304,7 +301,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn the_splash_names_the_service_it_cannot_reach(h: &mut Harness) {
-        let _store = start(h, false);
+        start(h, false);
         let h = &*h;
         let mut page = mount(h);
 
@@ -330,7 +327,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn the_splash_says_the_service_is_older_than_uniproc_and_keeps_trying(h: &mut Harness) {
-        let _store = start(h, false);
+        start(h, false);
         test_agent::set_outdated(true);
         let h = &*h;
         let mut page = mount(h);
@@ -357,7 +354,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn a_service_that_drops_every_connection_at_once_is_not_hammered(h: &mut Harness) {
-        let _store = start(h, true);
+        start(h, true);
         test_agent::set_drops(true);
         let h = &*h;
         let mut page = mount(h);
@@ -373,7 +370,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_splash_is_gone_as_soon_as_the_agent_answers(h: &mut Harness) {
-        let _store = start(h, true);
+        start(h, true);
         let h = &*h;
         let page = mount(h);
 
@@ -398,7 +395,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_splash_offers_the_monitor_in_process_after_five_seconds(h: &mut Harness) {
-        let _store = start(h, false);
+        start(h, false);
         let h = &*h;
         let mut page = mount(h);
 
@@ -415,7 +412,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn the_monitor_in_process_takes_over_from_the_service(h: &mut Harness) {
-        let _store = start(h, false);
+        start(h, false);
         test_agent::set_elevated(true);
         let h = &*h;
         let mut page = mount(h);
@@ -454,7 +451,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn the_monitor_in_process_needs_an_elevated_uniproc(h: &mut Harness) {
-        let _store = start(h, false);
+        start(h, false);
         let h = &*h;
         let mut page = mount(h);
 
@@ -485,7 +482,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_service_still_wins_after_the_monitor_in_process_was_refused(h: &mut Harness) {
-        let _store = start(h, false);
+        start(h, false);
         let h = &*h;
         let mut page = mount(h);
 
@@ -510,7 +507,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_hidden_chart_leaves_the_pane_and_comes_back(h: &mut Harness) {
-        let _store = start(h, true);
+        start(h, true);
         let h = &*h;
         let mut page = mount(h);
         open_pane(h, &mut page);
@@ -533,7 +530,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn rate_charts_name_the_top_of_their_scale(h: &mut Harness) {
-        let _store = start(h, true);
+        start(h, true);
         let h = &*h;
         let mut page = mount(h);
         open_pane(h, &mut page);
@@ -553,7 +550,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn disk_and_network_rates_come_from_the_machine_samples(h: &mut Harness) {
-        let _store = start(h, true);
+        start(h, true);
         let h = &*h;
         let mut page = mount(h);
         open_pane(h, &mut page);

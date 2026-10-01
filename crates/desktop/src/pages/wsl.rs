@@ -43,7 +43,6 @@ mod tests {
 
     use domain::features::wsl::DistroScan;
     use guinea::app::Harness;
-    use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
 
     use super::*;
@@ -64,9 +63,7 @@ mod tests {
 
     fn scans_in_ten_seconds(h: &mut Harness, scan: fn(Duration) -> DistroScan) -> u32 {
         SCANS.set(0);
-        let dir = tempfile::tempdir().unwrap();
-        h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json))
-            .unwrap();
+        h.plugin(StorePlugin::in_memory()).unwrap();
         h.install::<WslFeature>(&WslDeps { scan }).unwrap();
         h.advance(Duration::from_secs(10));
         SCANS.get()

@@ -73,7 +73,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn every_tool_has_a_card(h: &mut Harness) {
-        let _store = test_system::start(h);
+        test_system::start(h);
         let h = &*h;
         let page = mount(h);
         for tool in SystemTool::ALL {
@@ -83,7 +83,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_found_tool_opens_and_a_missing_one_is_downloaded(h: &mut Harness) {
-        let _store = test_system::start(h);
+        test_system::start(h);
         let h = &*h;
         let mut page = mount(h);
         assert!(has_pin(&page, SystemTool::ProcessExplorer));
@@ -117,7 +117,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_pin_is_kept(h: &mut Harness) {
-        let _store = test_system::start(h);
+        test_system::start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -131,7 +131,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_crumb_goes_back_to_system(h: &mut Harness) {
-        let _store = test_system::start(h);
+        test_system::start(h);
         let h = &*h;
         let mut page = mount(h);
 

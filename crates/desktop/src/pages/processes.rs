@@ -104,7 +104,6 @@ mod tests {
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
     use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
     use app_contracts::features::processes::ProcessCategory;
     use guinea::winui::harness::Drag;
@@ -213,11 +212,10 @@ mod tests {
             .settle();
     }
 
-    fn start(h: &mut Harness) -> tempfile::TempDir {
-        let dir = tempfile::tempdir().unwrap();
+    fn start(h: &mut Harness) {
         NOTEPAD_WINDOW.set(true);
         SHELL.with_borrow_mut(Vec::clear);
-        h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json))
+        h.plugin(StorePlugin::in_memory())
             .unwrap()
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
             .unwrap()
@@ -225,7 +223,6 @@ mod tests {
                 windows: desktop_windows,
                 shell: fake_shell,
             });
-        dir
     }
 
     fn mount(h: &Harness) -> Mounted<'_, Processes> {
@@ -347,7 +344,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn the_group_by_type_toggle_drops_the_sections_and_brings_them_back(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         assert!(!headings(&mut page).is_empty(), "{:?}", labels(&mut page));
@@ -373,7 +370,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn a_selected_process_that_exits_stays_until_something_else_is_selected(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -425,7 +422,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn a_process_that_exits_unselected_drops_out_at_once(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -461,7 +458,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn a_selected_group_keeps_members_that_exit(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -509,7 +506,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn a_selected_group_holds_its_place_when_the_rest_resorts(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -537,7 +534,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn a_group_is_selected_as_one_block_and_a_member_alone(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -566,7 +563,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn a_chevron_opens_windows_services_and_consoles(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -599,7 +596,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn a_header_sorts_and_a_heading_folds_its_section(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -640,7 +637,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn run_new_task_opens_the_run_dialog_without_a_selection(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -652,7 +649,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_settings_button_opens_the_processes_settings(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -664,7 +661,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn end_task_keeps_the_selection(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -685,7 +682,7 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "store")]
     fn an_app_whose_window_closes_before_it_exits(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -730,7 +727,7 @@ mod tests {
 
     #[guinea::test(iterations = 16, exclusive = "store")]
     fn a_lost_agent_is_retried_behind_an_overlay_not_the_splash(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         crate::test_agent::reset(true);
         crate::test_agent::serve(WindowsReport {
             processes: machine(),
@@ -780,7 +777,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_chevron_click_also_selects_its_row(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -798,7 +795,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_click_below_the_rows_drops_the_selection(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -815,7 +812,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_click_on_the_page_around_the_table_drops_the_selection(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -832,7 +829,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_press_away_from_the_table_drops_the_selection(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         select(&mut page, "notepad.exe");
@@ -856,7 +853,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_table_its_menu_and_end_task_keep_the_selection(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         right_click(&mut page, "notepad.exe");
@@ -878,7 +875,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_selection_bar_runs_through_the_window_rows_of_its_block(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -898,7 +895,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_right_click_opens_the_menu_of_that_process_and_suspend_goes_to_the_agent(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -915,7 +912,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_left_click_opens_no_menu(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -960,7 +957,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn an_open_menu_lies_over_the_whole_list_so_the_wheel_cannot_reach_it(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -989,7 +986,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn an_open_menu_covers_the_table_and_a_click_on_it_only_closes_the_menu(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1006,7 +1003,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn menu_commands_run_on_the_process_the_menu_was_opened_for(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1026,7 +1023,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_group_menu_offers_nothing_that_would_hit_only_one_member(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1044,7 +1041,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn end_task_does_not_offer_to_end_one_member_of_a_selected_group(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1057,7 +1054,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_window_row_menu_acts_on_the_window(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1077,7 +1074,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn dropping_the_selection_closes_the_menu(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1115,7 +1112,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_kernel_process_offers_nothing_to_do_to_it(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         report(h, with_kernel());
@@ -1145,7 +1142,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn uniproc_and_its_service_cannot_be_ended_or_suspended_from_uniproc(h: &mut Harness) {
         const SERVICE: u32 = 70;
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         let mut processes = machine();
@@ -1184,7 +1181,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_pin_that_is_not_running_stays_until_unpinned(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         pin_from_menu(&mut page, "notepad.exe", ProcessesMark::MenuPin);
@@ -1245,7 +1242,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_header_menu_holds_the_metrics_and_leads_to_the_rest(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1277,7 +1274,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn pid_and_process_name_chosen_in_the_settings_show_in_the_table(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         show_in_settings(ProcessColumn::Pid);
         show_in_settings(ProcessColumn::ProcessName);
         let h = &*h;
@@ -1293,7 +1290,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn details_columns_show_the_process_and_what_a_group_shares(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         for column in [
             ProcessColumn::Status,
             ProcessColumn::Publisher,
@@ -1333,7 +1330,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_press_away_closes_the_header_menu(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         assert_eq!(h.state::<ProcessesState>().selected, None);
@@ -1354,7 +1351,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn sorting_by_pid_starts_with_the_lowest(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         show_in_settings(ProcessColumn::Pid);
         let h = &*h;
         let mut page = mount(h);
@@ -1385,7 +1382,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn pinning_from_the_menu_moves_the_process_into_a_pinned_section_on_top(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1411,7 +1408,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn pinning_a_group_pins_every_member(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1423,7 +1420,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn without_grouping_by_type_pinned_processes_sit_on_top_above_a_rule(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         toggle_group_by_type(&mut page);
@@ -1444,7 +1441,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_window_row_cannot_be_pinned(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1457,7 +1454,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_right_click_on_a_section_heading_does_not_collapse_it(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1523,7 +1520,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn wsl_is_a_section_headed_by_the_vm_whose_distributions_open_to_their_processes(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = wsl_page(h);
 
@@ -1550,7 +1547,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn without_grouping_by_type_the_vm_opens_to_its_distributions(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = wsl_page(h);
         toggle_group_by_type(&mut page);
@@ -1609,7 +1606,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_status_bar_counts_what_the_table_holds(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         assert_eq!(status(&page), "1 app 7 background 1 service 0 kernel 9 processes");
@@ -1641,7 +1638,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn every_status_part_reserves_room_for_its_widest_count(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let page = mount(h);
         let tree = page.tree();
@@ -1663,7 +1660,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_wsl_heading_carries_the_notes_on_how_it_is_shown(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = wsl_page(h);
 
@@ -1678,7 +1675,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn an_environment_chevron_leaves_the_press_to_its_row_so_it_toggles_once(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = wsl_page(h);
         let ubuntu = page.item_where(|item| label(item) == "Ubuntu (3)").tree();
@@ -1709,7 +1706,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn linux_processes_sit_flush_with_their_environment(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = wsl_page(h);
         select(&mut page, "Ubuntu (3)");
@@ -1728,7 +1725,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_linux_process_is_selected_apart_from_the_windows_process_with_its_pid(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = wsl_page(h);
         select(&mut page, "Ubuntu (3)");
@@ -1760,7 +1757,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_lost_linux_agent_leaves_the_vm_heading_alone(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = wsl_page(h);
 
@@ -1791,7 +1788,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_column_dragged_along_the_header_moves_and_stays_there(h: &mut Harness) {
         use ProcessColumn::*;
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         assert_eq!(shown_columns(&mut page), [Name, Cpu, Memory, Net, Disk, Gpu]);
@@ -1832,7 +1829,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_section_dragged_below_the_rest_goes_last_and_stays_there(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         let before = sections(&mut page);
@@ -1853,7 +1850,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_nudge_or_a_lost_pointer_moves_nothing(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         let before = sections(&mut page);
@@ -1876,7 +1873,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_kept_order_is_there_from_the_start(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         ProcessesSettings::new()
             .unwrap()
             .grouping()
@@ -1910,7 +1907,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_memory_header_shows_how_much_is_used(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         memory_report(h);
@@ -1926,7 +1923,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn memory_kept_as_percents_shows_a_share_in_the_header(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         ProcessesSettings::new().unwrap().columns().memory_as_percent().set(true).unwrap();
         let h = &*h;
         let mut page = mount(h);

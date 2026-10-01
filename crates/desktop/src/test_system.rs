@@ -5,7 +5,6 @@ use domain::features::system::tools::Launch;
 use domain::features::system::{SystemDeps, SystemFeature};
 use guinea::app::Harness;
 use guinea_plugin_l10n::L10nPlugin;
-use guinea_plugin_store::amethystate::store::builder::Backend;
 use guinea_plugin_store::StorePlugin;
 
 static LAUNCHED: Mutex<Vec<Launch>> = Mutex::new(Vec::new());
@@ -36,13 +35,11 @@ pub fn deps() -> SystemDeps {
     }
 }
 
-pub fn start(h: &mut Harness) -> tempfile::TempDir {
+pub fn start(h: &mut Harness) {
     LAUNCHED.lock().unwrap().clear();
-    let dir = tempfile::tempdir().unwrap();
-    h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json))
+    h.plugin(StorePlugin::in_memory())
         .unwrap()
         .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
         .unwrap();
     h.install::<SystemFeature>(&deps()).unwrap();
-    dir
 }

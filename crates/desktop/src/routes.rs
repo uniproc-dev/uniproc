@@ -32,7 +32,6 @@ mod tests {
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node};
     use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
 
     use super::*;
@@ -53,10 +52,9 @@ mod tests {
         app.items().iter().any(|item| says(item, name))
     }
 
-    fn start(h: &mut Harness) -> tempfile::TempDir {
-        let dir = tempfile::tempdir().unwrap();
+    fn start(h: &mut Harness) {
         test_agent::reset(true);
-        h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json))
+        h.plugin(StorePlugin::in_memory())
             .unwrap()
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
             .unwrap()
@@ -69,12 +67,11 @@ mod tests {
                 windows: AppWindows::default,
                 shell: |_| {},
             });
-        dir
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn processes_come_back_as_they_were_left_and_catch_up_after(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         serve("notepad.exe");
         let mut app = Mounted::routed(h, Route::Processes {}).unwrap();

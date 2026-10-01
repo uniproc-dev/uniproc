@@ -46,19 +46,16 @@ mod tests {
     use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
     use guinea::Mark;
     use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::amethystate::store::builder::Backend;
     use guinea_plugin_store::StorePlugin;
     use ui::pages::processes::{Group, ProcessesSettingsMark, SectionId};
 
     use super::*;
 
-    fn start(h: &mut Harness) -> tempfile::TempDir {
-        let dir = tempfile::tempdir().unwrap();
-        h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json))
+    fn start(h: &mut Harness) {
+        h.plugin(StorePlugin::in_memory())
             .unwrap()
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
             .unwrap();
-        dir
     }
 
     fn mount(h: &Harness) -> Mounted<'_, ProcessesSettings> {
@@ -127,7 +124,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_groups_start_closed_and_stay_as_they_were_left(h: &mut Harness) {
         use ProcessesSettingsMark::{ColumnsGroup, SectionsGroup};
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         assert_eq!(expanded(&mut page, ColumnsGroup), Some(PropertyValue::Bool(false)));
@@ -152,7 +149,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn every_column_is_listed_in_table_order_with_whether_it_is_shown(h: &mut Harness) {
         use ProcessColumn::*;
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -169,7 +166,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_name_column_stays_first(h: &mut Harness) {
         use ProcessColumn::*;
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -185,7 +182,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_column_moved_down_trades_places_and_stays_there(h: &mut Harness) {
         use ProcessColumn::*;
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -205,7 +202,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_column_shown_here_is_kept_shown(h: &mut Harness) {
         use ProcessColumn::*;
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -227,7 +224,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_columns_come_back_to_their_defaults(h: &mut Harness) {
         use ProcessColumn::*;
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         let reset = ProcessesSettingsMark::ResetColumns;
@@ -251,7 +248,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_section_moves_up_and_the_order_can_be_reset(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         let services = SectionId::Category(ProcessCategory::WindowsService);
@@ -278,7 +275,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn memory_is_shown_as_values_until_percents_are_chosen(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         let choice = |page: &mut Mounted<'_, ProcessesSettings>| {
@@ -296,7 +293,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_breadcrumb_leads_back_to_the_processes(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 

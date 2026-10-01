@@ -909,7 +909,7 @@ dependencies = [
  "serde",
  "tokio",
  "tracing",
- "uniproc-protocol",
+ "uniproc-protocol 0.14.3",
  "uniproc-windows-agent",
  "uuid",
  "windows 0.100.0",
@@ -1508,8 +1508,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-devtools-protocol"
-version = "0.14.2"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.2#5d42b832d0e5410125aa787391befc8bf0e5f5ff"
+version = "0.14.3"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.3#eb84eec9fd1b1b6cf35c5e52a6aae0381690c490"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -1560,8 +1560,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-devtools"
-version = "0.14.2"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.2#5d42b832d0e5410125aa787391befc8bf0e5f5ff"
+version = "0.14.3"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.3#eb84eec9fd1b1b6cf35c5e52a6aae0381690c490"
 dependencies = [
  "anyhow",
  "capnp",
@@ -1577,8 +1577,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-l10n"
-version = "0.14.2"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.2#5d42b832d0e5410125aa787391befc8bf0e5f5ff"
+version = "0.14.3"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.3#eb84eec9fd1b1b6cf35c5e52a6aae0381690c490"
 dependencies = [
  "anyhow",
  "fluent-bundle",
@@ -1593,8 +1593,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-l10n-build"
-version = "0.14.2"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.2#5d42b832d0e5410125aa787391befc8bf0e5f5ff"
+version = "0.14.3"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.3#eb84eec9fd1b1b6cf35c5e52a6aae0381690c490"
 dependencies = [
  "fluent-syntax",
  "proc-macro2",
@@ -1605,8 +1605,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-single-instance"
-version = "0.14.2"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.2#5d42b832d0e5410125aa787391befc8bf0e5f5ff"
+version = "0.14.3"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.3#eb84eec9fd1b1b6cf35c5e52a6aae0381690c490"
 dependencies = [
  "anyhow",
  "guinea",
@@ -1615,8 +1615,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-store"
-version = "0.22.0"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.2#5d42b832d0e5410125aa787391befc8bf0e5f5ff"
+version = "0.22.1"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.3#eb84eec9fd1b1b6cf35c5e52a6aae0381690c490"
 dependencies = [
  "amethystate",
  "anyhow",
@@ -1664,8 +1664,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-widgets"
-version = "0.14.2"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.2#5d42b832d0e5410125aa787391befc8bf0e5f5ff"
+version = "0.14.3"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.14.3#eb84eec9fd1b1b6cf35c5e52a6aae0381690c490"
 dependencies = [
  "guinea-mark",
  "tracing",
@@ -3287,6 +3287,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "uniproc-protocol"
+version = "0.14.3"
+source = "git+https://github.com/uniproc-dev/uniproc-protocol?tag=v0.14.3#978f5a116b3b960979882d3ff617f53b8c15e610"
+dependencies = [
+ "capnp",
+ "capnp-rpc",
+ "capnpc",
+]
+
+[[package]]
 name = "uniproc-windows-agent"
 version = "0.14.8"
 source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.8#eb07092fda19f9e709bbbb39e7c0d0cb23eb7ba0"
@@ -3303,7 +3313,7 @@ dependencies = [
  "parking_lot",
  "tracing",
  "uniproc-agent-kit",
- "uniproc-protocol",
+ "uniproc-protocol 0.14.2",
  "uniproc-windows-core",
  "windows 0.100.0",
 ]

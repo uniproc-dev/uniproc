@@ -69,7 +69,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_tools_card_opens_the_tools_page(h: &mut Harness) {
-        let _store = test_system::start(h);
+        test_system::start(h);
         let h = &*h;
         let mut page = mount(h);
         assert!(page.find(SystemMark::NoFavourites).is_some(), "{:#?}", page.tree());
@@ -81,7 +81,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn pinned_tools_come_first_then_the_most_opened(h: &mut Harness) {
-        let _store = test_system::start(h);
+        test_system::start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -113,7 +113,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_cross_takes_a_tool_off_the_list(h: &mut Harness) {
-        let _store = test_system::start(h);
+        test_system::start(h);
         let h = &*h;
         let mut page = mount(h);
         for tool in [SystemTool::EventViewer, SystemTool::EventViewer, SystemTool::Services] {

@@ -44,13 +44,11 @@ mod tests {
 
     use super::*;
 
-    fn start(h: &mut Harness) -> tempfile::TempDir {
-        let dir = tempfile::tempdir().unwrap();
-        h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json))
+    fn start(h: &mut Harness) {
+        h.plugin(StorePlugin::in_memory())
             .unwrap()
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
             .unwrap();
-        dir
     }
 
     fn mount(h: &Harness) -> Mounted<'_, Settings> {
@@ -71,7 +69,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_page_shows_the_defaults(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let page = mount(h);
 
@@ -87,7 +85,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn choices_are_shown_and_kept(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -117,7 +115,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_chart_unticked_here_leaves_the_pane_and_is_kept(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
         for chart in SidebarChart::ALL {
@@ -144,7 +142,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_new_interval_is_announced_once_and_inside_the_range(h: &mut Harness) {
-        let _store = start(h);
+        start(h);
         let h = &*h;
         let mut page = mount(h);
 
