@@ -31,6 +31,7 @@ pub enum ProcessesMark {
     MenuUnpin,
     MenuBackdrop,
     MenuEndTask,
+    MenuEndGroup,
     MenuSuspend,
     MenuResume,
     MenuOpenFileLocation,

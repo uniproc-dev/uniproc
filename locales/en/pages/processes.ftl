@@ -56,6 +56,7 @@ processes-menu-more-columns = More columns…
 processes-menu-pin = Pin
 processes-menu-unpin = Unpin
 processes-menu-end-task = End task
+processes-menu-end-group = End all { $count }
 processes-menu-suspend = Suspend
 processes-menu-resume = Resume
 processes-menu-open-file-location = Open file location

@@ -70,6 +70,7 @@ pub(crate) struct OpenMenu {
 pub(crate) enum MenuCommand {
     TogglePin,
     EndTask,
+    EndGroup,
     Process(ProcessCommand),
     Window { handle: isize, command: WindowCommand },
     ToggleColumn(ProcessColumn),
@@ -158,9 +159,25 @@ fn pin_lines(pinned: bool, l10n: &L10n) -> [Line; 2] {
     [pin, Line::Separator]
 }
 
-fn group_lines(leader: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
+fn group_lines(leader: &ProcessRow, members: &[ProcessRow], pinned: bool, l10n: &L10n) -> Vec<Line> {
     let mut lines = Vec::from(pin_lines(pinned, l10n));
+    lines.push(enabled_if(
+        entry(
+            ProcessesMark::MenuEndGroup,
+            icon!(prohibited).size(size::Icon).build_element(),
+            l10n.processes_menu_end_group(members.len() as i64),
+            MenuCommand::EndGroup,
+        ),
+        members.iter().any(ProcessRow::takes_actions),
+    ));
+    lines.push(Line::Separator);
     lines.extend(file_lines(leader, l10n));
+    lines
+}
+
+fn image_lines(image: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
+    let mut lines = Vec::from(pin_lines(pinned, l10n));
+    lines.extend(file_lines(image, l10n));
     lines
 }
 
@@ -304,6 +321,7 @@ pub(crate) struct MenuInputs<'a> {
     pub(crate) l10n: &'a L10n,
     pub(crate) palette: Palette,
     pub(crate) pinned: bool,
+    pub(crate) members: &'a [ProcessRow],
     pub(crate) columns: Vec<(ProcessColumn, bool)>,
     pub(crate) on_command: Callback<MenuCommand>,
     pub(crate) on_dismiss: Callback<()>,
@@ -314,15 +332,16 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
         l10n,
         palette,
         pinned,
+        members,
         columns,
         on_command,
         on_dismiss,
     } = inputs;
     let lines = match &menu.target {
         MenuTarget::Process(row) => process_lines(row, pinned, l10n),
-        MenuTarget::Group { leader } => group_lines(leader, pinned, l10n),
+        MenuTarget::Group { leader } => group_lines(leader, members, pinned, l10n),
         MenuTarget::Window { window } => window_lines(window.handle, l10n),
-        MenuTarget::Absent { image } => group_lines(image, pinned, l10n),
+        MenuTarget::Absent { image } => image_lines(image, pinned, l10n),
         MenuTarget::Columns => column_lines(&columns, l10n),
     };
 

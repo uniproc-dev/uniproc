@@ -921,6 +921,10 @@ fn selected_rows(sections: &[Section], selection: Option<Selection>) -> Vec<Proc
     Vec::new()
 }
 
+pub(crate) fn group_members(sections: &[Section], pid: u32) -> Vec<ProcessRow> {
+    selected_rows(sections, Some(Selection::Group(pid)))
+}
+
 #[derive(Default)]
 pub(crate) struct Held {
     selection: Option<Selection>,

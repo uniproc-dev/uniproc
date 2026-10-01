@@ -9,7 +9,7 @@ use app_contracts::features::agents::{
 use app_contracts::features::processes::{
     Deselect, DismissFailure, GpuEngineLabel, HostedService, MachineSummary, Owner, ProcessCategory, ProcessColumn, ProcessCommand,
     ProcessDetails, ProcessRow, ProcessStatus, ProcessesMsg, ProcessesState, RunImageCommand, RunProcessCommand,
-    RunWindowCommand, Select, RunNewTask, SelectLinux, Sort, Terminate, WslEnvironment,
+    RunWindowCommand, Select, RunNewTask, SelectLinux, Sort, Terminate, TerminateGroup, WslEnvironment,
 };
 use app_contracts::features::window::PressedAway;
 use guinea::prelude::*;
@@ -283,7 +283,7 @@ fn details(p: &WindowsProcessStats, gpus: &[WindowsGpu]) -> ProcessDetails {
 
 actor! {
     ProcessesActor {
-        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway, Woke, Acted, DismissFailure }
+        handlers { Sort, Select, SelectLinux, Deselect, Terminate, TerminateGroup, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway, Woke, Acted, DismissFailure }
     }
 }
 
@@ -417,6 +417,18 @@ fn terminate(this: &mut ProcessesActor, _msg: Terminate, cx: Cx) {
         return;
     }
     act(WindowsAction::Kill { pid: row.pid }, row.display_name.clone(), &cx.detach());
+}
+
+#[handler]
+fn terminate_group(this: &mut ProcessesActor, TerminateGroup(pids): TerminateGroup, cx: Cx) {
+    let cx = cx.detach();
+    for row in this.rows.iter().filter(|row| pids.contains(&row.pid)) {
+        if row.takes_actions() {
+            act(WindowsAction::Kill { pid: row.pid }, row.display_name.clone(), &cx);
+        } else {
+            tracing::debug!(pid = row.pid, "a kernel process or the monitor itself is not ended with its group");
+        }
+    }
 }
 
 #[handler]

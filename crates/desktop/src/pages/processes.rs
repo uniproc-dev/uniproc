@@ -80,7 +80,7 @@ mod tests {
 
     use app_contracts::features::agents::{
         ActionOutcome, AgentConnectionState, EnvironmentKind, LinuxEnvironmentInfo, LinuxProcessStats, RemoteScan,
-        RemoteScanResult, SignatureStatus, WindowsActionRequest, WindowsMachineStats, WindowsProcessStats, WindowsReport,
+        RemoteScanResult, SignatureStatus, WindowsAction, WindowsActionRequest, WindowsMachineStats, WindowsProcessStats, WindowsReport,
         WindowsReportMessage, WindowsServiceState, WindowsServiceStats,
     };
     use std::time::Duration;
@@ -1075,6 +1075,38 @@ mod tests {
             assert!(page.find(per_process).is_none(), "{per_process:?}");
         }
         assert!(page.find(ProcessesMark::MenuSearchOnline).is_some());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_group_menu_ends_every_member(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        let asked = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let heard = asked.clone();
+        let _watch = GlobalEventBus::subscribe_fn(move |RpcRequest { payload, .. }: RpcRequest<WindowsActionRequest>| {
+            heard.borrow_mut().push(payload.0)
+        });
+
+        right_click(&mut page, "chrome.exe (3)");
+        let end = page.find(ProcessesMark::MenuEndGroup).expect("the group menu ends the group");
+        let mut label = Vec::new();
+        texts(&page.at(end).tree(), &mut label);
+        assert_eq!(label, ["End all 3"]);
+        page.click(ProcessesMark::MenuEndGroup).settle();
+        page.settle();
+
+        let mut killed: Vec<u32> = asked
+            .borrow()
+            .iter()
+            .map(|action| match action {
+                WindowsAction::Kill { pid } => *pid,
+                other => panic!("{other:?}"),
+            })
+            .collect();
+        killed.sort_unstable();
+        assert_eq!(killed, CHROME);
+        assert!(!menu_open(&page));
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

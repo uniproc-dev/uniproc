@@ -9,7 +9,7 @@ use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::processes::{
     ColumnConfig, Deselect, DismissFailure, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState, RunNewTask,
     RunProcessCommand,
-    RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate,
+    RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate, TerminateGroup,
 };
 use app_contracts::features::settings::ByteUnits;
 use guicons::icon;
@@ -26,7 +26,7 @@ use super::components::column_layout::ColumnLayout;
 use super::components::columns::{build_columns, ColumnInputs, GroupByType, NameCellActions};
 use super::components::context_menu::{context_menu, MenuCommand, MenuInputs, MenuTarget, OpenMenu};
 use super::components::grouping::{
-    environment_key, flatten_for_display, highlight, keep_group_place, Child, DisplayRow, Grouping, GroupsCache, Pins,
+    environment_key, flatten_for_display, group_members, highlight, keep_group_place, Child, DisplayRow, Grouping, GroupsCache, Pins,
     Held, Order, SectionId, SectionOrder, Selection, ViewState, WslRow,
 };
 use super::components::overlay::disconnected_overlay;
@@ -500,7 +500,7 @@ impl ProcessesPage {
         let exited_rows = self.held.borrow().exited(selection, rows);
         let kept = self.held.borrow().section(selection);
         let exited: HashSet<u32> = exited_rows.iter().map(|row| row.pid).collect();
-        let display_rows = {
+        let (display_rows, members) = {
             let mut groups = self.groups.borrow_mut();
             let sections = groups.get(
                 rows,
@@ -533,7 +533,11 @@ impl ProcessesPage {
             if let Some(grab) = &self.grab {
                 section_drag::mark(&mut display_rows, grab, placement);
             }
-            display_rows
+            let members = match self.menu.as_ref().map(|menu| &menu.target) {
+                Some(MenuTarget::Group { leader }) => group_members(sections, leader.pid),
+                _ => Vec::new(),
+            };
+            (display_rows, members)
         };
         if let Some(Selection::Group(pid)) = selection {
             self.selected_group_size.set(
@@ -624,10 +628,12 @@ impl ProcessesPage {
                 .target
                 .image()
                 .map(|image| (image.exe_path.to_string(), image.name.to_string()));
+            let group: Vec<u32> = members.iter().map(|row| row.pid).collect();
             context_menu(menu, MenuInputs {
                 l10n,
                 palette,
                 pinned,
+                members: &members,
                 columns: self.layout.columns().iter().map(|c| (c.column, c.visible)).collect(),
                 on_command: Callback::new(move |command: MenuCommand| {
                     match command {
@@ -637,6 +643,7 @@ impl ProcessesPage {
                             }
                         }
                         MenuCommand::EndTask => command_dispatch.emit(Terminate),
+                        MenuCommand::EndGroup => command_dispatch.emit(TerminateGroup(group.clone())),
                         MenuCommand::Process(command) => match image.clone() {
                             Some((exe_path, name)) => command_dispatch.emit(RunImageCommand { command, exe_path, name }),
                             None => command_dispatch.emit(RunProcessCommand(command)),

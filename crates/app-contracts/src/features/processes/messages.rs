@@ -47,6 +47,10 @@ pub struct Terminate;
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
+pub struct TerminateGroup(pub Vec<u32>);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
 pub struct RunNewTask;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
