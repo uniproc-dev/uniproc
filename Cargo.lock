@@ -176,7 +176,7 @@ checksum = "bb531853791a215d7c62a30daf0dde835f381ab5de4589cfe7c649d2cbe92bd6"
 dependencies = [
  "addr2line",
  "cfg-if",
- "libc 0.2.189",
+ "libc",
  "miniz_oxide 0.8.9",
  "object",
  "rustc-demangle",
@@ -377,7 +377,7 @@ checksum = "b51a2c35873865376ed4cdb6cfeb602b6cf569815f017ddd7bd8f86ad49b34c7"
 dependencies = [
  "arrayvec",
  "bytes",
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -395,7 +395,7 @@ dependencies = [
  "futures-util",
  "io-uring",
  "io_uring_buf_ring",
- "libc 0.2.189",
+ "libc",
  "once_cell",
  "paste",
  "pin-project-lite",
@@ -420,7 +420,7 @@ dependencies = [
  "compio-driver",
  "compio-io",
  "compio-runtime",
- "libc 0.2.189",
+ "libc",
  "os_pipe",
  "pin-project-lite",
  "widestring",
@@ -472,7 +472,7 @@ dependencies = [
  "compio-io",
  "compio-runtime",
  "either",
- "libc 0.2.189",
+ "libc",
  "once_cell",
  "socket2",
  "widestring",
@@ -508,7 +508,7 @@ dependencies = [
  "compio-runtime",
  "flume 0.12.0",
  "futures-util",
- "libc 0.2.189",
+ "libc",
  "quinn-proto",
  "rustc-hash 2.1.3",
  "rustls",
@@ -531,7 +531,7 @@ dependencies = [
  "core_affinity",
  "crossbeam-queue",
  "futures-util",
- "libc 0.2.189",
+ "libc",
  "once_cell",
  "pin-project-lite",
  "scoped-tls",
@@ -579,7 +579,7 @@ version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a034b3a7b624016c6e13f5df875747cc25f884156aad2abd12b6c46797971342"
 dependencies = [
- "libc 0.2.189",
+ "libc",
  "num_cpus",
  "winapi",
 ]
@@ -590,7 +590,7 @@ version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280"
 dependencies = [
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -599,7 +599,7 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566"
 dependencies = [
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -880,7 +880,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e01a3366d27ee9890022452ee61b2b63a67e6f13f58900b651ff5665f0bb1fab"
 dependencies = [
- "libc 0.2.189",
+ "libc",
  "option-ext",
  "redox_users",
  "windows-sys 0.61.2",
@@ -911,7 +911,7 @@ dependencies = [
  "futures",
  "guinea",
  "guinea-widgets",
- "ogurpchik 0.7.1",
+ "ogurpchik",
  "serde",
  "tokio",
  "tracing",
@@ -1007,7 +1007,7 @@ version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
- "libc 0.2.189",
+ "libc",
  "windows-sys 0.61.2",
 ]
 
@@ -1318,7 +1318,7 @@ checksum = "54ade96dc9003043bce7c035c85a9df5a858bfb2039c5a2e6fdf00f324f6c551"
 dependencies = [
  "cc",
  "cfg-if",
- "libc 0.2.189",
+ "libc",
  "log",
  "rustversion",
  "windows-link 0.1.3",
@@ -1343,7 +1343,7 @@ checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
 dependencies = [
  "cfg-if",
  "js-sys",
- "libc 0.2.189",
+ "libc",
  "wasi",
  "wasm-bindgen",
 ]
@@ -1355,7 +1355,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
 dependencies = [
  "cfg-if",
- "libc 0.2.189",
+ "libc",
  "r-efi 5.3.0",
  "wasip2",
 ]
@@ -1368,7 +1368,7 @@ checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
 dependencies = [
  "cfg-if",
  "js-sys",
- "libc 0.2.189",
+ "libc",
  "r-efi 6.0.0",
  "rand_core 0.10.1",
  "wasm-bindgen",
@@ -1529,7 +1529,7 @@ dependencies = [
  "capnp",
  "capnp-rpc",
  "getrandom 0.4.3",
- "ogurpchik 0.7.1",
+ "ogurpchik",
  "serde",
  "serde_json",
 ]
@@ -1586,7 +1586,7 @@ dependencies = [
  "guinea-core",
  "guinea-devtools-protocol",
  "guinea-plugin-single-instance",
- "ogurpchik 0.7.1",
+ "ogurpchik",
  "tracing",
 ]
 
@@ -1903,7 +1903,7 @@ checksum = "4cc00ea907cab49550b7da656f80ebb97be1b997d931fbcd28d39734e17ce592"
 dependencies = [
  "bitflags",
  "inotify-sys",
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -1912,7 +1912,7 @@ version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c033f80b2c113cdf91ab7a33faa9cbc014726dcad99880c8609af2a370edf37d"
 dependencies = [
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -1951,7 +1951,7 @@ checksum = "ed3bd0ecfbb87805f538bb7b32e5239ca0763890c623e349860ecba69469f2bb"
 dependencies = [
  "bitflags",
  "cfg-if",
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -1989,7 +1989,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d763e5b24120b4ddf50de6c92308156765aabfbbccebf401da7cff2d70a41ea"
 dependencies = [
  "kqueue-sys",
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -1999,7 +1999,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07293a4e297ac234359b510362495713f75ea345d5307140414f20c69ffeb087"
 dependencies = [
  "bitflags",
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -2015,18 +2015,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
-name = "libc"
-version = "1.0.0-alpha.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d0f24f33af482526a4e3f9b47f0abb2c6377a1713c8aa4a8106994689a4cfa5"
-
-[[package]]
 name = "libredox"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6480ccc157a1389bb2e4891b24751b0f798ba640d22386f23143fbcc89da195a"
 dependencies = [
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -2123,7 +2117,7 @@ version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b18443e9c262bfe8fa82f51666e2642c53393f7e5c27b3e1aeab922cff5b9d8"
 dependencies = [
- "libc 0.2.189",
+ "libc",
  "log",
  "wasi",
  "windows-sys 0.61.2",
@@ -2138,7 +2132,7 @@ dependencies = [
  "bitflags",
  "inotify",
  "kqueue",
- "libc 0.2.189",
+ "libc",
  "log",
  "mio",
  "notify-types",
@@ -2192,7 +2186,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
 dependencies = [
  "hermit-abi",
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -2210,7 +2204,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "583300ad934cba24ff5292aee751ecc070f7ca6b39a574cc21b7b5e588e06a0b"
 dependencies = [
- "libc 0.2.189",
+ "libc",
  "objc2-core-foundation",
 ]
 
@@ -2221,35 +2215,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "ogurpchik"
-version = "0.7.0"
-source = "git+https://github.com/uniproc-dev/oguRPChik?tag=v0.7.0#113ecb9c4f04efc1fd5af6b08e28b7a96f4ce67c"
-dependencies = [
- "base64",
- "binrw",
- "capnp",
- "capnp-rpc",
- "compio",
- "ed25519-dalek",
- "error-stack",
- "futures",
- "getrandom 0.4.3",
- "hmac",
- "libc 1.0.0-alpha.4",
- "rustix",
- "serde",
- "serde_json",
- "sha2",
- "socket2",
- "tracing",
- "uuid",
- "widestring",
- "winapi",
- "windows 0.100.0",
- "winreg",
 ]
 
 [[package]]
@@ -2267,7 +2232,7 @@ dependencies = [
  "futures",
  "getrandom 0.4.3",
  "hmac",
- "libc 0.2.189",
+ "libc",
  "rustix",
  "serde",
  "serde_json",
@@ -2299,7 +2264,7 @@ version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
- "libc 0.2.189",
+ "libc",
  "windows-sys 0.61.2",
 ]
 
@@ -2326,7 +2291,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
 dependencies = [
  "cfg-if",
- "libc 0.2.189",
+ "libc",
  "redox_syscall",
  "smallvec",
  "windows-link 0.2.1",
@@ -2545,7 +2510,7 @@ version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb338a6c67830a61bed824b78c2bb034ab1ff401a20616bd7957524f4fdc2f22"
 dependencies = [
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -2593,7 +2558,7 @@ dependencies = [
  "cc",
  "cfg-if",
  "getrandom 0.2.17",
- "libc 0.2.189",
+ "libc",
  "untrusted",
  "windows-sys 0.52.0",
 ]
@@ -2668,7 +2633,7 @@ checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
 dependencies = [
  "bitflags",
  "errno",
- "libc 0.2.189",
+ "libc",
  "linux-raw-sys",
  "windows-sys 0.61.2",
 ]
@@ -2834,7 +2799,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
 dependencies = [
  "errno",
- "libc 0.2.189",
+ "libc",
 ]
 
 [[package]]
@@ -2880,7 +2845,7 @@ version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
- "libc 0.2.189",
+ "libc",
  "windows-sys 0.61.2",
 ]
 
@@ -3042,7 +3007,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
 dependencies = [
  "bytes",
- "libc 0.2.189",
+ "libc",
  "mio",
  "parking_lot",
  "pin-project-lite",
@@ -3339,7 +3304,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-agent"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.2#d564e10d340c79dffc725adb57ea750018038d20"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.4#7cc485da0a4977a16cfa1ee9e098d2cfd5abf55e"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -3349,7 +3314,7 @@ dependencies = [
  "crossbeam-channel",
  "futures",
  "ntapi",
- "ogurpchik 0.7.0",
+ "ogurpchik",
  "parking_lot",
  "tracing",
  "uniproc-agent-kit",
@@ -3361,7 +3326,7 @@ dependencies = [
 [[package]]
 name = "uniproc-windows-core"
 version = "0.1.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.2#d564e10d340c79dffc725adb57ea750018038d20"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.4#7cc485da0a4977a16cfa1ee9e098d2cfd5abf55e"
 dependencies = [
  "amethystate",
  "anyhow",
