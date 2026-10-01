@@ -95,7 +95,7 @@ mod tests {
     };
     use guinea::prelude::GlobalEventBus;
     use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
-    use domain::features::agents::providers::windows::WINDOWS_AGENT_SERVICE;
+    use domain::features::agents::providers::windows::{SERVICE_DISPLAY_NAME, SERVICE_NAME};
     use domain::features::processes::{ProcessesDeps, ProcessesFeature};
     use domain::features::settings::SettingsFeature;
     use app_contracts::features::settings::{ByteUnits, SetByteUnits};
@@ -1155,7 +1155,7 @@ mod tests {
             processes,
             services: vec![WindowsServiceStats {
                 pid: SERVICE,
-                ..service(WINDOWS_AGENT_SERVICE, "Uniproc Process Monitor")
+                ..service(SERVICE_NAME, SERVICE_DISPLAY_NAME)
             }],
             ..Default::default()
         })))

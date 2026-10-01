@@ -14,7 +14,7 @@ use app_contracts::features::processes::{
 use app_contracts::features::window::PressedAway;
 use guinea::prelude::*;
 use tracing::instrument;
-use uniproc_protocol::WINDOWS_AGENT_SERVICE;
+use uniproc_windows_agent::api::SERVICE_NAME;
 use uuid::Uuid;
 
 use super::rates::IoRates;
@@ -193,7 +193,7 @@ pub fn rows_from_report(report: &WindowsReport, windows: &AppWindows) -> Vec<Pro
     let service = report
         .services
         .iter()
-        .find(|s| s.pid != 0 && *s.name == *WINDOWS_AGENT_SERVICE)
+        .find(|s| s.pid != 0 && *s.name == *SERVICE_NAME)
         .map(|s| s.pid);
     let is_monitor = |pid: u32| pid == std::process::id() || Some(pid) == service;
 

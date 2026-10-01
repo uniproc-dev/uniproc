@@ -13,11 +13,10 @@ use guinea::ratelimit;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::instrument;
-pub use uniproc_protocol::WINDOWS_AGENT_SERVICE;
+use uniproc_protocol::WINDOWS_AGENT_SERVICE;
 use uniproc_windows_agent::agent::Agent;
+pub use uniproc_windows_agent::api::{SERVICE_DISPLAY_NAME, SERVICE_NAME};
 use uniproc_windows_agent::remote::Remote;
-
-pub const AGENT_SERVICE_DISPLAY_NAME: &str = "Uniproc Process Monitor";
 
 fn agent_service() -> String {
     #[cfg(debug_assertions)]

@@ -4,7 +4,7 @@ use app_contracts::features::metrics::MetricsState;
 use app_contracts::features::settings::{AppTheme, SettingsState, ShowSidebarChart};
 use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarState};
 use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
-use domain::features::agents::providers::windows::AGENT_SERVICE_DISPLAY_NAME;
+use domain::features::agents::providers::windows::SERVICE_DISPLAY_NAME;
 use domain::features::metrics::MetricsFeature;
 use domain::features::settings::SettingsFeature;
 use domain::features::sidebar::SidebarFeature;
@@ -40,8 +40,8 @@ pub(crate) fn splash(
         in_process_offered: link.in_process_offered,
         in_process: link.in_process,
         service_trouble: match link.windows {
-            AgentConnectionState::GaveUp => Some(ui::ServiceTrouble::Unreachable(AGENT_SERVICE_DISPLAY_NAME)),
-            AgentConnectionState::Outdated => Some(ui::ServiceTrouble::Outdated(AGENT_SERVICE_DISPLAY_NAME)),
+            AgentConnectionState::GaveUp => Some(ui::ServiceTrouble::Unreachable(SERVICE_DISPLAY_NAME)),
+            AgentConnectionState::Outdated => Some(ui::ServiceTrouble::Outdated(SERVICE_DISPLAY_NAME)),
             _ => None,
         },
         on_start_in_process: Callback::new(move |()| dispatch.emit(StartInProcess)),
@@ -317,7 +317,7 @@ mod tests {
         let line = unreachable_line(&page).unwrap_or_else(|| panic!("{:#?}", page.tree()));
         assert_eq!(
             line,
-            format!("Can’t connect to the “\u{2068}{AGENT_SERVICE_DISPLAY_NAME}\u{2069}” service")
+            format!("Can’t connect to the “\u{2068}{SERVICE_DISPLAY_NAME}\u{2069}” service")
         );
 
         after(h, &mut page, 3);
@@ -344,7 +344,7 @@ mod tests {
             .unwrap_or_else(|| panic!("{:#?}", page.tree()));
         assert_eq!(
             line,
-            format!("The “\u{2068}{AGENT_SERVICE_DISPLAY_NAME}\u{2069}” service is older than this Uniproc. Update it.")
+            format!("The “\u{2068}{SERVICE_DISPLAY_NAME}\u{2069}” service is older than this Uniproc. Update it.")
         );
         assert!(page.find(ui::SplashMark::Unreachable).is_none(), "it answered; it is not unreachable");
         assert!(test_agent::connects() >= 2, "still tried: {}", test_agent::connects());
