@@ -9,7 +9,7 @@ use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::processes::{
     ColumnConfig, Deselect, DismissFailure, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState, RunNewTask,
     RunProcessCommand,
-    RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate, TerminateGroup,
+    RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate, GroupCommand, RunGroupCommand,
 };
 use app_contracts::features::settings::Units;
 use guicons::icon;
@@ -72,6 +72,7 @@ pub enum ProcessesMsg {
     SelectGroup(Option<u32>),
     MenuAnchor { x: f64, y: f64 },
     MenuFor(Option<MenuTarget>),
+    MenuPriority,
     MenuDismiss,
     ColumnMenu,
     ToggleColumn(ProcessColumn),
@@ -306,11 +307,16 @@ impl ProcessesPage {
             ProcessesMsg::SelectGroup(pid) => self.selected_group = pid,
             ProcessesMsg::MenuAnchor { x, y } => {
                 self.menu_anchor = Some((x, y));
-                self.menu = self.pending_menu.take().map(|target| OpenMenu { x, y, target });
+                self.menu = self.pending_menu.take().map(|target| OpenMenu::at(x, y, target));
             }
             ProcessesMsg::MenuFor(target) => {
                 if let Some((x, y)) = self.menu_anchor.take() {
-                    self.menu = target.map(|target| OpenMenu { x, y, target });
+                    self.menu = target.map(|target| OpenMenu::at(x, y, target));
+                }
+            }
+            ProcessesMsg::MenuPriority => {
+                if let Some(menu) = &mut self.menu {
+                    menu.priority = true;
                 }
             }
             ProcessesMsg::MenuDismiss => {
@@ -387,7 +393,10 @@ impl ProcessesPage {
         };
         let terminate = dispatch.clone();
         let end = move || match &tree {
-            Some(pids) => terminate.emit(TerminateGroup(pids.clone())),
+            Some(pids) => terminate.emit(RunGroupCommand {
+                pids: pids.clone(),
+                command: GroupCommand::End,
+            }),
             None => terminate.emit(Terminate),
         };
         let run_new_task = dispatch.clone();
@@ -449,16 +458,10 @@ impl ProcessesPage {
                 .children((body, disconnected_overlay(l10n, palette, state.agent_state)))
         };
 
-        let deselect = dispatch.clone();
-        let blank = Callback::new(move |()| {
-            let _ = forward.call(ProcessesMsg::SelectGroup(None));
-            deselect.emit(Deselect);
-        });
-
         let dismiss = dispatch.clone();
         Grid::new()
             .children((
-                page_frame(header, body, Self::status(state, l10n, palette), palette, Some(blank)),
+                page_frame(header, body, Self::status(state, l10n, palette), palette),
                 action_failure(state.failure.as_ref(), l10n, move || dismiss.emit(DismissFailure)),
             ))
             .into()
@@ -660,7 +663,14 @@ impl ProcessesPage {
                             }
                         }
                         MenuCommand::EndTask => command_dispatch.emit(Terminate),
-                        MenuCommand::EndGroup => command_dispatch.emit(TerminateGroup(group.clone())),
+                        MenuCommand::Group(command) => command_dispatch.emit(RunGroupCommand {
+                            pids: group.clone(),
+                            command,
+                        }),
+                        MenuCommand::ShowPriority => {
+                            let _ = command_forward.call(ProcessesMsg::MenuPriority);
+                            return;
+                        }
                         MenuCommand::Process(command) => match image.clone() {
                             Some((exe_path, name)) => command_dispatch.emit(RunImageCommand { command, exe_path, name }),
                             None => command_dispatch.emit(RunProcessCommand(command)),

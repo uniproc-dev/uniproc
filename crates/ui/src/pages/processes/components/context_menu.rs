@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
+use app_contracts::features::agents::ProcessPriority;
 use app_contracts::features::processes::{
-    PinnedProcess, ProcessColumn, ProcessCommand, ProcessRow, ProcessWindow, WindowCommand,
+    GroupCommand, PinnedProcess, ProcessColumn, ProcessCommand, ProcessRow, ProcessStatus, ProcessWindow,
+    WindowCommand,
 };
 use guicons::icon;
 use windows_reactor::{
@@ -64,13 +66,26 @@ pub(crate) struct OpenMenu {
     pub(crate) x: f64,
     pub(crate) y: f64,
     pub(crate) target: MenuTarget,
+    pub(crate) priority: bool,
+}
+
+impl OpenMenu {
+    pub(crate) fn at(x: f64, y: f64, target: MenuTarget) -> Self {
+        Self {
+            x,
+            y,
+            target,
+            priority: false,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum MenuCommand {
     TogglePin,
     EndTask,
-    EndGroup,
+    Group(GroupCommand),
+    ShowPriority,
     Process(ProcessCommand),
     Window { handle: isize, command: WindowCommand },
     ToggleColumn(ProcessColumn),
@@ -159,17 +174,39 @@ fn pin_lines(pinned: bool, l10n: &L10n) -> [Line; 2] {
     [pin, Line::Separator]
 }
 
+fn is_suspended(row: &ProcessRow) -> bool {
+    row.details.status == ProcessStatus::Suspended
+}
+
 fn group_lines(leader: &ProcessRow, members: &[ProcessRow], pinned: bool, l10n: &L10n) -> Vec<Line> {
+    let count = members.len() as i64;
+    let acting: Vec<&ProcessRow> = members.iter().filter(|row| row.takes_actions()).collect();
     let mut lines = Vec::from(pin_lines(pinned, l10n));
     lines.push(enabled_if(
         entry(
             ProcessesMark::MenuEndGroup,
             icon!(prohibited).size(size::Icon).build_element(),
-            l10n.processes_menu_end_group(members.len() as i64),
-            MenuCommand::EndGroup,
+            l10n.processes_menu_end_group(count),
+            MenuCommand::Group(GroupCommand::End),
         ),
-        members.iter().any(ProcessRow::takes_actions),
+        !acting.is_empty(),
     ));
+    if acting.iter().any(|row| !is_suspended(row)) {
+        lines.push(entry(
+            ProcessesMark::MenuSuspendGroup,
+            icon!(pause).size(size::Icon).build_element(),
+            l10n.processes_menu_suspend_group(count),
+            MenuCommand::Group(GroupCommand::Suspend),
+        ));
+    }
+    if acting.iter().any(|row| is_suspended(row)) {
+        lines.push(entry(
+            ProcessesMark::MenuResumeGroup,
+            icon!(play).size(size::Icon).build_element(),
+            l10n.processes_menu_resume_group(count),
+            MenuCommand::Group(GroupCommand::Resume),
+        ));
+    }
     lines.push(Line::Separator);
     lines.extend(file_lines(leader, l10n));
     lines
@@ -183,6 +220,21 @@ fn image_lines(image: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
 
 fn process_lines(row: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
     let actions = row.takes_actions();
+    let pause = if is_suspended(row) {
+        entry(
+            ProcessesMark::MenuResume,
+            icon!(play).size(size::Icon).build_element(),
+            l10n.processes_menu_resume(),
+            MenuCommand::Process(ProcessCommand::Resume),
+        )
+    } else {
+        entry(
+            ProcessesMark::MenuSuspend,
+            icon!(pause).size(size::Icon).build_element(),
+            l10n.processes_menu_suspend(),
+            MenuCommand::Process(ProcessCommand::Suspend),
+        )
+    };
     let mut lines = Vec::from(pin_lines(pinned, l10n));
     lines.extend(
         [
@@ -192,17 +244,12 @@ fn process_lines(row: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
                 l10n.processes_menu_end_task(),
                 MenuCommand::EndTask,
             ),
+            pause,
             entry(
-                ProcessesMark::MenuSuspend,
-                icon!(pause).size(size::Icon).build_element(),
-                l10n.processes_menu_suspend(),
-                MenuCommand::Process(ProcessCommand::Suspend),
-            ),
-            entry(
-                ProcessesMark::MenuResume,
-                icon!(play).size(size::Icon).build_element(),
-                l10n.processes_menu_resume(),
-                MenuCommand::Process(ProcessCommand::Resume),
+                ProcessesMark::MenuPriority,
+                icon!(top_speed).size(size::Icon).build_element(),
+                l10n.processes_menu_priority(),
+                MenuCommand::ShowPriority,
             ),
         ]
         .map(|line| enabled_if(line, actions)),
@@ -210,6 +257,35 @@ fn process_lines(row: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
     lines.push(Line::Separator);
     lines.extend(file_lines(row, l10n));
     lines
+}
+
+fn priority_lines(current: Option<ProcessPriority>, l10n: &L10n) -> Vec<Line> {
+    [
+        (ProcessPriority::Realtime, ProcessesMark::MenuPriorityRealtime, l10n.processes_menu_priority_realtime()),
+        (ProcessPriority::High, ProcessesMark::MenuPriorityHigh, l10n.processes_menu_priority_high()),
+        (
+            ProcessPriority::AboveNormal,
+            ProcessesMark::MenuPriorityAboveNormal,
+            l10n.processes_menu_priority_above_normal(),
+        ),
+        (ProcessPriority::Normal, ProcessesMark::MenuPriorityNormal, l10n.processes_menu_priority_normal()),
+        (
+            ProcessPriority::BelowNormal,
+            ProcessesMark::MenuPriorityBelowNormal,
+            l10n.processes_menu_priority_below_normal(),
+        ),
+        (ProcessPriority::Idle, ProcessesMark::MenuPriorityLow, l10n.processes_menu_priority_low()),
+    ]
+    .into_iter()
+    .map(|(priority, mark, label)| {
+        let icon = if current == Some(priority) {
+            icon!(checkmark).size(size::Icon).build_element()
+        } else {
+            Border::new().width(size::Icon).height(size::Icon).into()
+        };
+        entry(mark, icon, label, MenuCommand::Process(ProcessCommand::Priority(priority)))
+    })
+    .collect()
 }
 
 fn window_lines(handle: isize, l10n: &L10n) -> Vec<Line> {
@@ -338,6 +414,7 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
         on_dismiss,
     } = inputs;
     let lines = match &menu.target {
+        MenuTarget::Process(row) if menu.priority => priority_lines(row.details.priority, l10n),
         MenuTarget::Process(row) => process_lines(row, pinned, l10n),
         MenuTarget::Group { leader } => group_lines(leader, members, pinned, l10n),
         MenuTarget::Window { window } => window_lines(window.handle, l10n),

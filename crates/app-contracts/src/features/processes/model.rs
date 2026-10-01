@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::features::agents::{Architecture, EnvironmentKind, Isolation};
+use crate::features::agents::{Architecture, EnvironmentKind, Isolation, ProcessPriority};
 use crate::ids::ids;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -168,6 +168,7 @@ pub struct GpuEngineLabel {
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct ProcessDetails {
     pub status: ProcessStatus,
+    pub priority: Option<ProcessPriority>,
     pub publisher: Arc<str>,
     pub user: Arc<str>,
     pub command_line: Arc<str>,

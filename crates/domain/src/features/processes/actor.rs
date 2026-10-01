@@ -9,7 +9,7 @@ use app_contracts::features::agents::{
 use app_contracts::features::processes::{
     Deselect, DismissFailure, GpuEngineLabel, HostedService, MachineSummary, Owner, ProcessCategory, ProcessColumn, ProcessCommand,
     ProcessDetails, ProcessRow, ProcessStatus, ProcessesMsg, ProcessesState, RunImageCommand, RunProcessCommand,
-    RunWindowCommand, Select, RunNewTask, SelectLinux, Sort, Terminate, TerminateGroup, WslEnvironment,
+    RunWindowCommand, Select, RunNewTask, SelectLinux, Sort, Terminate, GroupCommand, RunGroupCommand, WslEnvironment,
 };
 use app_contracts::features::window::PressedAway;
 use guinea::prelude::*;
@@ -268,6 +268,7 @@ fn gpu_engine(engine: GpuEngineId, gpus: &[WindowsGpu]) -> Option<GpuEngineLabel
 fn details(p: &WindowsProcessStats, gpus: &[WindowsGpu]) -> ProcessDetails {
     ProcessDetails {
         status: status(&p.state),
+        priority: p.state.base_priority,
         publisher: p.publisher.clone(),
         user: p.user.clone(),
         command_line: p.command_line.clone(),
@@ -283,7 +284,7 @@ fn details(p: &WindowsProcessStats, gpus: &[WindowsGpu]) -> ProcessDetails {
 
 actor! {
     ProcessesActor {
-        handlers { Sort, Select, SelectLinux, Deselect, Terminate, TerminateGroup, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway, Woke, Acted, DismissFailure }
+        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunGroupCommand, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, RemoteScanResult, PressedAway, Woke, Acted, DismissFailure }
     }
 }
 
@@ -420,14 +421,20 @@ fn terminate(this: &mut ProcessesActor, _msg: Terminate, cx: Cx) {
 }
 
 #[handler]
-fn terminate_group(this: &mut ProcessesActor, TerminateGroup(pids): TerminateGroup, cx: Cx) {
+fn run_group_command(this: &mut ProcessesActor, RunGroupCommand { pids, command }: RunGroupCommand, cx: Cx) {
     let cx = cx.detach();
     for row in this.rows.iter().filter(|row| pids.contains(&row.pid)) {
-        if row.takes_actions() {
-            act(WindowsAction::Kill { pid: row.pid }, row.display_name.clone(), &cx);
-        } else {
-            tracing::debug!(pid = row.pid, "a kernel process or the monitor itself is not ended with its group");
+        let pid = row.pid;
+        if !row.takes_actions() {
+            tracing::debug!(pid, ?command, "a kernel process or the monitor itself is left out of its group");
+            continue;
         }
+        let action = match command {
+            GroupCommand::End => WindowsAction::Kill { pid },
+            GroupCommand::Suspend => WindowsAction::Suspend { pid },
+            GroupCommand::Resume => WindowsAction::Resume { pid },
+        };
+        act(action, row.display_name.clone(), &cx);
     }
 }
 
@@ -440,13 +447,14 @@ fn run_process_command(this: &mut ProcessesActor, RunProcessCommand(command): Ru
     let action = match command {
         ProcessCommand::Suspend => Some(WindowsAction::Suspend { pid }),
         ProcessCommand::Resume => Some(WindowsAction::Resume { pid }),
-        _ => None,
+        ProcessCommand::Priority(priority) => Some(WindowsAction::SetPriority { pid, priority }),
+        ProcessCommand::OpenFileLocation | ProcessCommand::Properties | ProcessCommand::SearchOnline => None,
     };
     if let Some(action) = action {
         if row.takes_actions() {
             act(action, row.display_name.clone(), &cx.detach());
         } else {
-            tracing::debug!(pid, "a kernel process or the monitor itself is not suspended or resumed");
+            tracing::debug!(pid, ?command, "a kernel process or the monitor itself is left alone");
         }
         return;
     }

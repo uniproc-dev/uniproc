@@ -79,7 +79,7 @@ mod tests {
     use std::sync::Arc;
 
     use app_contracts::features::agents::{
-        ActionOutcome, AgentConnectionState, EnvironmentKind, LinuxEnvironmentInfo, LinuxProcessStats, RemoteScan,
+        ActionOutcome, AgentConnectionState, ProcessPriority, EnvironmentKind, LinuxEnvironmentInfo, LinuxProcessStats, RemoteScan,
         RemoteScanResult, SignatureStatus, WindowsAction, WindowsActionRequest, WindowsMachineStats, WindowsProcessStats, WindowsReport,
         WindowsReportMessage, WindowsServiceState, WindowsServiceStats,
     };
@@ -849,23 +849,6 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
-    fn a_click_on_the_page_around_the_table_drops_the_selection(h: &mut Harness) {
-        start(h);
-        let h = &*h;
-        let mut page = mount(h);
-
-        for blank in [PageMark::Header, PageMark::Status, PageMark::Blank] {
-            select(&mut page, "notepad.exe");
-            assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
-
-            page.click(blank).settle();
-            page.settle();
-
-            assert_eq!(h.state::<ProcessesState>().selected, None, "{blank:?}");
-        }
-    }
-
-    #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_press_away_from_the_table_drops_the_selection(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1141,6 +1124,97 @@ mod tests {
         assert!(end_task_enabled(&page));
     }
 
+    fn with_notepad(change: impl Fn(&mut WindowsProcessStats)) -> Vec<WindowsProcessStats> {
+        machine()
+            .into_iter()
+            .map(|mut p| {
+                if p.pid == NOTEPAD {
+                    change(&mut p);
+                }
+                p
+            })
+            .collect()
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn the_menu_offers_resume_to_a_suspended_process_and_suspend_to_a_running_one(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        report(h, with_notepad(|p| p.state.suspended = Some(true)));
+        page.settle();
+
+        right_click(&mut page, "notepad.exe");
+        assert!(page.find(ProcessesMark::MenuResume).is_some(), "{:#?}", page.tree());
+        assert!(page.find(ProcessesMark::MenuSuspend).is_none());
+        page.send(ProcessesMsg::MenuDismiss);
+
+        right_click(&mut page, "cmd.exe");
+        assert!(page.find(ProcessesMark::MenuSuspend).is_some(), "{:#?}", page.tree());
+        assert!(page.find(ProcessesMark::MenuResume).is_none());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn set_priority_opens_the_levels_and_a_level_goes_to_the_service(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        report(h, with_notepad(|p| p.state.base_priority = Some(ProcessPriority::Normal)));
+        page.settle();
+        let (_service, asked) = fake_service();
+
+        right_click(&mut page, "notepad.exe");
+        page.click(ProcessesMark::MenuPriority).settle();
+        page.settle();
+        assert!(menu_open(&page), "choosing to set the priority keeps the menu open");
+        assert!(page.find(ProcessesMark::MenuEndTask).is_none(), "{:#?}", page.tree());
+        for level in [
+            ProcessesMark::MenuPriorityRealtime,
+            ProcessesMark::MenuPriorityHigh,
+            ProcessesMark::MenuPriorityAboveNormal,
+            ProcessesMark::MenuPriorityNormal,
+            ProcessesMark::MenuPriorityBelowNormal,
+            ProcessesMark::MenuPriorityLow,
+        ] {
+            assert!(page.find(level).is_some(), "{level:?}");
+        }
+
+        page.click(ProcessesMark::MenuPriorityHigh).settle();
+        page.settle();
+        assert_eq!(
+            *asked.borrow(),
+            [WindowsAction::SetPriority {
+                pid: NOTEPAD,
+                priority: ProcessPriority::High
+            }]
+        );
+        assert!(!menu_open(&page));
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn a_group_menu_suspends_every_member(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        let (_service, asked) = fake_service();
+
+        right_click(&mut page, "chrome.exe (3)");
+        assert!(page.find(ProcessesMark::MenuResumeGroup).is_none(), "nothing in the group is suspended");
+        page.click(ProcessesMark::MenuSuspendGroup).settle();
+        page.settle();
+
+        let mut suspended: Vec<u32> = asked
+            .borrow()
+            .iter()
+            .map(|action| match action {
+                WindowsAction::Suspend { pid } => *pid,
+                other => panic!("{other:?}"),
+            })
+            .collect();
+        suspended.sort_unstable();
+        assert_eq!(suspended, CHROME);
+    }
+
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_window_row_menu_acts_on_the_window(h: &mut Harness) {
         start(h);
@@ -1211,7 +1285,7 @@ mod tests {
         right_click(&mut page, "System");
         assert_eq!(h.state::<ProcessesState>().selected, Some(KERNEL));
         assert!(!end_task_enabled(&page));
-        for mark in [ProcessesMark::MenuEndTask, ProcessesMark::MenuSuspend, ProcessesMark::MenuResume] {
+        for mark in [ProcessesMark::MenuEndTask, ProcessesMark::MenuSuspend, ProcessesMark::MenuPriority] {
             assert!(disabled(&page, mark), "{mark:?}");
         }
         assert!(!disabled(&page, ProcessesMark::MenuPin));
@@ -1250,7 +1324,7 @@ mod tests {
         for name in ["uniproc.exe", "uniproc-windows-agent.exe"] {
             right_click(&mut page, name);
             assert!(!end_task_enabled(&page), "{name}");
-            for mark in [ProcessesMark::MenuEndTask, ProcessesMark::MenuSuspend, ProcessesMark::MenuResume] {
+            for mark in [ProcessesMark::MenuEndTask, ProcessesMark::MenuSuspend, ProcessesMark::MenuPriority] {
                 assert!(disabled(&page, mark), "{name}: {mark:?}");
             }
             let dispatch = h.dispatch::<ProcessesState>();

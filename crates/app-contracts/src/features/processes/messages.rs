@@ -1,4 +1,4 @@
-use crate::features::agents::{ActionFailure, AgentConnectionState};
+use crate::features::agents::{ActionFailure, AgentConnectionState, ProcessPriority};
 use serde::Deserialize;
 use std::rc::Rc;
 
@@ -45,9 +45,19 @@ pub struct Deselect;
 #[remote(action)]
 pub struct Terminate;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+pub enum GroupCommand {
+    End,
+    Suspend,
+    Resume,
+}
+
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
-pub struct TerminateGroup(pub Vec<u32>);
+pub struct RunGroupCommand {
+    pub pids: Vec<u32>,
+    pub command: GroupCommand,
+}
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
@@ -57,6 +67,7 @@ pub struct RunNewTask;
 pub enum ProcessCommand {
     Suspend,
     Resume,
+    Priority(ProcessPriority),
     OpenFileLocation,
     Properties,
     SearchOnline,

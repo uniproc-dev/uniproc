@@ -117,7 +117,6 @@ impl ServicesPage {
                     body,
                     status_text(l10n.services_status(state.total() as i64), palette),
                     palette,
-                    None,
                 ),
                 action_failure(state.failure.as_ref(), l10n, move || dismiss.emit(DismissFailure)),
             ))
