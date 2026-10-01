@@ -25,7 +25,6 @@ struct Menu;
 impl Menu {
     const Width: f64 = 248.0;
     const ShadowDrop: f64 = 2.0;
-    const Backdrop: Color = Color::argb(0, 0, 0, 0);
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -376,7 +375,7 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
 
     let backdrop = Border::new()
         .mark(ProcessesMark::MenuBackdrop)
-        .background(Menu::Backdrop)
+        .background(Color::transparent())
         .on_pointer_released(Callback::new(move |_: PointerEventInfo| {
             let _ = on_dismiss.call(());
         }));

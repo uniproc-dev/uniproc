@@ -17,7 +17,6 @@ impl Crumb {
     const ChevronLead: f64 = 2.0;
     const ChevronTrail: f64 = 1.0;
     const ChevronDrop: f64 = 2.0;
-    const Hit: Color = Color::argb(0, 0, 0, 0);
 }
 
 pub struct Breadcrumb {
@@ -43,7 +42,7 @@ pub fn breadcrumb(
     };
     let parent = Border::new()
         .mark(back_mark)
-        .background(Crumb::Hit)
+        .background(Color::transparent())
         .vertical_alignment(VerticalAlignment::Center)
         .on_pointer_entered(move |_: PointerEventInfo| {
             let _ = entered.call(true);

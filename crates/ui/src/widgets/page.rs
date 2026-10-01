@@ -19,13 +19,6 @@ pub enum PageMark {
     Blank,
 }
 
-struct Blank;
-
-#[expect(non_upper_case_globals)]
-impl Blank {
-    const Hit: Color = Color::argb(0, 0, 0, 0);
-}
-
 pub fn status_text(status: impl Into<String>, palette: Palette) -> View {
     text(status).foreground(palette.secondary_text).into()
 }
@@ -61,7 +54,7 @@ pub fn page_frame(
         .grid_row(2)
         .padding(Thickness::xy(space::Header, space::Control));
     let status_bar = match on_blank(&blank) {
-        Some(released) => status_bar.background(Blank::Hit).on_pointer_released(released),
+        Some(released) => status_bar.background(Color::transparent()).on_pointer_released(released),
         None => status_bar,
     }
     .content(status);
@@ -84,7 +77,7 @@ pub fn page_frame(
     let under = match on_blank(&blank) {
         Some(released) => Border::new()
             .mark(PageMark::Blank)
-            .background(Blank::Hit)
+            .background(Color::transparent())
             .on_pointer_released(released)
             .into(),
         None => View::empty(),

@@ -29,13 +29,6 @@ use super::column_layout::ColumnLayout;
 use super::grouping::{is_idle, is_service_host, Child, DisplayRow, DropEdge, ProcessName, SectionId, SectionRow, WslRow};
 use super::section_drag::SectionGesture;
 
-struct Hit;
-
-#[expect(non_upper_case_globals)]
-impl Hit {
-    const Transparent: Color = Color::argb(0, 0, 0, 0);
-}
-
 struct Header;
 
 #[expect(non_upper_case_globals)]
@@ -97,7 +90,7 @@ fn chevron_slot(content: View, on_press: Option<Callback<()>>, height: f64) -> V
     match on_press {
         Some(on_press) => slot
             .mark(ProcessesMark::Chevron)
-            .background(Hit::Transparent)
+            .background(Color::transparent())
             .on_pointer_released(move |_: PointerEventInfo| {
                 let _ = on_press.call(());
             })
@@ -265,7 +258,7 @@ fn header_frame() -> Grid {
 fn with_column_menu(menu: &Callback<()>, header: impl Into<View>) -> View {
     let menu = menu.clone();
     Border::new()
-        .background(Hit::Transparent)
+        .background(Color::transparent())
         .on_pointer_pressed(Callback::new(move |pointer: PointerEventInfo| {
             if pointer.is_right_button_pressed {
                 let _ = menu.call(());
@@ -492,7 +485,7 @@ fn section_grip(gesture: &Callback<SectionGesture>, section: SectionId) -> Borde
     let (pressed, moved, released, lost) = (gesture.clone(), gesture.clone(), gesture.clone(), gesture.clone());
     Border::new()
         .mark(ProcessesMark::SectionGrip)
-        .background(Hit::Transparent)
+        .background(Color::transparent())
         .capture_pointer_on_press(true)
         .on_pointer_pressed(move |pointer: PointerEventInfo| {
             if pointer.is_left_button_pressed {
