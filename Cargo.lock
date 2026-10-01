@@ -1306,8 +1306,8 @@ dependencies = [
  "libc",
  "log",
  "rustversion",
- "windows-link 0.2.1",
- "windows-result 0.4.1",
+ "windows-link 0.1.3",
+ "windows-result 0.3.4",
 ]
 
 [[package]]
@@ -3288,8 +3288,8 @@ dependencies = [
 
 [[package]]
 name = "uniproc-windows-agent"
-version = "0.14.6"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.6#7229a3a27748a8ce74ef819370e9dba002dd28c6"
+version = "0.14.8"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.8#eb07092fda19f9e709bbbb39e7c0d0cb23eb7ba0"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -3310,8 +3310,8 @@ dependencies = [
 
 [[package]]
 name = "uniproc-windows-core"
-version = "0.14.6"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.6#7229a3a27748a8ce74ef819370e9dba002dd28c6"
+version = "0.14.8"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.14.8#eb07092fda19f9e709bbbb39e7c0d0cb23eb7ba0"
 dependencies = [
  "amethystate",
  "anyhow",
@@ -3844,15 +3844,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56f42bd332cc6c8eac5af113fc0c1fd6a8fd2aa08a0119358686e5160d0586c6"
 dependencies = [
  "windows-link 0.1.3",
-]
-
-[[package]]
-name = "windows-result"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7781fa89eaf60850ac3d2da7af8e5242a5ea78d1a11c49bf2910bb5a73853eb5"
-dependencies = [
- "windows-link 0.2.1",
 ]
 
 [[package]]
