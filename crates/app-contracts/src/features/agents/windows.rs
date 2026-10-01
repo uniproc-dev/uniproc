@@ -5,6 +5,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use super::connection::AgentConnectionState;
+use crate::ids::ids;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
 pub enum SignatureStatus {
@@ -303,33 +304,22 @@ impl WindowsProcessStats {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
-pub enum WindowsServiceState {
-    #[default]
-    Unknown,
-    Stopped,
-    StartPending,
-    StopPending,
-    Running,
-    ContinuePending,
-    PausePending,
-    Paused,
+ids! {
+    #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Deserialize)]
+    pub enum WindowsServiceState {
+        #[default]
+        Unknown => "unknown",
+        Stopped => "stopped",
+        StartPending => "start-pending",
+        StopPending => "stop-pending",
+        Running => "running",
+        ContinuePending => "continue-pending",
+        PausePending => "pause-pending",
+        Paused => "paused",
+    }
 }
 
 impl WindowsServiceState {
-    pub fn id(self) -> &'static str {
-        match self {
-            Self::Unknown => "unknown",
-            Self::Stopped => "stopped",
-            Self::StartPending => "start-pending",
-            Self::StopPending => "stop-pending",
-            Self::Running => "running",
-            Self::ContinuePending => "continue-pending",
-            Self::PausePending => "pause-pending",
-            Self::Paused => "paused",
-        }
-    }
-
     pub fn is_running(self) -> bool {
         matches!(self, Self::Running)
     }

@@ -1,3 +1,5 @@
+use crate::ids::ids;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ToolGroup {
     Windows,
@@ -9,68 +11,40 @@ impl ToolGroup {
     pub const ALL: [Self; 3] = [Self::Windows, Self::Settings, Self::Sysinternals];
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, serde::Deserialize)]
-pub enum SystemTool {
-    TaskManager,
-    ResourceMonitor,
-    PerformanceMonitor,
-    ReliabilityMonitor,
-    SystemInformation,
-    DirectXDiagnostic,
-    EventViewer,
-    Services,
-    TaskScheduler,
-    DeviceManager,
-    DiskManagement,
-    ComputerManagement,
-    RegistryEditor,
-    SystemProperties,
-    EnvironmentVariables,
-    StartupApps,
-    InstalledApps,
-    Storage,
-    Power,
-    WindowsUpdate,
-    About,
-    ProcessExplorer,
-    ProcessMonitor,
-    Autoruns,
-    TcpView,
-    RamMap,
-    VmMap,
+ids! {
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, serde::Deserialize)]
+    pub enum SystemTool {
+        TaskManager => "task_manager",
+        ResourceMonitor => "resource_monitor",
+        PerformanceMonitor => "performance_monitor",
+        ReliabilityMonitor => "reliability_monitor",
+        SystemInformation => "system_information",
+        DirectXDiagnostic => "directx_diagnostic",
+        EventViewer => "event_viewer",
+        Services => "services",
+        TaskScheduler => "task_scheduler",
+        DeviceManager => "device_manager",
+        DiskManagement => "disk_management",
+        ComputerManagement => "computer_management",
+        RegistryEditor => "registry_editor",
+        SystemProperties => "system_properties",
+        EnvironmentVariables => "environment_variables",
+        StartupApps => "startup_apps",
+        InstalledApps => "installed_apps",
+        Storage => "storage",
+        Power => "power",
+        WindowsUpdate => "windows_update",
+        About => "about",
+        ProcessExplorer => "process_explorer",
+        ProcessMonitor => "process_monitor",
+        Autoruns => "autoruns",
+        TcpView => "tcpview",
+        RamMap => "rammap",
+        VmMap => "vmmap",
+    }
 }
 
 impl SystemTool {
-    pub const ALL: [Self; 27] = [
-        Self::TaskManager,
-        Self::ResourceMonitor,
-        Self::PerformanceMonitor,
-        Self::ReliabilityMonitor,
-        Self::SystemInformation,
-        Self::DirectXDiagnostic,
-        Self::EventViewer,
-        Self::Services,
-        Self::TaskScheduler,
-        Self::DeviceManager,
-        Self::DiskManagement,
-        Self::ComputerManagement,
-        Self::RegistryEditor,
-        Self::SystemProperties,
-        Self::EnvironmentVariables,
-        Self::StartupApps,
-        Self::InstalledApps,
-        Self::Storage,
-        Self::Power,
-        Self::WindowsUpdate,
-        Self::About,
-        Self::ProcessExplorer,
-        Self::ProcessMonitor,
-        Self::Autoruns,
-        Self::TcpView,
-        Self::RamMap,
-        Self::VmMap,
-    ];
-
     pub fn group(self) -> ToolGroup {
         match self {
             Self::StartupApps
@@ -91,42 +65,6 @@ impl SystemTool {
 
     pub fn in_group(group: ToolGroup) -> impl Iterator<Item = Self> {
         Self::ALL.into_iter().filter(move |tool| tool.group() == group)
-    }
-
-    pub fn id(self) -> &'static str {
-        match self {
-            Self::TaskManager => "task_manager",
-            Self::ResourceMonitor => "resource_monitor",
-            Self::PerformanceMonitor => "performance_monitor",
-            Self::ReliabilityMonitor => "reliability_monitor",
-            Self::SystemInformation => "system_information",
-            Self::DirectXDiagnostic => "directx_diagnostic",
-            Self::EventViewer => "event_viewer",
-            Self::Services => "services",
-            Self::TaskScheduler => "task_scheduler",
-            Self::DeviceManager => "device_manager",
-            Self::DiskManagement => "disk_management",
-            Self::ComputerManagement => "computer_management",
-            Self::RegistryEditor => "registry_editor",
-            Self::SystemProperties => "system_properties",
-            Self::EnvironmentVariables => "environment_variables",
-            Self::StartupApps => "startup_apps",
-            Self::InstalledApps => "installed_apps",
-            Self::Storage => "storage",
-            Self::Power => "power",
-            Self::WindowsUpdate => "windows_update",
-            Self::About => "about",
-            Self::ProcessExplorer => "process_explorer",
-            Self::ProcessMonitor => "process_monitor",
-            Self::Autoruns => "autoruns",
-            Self::TcpView => "tcpview",
-            Self::RamMap => "rammap",
-            Self::VmMap => "vmmap",
-        }
-    }
-
-    pub fn from_id(id: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|tool| tool.id() == id)
     }
 }
 

@@ -1,114 +1,49 @@
 use std::time::Duration;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Deserialize)]
-pub enum AppTheme {
-    #[default]
-    System,
-    Light,
-    Dark,
-}
+use crate::ids::ids;
 
-impl AppTheme {
-    pub const ALL: [AppTheme; 3] = [AppTheme::System, AppTheme::Light, AppTheme::Dark];
-
-    pub fn id(self) -> &'static str {
-        match self {
-            AppTheme::System => "system",
-            AppTheme::Light => "light",
-            AppTheme::Dark => "dark",
-        }
-    }
-
-    pub fn from_id(id: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|theme| theme.id() == id)
+ids! {
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Deserialize)]
+    pub enum AppTheme {
+        #[default]
+        System => "system",
+        Light => "light",
+        Dark => "dark",
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Deserialize)]
-pub enum StartPage {
-    #[default]
-    LastOpened,
-    Processes,
-    Services,
-    Wsl,
-}
-
-impl StartPage {
-    pub const ALL: [StartPage; 4] = [
-        StartPage::LastOpened,
-        StartPage::Processes,
-        StartPage::Services,
-        StartPage::Wsl,
-    ];
-
-    pub fn id(self) -> &'static str {
-        match self {
-            StartPage::LastOpened => "last_opened",
-            StartPage::Processes => "processes",
-            StartPage::Services => "services",
-            StartPage::Wsl => "wsl",
-        }
-    }
-
-    pub fn from_id(id: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|page| page.id() == id)
+ids! {
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Deserialize)]
+    pub enum StartPage {
+        #[default]
+        LastOpened => "last_opened",
+        Processes => "processes",
+        Services => "services",
+        Wsl => "wsl",
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Deserialize)]
-pub enum ByteUnits {
-    #[default]
-    Windows,
-    Iec,
-}
-
-impl ByteUnits {
-    pub const ALL: [ByteUnits; 2] = [ByteUnits::Windows, ByteUnits::Iec];
-
-    pub fn id(self) -> &'static str {
-        match self {
-            ByteUnits::Windows => "windows",
-            ByteUnits::Iec => "iec",
-        }
-    }
-
-    pub fn from_id(id: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|units| units.id() == id)
+ids! {
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Deserialize)]
+    pub enum ByteUnits {
+        #[default]
+        Windows => "windows",
+        Iec => "iec",
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Deserialize)]
-pub enum SidebarChart {
-    Cpu,
-    Memory,
-    Disk,
-    Network,
-    Gpu,
+ids! {
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Deserialize)]
+    pub enum SidebarChart {
+        Cpu => "cpu",
+        Memory => "memory",
+        Disk => "disk",
+        Network => "network",
+        Gpu => "gpu",
+    }
 }
 
 impl SidebarChart {
-    pub const ALL: [SidebarChart; 5] = [
-        SidebarChart::Cpu,
-        SidebarChart::Memory,
-        SidebarChart::Disk,
-        SidebarChart::Network,
-        SidebarChart::Gpu,
-    ];
-
-    pub fn id(self) -> &'static str {
-        match self {
-            SidebarChart::Cpu => "cpu",
-            SidebarChart::Memory => "memory",
-            SidebarChart::Disk => "disk",
-            SidebarChart::Network => "network",
-            SidebarChart::Gpu => "gpu",
-        }
-    }
-
-    pub fn from_id(id: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|chart| chart.id() == id)
-    }
-
     fn bit(self) -> u8 {
         1 << self as u8
     }

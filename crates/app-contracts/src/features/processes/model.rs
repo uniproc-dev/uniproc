@@ -3,6 +3,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::features::agents::{Architecture, EnvironmentKind, Isolation};
+use crate::ids::ids;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ColumnConfig {
@@ -27,14 +28,16 @@ pub struct PinnedProcess {
     pub display_name: String,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-pub enum ProcessCategory {
-    App,
-    BackgroundMicrosoft,
-    BackgroundThirdParty,
-    Wsl,
-    WindowsService,
-    WindowsKernel,
+ids! {
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+    pub enum ProcessCategory {
+        App => "app",
+        BackgroundMicrosoft => "background-microsoft",
+        BackgroundThirdParty => "background-third-party",
+        Wsl => "wsl",
+        WindowsService => "windows-service",
+        WindowsKernel => "windows-kernel",
+    }
 }
 
 impl ProcessCategory {
@@ -66,93 +69,36 @@ impl ProcessCategory {
         Self::WindowsKernel,
     ];
 
-    pub fn id(self) -> &'static str {
-        match self {
-            Self::App => "app",
-            Self::BackgroundThirdParty => "background-third-party",
-            Self::Wsl => "wsl",
-            Self::BackgroundMicrosoft => "background-microsoft",
-            Self::WindowsService => "windows-service",
-            Self::WindowsKernel => "windows-kernel",
-        }
-    }
-
-    pub fn from_id(id: &str) -> Option<Self> {
-        Self::ORDER.into_iter().find(|c| c.id() == id)
-    }
-
     pub fn takes_actions(self) -> bool {
         !matches!(self, Self::WindowsKernel | Self::Wsl)
     }
 }
 
-#[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug, Hash, serde::Deserialize)]
-pub enum ProcessColumn {
-    Name,
-    Pid,
-    ProcessName,
-    Cpu,
-    Memory,
-    Net,
-    Disk,
-    Gpu,
-    GpuMemory,
-    Status,
-    Publisher,
-    User,
-    CommandLine,
-    ImagePath,
-    GpuEngine,
-    Platform,
-    Elevated,
-    Isolation,
+ids! {
+    #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug, Hash, serde::Deserialize)]
+    pub enum ProcessColumn {
+        Name => "name",
+        Pid => "pid",
+        ProcessName => "process_name",
+        Cpu => "cpu",
+        Memory => "memory",
+        Net => "net",
+        Disk => "disk",
+        Gpu => "gpu",
+        GpuMemory => "gpu_memory",
+        Status => "status",
+        Publisher => "publisher",
+        User => "user",
+        CommandLine => "command_line",
+        ImagePath => "image_path",
+        GpuEngine => "gpu_engine",
+        Platform => "platform",
+        Elevated => "elevated",
+        Isolation => "isolation",
+    }
 }
 
 impl ProcessColumn {
-    pub const ALL: [Self; 18] = [
-        Self::Name,
-        Self::Pid,
-        Self::ProcessName,
-        Self::Cpu,
-        Self::Memory,
-        Self::Net,
-        Self::Disk,
-        Self::Gpu,
-        Self::GpuMemory,
-        Self::Status,
-        Self::Publisher,
-        Self::User,
-        Self::CommandLine,
-        Self::ImagePath,
-        Self::GpuEngine,
-        Self::Platform,
-        Self::Elevated,
-        Self::Isolation,
-    ];
-
-    pub fn id(self) -> &'static str {
-        match self {
-            Self::Name => "name",
-            Self::Pid => "pid",
-            Self::ProcessName => "process_name",
-            Self::Cpu => "cpu",
-            Self::Memory => "memory",
-            Self::Net => "net",
-            Self::Disk => "disk",
-            Self::Gpu => "gpu",
-            Self::GpuMemory => "gpu_memory",
-            Self::Status => "status",
-            Self::Publisher => "publisher",
-            Self::User => "user",
-            Self::CommandLine => "command_line",
-            Self::ImagePath => "image_path",
-            Self::GpuEngine => "gpu_engine",
-            Self::Platform => "platform",
-            Self::Elevated => "elevated",
-            Self::Isolation => "isolation",
-        }
-    }
-
     pub fn default_config(self) -> ColumnConfig {
         let (width, visible) = match self {
             Self::Name => (280, true),
