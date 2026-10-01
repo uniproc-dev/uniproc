@@ -6,7 +6,7 @@ use windows_reactor::{Callback, KeyedView, LayoutControl, Thickness, View};
 use super::components::tool_card::{group_title, tool_card, CardPlace};
 use super::marks::{SystemMark, ToolMark};
 use crate::l10n::L10n;
-use crate::theme::{space, Palette};
+use crate::theme::{setting, space, Palette};
 use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
 use crate::widgets::page::{settings_column, settings_section};
 use crate::widgets::text::caption;
@@ -32,7 +32,7 @@ fn group_section(props: &ToolsProps<'_>, group: ToolGroup) -> View {
     let hint = match group {
         ToolGroup::Sysinternals => caption(l10n.system_sysinternals_hint())
             .foreground(palette.secondary_text)
-            .margin(Thickness::new(1.0, 0.0, 0.0, space::Control))
+            .margin(Thickness::new(setting::CaptionInset, 0.0, 0.0, space::Control))
             .into(),
         _ => View::empty(),
     };

@@ -16,7 +16,7 @@ use super::components::Step;
 use super::marks::ProcessesSettingsMark;
 use super::page::ProcessesSettingsMaps;
 use crate::l10n::L10n;
-use crate::theme::{size, space, Palette};
+use crate::theme::{setting, size, space, Palette};
 use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
 use crate::widgets::page::{action_button, settings_column};
 use crate::widgets::separator;
@@ -27,10 +27,7 @@ struct Layout;
 
 #[expect(non_upper_case_globals)]
 impl Layout {
-    const ExpanderSpacing: f64 = 4.0;
     const RowMinHeight: f64 = 44.0;
-    const HeaderInset: f64 = 12.0;
-    const ChoiceWidth: f64 = 180.0;
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -148,7 +145,7 @@ impl ProcessesSettingsPage {
         let forward = forward.clone();
         let choice = ComboBox::new()
             .mark(ProcessesSettingsMark::MemoryValues)
-            .width(Layout::ChoiceWidth)
+            .width(setting::Choice)
             .items_source([
                 l10n.processes_settings_memory_values(),
                 l10n.processes_settings_memory_percents(),
@@ -237,7 +234,7 @@ impl ProcessesSettingsPage {
             crumbs(l10n, palette, self.back_hovered, &forward, back),
             StackPanel::new()
                 .margin(Thickness::new(0.0, space::Section, 0.0, 0.0))
-                .spacing(Layout::ExpanderSpacing)
+                .spacing(setting::CardSpacing)
                 .children((columns, sections, self.memory_card(l10n, palette, &forward))),
         ))
     }
@@ -287,7 +284,7 @@ fn expander(
         open,
     } = heading;
     let header = StackPanel::new()
-        .margin(Thickness::xy(0.0, Layout::HeaderInset))
+        .margin(Thickness::xy(0.0, setting::ExpanderHeaderInset))
         .vertical_alignment(VerticalAlignment::Center)
         .children((text(title), caption(description).foreground(palette.secondary_text)));
     let expanded = forward.clone();

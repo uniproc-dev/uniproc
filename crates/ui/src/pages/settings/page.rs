@@ -13,9 +13,9 @@ use windows_reactor::{
 };
 
 use crate::l10n::L10n;
-use crate::theme::{space, Palette};
+use crate::theme::{setting, space, Palette};
 use crate::widgets::page::{settings_column, settings_section};
-use crate::widgets::setting_card::{setting_card, SettingCard, SettingCardSize};
+use crate::widgets::setting_card::{setting_card, SettingCard};
 use crate::widgets::text::{caption, subtitle, text};
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
@@ -37,7 +37,6 @@ struct Control;
 
 #[expect(non_upper_case_globals)]
 impl Control {
-    const ChoiceWidth: f64 = 180.0;
     const SliderWidth: f64 = 200.0;
     const ValueWidth: f64 = 88.0;
 }
@@ -46,7 +45,6 @@ struct Layout;
 
 #[expect(non_upper_case_globals)]
 impl Layout {
-    const ExpanderHeaderInset: f64 = 12.0;
     const ExpanderContentInset: f64 = 36.0;
 }
 
@@ -71,7 +69,7 @@ fn theme_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: 
     let dispatch = dispatch.clone();
     let choice = ComboBox::new()
         .mark(SettingsMark::Theme)
-        .width(Control::ChoiceWidth)
+        .width(setting::Choice)
         .items_source(AppTheme::ALL.map(|theme| theme_label(l10n, theme)))
         .selected_index(AppTheme::ALL.iter().position(|theme| *theme == state.theme))
         .on_selection_changed(move |index: Option<usize>| {
@@ -81,7 +79,7 @@ fn theme_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: 
         });
     setting_card(
         SettingCard {
-            icon: Some(icon!(color).size(SettingCardSize::Icon).build()),
+            icon: Some(icon!(color).size(setting::Icon).build()),
             title: l10n.settings_theme(),
             description: l10n.settings_theme_description(),
             control: choice.into(),
@@ -94,7 +92,7 @@ fn start_page_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
     let dispatch = dispatch.clone();
     let choice = ComboBox::new()
         .mark(SettingsMark::StartPage)
-        .width(Control::ChoiceWidth)
+        .width(setting::Choice)
         .items_source(StartPage::ALL.map(|page| start_page_label(l10n, page)))
         .selected_index(StartPage::ALL.iter().position(|page| *page == state.start_page))
         .on_selection_changed(move |index: Option<usize>| {
@@ -104,7 +102,7 @@ fn start_page_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
         });
     setting_card(
         SettingCard {
-            icon: Some(icon!(start_page).size(SettingCardSize::Icon).build()),
+            icon: Some(icon!(start_page).size(setting::Icon).build()),
             title: l10n.settings_start_page(),
             description: l10n.settings_start_page_description(),
             control: choice.into(),
@@ -124,7 +122,7 @@ fn byte_units_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
     let dispatch = dispatch.clone();
     let choice = ComboBox::new()
         .mark(SettingsMark::ByteUnits)
-        .width(Control::ChoiceWidth)
+        .width(setting::Choice)
         .items_source(ByteUnits::ALL.map(|units| byte_units_label(l10n, units)))
         .selected_index(ByteUnits::ALL.iter().position(|units| *units == state.byte_units))
         .on_selection_changed(move |index: Option<usize>| {
@@ -134,7 +132,7 @@ fn byte_units_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
         });
     setting_card(
         SettingCard {
-            icon: Some(icon!(byte_units).size(SettingCardSize::Icon).build()),
+            icon: Some(icon!(byte_units).size(setting::Icon).build()),
             title: l10n.settings_byte_units(),
             description: l10n.settings_byte_units_description(),
             control: choice.into(),
@@ -177,11 +175,11 @@ fn sidebar_charts_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, 
     let header = StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(space::Card)
-        .margin(Thickness::xy(0.0, Layout::ExpanderHeaderInset))
+        .margin(Thickness::xy(0.0, setting::ExpanderHeaderInset))
         .children((
             Border::new()
                 .vertical_alignment(VerticalAlignment::Center)
-                .content(icon!(sidebar_charts).size(SettingCardSize::Icon).build()),
+                .content(icon!(sidebar_charts).size(setting::Icon).build()),
             StackPanel::new().vertical_alignment(VerticalAlignment::Center).children((
                 text(l10n.settings_sidebar_charts()),
                 caption(l10n.settings_sidebar_charts_description()).foreground(palette.secondary_text),
@@ -233,7 +231,7 @@ fn update_speed_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
         .children((slider.margin(Thickness::new(0.0, 0.0, space::Header, 0.0)), value, unit));
     setting_card(
         SettingCard {
-            icon: Some(icon!(top_speed).size(SettingCardSize::Icon).build()),
+            icon: Some(icon!(top_speed).size(setting::Icon).build()),
             title: l10n.settings_update_speed(),
             description: l10n.settings_update_speed_description(),
             control: control.into(),

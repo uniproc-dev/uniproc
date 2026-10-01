@@ -6,19 +6,14 @@ use windows_reactor::{
     ResourceOverrides, StackPanel, Thickness, VerticalAlignment, View,
 };
 
-use crate::theme::{space, Palette};
+use crate::theme::{setting, space, Palette};
 use crate::widgets::text::{caption, text};
 
 struct LinkCardSize;
 
 #[expect(non_upper_case_globals)]
 impl LinkCardSize {
-    const MinHeight: f64 = 68.0;
     const Glyph: f64 = 16.0;
-
-    fn icon_margin() -> Thickness {
-        Thickness::new(2.0, 0.0, 20.0, 0.0)
-    }
 
     fn content_margin() -> Thickness {
         let button = Thickness::new(11.0, 5.0, 11.0, 6.0);
@@ -84,7 +79,7 @@ pub fn link_card(mark: impl Mark, card: LinkCard, palette: Palette, on_click: im
     let icon = match icon {
         Some(icon) => Grid::new()
             .grid_column(0)
-            .margin(LinkCardSize::icon_margin())
+            .margin(setting::icon_margin())
             .vertical_alignment(VerticalAlignment::Center)
             .children((icon,))
             .into(),
@@ -104,7 +99,7 @@ pub fn link_card(mark: impl Mark, card: LinkCard, palette: Palette, on_click: im
         .mark(mark)
         .horizontal_alignment(HorizontalAlignment::Stretch)
         .horizontal_content_alignment(HorizontalAlignment::Stretch)
-        .min_height(LinkCardSize::MinHeight)
+        .min_height(setting::CardMinHeight)
         .resource_overrides(card_look(palette))
         .on_click(on_click)
         .content(

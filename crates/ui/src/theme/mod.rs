@@ -1,6 +1,7 @@
 pub mod opacity;
 pub mod palette;
 pub mod radius;
+pub mod setting;
 pub mod size;
 pub mod space;
 

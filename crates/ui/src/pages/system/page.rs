@@ -8,18 +8,10 @@ use windows_reactor::{Callback, ChildrenControl, KeyedView, LayoutControl, Stack
 use super::components::tool_card::{tool_card, CardPlace};
 use super::marks::{SystemMark, ToolMark};
 use crate::l10n::L10n;
-use crate::theme::{space, Palette};
+use crate::theme::{setting, space, Palette};
 use crate::widgets::link_card::{link_card, LinkCard, Trailing};
 use crate::widgets::page::{settings_column, settings_section};
-use crate::widgets::setting_card::SettingCardSize;
 use crate::widgets::text::{caption, subtitle};
-
-struct Layout;
-
-#[expect(non_upper_case_globals)]
-impl Layout {
-    const CardSpacing: f64 = 4.0;
-}
 
 fn favourites(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let cards: Vec<KeyedView> = state
@@ -35,12 +27,12 @@ fn favourites(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, palette: Pa
         caption(l10n.system_favourites_empty())
             .mark(SystemMark::NoFavourites)
             .foreground(palette.secondary_text)
-            .margin(Thickness::new(1.0, 0.0, 0.0, 0.0))
+            .margin(Thickness::new(setting::CaptionInset, 0.0, 0.0, 0.0))
             .into()
     } else {
         StackPanel::new()
             .mark(SystemMark::Favourites)
-            .spacing(Layout::CardSpacing)
+            .spacing(setting::CardSpacing)
             .children((View::keyed_fragment(cards),))
             .into()
     };
@@ -57,7 +49,7 @@ pub fn system_view(
     let tools = link_card(
         SystemMark::Tools,
         LinkCard {
-            icon: Some(icon!(toolbox).size(SettingCardSize::Icon).build()),
+            icon: Some(icon!(toolbox).size(setting::Icon).build()),
             title: l10n.system_tools(),
             description: Some(l10n.system_tools_description()),
             trailing: Trailing::Chevron,

@@ -9,9 +9,8 @@ use windows_reactor::{
 
 use super::super::marks::{SystemMark, ToolMark};
 use crate::l10n::L10n;
-use crate::theme::{size, space, Palette};
+use crate::theme::{setting, size, space, Palette};
 use crate::widgets::link_card::{link_card, LinkCard, Trailing};
-use crate::widgets::setting_card::SettingCardSize;
 
 struct CardButton;
 
@@ -50,7 +49,7 @@ fn tool_icon(tool: SystemTool) -> View {
         SystemTool::RamMap => icon!(tool_rammap),
         SystemTool::VmMap => icon!(tool_vmmap),
     };
-    icon.size(SettingCardSize::Icon).build()
+    icon.size(setting::Icon).build()
 }
 
 fn tool_words(l10n: &L10n, tool: SystemTool) -> (String, String) {
