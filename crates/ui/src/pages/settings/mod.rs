@@ -1,3 +1,5 @@
+mod marks;
 mod page;
 
-pub use page::{settings_view, SettingsMark};
+pub use marks::SettingsMark;
+pub use page::settings_view;

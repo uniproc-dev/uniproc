@@ -5,9 +5,6 @@ pub mod grouping;
 pub mod overlay;
 pub mod section_drag;
 pub mod status;
+mod step;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Step {
-    Up,
-    Down,
-}
+pub use step::Step;

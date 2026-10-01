@@ -12,26 +12,12 @@ use windows_reactor::{
     NumberBox, Orientation, Slider, StackPanel, Thickness, VerticalAlignment, View,
 };
 
+use super::marks::SettingsMark;
 use crate::l10n::L10n;
 use crate::theme::{setting, space, Palette};
 use crate::widgets::settings_column::{settings_column, settings_section};
 use crate::widgets::setting_card::{card_words, choice, setting_card, SettingCard};
 use crate::widgets::text::{subtitle, text};
-
-#[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum SettingsMark {
-    Theme,
-    StartPage,
-    UpdateSpeed,
-    UpdateSpeedValue,
-    ByteUnits,
-    SidebarCharts,
-    SidebarCpu,
-    SidebarMemory,
-    SidebarDisk,
-    SidebarNetwork,
-    SidebarGpu,
-}
 
 struct Control;
 
@@ -136,18 +122,6 @@ fn sidebar_chart_label(l10n: &L10n, chart: SidebarChart) -> String {
         SidebarChart::Disk => l10n.settings_sidebar_chart_disk(),
         SidebarChart::Network => l10n.settings_sidebar_chart_network(),
         SidebarChart::Gpu => l10n.settings_sidebar_chart_gpu(),
-    }
-}
-
-impl SettingsMark {
-    pub fn sidebar_chart(chart: SidebarChart) -> Self {
-        match chart {
-            SidebarChart::Cpu => Self::SidebarCpu,
-            SidebarChart::Memory => Self::SidebarMemory,
-            SidebarChart::Disk => Self::SidebarDisk,
-            SidebarChart::Network => Self::SidebarNetwork,
-            SidebarChart::Gpu => Self::SidebarGpu,
-        }
     }
 }
 
