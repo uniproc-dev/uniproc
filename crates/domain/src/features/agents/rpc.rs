@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use futures::channel::oneshot;
 use std::future::Future;
+use std::time::Duration;
 use tracing::debug;
 
 pub trait RpcService: 'static {
@@ -10,7 +11,7 @@ pub trait RpcService: 'static {
 
     const NAME: &'static str;
 
-    fn connect(timeout_secs: u64) -> impl Future<Output = anyhow::Result<Self::Session>>;
+    fn connect(timeout: Duration) -> impl Future<Output = anyhow::Result<Self::Session>>;
 
     fn dispatch(
         session: Self::Session,
@@ -42,7 +43,7 @@ impl<S: RpcService> Clone for RpcHandle<S> {
 }
 
 impl<S: RpcService> RpcHandle<S> {
-    pub async fn connect(timeout_secs: u64) -> anyhow::Result<Self> {
+    pub async fn connect(timeout: Duration) -> anyhow::Result<Self> {
         let (ready_tx, ready_rx) = oneshot::channel::<anyhow::Result<()>>();
         let (tx, rx) = flume::unbounded::<Envelope<S>>();
 
@@ -61,7 +62,7 @@ impl<S: RpcService> RpcHandle<S> {
                 };
 
                 runtime.block_on(async move {
-                    let session = match S::connect(timeout_secs).await {
+                    let session = match S::connect(timeout).await {
                         Ok(session) => session,
                         Err(err) => {
                             let _ = ready_tx.send(Err(err));

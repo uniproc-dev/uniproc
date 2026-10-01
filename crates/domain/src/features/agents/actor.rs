@@ -133,7 +133,7 @@ impl<B: AgentBackend> GenericAgentActor<B> {
     }
 
     fn attempt_window(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(self.attempt_secs.get().max(1))
+        std::time::Duration::from_secs(self.attempt_secs.get())
     }
 
     fn apply(&mut self, event: ConnectionEvent) -> Option<Transition> {
@@ -160,7 +160,7 @@ impl<B: AgentBackend> GenericAgentActor<B> {
 
     fn spawn_connect(&mut self, cx: &Cx<Self>) {
         self.attempt_started = Some(tokio::time::Instant::now());
-        let timeout = self.attempt_secs.get().max(1);
+        let timeout = self.attempt_window();
         cx.spawn_bg(async move {
             match B::connect(timeout).await {
                 Ok(client) => ConnectResult(Ok(client)),

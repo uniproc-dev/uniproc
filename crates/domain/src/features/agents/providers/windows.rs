@@ -7,7 +7,6 @@ use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, WindowsAction, WindowsActionRequest,
     WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
 };
-use app_contracts::features::settings::UpdateInterval;
 use guinea::prelude::*;
 use guinea::ratelimit;
 use std::sync::Arc;
@@ -78,9 +77,9 @@ impl AgentBackend for WindowsBackend {
     const NAME: &'static str = "Windows";
     const STREAMS_MACHINE: bool = true;
 
-    async fn connect(timeout: u64) -> anyhow::Result<Self::Client> {
-        let interval = GeneralSettings::new()?.update_interval_ms();
-        WindowsClient::connect(Duration::from_secs(timeout), move || UpdateInterval::clamp(interval.get())).await
+    async fn connect(timeout: Duration) -> anyhow::Result<Self::Client> {
+        let settings = GeneralSettings::new()?;
+        WindowsClient::connect(timeout, move || settings.update_interval()).await
     }
 
     async fn ping(client: &Self::Client) -> anyhow::Result<i32> {
@@ -119,9 +118,7 @@ pub fn windows_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
     let settings = AgentSettings::new()?;
     let ping_interval = settings.ping_interval_ms();
 
-    let addr = app.spawn(GenericAgentActor::<WindowsBackend>::new(
-        settings.connect_attempt_secs(),
-    ));
+    let addr = app.spawn(GenericAgentActor::<WindowsBackend>::new(settings.connect_attempt_secs()));
 
     app.every(
         Period::varying(move || Duration::from_millis(ping_interval.get())),

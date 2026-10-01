@@ -23,7 +23,6 @@ mod local {
     use std::sync::Arc;
 
     use app_contracts::features::agents::{WindowsAction, WindowsMachineSample, WindowsReport};
-    use app_contracts::features::settings::UpdateInterval;
     use futures::future::BoxFuture;
     use uniproc_windows_agent::agent::Agent;
     use uniproc_windows_agent::local::{Local, StartError};
@@ -38,14 +37,11 @@ mod local {
 
     pub fn start_local() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
         Box::pin(async {
-            let interval = GeneralSettings::new()
-                .map_err(|error| InProcessStartError::Failed(error.to_string()))?
-                .update_interval_ms();
+            let settings = GeneralSettings::new()
+                .map_err(|error| InProcessStartError::Failed(error.to_string()))?;
             match tokio::task::spawn_blocking(Local::start).await {
                 Ok(Ok(local)) => Ok(Arc::new(LocalAgent {
-                    feed: WindowsFeed::new(Agent::Local(Arc::new(local)), move || {
-                        UpdateInterval::clamp(interval.get())
-                    }),
+                    feed: WindowsFeed::new(Agent::Local(Arc::new(local)), move || settings.update_interval()),
                 }) as Arc<dyn InProcessAgent>),
                 Ok(Err(StartError::NotElevated)) => Err(InProcessStartError::NotElevated),
                 Ok(Err(error)) => Err(InProcessStartError::Failed(error.to_string())),

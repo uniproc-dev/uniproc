@@ -191,7 +191,7 @@ mod wsl {
     use domain::features::agents::providers::wsl::{WslBackend, WslClient};
     use std::time::Instant;
 
-    const CONNECT_TIMEOUT_SECS: u64 = 40;
+    const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(40);
 
     pub async fn probe() -> anyhow::Result<()> {
         println!("== wsl agent ==");
@@ -203,7 +203,7 @@ mod wsl {
         domain::features::agents::providers::wsl::set_launch_config(distro.clone(), agent_path);
 
         let started = Instant::now();
-        let handle = WslClient::connect(CONNECT_TIMEOUT_SECS, || std::time::Duration::from_secs(1))
+        let handle = WslClient::connect(CONNECT_TIMEOUT, || std::time::Duration::from_secs(1))
             .await
             .context("connect failed - is the Linux agent running inside WSL?")?;
         println!("connect: ok ({} ms)", started.elapsed().as_millis());

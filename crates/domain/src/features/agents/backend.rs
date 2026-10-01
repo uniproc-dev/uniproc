@@ -1,5 +1,6 @@
 use app_contracts::features::agents::AgentConnectionState;
 use guinea::prelude::*;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct Outdated(pub String);
@@ -20,7 +21,7 @@ pub trait AgentBackend: std::fmt::Debug + Send + Sync + 'static {
     const NAME: &'static str;
     const STREAMS_MACHINE: bool = false;
 
-    fn connect(timeout_secs: u64) -> impl Future<Output=anyhow::Result<Self::Client>> + Send;
+    fn connect(timeout: Duration) -> impl Future<Output=anyhow::Result<Self::Client>> + Send;
     fn ping(client: &Self::Client) -> impl Future<Output=anyhow::Result<i32>> + Send;
     fn perform_scan(client: &Self::Client) -> impl Future<Output=anyhow::Result<()>> + Send;
 

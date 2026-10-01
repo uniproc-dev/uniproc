@@ -9,7 +9,6 @@ use anyhow::{anyhow, bail};
 use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, LinuxReport, RemoteScan, RemoteScanResult, WslAgentRuntimeEvent,
 };
-use app_contracts::features::settings::UpdateInterval;
 use futures::StreamExt;
 use futures::channel::{mpsc, oneshot};
 use guinea::prelude::*;
@@ -205,7 +204,7 @@ impl RpcService for WslRpc {
 
     const NAME: &'static str = "WSL";
 
-    async fn connect(timeout_secs: u64) -> anyhow::Result<Self::Session> {
+    async fn connect(timeout: Duration) -> anyhow::Result<Self::Session> {
         let (distro, agent_path) = LAUNCH
             .get()
             .ok_or_else(|| anyhow!("WSL launch settings were never published"))?;
@@ -217,7 +216,7 @@ impl RpcService for WslRpc {
             Endpoint::vsock_to_wsl(WSL_AGENT_VSOCK_PORT).map_err(|e| anyhow!("{e:#}"))?;
 
         let mut conn = endpoint
-            .connect_ready(Duration::from_secs(timeout_secs))
+            .connect_ready(timeout)
             .await
             .map_err(|e| anyhow!("{e:#}"))?;
 
@@ -289,11 +288,11 @@ impl std::fmt::Debug for WslClient {
 
 impl WslClient {
     pub async fn connect(
-        timeout_secs: u64,
+        timeout: Duration,
         interval: impl Fn() -> Duration + Send + Sync + 'static,
     ) -> anyhow::Result<Self> {
         Ok(Self {
-            rpc: RpcHandle::connect(timeout_secs).await?,
+            rpc: RpcHandle::connect(timeout).await?,
             feed: Arc::default(),
             interval: Arc::new(interval),
         })
@@ -366,9 +365,9 @@ impl AgentBackend for WslBackend {
     type ScanMessage = RemoteScanResult;
     const NAME: &'static str = "WSL";
 
-    async fn connect(timeout: u64) -> anyhow::Result<Self::Client> {
-        let interval = GeneralSettings::new()?.update_interval_ms();
-        WslClient::connect(timeout, move || UpdateInterval::clamp(interval.get())).await
+    async fn connect(timeout: Duration) -> anyhow::Result<Self::Client> {
+        let settings = GeneralSettings::new()?;
+        WslClient::connect(timeout, move || settings.update_interval()).await
     }
 
     async fn ping(client: &Self::Client) -> anyhow::Result<i32> {
@@ -408,9 +407,7 @@ pub fn wsl_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
 
     set_launch_config(settings.wsl_distro().get(), settings.wsl_agent_path().get());
 
-    let addr = app.spawn(GenericAgentActor::<WslBackend>::new(
-        settings.wsl_connect_timeout_secs(),
-    ));
+    let addr = app.spawn(GenericAgentActor::<WslBackend>::new(settings.wsl_connect_timeout_secs()));
 
     app.every(
         Period::varying(move || Duration::from_millis(ping_interval.get())),

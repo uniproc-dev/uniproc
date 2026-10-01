@@ -102,7 +102,8 @@ impl UpdateInterval {
         let step = Self::Step.as_millis() as u64;
         let rounded = (ms + step / 2) / step * step;
         Duration::from_millis(rounded).clamp(Self::Min, Self::Max)
-    }}
+    }
+}
 
 #[cfg(test)]
 mod tests {

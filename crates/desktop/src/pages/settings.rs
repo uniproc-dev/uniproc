@@ -31,7 +31,7 @@ impl Page for Settings {
 mod tests {
     use app_contracts::features::settings::{
         AppTheme, ByteUnits, SetByteUnits, SetStartPage, SetTheme, SetUpdateInterval, SidebarChart, StartPage,
-        UpdateIntervalChanged,
+        UpdateInterval, UpdateIntervalChanged,
     };
     use domain::features::settings::settings::GeneralSettings;
     use domain::features::settings::SettingsFeature;
@@ -131,6 +131,15 @@ mod tests {
         assert_eq!(ticked(&page, SidebarChart::Disk), PropertyValue::Bool(true));
         assert!(!h.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Network));
         assert_eq!(GeneralSettings::new().unwrap().hidden_sidebar_charts().get(), "network");
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn an_interval_edited_out_of_range_in_the_file_is_read_inside_it(h: &mut Harness) {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("settings.json"), r#"{"general":{"update_interval_ms":0}}"#).unwrap();
+        h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json)).unwrap();
+
+        assert_eq!(GeneralSettings::new().unwrap().update_interval(), UpdateInterval::Min);
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

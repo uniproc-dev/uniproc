@@ -130,7 +130,7 @@ impl AgentBackend for FakeAgent {
 
     const NAME: &'static str = "Fake";
 
-    async fn connect(_timeout_secs: u64) -> anyhow::Result<()> {
+    async fn connect(_timeout: Duration) -> anyhow::Result<()> {
         CONNECTS.fetch_add(1, Ordering::SeqCst);
         if OUTDATED.load(Ordering::SeqCst) {
             return Err(Outdated("windows 2.1.0".into()).into());
