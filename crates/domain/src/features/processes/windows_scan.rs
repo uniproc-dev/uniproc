@@ -8,8 +8,8 @@ mod taskbar {
 
     use windows::Win32::{
         DWMWA_CLOAKED, DwmGetWindowAttribute, EnumChildWindows, EnumWindows, GW_OWNER, GWL_EXSTYLE,
-        GetClassNameW, GetWindow, GetWindowLongW, GetWindowTextW, GetWindowThreadProcessId, HWND,
-        IsWindowVisible, LPARAM, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+        GetClassNameW, GetWindow, GetWindowLongW, GetWindowThreadProcessId, HWND,
+        InternalGetWindowText, IsWindowVisible, LPARAM, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
     };
     use windows::core::{BOOL, PWSTR};
 
@@ -25,7 +25,7 @@ mod taskbar {
 
     fn title_of(hwnd: HWND) -> String {
         let mut buffer = [0u16; 512];
-        let len = unsafe { GetWindowTextW(hwnd, PWSTR(buffer.as_mut_ptr()), buffer.len() as i32) }
+        let len = unsafe { InternalGetWindowText(hwnd, PWSTR(buffer.as_mut_ptr()), buffer.len() as i32) }
             .max(0) as usize;
         String::from_utf16_lossy(&buffer[..len])
     }
@@ -189,6 +189,46 @@ mod tests {
              an empty set means the caller is not in a windowed session"
         );
         assert!(!windows.contains(0));
+    }
+
+    #[test]
+    fn a_window_whose_thread_does_not_pump_does_not_hold_up_the_scan() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+        use windows::Win32::{CreateWindowExW, DestroyWindow, WS_EX_APPWINDOW, WS_POPUP, WS_VISIBLE};
+        use windows::core::w;
+
+        const TITLE: &str = "uniproc scan probe";
+        let hwnd = unsafe {
+            CreateWindowExW(
+                WS_EX_APPWINDOW as u32,
+                w!("STATIC"),
+                w!("uniproc scan probe"),
+                WS_POPUP as u32 | WS_VISIBLE as u32,
+                -32000,
+                -32000,
+                10,
+                10,
+                None,
+                None,
+                None,
+                None,
+            )
+        };
+        assert!(!hwnd.0.is_null(), "a probe window");
+
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let windows = app_windows();
+            let seen = windows.of(std::process::id()).iter().any(|w| &*w.title == TITLE);
+            let _ = tx.send(seen);
+        });
+        let seen = rx.recv_timeout(Duration::from_secs(5));
+        unsafe {
+            let _ = DestroyWindow(hwnd);
+        }
+
+        assert_eq!(seen, Ok(true), "the scan waited on a thread that is not pumping messages");
     }
 
     #[test]
