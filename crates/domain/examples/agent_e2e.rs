@@ -332,8 +332,12 @@ rm -f /tmp/uniproc-probe
         println!("\n== wsl load: {LOAD_SECS}s of yes, fsync'd writes, a 4 MB/s download ==");
         let before = report(handle).await?;
         let began = Instant::now();
-        let mut load = std::process::Command::new("wsl.exe")
-            .args(["-d", distro, "--", "sh", "-c", LOAD])
+        let mut wsl = std::process::Command::new("wsl.exe");
+        if !distro.is_empty() {
+            wsl.args(["-d", distro]);
+        }
+        let mut load = wsl
+            .args(["--", "sh", "-c", LOAD])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .spawn()
