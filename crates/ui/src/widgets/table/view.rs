@@ -137,7 +137,7 @@ impl<T: 'static, C: Mark + Clone + PartialEq + 'static> Table<T, C> {
                 if slot == 0 { corner_radius } else { 0.0 },
                 if slot == last && reaches_right { corner_radius } else { 0.0 },
             );
-            let railed = on_resize.is_some() && slot != last && !column.fill;
+            let railed = on_resize.is_some() && !column.fill;
 
             let moving = on_reorder
                 .as_ref()

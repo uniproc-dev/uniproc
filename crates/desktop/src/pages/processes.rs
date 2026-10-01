@@ -1325,6 +1325,29 @@ mod tests {
         ProcessesSettings::new().unwrap().columns().configs().insert(column.id().to_string(), &config).unwrap();
     }
 
+    struct NameHandle;
+
+    impl guinea::Mark for NameHandle {
+        fn name(&self) -> &'static str {
+            "Name/resize"
+        }
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn name_alone_in_the_table_keeps_its_resize_handle(h: &mut Harness) {
+        start(h);
+        let columns = ProcessesSettings::new().unwrap().columns().configs();
+        for column in ProcessColumn::ALL.into_iter().filter(|column| *column != ProcessColumn::Name) {
+            let hidden = ColumnConfig { visible: false, ..column.default_config() };
+            columns.insert(column.id().to_string(), &hidden).unwrap();
+        }
+        let h = &*h;
+        let mut page = mount(h);
+
+        assert_eq!(shown_columns(&mut page), [ProcessColumn::Name]);
+        assert!(page.find(NameHandle).is_some(), "{:#?}", page.tree());
+    }
+
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn the_header_menu_holds_the_metrics_and_leads_to_the_rest(h: &mut Harness) {
         start(h);
