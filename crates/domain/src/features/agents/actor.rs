@@ -201,6 +201,7 @@ fn on_in_process<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Windows
     info!("[{}] the in-process agent took over, going dormant", B::NAME);
     this.dormant = true;
     this.client = None;
+    B::announce(None);
     this.ping_in_flight = false;
     this.close_stream();
 }
@@ -244,6 +245,7 @@ fn on_connect_result<B: AgentBackend>(
         Ok(client) => {
             if this.apply(ConnectionEvent::ConnectSucceeded).is_some() {
                 info!("[{}] Connected", B::NAME);
+                B::announce(Some(&client));
                 this.client = Some(client);
                 this.connected_at = Some(tokio::time::Instant::now());
                 this.ping_in_flight = false;
@@ -259,6 +261,7 @@ fn on_connect_result<B: AgentBackend>(
             };
             if let Some(t) = this.apply(event) {
                 this.client = None;
+                B::announce(None);
                 this.publish_state(None);
                 if t.effect == TransitionEffect::ScheduleRetry {
                     let spent = this
@@ -344,6 +347,7 @@ fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Co
     }
     warn!("[{}] Connection lost", B::NAME);
     this.client = None;
+    B::announce(None);
     this.ping_in_flight = false;
     this.close_stream();
     this.publish_state(None);
@@ -364,32 +368,5 @@ fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Co
 async fn reconnect_after<B: AgentBackend>(ctx: AsyncContext<GenericAgentActor<B>>, msg: ReconnectAfter) {
     if ctx.until_gone(tokio::time::sleep(msg.0)).await.is_some() {
         ctx.send(StartConnect);
-    }
-}
-
-mod windows {
-    use super::*;
-    use crate::features::agents::providers::windows::WindowsBackend;
-    use app_contracts::features::agents::{WindowsActionRequest, WindowsActionResponse};
-    use tracing::error;
-
-    #[handler]
-    fn handle_windows_action(
-        this: &GenericAgentActor<WindowsBackend>,
-        WindowsActionRequest { action, correlation_id }: WindowsActionRequest,
-        cx: Cx,
-    ) {
-        if this.dormant {
-            return;
-        }
-        let Some(client) = this.client.clone() else {
-            error!("Dropping {action:?}: not connected to the agent");
-            return;
-        };
-
-        cx.spawn_bg_detached(async move {
-            let code = client.act(action).await;
-            GlobalEventBus::publish(WindowsActionResponse::new(correlation_id, code));
-        });
     }
 }

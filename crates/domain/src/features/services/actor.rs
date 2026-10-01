@@ -1,14 +1,13 @@
 use std::rc::Rc;
 
-use app_contracts::features::agents::{
-    WindowsAction, WindowsActionRequest, WindowsReportMessage, WindowsServiceStats,
-};
+use app_contracts::features::agents::{ActionOutcome, WindowsAction, WindowsReportMessage, WindowsServiceStats};
 use app_contracts::features::services::{
     Command, Deselect, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesMsg,
     ServicesState, Sort,
 };
 use guinea::prelude::*;
-use uuid::Uuid;
+
+use crate::features::agents::actions;
 
 #[derive(Debug)]
 pub struct ServicesActor {
@@ -77,7 +76,7 @@ fn sort_rows(rows: &mut [ServiceRow], column: ServiceColumn, descending: bool) {
 
 actor! {
     ServicesActor {
-        handlers { Sort, Select, Deselect, Command, WindowsReportMessage }
+        handlers { Sort, Select, Deselect, Command, WindowsReportMessage, Acted }
     }
 }
 
@@ -128,8 +127,13 @@ fn deselect(this: &mut ServicesActor, _msg: Deselect) {
     this.ui_port.send(ServicesMsg::SetSelected(None));
 }
 
+pub struct Acted {
+    action: WindowsAction,
+    outcome: ActionOutcome,
+}
+
 #[handler]
-fn command(this: &mut ServicesActor, Command(kind): Command) {
+fn command(this: &mut ServicesActor, Command(kind): Command, cx: Cx) {
     let Some(name) = this.selected.clone() else {
         return;
     };
@@ -140,7 +144,17 @@ fn command(this: &mut ServicesActor, Command(kind): Command) {
         ServiceActionKind::Resume => WindowsAction::ServiceResume { name },
         ServiceActionKind::Restart => WindowsAction::ServiceRestart { name },
     };
-    GlobalEventBus::publish(WindowsActionRequest::new(Uuid::new_v4(), action));
+    cx.spawn_bg(async move {
+        let outcome = actions::request(action.clone()).await;
+        Acted { action, outcome }
+    });
+}
+
+#[handler]
+fn on_acted(_this: &mut ServicesActor, Acted { action, outcome }: Acted) {
+    if outcome != ActionOutcome::Done {
+        tracing::warn!(?action, ?outcome, "the action did not go through");
+    }
 }
 
 #[cfg(test)]

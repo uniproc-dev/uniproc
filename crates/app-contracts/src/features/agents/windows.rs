@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use guinea::core::actor::event_bus::rpc::RpcCall;
 use guinea::prelude::Event;
 use serde::Deserialize;
-use uuid::Uuid;
 
 use super::connection::AgentConnectionState;
 use crate::ids::ids;
@@ -384,33 +384,20 @@ pub enum WindowsAction {
     ServiceRestart { name: String },
 }
 
-#[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
-#[remote(event)]
-pub struct WindowsActionRequest {
-    pub correlation_id: Uuid,
-    pub action: WindowsAction,
+#[derive(Clone, Debug)]
+pub struct WindowsActionRequest(pub WindowsAction);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ActionOutcome {
+    Done,
+    Denied,
+    Gone,
+    Busy,
+    NotConnected,
+    Failed(u32),
 }
 
-impl WindowsActionRequest {
-    pub fn new(correlation_id: Uuid, action: WindowsAction) -> Self {
-        Self { correlation_id, action }
-    }
-}
-
-#[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
-#[remote(event)]
-pub struct WindowsActionResponse {
-    pub correlation_id: Uuid,
-    pub code: u32,
-}
-
-impl WindowsActionResponse {
-    pub fn new(correlation_id: Uuid, code: u32) -> Self {
-        Self { correlation_id, code }
-    }
-
-    pub fn succeeded(&self) -> bool {
-        self.code == 0
-    }
+impl RpcCall for WindowsActionRequest {
+    type Response = ActionOutcome;
 }
 

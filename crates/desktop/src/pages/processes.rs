@@ -102,6 +102,7 @@ mod tests {
     use domain::features::processes::shell::ShellRequest;
     use domain::features::processes::windows_scan::AppWindows;
     use guinea::app::Harness;
+    use guinea::core::actor::event_bus::RpcRequest;
     use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::StorePlugin;
@@ -668,7 +669,7 @@ mod tests {
         select(&mut page, "notepad.exe");
         let end_task = page.click(ProcessesMark::EndTask);
         end_task.settle();
-        assert!(end_task.chain().published::<WindowsActionRequest>(), "{:#?}", end_task.chain());
+        assert!(end_task.chain().published::<RpcRequest<WindowsActionRequest>>(), "{:#?}", end_task.chain());
         page.settle();
         assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
         assert!(end_task_enabled(&page));
@@ -905,7 +906,7 @@ mod tests {
 
         let suspend = page.click(ProcessesMark::MenuSuspend);
         suspend.settle();
-        assert!(suspend.chain().published::<WindowsActionRequest>(), "{:#?}", suspend.chain());
+        assert!(suspend.chain().published::<RpcRequest<WindowsActionRequest>>(), "{:#?}", suspend.chain());
         page.settle();
         assert!(!menu_open(&page), "a command closes the menu");
     }
@@ -1119,7 +1120,7 @@ mod tests {
         page.settle();
         let asked = Rc::new(Cell::new(0));
         let counted = asked.clone();
-        let _watch = GlobalEventBus::subscribe_fn(move |_: WindowsActionRequest| counted.set(counted.get() + 1));
+        let _watch = GlobalEventBus::subscribe_fn(move |_: RpcRequest<WindowsActionRequest>| counted.set(counted.get() + 1));
 
         right_click(&mut page, "System");
         assert_eq!(h.state::<ProcessesState>().selected, Some(KERNEL));
@@ -1160,7 +1161,7 @@ mod tests {
         page.settle();
         let asked = Rc::new(Cell::new(0));
         let counted = asked.clone();
-        let _watch = GlobalEventBus::subscribe_fn(move |_: WindowsActionRequest| counted.set(counted.get() + 1));
+        let _watch = GlobalEventBus::subscribe_fn(move |_: RpcRequest<WindowsActionRequest>| counted.set(counted.get() + 1));
 
         for name in ["uniproc.exe", "uniproc-windows-agent.exe"] {
             right_click(&mut page, name);

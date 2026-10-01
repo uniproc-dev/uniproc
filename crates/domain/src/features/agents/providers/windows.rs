@@ -1,11 +1,11 @@
+use crate::features::agents::actions::WindowsTransport;
 use crate::features::agents::actor::{GenericAgentActor, Init, Ping};
 use crate::features::agents::backend::{AgentBackend, Outdated};
 use crate::features::agents::settings::AgentSettings;
 use crate::features::agents::windows_feed::WindowsFeed;
 use crate::features::settings::settings::GeneralSettings;
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, WindowsAction, WindowsActionRequest,
-    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
+    AgentConnectionState, AgentStateRequest, WindowsAction, WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
 };
 use guinea::prelude::*;
 use guinea::ratelimit;
@@ -105,6 +105,13 @@ impl AgentBackend for WindowsBackend {
         Ok(())
     }
 
+    fn announce(client: Option<&Self::Client>) {
+        GlobalEventBus::publish(match client {
+            Some(client) => WindowsTransport::Remote(client.clone()),
+            None => WindowsTransport::Lost,
+        });
+    }
+
     fn create_runtime_event(state: AgentConnectionState, latency: Option<i32>) -> Self::RuntimeEvent {
         WindowsAgentRuntimeEvent { state, latency_ms: latency }
     }
@@ -127,7 +134,6 @@ pub fn windows_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
     )
     .named("windows-agent-ping");
 
-    addr.subscribe_on::<WindowsActionRequest>(Bus::Global);
     addr.subscribe_on::<AgentStateRequest>(Bus::Global);
     addr.subscribe_on::<WindowsAgentInProcess>(Bus::Global);
     addr.send(Init);

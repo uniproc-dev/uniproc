@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod actor;
 pub mod backend;
 pub mod connection;
@@ -18,6 +19,7 @@ impl AppFeature for AgentsFeature {
     fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
         info!("Agents feature installed");
 
+        actions::install(app);
         providers::wsl::wsl_agent_feature(app)?;
         match providers::synthetic::requested() {
             Some(processes) => providers::synthetic::install(app, processes)?,

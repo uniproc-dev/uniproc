@@ -186,9 +186,13 @@ impl Layout for ShellLayout {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
     use std::time::Duration;
 
     use guinea::app::Harness;
+    use guinea::core::actor::event_bus::{RpcRequest, RpcResponse};
+    use guinea::prelude::GlobalEventBus;
     use guinea::winui::harness::{Mounted, Outlet};
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::StorePlugin;
@@ -197,7 +201,7 @@ mod tests {
     use app_contracts::features::agent_link::InProcess;
     use app_contracts::features::settings::{ByteUnits, SidebarChart};
     use app_contracts::features::agents::{
-        AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsActionResponse, WindowsMachineSample,
+        ActionOutcome, AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsMachineSample,
         WindowsMachineStats,
     };
 
@@ -232,6 +236,32 @@ mod tests {
             .provide(AgentLinkDeps {
                 start_in_process: test_agent::start_in_process,
             });
+    }
+
+    fn answers_to_a_kill(h: &Harness, page: &mut Mounted<'_, ShellLayout>) -> Vec<ActionOutcome> {
+        let answered = Rc::new(RefCell::new(Vec::new()));
+        let heard = answered.clone();
+        let _watch = GlobalEventBus::subscribe_fn(move |RpcResponse { payload, .. }: RpcResponse<ActionOutcome>| {
+            heard.borrow_mut().push(payload)
+        });
+        h.publish(RpcRequest {
+            correlation_id: Uuid::new_v4(),
+            payload: WindowsActionRequest(WindowsAction::Kill { pid: 42 }),
+            chain: Vec::new(),
+        })
+        .settle();
+        after(h, page, 1);
+        answered.take()
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "store")]
+    fn an_action_with_no_service_and_no_monitor_in_process_says_not_connected(h: &mut Harness) {
+        start(h, false);
+        let h = &*h;
+        let mut page = mount(h);
+
+        assert_eq!(answers_to_a_kill(h, &mut page), [ActionOutcome::NotConnected]);
+        assert!(test_agent::in_process_actions().is_empty());
     }
 
     fn after(h: &Harness, page: &mut Mounted<'_, ShellLayout>, seconds: u64) {
@@ -439,9 +469,7 @@ mod tests {
         after(h, &mut page, 2);
         assert!(test_agent::in_process_reports() >= reports + 3, "the in-process agent reports without a tick");
 
-        let kill = h.publish(WindowsActionRequest::new(Uuid::new_v4(), WindowsAction::Kill { pid: 42 }));
-        kill.settle();
-        assert!(kill.chain().published::<WindowsActionResponse>(), "{:#?}", kill.chain());
+        assert_eq!(answers_to_a_kill(h, &mut page), [ActionOutcome::Done], "the in-process agent answers, once");
         assert!(
             matches!(test_agent::in_process_actions().as_slice(), [WindowsAction::Kill { pid: 42 }]),
             "{:?}",

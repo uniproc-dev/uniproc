@@ -7,6 +7,7 @@ use app_contracts::features::agents::{
     WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
 };
 use domain::features::agent_link::{InProcessAgent, InProcessStartError};
+use domain::features::agents::actions;
 use domain::features::agents::actor::{GenericAgentActor, Init, Ping};
 use domain::features::agents::backend::{AgentBackend, Outdated};
 use domain::features::agents::settings::AgentSettings;
@@ -169,6 +170,7 @@ pub struct FakeAgentFeature;
 impl AppFeature for FakeAgentFeature {
     fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
         let settings = AgentSettings::new()?;
+        actions::install(app);
         let addr = app.spawn(GenericAgentActor::<FakeAgent>::new(settings.connect_attempt_secs()));
 
         app.every(Duration::from_secs(1), &addr, || Ping);

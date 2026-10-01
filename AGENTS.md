@@ -88,6 +88,12 @@ catches up (Processes resets its rates and asks for the service state).
   `agent_link` then runs `uniproc_windows_agent::local::Local` inside uniproc (needs an
   elevated uniproc, otherwise `NotElevated`) and publishes `WindowsAgentInProcess`: the
   service actor goes dormant and `agent_link` answers for it.
+- Actions on processes and services are an RPC: `WindowsActionRequest(action)` answered
+  with `ActionOutcome`, asked through `agents::actions::request`. Only `WindowsActions`
+  answers. It hears which transport is current — the service (`WindowsTransport::Remote`,
+  announced by the service actor on connect and on loss) or the monitor in process
+  (`Local`, which wins for the rest of the run) — and calls `act` on it. Nobody else
+  declares an answering handler for it.
 - Uniproc never offers to end or suspend itself or its service (`ProcessRow::is_monitor`).
 
 UI text says **service**, never "agent".

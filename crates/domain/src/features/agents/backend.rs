@@ -29,6 +29,8 @@ pub trait AgentBackend: std::fmt::Debug + Send + Sync + 'static {
         std::future::pending()
     }
 
+    fn announce(_client: Option<&Self::Client>) {}
+
     fn create_runtime_event(state: AgentConnectionState, latency_ms: Option<i32>) -> Self::RuntimeEvent;
 
     fn scan_unavailable(state: AgentConnectionState) -> Self::ScanMessage;

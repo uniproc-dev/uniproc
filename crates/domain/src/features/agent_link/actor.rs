@@ -3,12 +3,13 @@ use std::time::Duration;
 
 use app_contracts::features::agent_link::{AgentLinkMsg, AgentLinkState, InProcess, StartInProcess};
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, WindowsActionRequest, WindowsActionResponse,
-    WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
+    AgentConnectionState, AgentStateRequest, WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample,
+    WindowsReport, WindowsReportMessage,
 };
 use guinea::prelude::*;
 
 use super::in_process::{InProcessAgent, InProcessStart, InProcessStartError};
+use crate::features::agents::actions::WindowsTransport;
 
 pub struct Offer;
 
@@ -83,7 +84,6 @@ actor! {
             InProcessOfferDue,
             InProcessReport,
             InProcessMachine,
-            WindowsActionRequest,
             AgentStateRequest,
         }
     }
@@ -117,6 +117,7 @@ fn on_in_process_started(this: &mut AgentLinkActor, InProcessStarted(started): I
             tracing::info!("in-process agent started");
             this.in_process = Some(agent.clone());
             this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Running));
+            GlobalEventBus::publish(WindowsTransport::Local(agent.clone()));
             GlobalEventBus::publish(WindowsAgentInProcess);
             this.announce_in_process();
             cx.spawn_source(machine_samples(agent.clone()), InProcessMachine);
@@ -176,17 +177,6 @@ fn on_report(_this: &AgentLinkActor, InProcessReport(report): InProcessReport) {
         Some(report) => GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(report))),
         None => tracing::debug!("no report from the in-process agent this time"),
     }
-}
-
-#[handler]
-fn on_action(this: &AgentLinkActor, request: WindowsActionRequest, cx: Cx) {
-    let Some(agent) = this.in_process.clone() else {
-        return;
-    };
-    cx.spawn_bg_detached(async move {
-        let code = agent.act(request.action).await;
-        GlobalEventBus::publish(WindowsActionResponse::new(request.correlation_id, code));
-    });
 }
 
 #[handler]

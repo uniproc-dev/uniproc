@@ -1,7 +1,5 @@
 use app_contracts::features::agent_link::AgentLinkState;
-use app_contracts::features::agents::{
-    AgentStateRequest, WindowsActionRequest, WindowsAgentRuntimeEvent,
-};
+use app_contracts::features::agents::{AgentStateRequest, WindowsAgentRuntimeEvent};
 use guinea::prelude::*;
 
 use super::actor::{AgentLinkActor, OfferInProcessLater};
@@ -33,7 +31,6 @@ fn agent_link(cx: &FeatureInitContext, deps: &AgentLinkDeps) -> anyhow::Result<A
         .state::<AgentLinkState>()
         .driven_by(move |port| AgentLinkActor::new(port, start_in_process));
     addr.subscribe_on::<WindowsAgentRuntimeEvent>(Bus::Global);
-    addr.subscribe_on::<WindowsActionRequest>(Bus::Global);
     addr.subscribe_on::<AgentStateRequest>(Bus::Global);
     addr.send(OfferInProcessLater);
 
