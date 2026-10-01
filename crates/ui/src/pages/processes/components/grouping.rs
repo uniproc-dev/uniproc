@@ -975,6 +975,10 @@ impl Held {
     pub(crate) fn row(&self, pid: u32) -> Option<&ProcessRow> {
         self.rows.iter().find(|row| row.pid == pid)
     }
+
+    pub(crate) fn rows(&self) -> &[ProcessRow] {
+        &self.rows
+    }
 }
 
 fn exited_copy(row: &ProcessRow) -> ProcessRow {

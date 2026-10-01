@@ -1115,15 +1115,36 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
-    fn end_task_does_not_offer_to_end_one_member_of_a_selected_group(h: &mut Harness) {
+    fn a_selected_group_ends_as_a_tree_from_the_header(h: &mut Harness) {
         start(h);
         let h = &*h;
         let mut page = mount(h);
+        let (_service, asked) = fake_service();
+        let end_label = |page: &mut Mounted<'_, Processes>| {
+            let button = page.find(ProcessesMark::EndTask).expect("End task is on the page");
+            let mut label = Vec::new();
+            texts(&page.at(button).tree(), &mut label);
+            label.join(" ")
+        };
 
         select(&mut page, "chrome.exe (3)");
-        assert!(!end_task_enabled(&page));
+        assert_eq!(end_label(&mut page), "End tree tasks");
+        assert!(end_task_enabled(&page));
+        page.click(ProcessesMark::EndTask).settle();
+        page.settle();
+        let mut killed: Vec<u32> = asked
+            .borrow()
+            .iter()
+            .map(|action| match action {
+                WindowsAction::Kill { pid } => *pid,
+                other => panic!("{other:?}"),
+            })
+            .collect();
+        killed.sort_unstable();
+        assert_eq!(killed, CHROME);
 
         select(&mut page, "notepad.exe");
+        assert_eq!(end_label(&mut page), "End task");
         assert!(end_task_enabled(&page));
     }
 

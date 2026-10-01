@@ -23,6 +23,7 @@ processes-owned-name = { $others ->
    *[other] { $owner } +{ $others } — { $name }
     }
 processes-run-new-task = Run new task
+processes-end-tree-tasks = End tree tasks
 processes-gpu-engine = GPU { $adapter } - { $engine }
 processes-platform-x86 = 32-bit
 processes-platform-x64 = 64-bit

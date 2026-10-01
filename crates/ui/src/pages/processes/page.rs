@@ -372,7 +372,24 @@ impl ProcessesPage {
                 .unwrap_or_default(),
         };
 
+        let tree: Option<Vec<u32>> = self.selected_group_size.get().map(|_| {
+            self.held
+                .borrow()
+                .rows()
+                .iter()
+                .filter(|row| row.takes_actions() && state.rows().iter().any(|live| live.pid == row.pid))
+                .map(|row| row.pid)
+                .collect()
+        });
+        let (end_label, end_enabled) = match &tree {
+            Some(pids) => (l10n.processes_end_tree_tasks(), !pids.is_empty()),
+            None => (l10n.processes_end_task(), live.is_some_and(ProcessRow::takes_actions)),
+        };
         let terminate = dispatch.clone();
+        let end = move || match &tree {
+            Some(pids) => terminate.emit(TerminateGroup(pids.clone())),
+            None => terminate.emit(Terminate),
+        };
         let run_new_task = dispatch.clone();
         let header = Grid::new()
             .columns([
@@ -410,10 +427,10 @@ impl ProcessesPage {
                     .background(palette.divider_stroke),
                 Border::new().mark(SelectionMark::Keeper).grid_column(4).content(command_button(
                     ProcessesMark::EndTask,
-                    l10n.processes_end_task(),
+                    end_label,
                     Some(icon!(prohibited).size(Header::CommandIcon).build_element()),
-                    live.is_some_and(ProcessRow::takes_actions) && self.selected_group_size.get().is_none(),
-                    move || terminate.emit(Terminate),
+                    end_enabled,
+                    end,
                 )),
                 Border::new().grid_column(5).content(icon_button(
                     ProcessesMark::OpenSettings,
