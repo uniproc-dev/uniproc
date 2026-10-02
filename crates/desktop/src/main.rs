@@ -68,8 +68,8 @@ fn settings_store(plugin: guinea_plugin_store::StorePlugin) -> guinea_plugin_sto
 mod tests {
     use domain::features::agents::settings::AgentSettings;
     use guinea::app::Harness;
-    use guinea_plugin_store::StorePlugin;
     use guinea_plugin_store::amethystate::store::builder::StoreBuilder;
+    use guinea_plugin_store::{StoreAccess, StorePlugin};
 
     use super::settings_store;
 
@@ -85,7 +85,10 @@ mod tests {
 
         h.plugin(settings_store(StorePlugin::at(&at))).unwrap();
 
-        let kept: Vec<String> = guinea_plugin_store::amethystate::global_store()
+        let kept: Vec<String> = h
+            .segment()
+            .store()
+            .unwrap()
             .scan_keys(["agents"])
             .unwrap()
             .iter()
