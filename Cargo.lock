@@ -980,6 +980,7 @@ dependencies = [
  "flume 0.12.0",
  "futures",
  "guinea",
+ "guinea-plugin-store",
  "guinea-widgets",
  "ogurpchik",
  "serde",
