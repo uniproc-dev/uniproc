@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use amethystate::Field;
 use app_contracts::features::agents::{WindowsAction, WindowsMachineSample, WindowsReport};
 use futures::future::BoxFuture;
 
@@ -15,7 +16,7 @@ pub trait InProcessAgent: Send + Sync + 'static {
 }
 
 pub type InProcessStart =
-    fn() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>>;
+    fn(Field<u64>) -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>>;
 
 pub use local::start_local;
 
@@ -29,19 +30,21 @@ mod local {
 
     use super::{InProcessAgent, InProcessStartError};
     use crate::features::agents::windows_feed::WindowsFeed;
-    use crate::features::settings::settings::GeneralSettings;
+    use amethystate::Field;
 
     struct LocalAgent {
         feed: WindowsFeed,
     }
 
-    pub fn start_local() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
-        Box::pin(async {
-            let settings = GeneralSettings::new()
-                .map_err(|error| InProcessStartError::Failed(error.to_string()))?;
+    pub fn start_local(
+        update_interval_ms: Field<u64>,
+    ) -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
+        Box::pin(async move {
             match tokio::task::spawn_blocking(Local::start).await {
                 Ok(Ok(local)) => Ok(Arc::new(LocalAgent {
-                    feed: WindowsFeed::new(Agent::Local(Arc::new(local)), move || settings.update_interval()),
+                    feed: WindowsFeed::new(Agent::Local(Arc::new(local)), move || {
+                        std::time::Duration::from_millis(update_interval_ms.get())
+                    }),
                 }) as Arc<dyn InProcessAgent>),
                 Ok(Err(StartError::NotElevated)) => Err(InProcessStartError::NotElevated),
                 Ok(Err(error)) => Err(InProcessStartError::Failed(error.to_string())),

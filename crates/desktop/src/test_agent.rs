@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
+use amethystate::Field;
 use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, WindowsAction, WindowsAgentInProcess,
     WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
@@ -11,8 +12,10 @@ use domain::features::agents::actions;
 use domain::features::agents::actor::{GenericAgentActor, Init, Ping};
 use domain::features::agents::backend::{AgentBackend, Outdated};
 use domain::features::agents::settings::AgentSettings;
+use domain::features::settings::settings::GeneralSettings;
 use futures::future::BoxFuture;
 use guinea::prelude::*;
+use guinea_plugin_store::StoreAccess;
 
 struct Pace;
 
@@ -81,7 +84,9 @@ impl InProcessAgent for FakeInProcess {
     }
 }
 
-pub fn start_in_process() -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
+pub fn start_in_process(
+    _update_interval_ms: Field<u64>,
+) -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
     IN_PROCESS_STARTS.fetch_add(1, Ordering::SeqCst);
     let elevated = ELEVATED.load(Ordering::SeqCst);
     Box::pin(async move {
@@ -131,7 +136,7 @@ impl AgentBackend for FakeAgent {
 
     const NAME: &'static str = "Fake";
 
-    async fn connect(_timeout: Duration) -> anyhow::Result<()> {
+    async fn connect(_timeout: Duration, _update_interval_ms: Field<u64>) -> anyhow::Result<()> {
         CONNECTS.fetch_add(1, Ordering::SeqCst);
         if OUTDATED.load(Ordering::SeqCst) {
             return Err(Outdated("windows 2.1.0".into()).into());
@@ -169,9 +174,13 @@ pub struct FakeAgentFeature;
 
 impl AppFeature for FakeAgentFeature {
     fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
-        let settings = AgentSettings::new()?;
+        let settings = app.settings::<AgentSettings>()?;
+        let general = app.settings::<GeneralSettings>()?;
         actions::install(app);
-        let addr = app.spawn(GenericAgentActor::<FakeAgent>::new(settings.connect_attempt_secs()));
+        let addr = app.spawn(GenericAgentActor::<FakeAgent>::new(
+            settings.connect_attempt_secs(),
+            general.update_interval_ms(),
+        ));
 
         app.every(Duration::from_secs(1), &addr, || Ping);
         addr.subscribe_on::<AgentStateRequest>(Bus::Global);

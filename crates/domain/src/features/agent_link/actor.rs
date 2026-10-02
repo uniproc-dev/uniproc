@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use amethystate::Field;
+
 use app_contracts::features::agent_link::{AgentLinkMsg, AgentLinkState, InProcess, StartInProcess};
 use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample,
@@ -40,6 +42,7 @@ struct InProcessMachine(Option<WindowsMachineSample>);
 pub struct AgentLinkActor {
     ui_port: Push<AgentLinkState>,
     start_in_process: InProcessStart,
+    update_interval_ms: Field<u64>,
     in_process: Option<Arc<dyn InProcessAgent>>,
     starting: bool,
     last: Option<AgentConnectionState>,
@@ -56,10 +59,11 @@ impl std::fmt::Debug for AgentLinkActor {
 }
 
 impl AgentLinkActor {
-    pub fn new(ui_port: Push<AgentLinkState>, start_in_process: InProcessStart) -> Self {
+    pub fn new(ui_port: Push<AgentLinkState>, start_in_process: InProcessStart, update_interval_ms: Field<u64>) -> Self {
         Self {
             ui_port,
             start_in_process,
+            update_interval_ms,
             in_process: None,
             starting: false,
             last: None,
@@ -106,7 +110,8 @@ fn start_in_process(this: &mut AgentLinkActor, _msg: StartInProcess, cx: Cx) {
     this.starting = true;
     this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Starting));
     let start = this.start_in_process;
-    cx.spawn_bg(async move { InProcessStarted(start().await) });
+    let update_interval_ms = this.update_interval_ms.clone();
+    cx.spawn_bg(async move { InProcessStarted(start(update_interval_ms).await) });
 }
 
 #[handler]

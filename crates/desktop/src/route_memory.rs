@@ -1,8 +1,8 @@
-use std::sync::OnceLock;
-
-use amethystate::amethystate;
+use amethystate::{amethystate, Open};
 use app_contracts::features::settings::StartPage;
 use domain::features::settings::settings::GeneralSettings;
+use guinea::feature::FeatureInitContext;
+use guinea_plugin_store::{Store, StoreAccess};
 
 use crate::routes::Route;
 
@@ -12,28 +12,20 @@ pub struct RouteSettings {
     last_route: String,
 }
 
-static SETTINGS: OnceLock<Option<RouteSettings>> = OnceLock::new();
-
-fn settings() -> Option<&'static RouteSettings> {
-    SETTINGS
-        .get_or_init(|| match RouteSettings::new() {
-            Ok(settings) => Some(settings),
-            Err(err) => {
-                tracing::warn!(?err, "could not open the route settings");
-                None
-            }
-        })
-        .as_ref()
+pub fn open(ctx: &FeatureInitContext) -> Option<RouteSettings> {
+    ctx.settings::<RouteSettings>()
+        .inspect_err(|err| tracing::warn!(?err, "could not open the route settings"))
+        .ok()
 }
 
-pub fn remember(route: &Route) {
+pub fn remember(settings: &RouteSettings, route: &Route) {
     if matches!(
         route,
         Route::Settings {} | Route::ProcessesSettings {} | Route::System {} | Route::SystemTools {}
     ) {
         return;
     }
-    let (Some(settings), Some(saved)) = (settings(), route.save()) else {
+    let Some(saved) = route.save() else {
         return;
     };
     if let Err(err) = settings.last_route().set(saved) {
@@ -41,19 +33,17 @@ pub fn remember(route: &Route) {
     }
 }
 
-fn start_page() -> StartPage {
-    match GeneralSettings::new() {
-        Ok(general) => general.start_page_choice(),
-        Err(err) => {
-            tracing::warn!(?err, "could not open the general settings");
-            StartPage::default()
-        }
-    }
+fn opened<S: Open>() -> Option<S> {
+    let store = guinea::app::app_services().get::<Store>()?;
+    S::new_with(&store)
+        .inspect_err(|err| tracing::warn!(?err, settings = std::any::type_name::<S>(), "could not open"))
+        .ok()
 }
 
 pub fn restore() -> Route {
-    route_for(start_page(), || {
-        settings().and_then(|settings| Route::restore(&settings.last_route().get()))
+    let page = opened::<GeneralSettings>().map(|general| general.start_page_choice()).unwrap_or_default();
+    route_for(page, || {
+        opened::<RouteSettings>().and_then(|settings| Route::restore(&settings.last_route().get()))
     })
 }
 

@@ -5,6 +5,7 @@ use domain::features::processes::settings::ProcessesSettings;
 use guinea::feature::FeatureInitContext;
 use guinea::prelude::GlobalEventBus;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
+use guinea_plugin_store::StoreAccess;
 use ui::pages::processes::{ProcessesMsg, ProcessesPage, ProcessesSettingsMaps};
 use ui::theme::{scheme_context, Palette};
 use windows_reactor::{Callback, View};
@@ -14,8 +15,9 @@ use crate::routes::Route;
 #[derive(Default)]
 pub struct Processes(ProcessesPage);
 
-pub(super) fn open_settings() -> Option<ProcessesSettingsMaps> {
-    let settings = ProcessesSettings::new()
+pub(super) fn open_settings(ctx: &FeatureInitContext) -> Option<ProcessesSettingsMaps> {
+    let settings = ctx
+        .settings::<ProcessesSettings>()
         .inspect_err(|err| tracing::error!(?err, "processes settings did not open"))
         .ok()?;
     Some(ProcessesSettingsMaps {
@@ -39,8 +41,8 @@ impl Page for Processes {
         Ok(())
     }
 
-    fn init(_ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
-        Self(ProcessesPage::new(open_settings()))
+    fn init(ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
+        Self(ProcessesPage::new(open_settings(ctx)))
     }
 
     fn update(&mut self, message: ProcessesMsg, _cx: &mut UpdateCx<'_, Self>) {
@@ -224,6 +226,10 @@ mod tests {
             .settle();
     }
 
+    fn stored(h: &Harness) -> ProcessesSettings {
+        h.segment().settings::<ProcessesSettings>().unwrap()
+    }
+
     fn start(h: &mut Harness) {
         NOTEPAD_WINDOW.set(true);
         SHELL.with_borrow_mut(Vec::clear);
@@ -372,7 +378,7 @@ mod tests {
         assert!(flat.contains(&"RuntimeBroker.exe".to_string()), "{flat:?}");
         assert_ne!(h.state::<ProcessesState>().sort_column, ProcessColumn::Name, "the toggle does not sort");
 
-        let kept = || ProcessesSettings::new().unwrap().grouping().by_type().get();
+        let kept = || stored(h).grouping().by_type().get();
         assert!(!kept(), "the choice is kept in the settings");
 
         toggle_group_by_type(&mut page);
@@ -1410,13 +1416,13 @@ mod tests {
         page.settle();
     }
 
-    fn gpu_shown() -> Option<bool> {
-        ProcessesSettings::new().unwrap().columns().configs().get("gpu").map(|config| config.visible)
+    fn gpu_shown(h: &Harness) -> Option<bool> {
+        stored(h).columns().configs().get("gpu").map(|config| config.visible)
     }
 
-    fn show_in_settings(column: ProcessColumn) {
+    fn show_in_settings(h: &Harness, column: ProcessColumn) {
         let config = ColumnConfig { visible: true, ..column.default_config() };
-        ProcessesSettings::new().unwrap().columns().configs().insert(column.id().to_string(), &config).unwrap();
+        stored(h).columns().configs().insert(column.id().to_string(), &config).unwrap();
     }
 
     struct NameHandle;
@@ -1430,7 +1436,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn name_alone_in_the_table_keeps_its_resize_handle(h: &mut Harness) {
         start(h);
-        let columns = ProcessesSettings::new().unwrap().columns().configs();
+        let columns = stored(h).columns().configs();
         for column in ProcessColumn::ALL.into_iter().filter(|column| *column != ProcessColumn::Name) {
             let hidden = ColumnConfig { visible: false, ..column.default_config() };
             columns.insert(column.id().to_string(), &hidden).unwrap();
@@ -1465,7 +1471,7 @@ mod tests {
 
         page.click(ProcessesMark::MenuColumnGpu).settle();
         page.settle();
-        assert_eq!(gpu_shown(), Some(false), "the choice is kept in the settings");
+        assert_eq!(gpu_shown(h), Some(false), "the choice is kept in the settings");
 
         column_menu(&mut page);
         page.click(ProcessesMark::MenuMoreColumns).settle();
@@ -1477,8 +1483,8 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn pid_and_process_name_chosen_in_the_settings_show_in_the_table(h: &mut Harness) {
         start(h);
-        show_in_settings(ProcessColumn::Pid);
-        show_in_settings(ProcessColumn::ProcessName);
+        show_in_settings(h, ProcessColumn::Pid);
+        show_in_settings(h, ProcessColumn::ProcessName);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1499,7 +1505,7 @@ mod tests {
             ProcessColumn::CommandLine,
             ProcessColumn::Elevated,
         ] {
-            show_in_settings(column);
+            show_in_settings(h, column);
         }
         let h = &*h;
         let mut page = mount(h);
@@ -1554,7 +1560,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn sorting_by_pid_starts_with_the_lowest(h: &mut Harness) {
         start(h);
-        show_in_settings(ProcessColumn::Pid);
+        show_in_settings(h, ProcessColumn::Pid);
         let h = &*h;
         let mut page = mount(h);
         toggle_group_by_type(&mut page);
@@ -1578,8 +1584,8 @@ mod tests {
         page.settle();
     }
 
-    fn pin_kept(name: &str) -> Option<PinnedProcess> {
-        ProcessesSettings::new().unwrap().grouping().pins().get(&name.to_string())
+    fn pin_kept(h: &Harness, name: &str) -> Option<PinnedProcess> {
+        stored(h).grouping().pins().get(&name.to_string())
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -1593,7 +1599,7 @@ mod tests {
         assert_eq!(all[..2], ["Pinned (1)".to_string(), "notepad.exe".to_string()], "{all:?}");
         assert_eq!(all.iter().filter(|label| *label == "notepad.exe").count(), 1, "{all:?}");
         assert_eq!(
-            pin_kept("notepad.exe").map(|pin| pin.exe_path),
+            pin_kept(h, "notepad.exe").map(|pin| pin.exe_path),
             Some(NOTEPAD_PATH.to_string()),
             "the pin is kept in the settings with the path its icon comes from"
         );
@@ -1605,7 +1611,7 @@ mod tests {
 
         let all = labels(&mut page);
         assert!(!all.iter().any(|label| label.starts_with("Pinned")), "{all:?}");
-        assert_eq!(pin_kept("notepad.exe"), None);
+        assert_eq!(pin_kept(h, "notepad.exe"), None);
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -2001,7 +2007,7 @@ mod tests {
 
         assert_eq!(shown_columns(&mut page), [Name, Memory, Cpu, Net, Disk, Gpu]);
         assert_eq!(h.state::<ProcessesState>().sort_column, sorted_by, "a drag is not a click on the header");
-        let ranks = ProcessesSettings::new().unwrap().columns().order();
+        let ranks = stored(h).columns().order();
         assert_eq!(ranks.get("memory"), Some(1));
         assert_eq!(ranks.get("cpu"), Some(2));
     }
@@ -2025,8 +2031,8 @@ mod tests {
         labels(page).contains(&"notepad.exe".to_string())
     }
 
-    fn kept_rank(section: ProcessCategory) -> Option<u32> {
-        ProcessesSettings::new().unwrap().grouping().section_order().get(&section.id().to_string())
+    fn kept_rank(h: &Harness, section: ProcessCategory) -> Option<u32> {
+        stored(h).grouping().section_order().get(&section.id().to_string())
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -2044,7 +2050,7 @@ mod tests {
         assert_eq!(after[..after.len() - 1], before[1..], "{after:?}");
         assert!(page.find(ProcessesMark::DropLine).is_none());
         assert!(apps_open(&mut page), "letting go does not fold the section");
-        assert_eq!(kept_rank(ProcessCategory::App), Some(6), "the order is kept in the settings");
+        assert_eq!(kept_rank(h, ProcessCategory::App), Some(6), "the order is kept in the settings");
 
         select(&mut page, &apps);
         assert!(!apps_open(&mut page), "a plain click still folds it");
@@ -2067,7 +2073,7 @@ mod tests {
         drag_heading(&mut page, &apps, Drag::by(0.0, 10_000.0).lost());
         assert!(page.find(ProcessesMark::DropLine).is_none(), "a lost pointer shows no gap");
         assert_eq!(sections(&mut page), before);
-        assert_eq!(kept_rank(ProcessCategory::App), None);
+        assert_eq!(kept_rank(h, ProcessCategory::App), None);
 
         select(&mut page, &apps);
         assert!(!apps_open(&mut page), "the next click is a click");
@@ -2076,8 +2082,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn a_kept_order_is_there_from_the_start(h: &mut Harness) {
         start(h);
-        ProcessesSettings::new()
-            .unwrap()
+        stored(h)
             .grouping()
             .section_order()
             .insert(ProcessCategory::WindowsKernel.id().to_string(), &0)
@@ -2161,7 +2166,7 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "store")]
     fn memory_kept_as_percents_shows_a_share_in_the_header(h: &mut Harness) {
         start(h);
-        ProcessesSettings::new().unwrap().columns().memory_as_percent().set(true).unwrap();
+        stored(h).columns().memory_as_percent().set(true).unwrap();
         let h = &*h;
         let mut page = mount(h);
         memory_report(h);

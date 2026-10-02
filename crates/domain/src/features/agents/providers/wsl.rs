@@ -5,6 +5,7 @@ use crate::features::agents::linux_report::{LinuxReports, Update};
 use crate::features::agents::rpc::{RpcHandle, RpcService};
 use crate::features::agents::settings::AgentSettings;
 use crate::features::settings::settings::GeneralSettings;
+use amethystate::Field;
 use anyhow::{anyhow, bail};
 use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, LinuxReport, RemoteScan, RemoteScanResult, WslAgentRuntimeEvent,
@@ -13,6 +14,7 @@ use futures::StreamExt;
 use futures::channel::{mpsc, oneshot};
 use guinea::prelude::*;
 use guinea::ratelimit;
+use guinea_plugin_store::StoreAccess;
 use ogurpchik::auth::handshake::{HandshakeMode, Protocol, authenticate_client};
 use ogurpchik::endpoint::Endpoint;
 use ogurpchik::rpc::{RpcSession, Side, spawn_session};
@@ -377,9 +379,8 @@ impl AgentBackend for WslBackend {
     type ScanMessage = RemoteScanResult;
     const NAME: &'static str = "WSL";
 
-    async fn connect(timeout: Duration) -> anyhow::Result<Self::Client> {
-        let settings = GeneralSettings::new()?;
-        WslClient::connect(timeout, move || settings.update_interval()).await
+    async fn connect(timeout: Duration, update_interval_ms: Field<u64>) -> anyhow::Result<Self::Client> {
+        WslClient::connect(timeout, move || Duration::from_millis(update_interval_ms.get())).await
     }
 
     async fn ping(client: &Self::Client) -> anyhow::Result<i32> {
@@ -414,13 +415,17 @@ impl AgentBackend for WslBackend {
 }
 
 pub fn wsl_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
-    let settings = AgentSettings::new()?;
+    let settings = app.settings::<AgentSettings>()?;
+    let general = app.settings::<GeneralSettings>()?;
     let ping_interval = settings.ping_interval_ms();
 
     let (distro, agent_path) = (settings.wsl_distro(), settings.wsl_agent_path());
     set_launch_config(move || (distro.get(), agent_path.get()));
 
-    let addr = app.spawn(GenericAgentActor::<WslBackend>::new(settings.wsl_connect_timeout_secs()));
+    let addr = app.spawn(GenericAgentActor::<WslBackend>::new(
+        settings.wsl_connect_timeout_secs(),
+        general.update_interval_ms(),
+    ));
 
     app.every(
         Period::varying(move || Duration::from_millis(ping_interval.get())),

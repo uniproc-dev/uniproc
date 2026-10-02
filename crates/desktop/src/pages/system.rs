@@ -34,7 +34,6 @@ impl Page for System {
 #[cfg(test)]
 mod tests {
     use app_contracts::features::system::{OpenTool, PinTool, SystemTool};
-    use domain::features::system::settings::SystemSettings;
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node};
     use ui::pages::system::{SystemMark, ToolMark};
@@ -132,7 +131,7 @@ mod tests {
 
         assert_eq!(favourites(&page), [SystemTool::Services]);
         assert_eq!(launched().len(), 3, "the cross opens nothing");
-        let stored = SystemSettings::new().unwrap();
+        let stored = test_system::stored(h);
         assert!(stored.pinned().get(SystemTool::ProcessExplorer.id()).is_none());
         assert!(stored.uses().get(SystemTool::EventViewer.id()).is_none());
     }

@@ -39,10 +39,14 @@ mod tests {
     use guinea::winui::harness::{Mounted, PropertyId, PropertyValue};
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::amethystate::store::builder::Backend;
-    use guinea_plugin_store::StorePlugin;
+    use guinea_plugin_store::{StoreAccess, StorePlugin};
     use ui::pages::settings::SettingsMark;
 
     use super::*;
+
+    fn stored(h: &Harness) -> GeneralSettings {
+        h.segment().settings::<GeneralSettings>().unwrap()
+    }
 
     fn start(h: &mut Harness) {
         h.plugin(StorePlugin::in_memory())
@@ -105,7 +109,7 @@ mod tests {
         assert_eq!(value(&page, SettingsMark::ByteUnits, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(1)));
         assert_eq!(value(&page, SettingsMark::NetworkUnits, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(1)));
 
-        let stored = GeneralSettings::new().unwrap();
+        let stored = stored(h);
         assert_eq!(stored.byte_units_choice(), ByteUnits::Iec);
         assert_eq!(stored.network_units_choice(), NetworkUnits::Bytes);
         assert_eq!(stored.theme_choice(), AppTheme::Dark);
@@ -132,7 +136,7 @@ mod tests {
         assert_eq!(ticked(&page, SidebarChart::Network), PropertyValue::Bool(false));
         assert_eq!(ticked(&page, SidebarChart::Disk), PropertyValue::Bool(true));
         assert!(!h.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Network));
-        assert_eq!(GeneralSettings::new().unwrap().hidden_sidebar_charts().get(), "network");
+        assert_eq!(stored(h).hidden_sidebar_charts().get(), "network");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -141,7 +145,7 @@ mod tests {
         std::fs::write(dir.path().join("settings.json"), r#"{"general":{"update_interval_ms":0}}"#).unwrap();
         h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json)).unwrap();
 
-        assert_eq!(GeneralSettings::new().unwrap().update_interval(), UpdateInterval::Min);
+        assert_eq!(stored(h).update_interval(), UpdateInterval::Min);
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -164,6 +168,6 @@ mod tests {
         let over_again = h.act::<SettingsState>(SetUpdateInterval(9_000));
         over_again.settle();
         assert!(!over_again.chain().published::<UpdateIntervalChanged>(), "out of range lands on the same bound");
-        assert_eq!(GeneralSettings::new().unwrap().update_interval_ms().get(), 5_000);
+        assert_eq!(stored(h).update_interval_ms().get(), 5_000);
     }
 }

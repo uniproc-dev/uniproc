@@ -9,6 +9,7 @@ app-contracts = { workspace = true }
 guinea = { workspace = true }
 guinea-widgets = { workspace = true }
 amethystate = { workspace = true }
+guinea-plugin-store = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }

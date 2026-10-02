@@ -47,7 +47,6 @@ impl Page for SystemTools {
 #[cfg(test)]
 mod tests {
     use app_contracts::features::system::SystemTool;
-    use domain::features::system::settings::SystemSettings;
     use guinea::app::Harness;
     use guinea::winui::harness::Mounted;
     use ui::pages::system::{SystemMark, ToolMark};
@@ -110,9 +109,9 @@ mod tests {
                 launch("ms-settings:startupapps", ""),
             ]
         );
-        let uses = SystemSettings::new().unwrap().uses().get(SystemTool::ProcessExplorer.id()).unwrap();
+        let uses = test_system::stored(h).uses().get(SystemTool::ProcessExplorer.id()).unwrap();
         assert_eq!(uses.count, 1);
-        assert!(SystemSettings::new().unwrap().uses().get(SystemTool::ProcessMonitor.id()).is_none(), "a download is not a use");
+        assert!(test_system::stored(h).uses().get(SystemTool::ProcessMonitor.id()).is_none(), "a download is not a use");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -125,7 +124,7 @@ mod tests {
         page.settle();
 
         assert!(h.state::<SystemState>().is_pinned(SystemTool::DeviceManager));
-        assert!(SystemSettings::new().unwrap().pinned().get(SystemTool::DeviceManager.id()).is_some());
+        assert!(test_system::stored(h).pinned().get(SystemTool::DeviceManager.id()).is_some());
         assert!(launched().is_empty(), "pinning does not open the tool");
     }
 

@@ -20,8 +20,8 @@ impl Page for ProcessesSettings {
         Ok(())
     }
 
-    fn init(_ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
-        Self(ProcessesSettingsPage::new(open_settings()))
+    fn init(ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
+        Self(ProcessesSettingsPage::new(open_settings(ctx)))
     }
 
     fn update(&mut self, message: ProcessesSettingsMsg, _cx: &mut UpdateCx<'_, Self>) {

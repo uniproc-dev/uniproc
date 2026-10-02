@@ -5,7 +5,8 @@ use domain::features::system::tools::Launch;
 use domain::features::system::{SystemDeps, SystemFeature};
 use guinea::app::Harness;
 use guinea_plugin_l10n::L10nPlugin;
-use guinea_plugin_store::StorePlugin;
+use domain::features::system::settings::SystemSettings;
+use guinea_plugin_store::{StoreAccess, StorePlugin};
 
 static LAUNCHED: Mutex<Vec<Launch>> = Mutex::new(Vec::new());
 
@@ -33,6 +34,10 @@ pub fn deps() -> SystemDeps {
         locate: procexp_only,
         launch: record,
     }
+}
+
+pub fn stored(h: &Harness) -> SystemSettings {
+    h.segment().settings::<SystemSettings>().unwrap()
 }
 
 pub fn start(h: &mut Harness) {

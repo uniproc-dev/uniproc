@@ -6,6 +6,7 @@ use app_contracts::features::agents::{
     WindowsServiceStats,
 };
 use guinea::prelude::*;
+use guinea_plugin_store::StoreAccess;
 
 use crate::features::settings::settings::GeneralSettings;
 
@@ -22,7 +23,7 @@ pub fn requested() -> Option<usize> {
 }
 
 pub fn install(app: &mut FeatureBuilder, processes: usize) -> anyhow::Result<()> {
-    let interval = GeneralSettings::new()?.update_interval();
+    let interval = app.settings::<GeneralSettings>()?.update_interval();
     let executables = executables();
     let unique = std::env::var_os(UNIQUE_VARIABLE).is_some();
     let jitter: usize = std::env::var(JITTER_VARIABLE)

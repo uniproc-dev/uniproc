@@ -52,6 +52,7 @@ pub(crate) fn splash(
 pub struct ShellLayout {
     scheme: ColorScheme,
     charts: [Chart; 5],
+    routes: Option<route_memory::RouteSettings>,
 }
 
 fn window_theme(theme: AppTheme) -> WindowTheme {
@@ -86,10 +87,13 @@ impl Layout for ShellLayout {
         Ok((ctx.install(&())?, ctx.install(&())?, ctx.install(&link)?, ctx.install(&())?))
     }
 
-    fn init(_ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
+    fn init(ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
         crate::xaml_resources::override_navigation_view_resources();
         crate::window_press::install();
-        let shell = Self::default();
+        let shell = Self {
+            routes: route_memory::open(ctx),
+            ..Self::default()
+        };
         guicons::set_theme(icon_theme(shell.scheme));
         shell
     }
@@ -125,8 +129,11 @@ impl Layout for ShellLayout {
         );
 
         let current = cx.use_route::<Route>();
+        let routes = self.routes.clone();
         cx.use_effect("uniproc::remember_route", current.clone(), move || {
-            route_memory::remember(&current);
+            if let Some(routes) = &routes {
+                route_memory::remember(routes, &current);
+            }
             None
         });
 

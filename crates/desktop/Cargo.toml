@@ -33,6 +33,7 @@ dhat-heap = ["dep:dhat"]
 
 [dev-dependencies]
 guinea = { workspace = true, features = ["harness"] }
+guinea-plugin-store = { workspace = true, features = ["test-utils"] }
 futures = { workspace = true }
 tempfile = "3"
 

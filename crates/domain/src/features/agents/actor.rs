@@ -73,6 +73,7 @@ pub struct GenericAgentActor<B: AgentBackend> {
     connection: ConnectionMachine,
     ping_in_flight: bool,
     attempt_secs: Field<u64>,
+    update_interval_ms: Field<u64>,
     attempt_started: Option<tokio::time::Instant>,
     connected_at: Option<tokio::time::Instant>,
     dormant: bool,
@@ -81,12 +82,13 @@ pub struct GenericAgentActor<B: AgentBackend> {
 }
 
 impl<B: AgentBackend> GenericAgentActor<B> {
-    pub fn new(attempt_secs: Field<u64>) -> Self {
+    pub fn new(attempt_secs: Field<u64>, update_interval_ms: Field<u64>) -> Self {
         Self {
             client: None,
             connection: ConnectionMachine::new(),
             ping_in_flight: false,
             attempt_secs,
+            update_interval_ms,
             attempt_started: None,
             connected_at: None,
             dormant: false,
@@ -161,8 +163,9 @@ impl<B: AgentBackend> GenericAgentActor<B> {
     fn spawn_connect(&mut self, cx: &Cx<Self>) {
         self.attempt_started = Some(tokio::time::Instant::now());
         let timeout = self.attempt_window();
+        let update_interval_ms = self.update_interval_ms.clone();
         cx.spawn_bg(async move {
-            match B::connect(timeout).await {
+            match B::connect(timeout, update_interval_ms).await {
                 Ok(client) => ConnectResult(Ok(client)),
                 Err(err) if err.downcast_ref::<Outdated>().is_some() => {
                     warn!(agent = B::NAME, error = %err, "connect refused");
