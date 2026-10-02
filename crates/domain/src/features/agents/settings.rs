@@ -1,17 +1,17 @@
 use std::ops::RangeInclusive;
 
 use amethystate::amethystate;
-use amethystate::store::{CheckContext, Invalid};
+use amethystate::store::{Invalid, RuleContext};
 
 #[amethystate(prefix = "agents")]
 pub struct AgentSettings {
-    #[amestate(default = 3u64, check = Limits::connect_attempt)]
+    #[amestate(default = 3u64, rule = Limits::connect_attempt)]
     pub connect_attempt_secs: u64,
 
-    #[amestate(default = 2000u64, check = Limits::ping_interval)]
+    #[amestate(default = 2000u64, rule = Limits::ping_interval)]
     pub ping_interval_ms: u64,
 
-    #[amestate(default = 90u64, check = Limits::wsl_connect_timeout)]
+    #[amestate(default = 90u64, rule = Limits::wsl_connect_timeout)]
     pub wsl_connect_timeout_secs: u64,
 
     #[amestate(default = String::new())]
@@ -29,15 +29,15 @@ impl Limits {
     const PingIntervalMs: RangeInclusive<u64> = 250..=60_000;
     const WslConnectTimeoutSecs: RangeInclusive<u64> = 1..=600;
 
-    fn connect_attempt(secs: &mut u64, _: &CheckContext) -> Result<(), Invalid> {
+    fn connect_attempt(secs: &mut u64, _: &RuleContext) -> Result<(), Invalid> {
         Self::fit(secs, Self::ConnectAttemptSecs)
     }
 
-    fn ping_interval(ms: &mut u64, _: &CheckContext) -> Result<(), Invalid> {
+    fn ping_interval(ms: &mut u64, _: &RuleContext) -> Result<(), Invalid> {
         Self::fit(ms, Self::PingIntervalMs)
     }
 
-    fn wsl_connect_timeout(secs: &mut u64, _: &CheckContext) -> Result<(), Invalid> {
+    fn wsl_connect_timeout(secs: &mut u64, _: &RuleContext) -> Result<(), Invalid> {
         Self::fit(secs, Self::WslConnectTimeoutSecs)
     }
 

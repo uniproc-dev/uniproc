@@ -1,6 +1,6 @@
 use app_contracts::features::settings::{
     SetByteUnits, SetNetworkUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsMsg, SettingsState, ShowSidebarChart,
-    UpdateInterval, UpdateIntervalChanged,
+    UpdateIntervalChanged,
 };
 use guinea::prelude::*;
 
@@ -78,13 +78,15 @@ fn set_start_page(this: &mut SettingsActor, SetStartPage(page): SetStartPage) {
 
 #[handler]
 fn set_update_interval(this: &mut SettingsActor, SetUpdateInterval(ms): SetUpdateInterval) {
-    let ms = UpdateInterval::clamp(ms).as_millis() as u64;
-    if this.settings.update_interval_ms().get() == ms {
-        return;
-    }
-    if let Err(err) = this.settings.update_interval_ms().set(ms) {
+    let interval = this.settings.update_interval_ms();
+    let before = interval.get();
+    if let Err(err) = interval.set(ms) {
         tracing::warn!(?err, "update interval setting write failed");
     }
-    GlobalEventBus::publish(UpdateIntervalChanged(ms));
+    let after = interval.get();
+    if after == before {
+        return;
+    }
+    GlobalEventBus::publish(UpdateIntervalChanged(after));
     this.publish();
 }

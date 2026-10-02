@@ -198,12 +198,7 @@ impl ColumnLayout {
             return;
         };
         let id = column.id();
-        let result = if configs.contains_key(id) {
-            configs.update(id, &config)
-        } else {
-            configs.insert(id.to_string(), &config)
-        };
-        if let Err(err) = result {
+        if let Err(err) = configs.upsert(id, |_| config) {
             tracing::warn!(column = id, ?err, "column config write failed");
         }
     }

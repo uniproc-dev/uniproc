@@ -160,5 +160,10 @@ mod tests {
         let again = h.act::<SettingsState>(SetUpdateInterval(5_000));
         again.settle();
         assert!(!again.chain().published::<UpdateIntervalChanged>(), "the same interval is not news");
+
+        let over_again = h.act::<SettingsState>(SetUpdateInterval(9_000));
+        over_again.settle();
+        assert!(!over_again.chain().published::<UpdateIntervalChanged>(), "out of range lands on the same bound");
+        assert_eq!(GeneralSettings::new().unwrap().update_interval_ms().get(), 5_000);
     }
 }

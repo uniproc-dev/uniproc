@@ -1,5 +1,5 @@
 use amethystate::amethystate;
-use amethystate::store::{CheckContext, Invalid};
+use amethystate::store::{Invalid, RuleContext};
 use app_contracts::features::settings::{
     AppTheme, ByteUnits, NetworkUnits, SettingsState, SidebarCharts, StartPage, Units, UpdateInterval,
 };
@@ -12,7 +12,7 @@ pub struct GeneralSettings {
     #[amestate(default = StartPage::default().id().to_string())]
     pub start_page: String,
 
-    #[amestate(default = UpdateInterval::Default.as_millis() as u64, check = fit_update_interval)]
+    #[amestate(default = UpdateInterval::Default.as_millis() as u64, rule = fit_update_interval)]
     pub update_interval_ms: u64,
 
     #[amestate(default = ByteUnits::default().id().to_string())]
@@ -68,7 +68,7 @@ impl GeneralSettings {
     }
 }
 
-fn fit_update_interval(ms: &mut u64, _: &CheckContext) -> Result<(), Invalid> {
+fn fit_update_interval(ms: &mut u64, _: &RuleContext) -> Result<(), Invalid> {
     *ms = UpdateInterval::clamp(*ms).as_millis() as u64;
     Ok(())
 }
