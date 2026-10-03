@@ -21,7 +21,6 @@ struct Pace;
 
 #[expect(non_upper_case_globals)]
 impl Pace {
-    const Steps: u64 = 60;
     const Quarter: u64 = 15 * Ticks::Minute;
     const Hour: u64 = 60 * Ticks::Minute;
     const BurstGap: u64 = 2 * Ticks::Second;
@@ -211,21 +210,13 @@ pub struct Ask<'a> {
     pub now: u64,
     pub span: Span,
     pub filter: &'a Filter,
-    pub area: Option<Selection>,
+    pub area: Option<Area>,
     pub clock: fn(u64) -> Clock,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Selection {
-    from: u64,
-    to: u64,
-    bottom: f32,
-    top: f32,
 }
 
 struct Frame {
     start: u64,
-    width: u64,
+    end: u64,
 }
 
 impl Frame {
@@ -237,38 +228,14 @@ impl Frame {
                 .began()
                 .map_or(Pace::Hour, |began| now.saturating_sub(began).max(Ticks::Second)),
         };
-        let width = length.div_ceil(Pace::Steps).max(1);
-        let end = now.div_ceil(width) * width;
         Self {
-            start: end.saturating_sub(width * Pace::Steps),
-            width,
+            start: now.saturating_sub(length),
+            end: now + 1,
         }
     }
 
     fn length(&self) -> u64 {
-        self.width * Pace::Steps
-    }
-
-    fn end(&self) -> u64 {
-        self.start + self.length()
-    }
-
-    fn x(&self, at: u64) -> f32 {
-        (at.saturating_sub(self.start) as f64 / self.length() as f64) as f32
-    }
-
-    fn at(&self, x: f32) -> u64 {
-        self.start + (f64::from(x.clamp(0.0, 1.0)) * self.length() as f64) as u64
-    }
-}
-
-pub fn select(log: &Log, now: u64, span: Span, area: Area) -> Selection {
-    let frame = Frame::of(log, now, span);
-    Selection {
-        from: frame.at(area.left.min(area.right)),
-        to: frame.at(area.left.max(area.right)),
-        bottom: area.bottom.min(area.top),
-        top: area.bottom.max(area.top),
+        self.end - 1 - self.start
     }
 }
 
@@ -284,10 +251,10 @@ fn went_y(log: &Log, went: &ProcessWent) -> f32 {
         .map_or(Lifetime::Orphan, |started| lived_y(went.at.saturating_sub(started.came.at)))
 }
 
-fn scatter(log: &Log, frame: &Frame) -> Scatter {
+fn scatter(log: &Log, frame: &Frame, clock: fn(u64) -> Clock) -> Scatter {
     let mut dots = Vec::new();
     let mut orphans = Vec::new();
-    let span = (frame.start, Kind::Came, ProcessInstance::default())..(frame.end(), Kind::Came, ProcessInstance::default());
+    let span = (frame.start, Kind::Came, ProcessInstance::default())..(frame.end, Kind::Came, ProcessInstance::default());
     for (at, kind, instance) in log.timeline.range(span) {
         match kind {
             Kind::Came => {
@@ -295,7 +262,7 @@ fn scatter(log: &Log, frame: &Frame) -> Scatter {
                     let y = came_y(log, started);
                     dots.push(Dot {
                         key: *instance,
-                        x: frame.x(*at),
+                        at: *at,
                         y,
                         alive: y == Lifetime::Alive,
                     });
@@ -305,7 +272,7 @@ fn scatter(log: &Log, frame: &Frame) -> Scatter {
                 if !log.started.contains_key(instance) {
                     orphans.push(Dot {
                         key: *instance,
-                        x: frame.x(*at),
+                        at: *at,
                         y: Lifetime::Orphan,
                         alive: false,
                     });
@@ -318,7 +285,9 @@ fn scatter(log: &Log, frame: &Frame) -> Scatter {
         orphans,
         levels: Lifetime::Levels.iter().map(|&lived| Level { y: lived_y(lived), lived }).collect(),
         alive_y: Lifetime::Alive,
-        ticks: Vec::new(),
+        now: frame.end - 1,
+        now_clock: clock(frame.end - 1),
+        length: frame.length(),
         area: None,
     }
 }
@@ -595,18 +564,13 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     let clock = ask.clock;
     let frame = Frame::of(log, ask.now, ask.span);
     let scatter = Scatter {
-        area: ask.area.map(|area| Area {
-            left: frame.x(area.from),
-            right: frame.x(area.to),
-            bottom: area.bottom,
-            top: area.top,
-        }),
-        ..scatter(log, &frame)
+        area: ask.area,
+        ..scatter(log, &frame, clock)
     };
 
     let (from, to) = ask
         .area
-        .map_or((frame.start, frame.end()), |area| (area.from.max(frame.start), area.to.min(frame.end())));
+        .map_or((frame.start, frame.end), |area| (area.from.max(frame.start), area.to.min(frame.end)));
 
     let window = |at: u64| (from..to).contains(&at);
     let span = (from, Kind::Came, ProcessInstance::default())..(to, Kind::Came, ProcessInstance::default());
@@ -658,12 +622,8 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     let earlier = rows.len().saturating_sub(Pace::Shown) + unwalked;
     rows.truncate(Pace::Shown);
 
-    let quarter = frame.length() / 4;
     ActivityView {
-        scatter: Rc::new(Scatter {
-            ticks: (0..5).map(|n| clock(frame.start + quarter * n)).collect(),
-            ..scatter
-        }),
+        scatter: Rc::new(scatter),
         rows: rows.into_iter().filter_map(|(_, row)| row_of(log, row, clock)).collect(),
         earlier,
         came: came_count,
@@ -737,7 +697,7 @@ mod tests {
         }
     }
 
-    fn look(log: &Log, filter: &Filter, area: Option<Selection>) -> ActivityView {
+    fn look(log: &Log, filter: &Filter, area: Option<Area>) -> ActivityView {
         view(
             log,
             &Ask {
@@ -1056,8 +1016,10 @@ mod tests {
 
         let scatter = look(&log, &Filter::default(), None).scatter;
         assert_eq!(scatter.dots.len(), 3, "{scatter:#?}");
+        assert_eq!((scatter.now, scatter.length), (at(59, 59), HOUR));
+        assert_eq!(scatter.now_clock, utc(at(59, 59)));
         let (short, long, alive) = (dot(&scatter, 20), dot(&scatter, 21), dot(&scatter, 22));
-        assert!(near(short.x, 0.25) && near(long.x, 0.5) && near(alive.x, 0.75), "{scatter:#?}");
+        assert_eq!((short.at, long.at, alive.at), (at(15, 0), at(30, 0), at(45, 0)));
         assert!(short.y < long.y && long.y < alive.y, "{scatter:#?}");
         assert!(alive.alive && !short.alive && !long.alive);
         assert_eq!(alive.y, scatter.alive_y);
@@ -1067,7 +1029,7 @@ mod tests {
             panic!("one exit from before the history: {scatter:#?}");
         };
         assert_eq!(orphan.key, id(30));
-        assert!(near(orphan.x, 50.0 / 60.0) && orphan.y < 0.0, "{orphan:?}");
+        assert!(orphan.at == at(50, 0) && orphan.y < 0.0, "{orphan:?}");
     }
 
     #[test]
@@ -1099,19 +1061,17 @@ mod tests {
         ]);
         let short = dot(&look(&log, &Filter::default(), None).scatter, 20);
         let area = Area {
-            left: 10.0 / 60.0,
-            right: 20.0 / 60.0,
+            from: at(10, 0),
+            to: at(20, 0),
             bottom: 0.0,
             top: short.y + 0.01,
         };
 
-        let view = look(&log, &Filter::default(), Some(select(&log, at(59, 59), Span::Hour, area)));
+        let view = look(&log, &Filter::default(), Some(area));
 
         assert_eq!(view.rows.len(), 1, "{:#?}", view.rows);
         assert_eq!(&*only_came(&view.rows[0]).name, "short.exe");
-        let shown = view.scatter.area.expect("the area is drawn");
-        assert!(near(shown.left, area.left) && near(shown.right, area.right), "{shown:?}");
-        assert!(near(shown.top, area.top) && near(shown.bottom, area.bottom), "{shown:?}");
+        assert_eq!(view.scatter.area, Some(area));
     }
 
     #[test]

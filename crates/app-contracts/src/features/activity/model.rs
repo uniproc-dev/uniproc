@@ -41,8 +41,8 @@ impl Default for Filter {
 
 #[derive(Clone, Copy, PartialEq, Debug, Default, serde::Deserialize)]
 pub struct Area {
-    pub left: f32,
-    pub right: f32,
+    pub from: u64,
+    pub to: u64,
     pub bottom: f32,
     pub top: f32,
 }
@@ -50,7 +50,7 @@ pub struct Area {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Dot {
     pub key: ProcessInstance,
-    pub x: f32,
+    pub at: u64,
     pub y: f32,
     pub alive: bool,
 }
@@ -67,7 +67,9 @@ pub struct Scatter {
     pub orphans: Vec<Dot>,
     pub levels: Vec<Level>,
     pub alive_y: f32,
-    pub ticks: Vec<Clock>,
+    pub now: u64,
+    pub now_clock: Clock,
+    pub length: u64,
     pub area: Option<Area>,
 }
 

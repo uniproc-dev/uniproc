@@ -1,16 +1,17 @@
-use std::cell::Cell;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use app_contracts::features::activity::{Area, Dot, Scatter};
 use app_contracts::features::agents::ProcessInstance;
 use guinea::winui::MarkExt;
-use windows_canvas::{canvas, ColorF, DrawContext, Ellipse, Rect, Vector2};
 use windows_reactor::{
-    Border, Callback, CanvasChildExt, ChildrenControl, Color, Component, ComponentContext, ContentControl, Grid,
-    GridChildExt, GridLength, HorizontalAlignment, LayoutControl, PointerEventInfo, Thickness, View, ViewContext,
+    Border, Callback, Canvas, CanvasChildExt, ChildrenControl, Color, Component, ComponentContext, ComponentTimer,
+    CompositionHostEvent, ContentControl, ElementObservation, ElementRef, Ellipse, Grid, LayoutControl,
+    PointerEventInfo, Rectangle, Thickness, VerticalAlignment, View, ViewContext,
 };
 
 use super::super::marks::ActivityMark;
+use super::timeline::{ticks, Scale};
 use crate::format;
 use crate::theme::{accent_color, space, Palette};
 use crate::widgets::text::caption;
@@ -20,19 +21,23 @@ pub struct Plot;
 #[expect(non_upper_case_globals)]
 impl Plot {
     pub const Height: f64 = 126.0;
+    const Axis: f64 = 18.0;
     const Assumed: f64 = 800.0;
     const Top: f64 = 8.0;
     const Bottom: f64 = 6.0;
     const Lowest: f32 = -0.14;
     const Highest: f32 = 1.06;
-    const Radius: f32 = 2.6;
-    const Ring: f32 = 4.5;
+    const Radius: f64 = 2.6;
+    const Ring: f64 = 4.5;
+    const RingStroke: f64 = 1.2;
+    const Tick: f64 = 1.4;
     const Reach: f64 = 8.0;
     const Click: f64 = 4.0;
     const Card: f64 = 320.0;
     const Offset: f64 = 14.0;
-    const Labels: f64 = 56.0;
+    const Labels: f64 = 48.0;
     const AreaAlpha: u8 = 40;
+    const Frame: Duration = Duration::from_millis(250);
 }
 
 fn y_px(y: f32) -> f64 {
@@ -45,23 +50,13 @@ fn y_of(px: f64) -> f32 {
     Plot::Highest - share * (Plot::Highest - Plot::Lowest)
 }
 
-pub fn area_of(from: (f64, f64), to: (f64, f64), width: f64) -> Area {
-    let x = |px: f64| (px / width).clamp(0.0, 1.0) as f32;
-    Area {
-        left: x(from.0.min(to.0)),
-        right: x(from.0.max(to.0)),
-        bottom: y_of(from.1.max(to.1)),
-        top: y_of(from.1.min(to.1)),
-    }
-}
-
-pub fn nearest(scatter: &Scatter, at: (f64, f64), width: f64) -> Option<(ProcessInstance, f64, f64)> {
+pub fn nearest(scatter: &Scatter, scale: &Scale, at: (f64, f64)) -> Option<(ProcessInstance, f64, f64)> {
     scatter
         .dots
         .iter()
         .chain(&scatter.orphans)
         .map(|dot| {
-            let (x, y) = (f64::from(dot.x) * width, y_px(dot.y));
+            let (x, y) = (scale.x(dot.at), y_px(dot.y));
             (dot.key, x, y, (x - at.0).hypot(y - at.1))
         })
         .filter(|(.., distance)| *distance <= Plot::Reach)
@@ -69,12 +64,102 @@ pub fn nearest(scatter: &Scatter, at: (f64, f64), width: f64) -> Option<(Process
         .map(|(key, x, y, _)| (key, x, y))
 }
 
-fn paint(color: Color) -> ColorF {
-    ColorF::from_rgba8(color.r, color.g, color.b, color.a)
+fn faint(color: Color) -> Color {
+    Color { a: Plot::AreaAlpha, ..color }
 }
 
-fn faint(color: Color, alpha: u8) -> ColorF {
-    ColorF::from_rgba8(color.r, color.g, color.b, alpha)
+fn marked(left: f64, right: f64, top: f64, bottom: f64, accent: Color) -> View {
+    Rectangle::new()
+        .canvas_left(left.min(right))
+        .canvas_top(top.min(bottom))
+        .width((right - left).abs())
+        .height((bottom - top).abs())
+        .fill(faint(accent))
+        .stroke(accent)
+        .stroke_thickness(1.0)
+        .into()
+}
+
+#[derive(Clone, PartialEq)]
+struct Layer {
+    scatter: Rc<Scatter>,
+    origin: u64,
+    per_tick: f64,
+    palette: Palette,
+}
+
+impl Layer {
+    fn x(&self, at: u64) -> f64 {
+        (at as f64 - self.origin as f64) * self.per_tick
+    }
+}
+
+struct Dots;
+
+impl Component for Dots {
+    type Input = Layer;
+    type Message = ();
+
+    fn create(_layer: &Layer, _cx: &ComponentContext<Self>) -> Self {
+        Self
+    }
+
+    fn view(&self, layer: &Layer, _cx: &mut ViewContext<Self>) -> View {
+        let palette = layer.palette;
+        let scatter = &layer.scatter;
+        let mut items: Vec<(String, View)> = Vec::with_capacity(scatter.dots.len() + scatter.orphans.len() + 8);
+        if let Some(area) = &scatter.area {
+            items.push((
+                "area".into(),
+                marked(layer.x(area.from), layer.x(area.to), y_px(area.top), y_px(area.bottom), accent_color()),
+            ));
+        }
+        for dot in &scatter.dots {
+            let (x, y) = (layer.x(dot.at), y_px(dot.y));
+            let shape = Ellipse::new()
+                .canvas_left(x - Plot::Radius)
+                .canvas_top(y - Plot::Radius)
+                .width(Plot::Radius * 2.0)
+                .height(Plot::Radius * 2.0);
+            let shape = if dot.alive {
+                shape.stroke(palette.success).stroke_thickness(Plot::RingStroke)
+            } else {
+                shape.fill(palette.success)
+            };
+            items.push((key(dot), shape.into()));
+        }
+        for dot in &scatter.orphans {
+            items.push((
+                key(dot),
+                Rectangle::new()
+                    .canvas_left(layer.x(dot.at) - Plot::Tick / 2.0)
+                    .canvas_top(y_px(dot.y) - Plot::Radius)
+                    .width(Plot::Tick)
+                    .height(Plot::Radius * 2.0)
+                    .fill(palette.critical)
+                    .into(),
+            ));
+        }
+        let start = scatter.now.saturating_sub(scatter.length);
+        for (at, clock) in ticks(scatter.now, scatter.now_clock, scatter.length) {
+            if at < start {
+                continue;
+            }
+            items.push((
+                format!("tick/{at}"),
+                caption(format::clock(clock))
+                    .foreground(palette.secondary_text)
+                    .canvas_left(layer.x(at))
+                    .canvas_top(Plot::Height + space::Compact)
+                    .into(),
+            ));
+        }
+        Canvas::new().children((View::keyed_fragment(items),))
+    }
+}
+
+fn key(dot: &Dot) -> String {
+    format!("{}:{}", dot.key.pid, dot.key.sequence)
 }
 
 #[derive(Clone, PartialEq)]
@@ -92,97 +177,40 @@ pub enum Pointer {
     Moved(PointerEventInfo),
     Released(PointerEventInfo),
     Left,
+    Sized(f64),
+    Frame,
 }
 
 pub struct ScatterPlot {
     input: Plotted,
-    width: Rc<Cell<f64>>,
+    arrived: Instant,
+    origin: u64,
+    width: f64,
     pressed: Option<(f64, f64)>,
     dragged: Option<(f64, f64)>,
     hovered: Option<(ProcessInstance, f64, f64)>,
+    host: ElementRef<Grid>,
+    _sized: ElementObservation,
+    _frame: Option<ComponentTimer>,
 }
 
 impl ScatterPlot {
+    fn scale(&self) -> Scale {
+        let elapsed = self.arrived.elapsed().as_nanos() / 100;
+        Scale {
+            now: self.input.scatter.now + elapsed as u64,
+            length: self.input.scatter.length.max(1),
+            width: self.width,
+        }
+    }
+
     fn hover(&mut self, at: Option<(f64, f64)>) {
-        let found = at.and_then(|at| nearest(&self.input.scatter, at, self.width.get()));
+        let scale = self.scale();
+        let found = at.and_then(|at| nearest(&self.input.scatter, &scale, at));
         if found.map(|(key, ..)| key) != self.hovered.map(|(key, ..)| key) {
             let _ = self.input.on_hover.call(found.map(|(key, ..)| key));
         }
         self.hovered = found;
-    }
-
-    fn draw(&self) -> impl Fn(&DrawContext<'_>) -> windows_canvas::Result<()> + 'static {
-        let scatter = self.input.scatter.clone();
-        let palette = self.input.palette;
-        let width = self.width.clone();
-        let hovered = self.hovered.map(|(key, ..)| key);
-        let dragged = self.pressed.zip(self.dragged);
-        move |cx: &DrawContext<'_>| {
-            width.set(f64::from(cx.width));
-            cx.clear(ColorF::TRANSPARENT);
-            let w = cx.width;
-            let px = |dot: &Dot| Vector2::new(dot.x * w, y_px(dot.y) as f32);
-
-            let grid = cx.create_solid_brush(paint(palette.divider_stroke))?;
-            for level in &scatter.levels {
-                let y = y_px(level.y) as f32;
-                cx.draw_line(Vector2::new(0.0, y), Vector2::new(w, y), &grid, 0.5);
-            }
-            let base = y_px(0.0) as f32 + Plot::Ring;
-            cx.draw_line(Vector2::new(0.0, base), Vector2::new(w, base), &grid, 1.0);
-
-            let accent = accent_color();
-            let marked = |area: &Area| {
-                Rect::new(
-                    area.left * w,
-                    y_px(area.top) as f32,
-                    area.right * w,
-                    y_px(area.bottom) as f32,
-                )
-            };
-            if let Some(area) = &scatter.area {
-                cx.fill_rect(&marked(area), &cx.create_solid_brush(faint(accent, Plot::AreaAlpha))?);
-                cx.draw_rect(&marked(area), &cx.create_solid_brush(paint(accent))?, 1.0);
-            }
-
-            let came = cx.create_solid_brush(paint(palette.success))?;
-            for dot in &scatter.dots {
-                let circle = Ellipse::circle(px(dot), Plot::Radius);
-                if dot.alive {
-                    cx.draw_ellipse(&circle, &came, 1.2);
-                } else {
-                    cx.fill_ellipse(&circle, &came);
-                }
-            }
-            let went = cx.create_solid_brush(paint(palette.critical))?;
-            for dot in &scatter.orphans {
-                let at = px(dot);
-                cx.draw_line(
-                    Vector2::new(at.x, at.y - Plot::Radius),
-                    Vector2::new(at.x, at.y + Plot::Radius),
-                    &went,
-                    1.4,
-                );
-            }
-
-            if let Some(key) = hovered
-                && let Some(dot) = scatter.dots.iter().chain(&scatter.orphans).find(|dot| dot.key == key)
-            {
-                let ring = cx.create_solid_brush(paint(accent))?;
-                cx.draw_ellipse(&Ellipse::circle(px(dot), Plot::Ring), &ring, 1.5);
-            }
-            if let Some((from, to)) = dragged {
-                let rect = Rect::new(
-                    from.0.min(to.0) as f32,
-                    from.1.min(to.1) as f32,
-                    from.0.max(to.0) as f32,
-                    from.1.max(to.1) as f32,
-                );
-                cx.fill_rect(&rect, &cx.create_solid_brush(faint(accent, Plot::AreaAlpha))?);
-                cx.draw_rect(&rect, &cx.create_solid_brush(paint(accent))?, 1.0);
-            }
-            Ok(())
-        }
     }
 
     fn card(&self) -> View {
@@ -193,13 +221,58 @@ impl ScatterPlot {
         let Some(((_, x, y), (_, card))) = shown else {
             return View::empty();
         };
-        let width = self.width.get();
-        let left = (x + Plot::Offset).min(width - Plot::Card).max(0.0);
-        windows_reactor::Canvas::new().children((Border::new()
+        let left = (x + Plot::Offset).min(self.width - Plot::Card).max(0.0);
+        Canvas::new().children((Border::new()
             .canvas_left(left)
             .canvas_top(y + Plot::Offset)
             .width(Plot::Card)
             .content(card.clone()),))
+    }
+
+    fn overlay(&self, scale: &Scale) -> View {
+        let accent = accent_color();
+        let mut items: Vec<(String, View)> = Vec::new();
+        if let Some((key, ..)) = self.hovered
+            && let Some(dot) = self.input.scatter.dots.iter().chain(&self.input.scatter.orphans).find(|dot| dot.key == key)
+        {
+            let (x, y) = (scale.x(dot.at), y_px(dot.y));
+            items.push((
+                "hovered".into(),
+                Ellipse::new()
+                    .canvas_left(x - Plot::Ring)
+                    .canvas_top(y - Plot::Ring)
+                    .width(Plot::Ring * 2.0)
+                    .height(Plot::Ring * 2.0)
+                    .stroke(accent)
+                    .stroke_thickness(1.5)
+                    .into(),
+            ));
+        }
+        if let Some((from, to)) = self.pressed.zip(self.dragged) {
+            items.push(("dragged".into(), marked(from.0, to.0, from.1, to.1, accent)));
+        }
+        Canvas::new().children((View::keyed_fragment(items),))
+    }
+
+    fn grid(&self) -> View {
+        let lines: Vec<(String, View)> = self
+            .input
+            .scatter
+            .levels
+            .iter()
+            .map(|level| {
+                (
+                    level.lived.to_string(),
+                    Border::new()
+                        .height(0.5)
+                        .vertical_alignment(VerticalAlignment::Top)
+                        .margin(Thickness::new(0.0, y_px(level.y), 0.0, 0.0))
+                        .background(self.input.palette.divider_stroke)
+                        .into(),
+                )
+            })
+            .collect();
+        Grid::new().height(Plot::Height).children((View::keyed_fragment(lines),))
     }
 }
 
@@ -207,22 +280,47 @@ impl Component for ScatterPlot {
     type Input = Plotted;
     type Message = Pointer;
 
-    fn create(input: &Plotted, _cx: &ComponentContext<Self>) -> Self {
+    fn create(input: &Plotted, cx: &ComponentContext<Self>) -> Self {
+        let host = ElementRef::new();
+        let sender = cx.sender();
+        let sized = host.observe_composition_host(move |event| {
+            let width = match event {
+                CompositionHostEvent::Ready { width, .. } | CompositionHostEvent::Metrics { width, .. } => width,
+            };
+            let _ = sender.send(Pointer::Sized(width));
+        });
         Self {
             input: input.clone(),
-            width: Rc::new(Cell::new(Plot::Assumed)),
+            arrived: Instant::now(),
+            origin: input.scatter.now.saturating_sub(input.scatter.length),
+            width: Plot::Assumed,
             pressed: None,
             dragged: None,
             hovered: None,
+            host,
+            _sized: sized,
+            _frame: cx.set_timeout(Plot::Frame, Pointer::Frame).ok(),
         }
     }
 
     fn input_changed(&mut self, input: &Plotted, _cx: &ComponentContext<Self>) {
+        if input.scatter.length != self.input.scatter.length {
+            self.origin = input.scatter.now.saturating_sub(input.scatter.length);
+        }
         self.input = input.clone();
+        self.arrived = Instant::now();
     }
 
-    fn update(&mut self, message: Pointer, _cx: &ComponentContext<Self>) {
+    fn update(&mut self, message: Pointer, cx: &ComponentContext<Self>) {
         match message {
+            Pointer::Frame => {
+                self._frame = cx.set_timeout(Plot::Frame, Pointer::Frame).ok();
+            }
+            Pointer::Sized(width) => {
+                if width > 0.0 {
+                    self.width = width;
+                }
+            }
             Pointer::Pressed(info) => {
                 self.pressed = Some((info.x, info.y));
                 self.dragged = None;
@@ -245,7 +343,8 @@ impl Component for ScatterPlot {
                         let _ = self.input.on_clear.call(());
                     }
                 } else {
-                    let _ = self.input.on_pick.call(area_of(from, to, self.width.get()));
+                    let area = self.scale().area(from.0, to.0, y_of(from.1.max(to.1)), y_of(from.1.min(to.1)));
+                    let _ = self.input.on_pick.call(area);
                 }
             }
             Pointer::Left => {
@@ -256,13 +355,29 @@ impl Component for ScatterPlot {
         }
     }
 
-    fn view(&self, _input: &Plotted, cx: &mut ViewContext<Self>) -> View {
+    fn view(&self, input: &Plotted, cx: &mut ViewContext<Self>) -> View {
+        let scale = self.scale();
+        let per_tick = scale.width / scale.length as f64;
+        let layer = Layer {
+            scatter: input.scatter.clone(),
+            origin: self.origin,
+            per_tick,
+            palette: input.palette,
+        };
+        let offset = scale.width - (scale.now as f64 - self.origin as f64) * per_tick;
         Grid::new()
-            .height(Plot::Height)
+            .element_ref(&self.host)
+            .height(Plot::Height + Plot::Axis)
             .children((
-                canvas(self.draw()),
+                self.grid(),
+                Canvas::new().children((Border::new()
+                    .canvas_left(offset)
+                    .content(View::component::<Dots>(layer)),)),
+                self.overlay(&scale),
                 Border::new()
                     .mark(ActivityMark::Scatter)
+                    .height(Plot::Height)
+                    .vertical_alignment(VerticalAlignment::Top)
                     .background(Color::transparent())
                     .capture_pointer_on_press(true)
                     .on_pointer_pressed(cx.callback(Pointer::Pressed))
@@ -274,57 +389,24 @@ impl Component for ScatterPlot {
     }
 }
 
-pub fn labels(scatter: &Scatter, label: impl Fn(u64) -> String, running: String, before: String, palette: Palette) -> View {
-    let placed = |key: String, text: String, y: f32| {
-        (
-            key,
-            caption(text)
-                .foreground(palette.secondary_text)
-                .canvas_left(0.0)
-                .canvas_top(y_px(y) - space::Control)
-                .into(),
-        )
-    };
-    let mut items: Vec<(String, View)> = scatter
+pub fn labels(scatter: &Scatter, label: impl Fn(u64) -> String, palette: Palette) -> View {
+    let items: Vec<(String, View)> = scatter
         .levels
         .iter()
-        .map(|level| placed(level.lived.to_string(), label(level.lived), level.y))
-        .collect();
-    items.push(placed("running".into(), running, scatter.alive_y));
-    if let Some(orphan) = scatter.orphans.first() {
-        items.push(placed("before".into(), before, orphan.y));
-    }
-    windows_reactor::Canvas::new()
-        .width(Plot::Labels)
-        .height(Plot::Height)
-        .children((View::keyed_fragment(items),))
-}
-
-pub fn ticks(scatter: &Scatter, palette: Palette) -> View {
-    let last = scatter.ticks.len().saturating_sub(1);
-    let items: Vec<(String, View)> = scatter
-        .ticks
-        .iter()
-        .enumerate()
-        .map(|(at, tick)| {
-            let alignment = if at == last && at > 0 {
-                HorizontalAlignment::Right
-            } else {
-                HorizontalAlignment::Left
-            };
+        .map(|level| {
             (
-                at.to_string(),
-                caption(format::clock(*tick))
-                    .grid_column(at.min(last.saturating_sub(1)) as i32)
-                    .horizontal_alignment(alignment)
+                level.lived.to_string(),
+                caption(label(level.lived))
                     .foreground(palette.secondary_text)
+                    .canvas_left(0.0)
+                    .canvas_top(y_px(level.y) - space::Control)
                     .into(),
             )
         })
         .collect();
-    Grid::new()
-        .columns(vec![GridLength::Star(1.0); last.max(1)])
-        .margin(Thickness::new(0.0, space::Compact, 0.0, 0.0))
+    Canvas::new()
+        .width(Plot::Labels)
+        .height(Plot::Height)
         .children((View::keyed_fragment(items),))
 }
 
@@ -332,10 +414,10 @@ pub fn ticks(scatter: &Scatter, palette: Palette) -> View {
 mod tests {
     use super::*;
 
-    fn at(pid: u32, x: f32, y: f32) -> Dot {
+    fn at(pid: u32, at: u64, y: f32) -> Dot {
         Dot {
             key: ProcessInstance { pid, sequence: 1 },
-            x,
+            at,
             y,
             alive: false,
         }
@@ -343,26 +425,24 @@ mod tests {
 
     #[test]
     fn the_pointer_finds_the_closest_dot_within_reach_and_none_beyond() {
+        let second = super::super::timeline::Ticks::Second;
+        let scale = Scale { now: 4000 * second, length: 400 * second, width: 400.0 };
         let scatter = Scatter {
-            dots: vec![at(1, 0.25, 0.5), at(2, 0.26, 0.5)],
-            orphans: vec![at(3, 0.75, -0.08)],
+            dots: vec![at(1, 3700 * second, 0.5), at(2, 3705 * second, 0.5)],
+            orphans: vec![at(3, 3900 * second, -0.08)],
             ..Scatter::default()
         };
-        let width = 400.0;
 
-        let near_first = nearest(&scatter, (100.0, y_px(0.5)), width).map(|(key, ..)| key.pid);
-        let near_second = nearest(&scatter, (105.0, y_px(0.5)), width).map(|(key, ..)| key.pid);
-        let near_orphan = nearest(&scatter, (300.0, y_px(-0.08) + 2.0), width).map(|(key, ..)| key.pid);
-        let far = nearest(&scatter, (200.0, y_px(0.5)), width);
+        let pid = |point: (f64, f64)| nearest(&scatter, &scale, point).map(|(key, ..)| key.pid);
 
-        assert_eq!((near_first, near_second, near_orphan, far), (Some(1), Some(2), Some(3), None));
-    }
-
-    #[test]
-    fn a_dragged_rectangle_becomes_the_area_it_covers() {
-        let area = area_of((300.0, y_px(0.2)), (100.0, y_px(0.6)), 400.0);
-        let close = |a: f32, b: f32| (a - b).abs() < 0.001;
-        assert!(close(area.left, 0.25) && close(area.right, 0.75), "{area:?}");
-        assert!(close(area.bottom, 0.2) && close(area.top, 0.6), "{area:?}");
+        assert_eq!(
+            (
+                pid((100.0, y_px(0.5))),
+                pid((105.0, y_px(0.5))),
+                pid((300.0, y_px(-0.08) + 2.0)),
+                pid((200.0, y_px(0.5)))
+            ),
+            (Some(1), Some(2), Some(3), None)
+        );
     }
 }

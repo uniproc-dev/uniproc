@@ -211,6 +211,18 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4)]
+    fn the_lifetime_scale_is_labelled_with_durations_only(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10), went(30, 20)]);
+
+        let tree = page.tree();
+        assert!(says(&tree, "1 min") && says(&tree, "100 ms"), "{tree:#?}");
+        assert!(!says(&tree, "running") && !says(&tree, "before"), "{tree:#?}");
+    }
+
+    #[guinea::test(iterations = 4)]
     fn an_exit_code_waits_in_the_opened_row(h: &mut Harness) {
         start(h);
         let h = &*h;

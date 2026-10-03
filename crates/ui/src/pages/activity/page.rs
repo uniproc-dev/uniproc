@@ -19,7 +19,7 @@ use windows_reactor::{
 use super::components::card::card;
 use super::components::lasted::lasted;
 use super::components::rows::{rows, Rows};
-use super::components::scatter::{labels, ticks, Plotted, ScatterPlot};
+use super::components::scatter::{labels, Plotted, ScatterPlot};
 use super::marks::ActivityMark;
 use crate::format;
 use crate::l10n::L10n;
@@ -173,17 +173,12 @@ impl ActivityPage {
         });
         Grid::new()
             .columns([GridLength::Auto, GridLength::Star(1.0)])
-            .rows([GridLength::Auto, GridLength::Auto])
             .children((
-                Border::new().grid_column(0).grid_row(0).content(labels(
-                    scatter,
-                    |lived| lasted(l10n, lived),
-                    l10n.activity_axis_running(),
-                    l10n.activity_axis_before(),
-                    palette,
-                )),
-                Border::new().grid_column(1).grid_row(0).content(plot),
-                Border::new().grid_column(1).grid_row(1).content(ticks(scatter, palette)),
+                Border::new()
+                    .grid_column(0)
+                    .vertical_alignment(VerticalAlignment::Top)
+                    .content(labels(scatter, |lived| lasted(l10n, lived), palette)),
+                Border::new().grid_column(1).content(plot),
             ))
     }
 

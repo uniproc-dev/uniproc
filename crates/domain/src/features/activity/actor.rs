@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityMsg, ActivityState, ClearArea, Filter, Hover, NewOnly, PickArea, Search, ShowBursts, ShowCame,
+    ActivityMsg, ActivityState, Area, ClearArea, Filter, Hover, NewOnly, PickArea, Search, ShowBursts, ShowCame,
     ShowSpan, ShowWent, Span,
 };
 use app_contracts::features::agents::{WindowsProcessEvents, WindowsReportMessage};
 use guinea::prelude::*;
 
 use super::install::ActivityDeps;
-use super::log::{row, select, view, Ask, Log, Selection};
+use super::log::{row, view, Ask, Log};
 
 pub struct ActivityActor {
     push: Push<ActivityState>,
@@ -16,7 +16,7 @@ pub struct ActivityActor {
     log: Log,
     span: Span,
     filter: Filter,
-    area: Option<Selection>,
+    area: Option<Area>,
     stale: bool,
 }
 
@@ -138,7 +138,12 @@ fn search(this: &mut ActivityActor, Search(text): Search) {
 
 #[handler]
 fn pick_area(this: &mut ActivityActor, PickArea(area): PickArea) {
-    this.area = Some(select(&this.log, (this.deps.now)(), this.span, area));
+    this.area = Some(Area {
+        from: area.from.min(area.to),
+        to: area.from.max(area.to),
+        bottom: area.bottom.min(area.top),
+        top: area.bottom.max(area.top),
+    });
     this.publish();
 }
 
