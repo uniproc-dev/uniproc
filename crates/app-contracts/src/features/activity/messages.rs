@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use serde::Deserialize;
 
-use super::model::{ActivityRow, ActivityView, Area, Filter, Span};
+use super::model::{ActivityRow, ActivityView, Area, Filter, Pick, Span};
 use crate::features::agents::ProcessInstance;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -31,7 +31,19 @@ pub struct NewOnly(pub bool);
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
-pub struct ShowBursts(pub bool);
+pub struct ShowSeries(pub bool);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Only(pub Option<Pick>);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Hide(pub Pick);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Unhide(pub Pick);
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]

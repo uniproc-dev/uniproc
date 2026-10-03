@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use app_contracts::features::activity::{ActivityRow, Burst, Came, Launcher, Went};
+use app_contracts::features::activity::{ActivityRow, Came, Launcher, Pick, Series, Went};
 use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
 use guinea::winui::MarkExt;
@@ -13,6 +13,7 @@ use windows_reactor::{
 use super::super::marks::ActivityMark;
 use super::facts::{facts, went_facts};
 use super::lasted::lasted;
+use super::picks::pick_buttons;
 use crate::format;
 use crate::l10n::L10n;
 use crate::theme::{accent_color, size, space, Palette};
@@ -33,6 +34,8 @@ pub struct Rows {
     pub l10n: L10n,
     pub palette: Palette,
     pub on_toggle: Callback<ProcessInstance>,
+    pub on_only: Callback<Pick>,
+    pub on_hide: Callback<Pick>,
 }
 
 fn key(instance: ProcessInstance) -> String {
@@ -123,7 +126,7 @@ fn joined(names: &[std::sync::Arc<str>], l10n: &L10n) -> String {
         .iter()
         .map(|name| name.to_string())
         .collect::<Vec<_>>()
-        .join(&l10n.activity_burst_names_separator())
+        .join(&l10n.activity_services_separator())
 }
 
 pub fn launcher_text(came: &Came, l10n: &L10n) -> Option<String> {
@@ -166,7 +169,11 @@ fn came_view(list: &Rows, came: &Came) -> View {
         *palette,
     );
     let body = if list.expanded.contains(&came.key) {
-        StackPanel::new().children((head, facts(came, l10n, *palette, Line::Indent)))
+        StackPanel::new().children((
+            head,
+            facts(came, l10n, *palette, Line::Indent),
+            pick_buttons(&came.picks, l10n, &list.on_only, &list.on_hide, Line::Indent),
+        ))
     } else {
         head
     };
@@ -197,13 +204,13 @@ fn went_view(list: &Rows, went: &Went) -> View {
     toggled(body, went.key, &list.on_toggle)
 }
 
-fn burst_names(burst: &Burst, l10n: &L10n) -> String {
-    burst
+fn series_names(series: &Series, l10n: &L10n) -> String {
+    series
         .names
         .iter()
-        .map(|(name, count)| l10n.activity_burst_name(name.to_string(), *count as i64))
+        .map(|(name, count)| l10n.activity_series_name(name.to_string(), *count as i64))
         .collect::<Vec<_>>()
-        .join(&l10n.activity_burst_names_separator())
+        .join(&l10n.activity_series_names_separator())
 }
 
 fn member_view(came: &Came, l10n: &L10n, palette: Palette) -> View {
@@ -222,45 +229,49 @@ fn member_view(came: &Came, l10n: &L10n, palette: Palette) -> View {
         ))
 }
 
-fn burst_view(list: &Rows, burst: &Burst) -> View {
+fn series_view(list: &Rows, series: &Series) -> View {
     let Rows { l10n, palette, .. } = list;
-    let open = list.expanded.contains(&burst.key);
+    let open = list.expanded.contains(&series.key);
     let chevron = if open {
         icon!(chevron_down_regular).size(size::Icon).build()
     } else {
         icon!(chevron_right_regular).size(size::Icon).build()
     };
     let head = line(
-        format::clock(burst.at),
+        format::clock(series.at),
         icon!(burst).size(size::Icon).build(),
         spaced(vec![
             ("chevron".into(), chevron),
-            ("launcher".into(), centered(burst.launcher.to_string())),
-            ("names".into(), secondary(burst_names(burst, l10n), *palette)),
+            ("launcher".into(), centered(series.launcher.to_string())),
+            ("names".into(), secondary(series_names(series, l10n), *palette)),
         ]),
         secondary(
-            l10n.activity_burst_summary(burst.members.len() as i64, burst.went as i64, lasted(l10n, burst.lasted)),
+            l10n.activity_series_summary(series.count as i64, series.went as i64),
             *palette,
         ),
         *palette,
     );
     let body = if open {
-        let members: Vec<(String, View)> = burst
+        let members: Vec<(String, View)> = series
             .members
             .iter()
             .map(|came| (key(came.key), member_view(came, l10n, *palette)))
             .collect();
-        StackPanel::new().children((head, StackPanel::new().children((View::keyed_fragment(members),))))
+        StackPanel::new().children((
+            head,
+            pick_buttons(&series.picks, l10n, &list.on_only, &list.on_hide, Line::Indent),
+            StackPanel::new().children((View::keyed_fragment(members),)),
+        ))
     } else {
         head
     };
-    toggled(body, burst.key, &list.on_toggle)
+    toggled(body, series.key, &list.on_toggle)
 }
 
 fn row_view(list: &Rows, row: &ActivityRow) -> View {
     match row {
         ActivityRow::Came(came) => came_view(list, came),
         ActivityRow::Went(went) => went_view(list, went),
-        ActivityRow::Burst(burst) => burst_view(list, burst),
+        ActivityRow::Series(series) => series_view(list, series),
     }
 }

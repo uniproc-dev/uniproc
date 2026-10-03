@@ -53,7 +53,7 @@ pub fn card(row: &ActivityRow, l10n: &L10n, palette: Palette) -> View {
                 ("when".to_string(), line(l10n.activity_hover_went(format::clock(went.exit.at)), palette)),
             ]
         }
-        ActivityRow::Burst(_) => Vec::new(),
+        ActivityRow::Series(_) => Vec::new(),
     };
     Border::new()
         .mark(ActivityMark::Card)

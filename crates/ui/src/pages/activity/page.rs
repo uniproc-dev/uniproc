@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityState, ActivityView, Area, ClearArea, Hover, NewOnly, PickArea, Search, ShowBursts, ShowCame, ShowSpan,
-    ShowWent, Span,
+    ActivityState, ActivityView, Area, ClearArea, Hide, Hover, NewOnly, Only, Pick, PickArea, Search, ShowCame,
+    ShowSeries, ShowSpan, ShowWent, Span, Unhide,
 };
 use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
@@ -18,6 +18,7 @@ use windows_reactor::{
 
 use super::components::card::card;
 use super::components::lasted::lasted;
+use super::components::picks::picked;
 use super::components::rows::{rows, Rows};
 use super::components::scatter::{labels, Plotted, ScatterPlot};
 use super::marks::ActivityMark;
@@ -75,7 +76,7 @@ impl ActivityPage {
 
     fn menu(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
         let filter = &state.filter;
-        let (came, went, new_only, bursts) = (dispatch.clone(), dispatch.clone(), dispatch.clone(), dispatch.clone());
+        let (came, went, new_only, series) = (dispatch.clone(), dispatch.clone(), dispatch.clone(), dispatch.clone());
         let spans: Vec<(String, View)> = [Span::Quarter, Span::Hour, Span::Connected]
             .into_iter()
             .map(|span| {
@@ -97,8 +98,8 @@ impl ActivityPage {
             shown(ActivityMark::NewOnly, l10n.activity_new_only(), filter.new_only, move |on| {
                 new_only.emit(NewOnly(on))
             }),
-            shown(ActivityMark::Bursts, l10n.activity_bursts(), filter.bursts, move |on| {
-                bursts.emit(ShowBursts(on))
+            shown(ActivityMark::Series, l10n.activity_series(), filter.series, move |on| {
+                series.emit(ShowSeries(on))
             }),
             separator(palette).margin(Thickness::xy(0.0, space::Control)),
             StackPanel::new().children((View::keyed_fragment(spans),)),
@@ -195,6 +196,13 @@ impl ActivityPage {
             return page_frame(header, loading(), status_text(l10n.activity_loading(), palette), palette);
         };
 
+        let (only, hide, all, unhide) = (dispatch.clone(), dispatch.clone(), dispatch.clone(), dispatch.clone());
+        let chips = picked(
+            &state.filter,
+            l10n,
+            Callback::new(move |()| all.emit(Only(None))),
+            Callback::new(move |pick: Pick| unhide.emit(Unhide(pick))),
+        );
         let list: View = if view.rows.is_empty() {
             text(l10n.activity_empty())
                 .mark(ActivityMark::Empty)
@@ -213,11 +221,13 @@ impl ActivityPage {
                     on_toggle: Callback::new(move |key: ProcessInstance| {
                         let _ = forward.call(ActivityPageMsg::Toggle(key));
                     }),
+                    on_only: Callback::new(move |pick: Pick| only.emit(Only(Some(pick)))),
+                    on_hide: Callback::new(move |pick: Pick| hide.emit(Hide(pick))),
                 }))
         };
 
         let body = Grid::new()
-            .rows([GridLength::Auto, GridLength::Auto, GridLength::Star(1.0)])
+            .rows([GridLength::Auto, GridLength::Auto, GridLength::Auto, GridLength::Star(1.0)])
             .children((
                 Border::new()
                     .grid_row(0)
@@ -226,7 +236,8 @@ impl ActivityPage {
                 Border::new()
                     .grid_row(1)
                     .content(Self::range_bar(view, state, dispatch, l10n, palette)),
-                Border::new().grid_row(2).content(list),
+                Border::new().grid_row(2).content(chips.unwrap_or_else(|| Border::new().into())),
+                Border::new().grid_row(3).content(list),
             ));
 
         let (from, to) = (format::clock(view.from), format::clock(view.to));

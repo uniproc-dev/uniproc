@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityMsg, ActivityState, Area, ClearArea, Filter, Hover, NewOnly, PickArea, Search, ShowBursts, ShowCame,
-    ShowSpan, ShowWent, Span,
+    ActivityMsg, ActivityState, Area, ClearArea, Filter, Hide, Hover, NewOnly, Only, PickArea, Search, ShowCame,
+    ShowSeries, ShowSpan, ShowWent, Span, Unhide,
 };
 use app_contracts::features::agents::{WindowsProcessEvents, WindowsReportMessage};
 use guinea::prelude::*;
@@ -73,7 +73,7 @@ actor! {
     ActivityActor {
         handlers {
             WindowsProcessEvents, WindowsReportMessage, Refresh, Flush, ShowSpan, ShowCame, ShowWent, NewOnly,
-            ShowBursts, Search, PickArea, ClearArea, Hover
+            ShowSeries, Only, Hide, Unhide, Search, PickArea, ClearArea, Hover
         }
     }
 }
@@ -127,8 +127,30 @@ fn new_only(this: &mut ActivityActor, NewOnly(only): NewOnly) {
 }
 
 #[handler]
-fn show_bursts(this: &mut ActivityActor, ShowBursts(shown): ShowBursts) {
-    this.refilter(|filter| filter.bursts = shown);
+fn show_series(this: &mut ActivityActor, ShowSeries(shown): ShowSeries) {
+    this.refilter(|filter| filter.series = shown);
+}
+
+#[handler]
+fn only(this: &mut ActivityActor, Only(pick): Only) {
+    this.refilter(|filter| filter.only = pick);
+}
+
+#[handler]
+fn hide(this: &mut ActivityActor, Hide(pick): Hide) {
+    this.refilter(|filter| {
+        if filter.only.as_ref() == Some(&pick) {
+            filter.only = None;
+        }
+        if !filter.hidden.contains(&pick) {
+            filter.hidden.push(pick);
+        }
+    });
+}
+
+#[handler]
+fn unhide(this: &mut ActivityActor, Unhide(pick): Unhide) {
+    this.refilter(|filter| filter.hidden.retain(|hidden| *hidden != pick));
 }
 
 #[handler]

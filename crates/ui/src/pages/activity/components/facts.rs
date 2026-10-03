@@ -68,7 +68,7 @@ pub fn facts(came: &Came, l10n: &L10n, palette: Palette, indent: f64) -> View {
                 .iter()
                 .map(|name| name.to_string())
                 .collect::<Vec<_>>()
-                .join(&l10n.activity_burst_names_separator()),
+                .join(&l10n.activity_services_separator()),
         ));
     }
     lines.push((l10n.activity_fact_folder(), or_unknown(&came.working_dir, l10n)));

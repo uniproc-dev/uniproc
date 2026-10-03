@@ -272,6 +272,85 @@ mod tests {
         assert!(!says(&tree, "30"), "{tree:#?}");
     }
 
+    fn came_from(pid: u32, parent: u32, path: &str, minute: u64) -> ProcessEvent {
+        ProcessEvent::Came(ProcessCame {
+            instance: id(pid),
+            parent: id(parent),
+            at: BASE + minute * 60 * SECOND,
+            image_path: path.into(),
+            command_line: path.into(),
+            ..Default::default()
+        })
+    }
+
+    const GIT: &str = r"C:\Program Files\Git\cmd\git.exe";
+
+    #[guinea::test(iterations = 4)]
+    fn repeats_from_one_launcher_and_folder_are_one_row_until_grouping_is_off(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(
+            h,
+            &mut page,
+            vec![
+                came_from(4, 1, r"C:\Tools\claude.exe", 5),
+                came_from(20, 4, GIT, 10),
+                came_from(21, 4, GIT, 20),
+                came_from(22, 4, GIT, 30),
+            ],
+        );
+        assert_eq!(rows(&page.tree()), 2, "{:#?}", page.tree());
+        assert!(says(&page.tree(), "git.exe × 3"), "{:#?}", page.tree());
+
+        page.click(ActivityMark::Series).settle();
+        h.advance(Duration::from_secs(1));
+        page.settle();
+        assert_eq!(rows(&page.tree()), 4, "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_program_hidden_from_its_opened_row_leaves_the_list_until_its_chip_is_clicked(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10), came_from(21, 1, r"C:\Other\other.exe", 20)]);
+        page.click(ActivityMark::Row).settle();
+        page.settle();
+        assert!(page.find(ActivityMark::HideExe).is_some(), "{:#?}", page.tree());
+
+        page.click(ActivityMark::HideExe).settle();
+        h.advance(Duration::from_secs(1));
+        page.settle();
+        assert_eq!(rows(&page.tree()), 1, "{:#?}", page.tree());
+        assert!(!says(&page.tree(), "other.exe"), "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::Picked).is_some(), "{:#?}", page.tree());
+
+        page.click(ActivityMark::Picked).settle();
+        h.advance(Duration::from_secs(1));
+        page.settle();
+        assert_eq!(rows(&page.tree()), 2, "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::Picked).is_none(), "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn only_this_program_leaves_its_rows_alone_in_the_list(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10), came_from(21, 1, r"C:\Other\other.exe", 20)]);
+        page.click(ActivityMark::Row).settle();
+        page.settle();
+        assert!(page.find(ActivityMark::Only).is_some(), "{:#?}", page.tree());
+
+        page.click(ActivityMark::Only).settle();
+        h.advance(Duration::from_secs(1));
+        page.settle();
+        assert_eq!(rows(&page.tree()), 1, "{:#?}", page.tree());
+        assert!(!says(&page.tree(), "tool.exe"), "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::Picked).is_some(), "{:#?}", page.tree());
+    }
+
     #[guinea::test(iterations = 4)]
     fn hiding_exits_from_the_menu_leaves_nothing_when_only_exits_happened(h: &mut Harness) {
         start(h);

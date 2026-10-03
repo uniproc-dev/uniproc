@@ -18,13 +18,22 @@ pub enum Span {
     Connected,
 }
 
+#[derive(Clone, PartialEq, Eq, Hash, Debug, serde::Deserialize)]
+pub enum Pick {
+    Exe(Arc<str>),
+    Folder(Arc<str>),
+    Launcher(Arc<str>),
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Filter {
     pub came: bool,
     pub went: bool,
     pub new_only: bool,
-    pub bursts: bool,
+    pub series: bool,
     pub text: String,
+    pub only: Option<Pick>,
+    pub hidden: Vec<Pick>,
 }
 
 impl Default for Filter {
@@ -33,8 +42,10 @@ impl Default for Filter {
             came: true,
             went: true,
             new_only: false,
-            bursts: true,
+            series: true,
             text: String::new(),
+            only: None,
+            hidden: Vec::new(),
         }
     }
 }
@@ -53,6 +64,7 @@ pub struct Dot {
     pub at: u64,
     pub y: f32,
     pub alive: bool,
+    pub faint: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -108,6 +120,7 @@ pub struct Came {
     pub parent_services: Arc<[Arc<str>]>,
     pub first_seen: bool,
     pub exit: Option<Exit>,
+    pub picks: Vec<Pick>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -119,21 +132,24 @@ pub struct Went {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct Burst {
+pub struct Series {
     pub key: ProcessInstance,
     pub at: Clock,
     pub launcher: Arc<str>,
+    pub folder: Arc<str>,
     pub names: Vec<(Arc<str>, usize)>,
+    pub count: usize,
     pub went: usize,
-    pub lasted: u64,
+    pub routine: bool,
     pub members: Vec<Rc<Came>>,
+    pub picks: Vec<Pick>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ActivityRow {
     Came(Rc<Came>),
     Went(Rc<Went>),
-    Burst(Rc<Burst>),
+    Series(Rc<Series>),
 }
 
 impl ActivityRow {
@@ -141,7 +157,7 @@ impl ActivityRow {
         match self {
             Self::Came(came) => came.key,
             Self::Went(went) => went.key,
-            Self::Burst(burst) => burst.key,
+            Self::Series(series) => series.key,
         }
     }
 }

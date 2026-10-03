@@ -20,7 +20,7 @@ pub struct Plot;
 
 #[expect(non_upper_case_globals)]
 impl Plot {
-    pub const Height: f64 = 126.0;
+    pub const Height: f64 = 200.0;
     const Axis: f64 = 18.0;
     const Assumed: f64 = 800.0;
     const Top: f64 = 8.0;
@@ -121,10 +121,11 @@ impl Component for Dots {
                 .canvas_top(y - Plot::Radius)
                 .width(Plot::Radius * 2.0)
                 .height(Plot::Radius * 2.0);
+            let color = if dot.faint { faint(palette.success) } else { palette.success };
             let shape = if dot.alive {
-                shape.stroke(palette.success).stroke_thickness(Plot::RingStroke)
+                shape.stroke(color).stroke_thickness(Plot::RingStroke)
             } else {
-                shape.fill(palette.success)
+                shape.fill(color)
             };
             items.push((key(dot), shape.into()));
         }
@@ -136,7 +137,7 @@ impl Component for Dots {
                     .canvas_top(y_px(dot.y) - Plot::Radius)
                     .width(Plot::Tick)
                     .height(Plot::Radius * 2.0)
-                    .fill(palette.critical)
+                    .fill(if dot.faint { faint(palette.critical) } else { palette.critical })
                     .into(),
             ));
         }
@@ -420,6 +421,7 @@ mod tests {
             at,
             y,
             alive: false,
+            faint: false,
         }
     }
 
