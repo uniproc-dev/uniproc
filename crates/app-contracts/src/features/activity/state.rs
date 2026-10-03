@@ -4,13 +4,14 @@ use guinea::feature::AppExport;
 use guinea::prelude::*;
 
 use super::messages::ActivityMsg;
-use super::model::{ActivityView, Filter, Span};
+use super::model::{ActivityRow, ActivityView, Filter, Span};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ActivityState {
     pub view: Load<Rc<ActivityView>>,
     pub span: Span,
     pub filter: Filter,
+    pub hovered: Option<ActivityRow>,
 }
 
 impl Default for ActivityState {
@@ -19,6 +20,7 @@ impl Default for ActivityState {
             view: Load::Loading,
             span: Span::default(),
             filter: Filter::default(),
+            hovered: None,
         }
     }
 }
@@ -31,5 +33,6 @@ fn activity(this: &mut ActivityState, msg: ActivityMsg) {
         ActivityMsg::View(view) => this.view = Load::Ready(view),
         ActivityMsg::Span(span) => this.span = span,
         ActivityMsg::Filter(filter) => this.filter = filter,
+        ActivityMsg::Hovered(row) => this.hovered = row,
     }
 }

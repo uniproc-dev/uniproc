@@ -39,17 +39,36 @@ impl Default for Filter {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub struct Bucket {
-    pub came: u32,
-    pub went: u32,
+#[derive(Clone, Copy, PartialEq, Debug, Default, serde::Deserialize)]
+pub struct Area {
+    pub left: f32,
+    pub right: f32,
+    pub bottom: f32,
+    pub top: f32,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Dot {
+    pub key: ProcessInstance,
+    pub x: f32,
+    pub y: f32,
+    pub alive: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Level {
+    pub y: f32,
+    pub lived: u64,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]
-pub struct Histogram {
-    pub buckets: Vec<Bucket>,
+pub struct Scatter {
+    pub dots: Vec<Dot>,
+    pub orphans: Vec<Dot>,
+    pub levels: Vec<Level>,
+    pub alive_y: f32,
     pub ticks: Vec<Clock>,
-    pub picked: Option<(usize, usize)>,
+    pub area: Option<Area>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -127,7 +146,7 @@ impl ActivityRow {
 
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct ActivityView {
-    pub histogram: Histogram,
+    pub scatter: Rc<Scatter>,
     pub rows: Vec<ActivityRow>,
     pub earlier: usize,
     pub came: usize,

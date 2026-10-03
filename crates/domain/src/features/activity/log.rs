@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use app_contracts::features::activity::{
-    ActivityRow, ActivityView, Bucket, Burst, Came, Clock, Exit, Filter, Histogram, Launcher, Span, Went,
+    ActivityRow, ActivityView, Area, Burst, Came, Clock, Dot, Exit, Filter, Launcher, Level, Scatter, Span, Went,
 };
 use app_contracts::features::agents::{
     ProcessCame, ProcessEvent, ProcessInstance, ProcessWent, WindowsProcessEvents, WindowsProcessStats,
@@ -21,7 +21,7 @@ struct Pace;
 
 #[expect(non_upper_case_globals)]
 impl Pace {
-    const Buckets: u64 = 60;
+    const Steps: u64 = 60;
     const Quarter: u64 = 15 * Ticks::Minute;
     const Hour: u64 = 60 * Ticks::Minute;
     const BurstGap: u64 = 2 * Ticks::Second;
@@ -29,6 +29,31 @@ impl Pace {
     const ChainDepth: usize = 16;
     const Shown: usize = 200;
     const Shells: [&str; 5] = ["cmd.exe", "powershell.exe", "pwsh.exe", "wscript.exe", "cscript.exe"];
+}
+
+struct Lifetime;
+
+#[expect(non_upper_case_globals)]
+impl Lifetime {
+    const Shortest: u64 = Ticks::Second / 10;
+    const Longest: u64 = 60 * Ticks::Minute;
+    const Finite: f32 = 0.88;
+    const Alive: f32 = 1.0;
+    const Orphan: f32 = -0.08;
+    const Levels: [u64; 6] = [
+        Ticks::Second / 10,
+        Ticks::Second,
+        10 * Ticks::Second,
+        Ticks::Minute,
+        10 * Ticks::Minute,
+        60 * Ticks::Minute,
+    ];
+}
+
+fn lived_y(lived: u64) -> f32 {
+    let decades = (Lifetime::Longest as f64 / Lifetime::Shortest as f64).log10();
+    let at = (lived.max(Lifetime::Shortest) as f64 / Lifetime::Shortest as f64).log10() / decades;
+    at.min(1.0) as f32 * Lifetime::Finite
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -186,8 +211,16 @@ pub struct Ask<'a> {
     pub now: u64,
     pub span: Span,
     pub filter: &'a Filter,
-    pub range: Option<(u64, u64)>,
+    pub area: Option<Selection>,
     pub clock: fn(u64) -> Clock,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Selection {
+    from: u64,
+    to: u64,
+    bottom: f32,
+    top: f32,
 }
 
 struct Frame {
@@ -204,31 +237,90 @@ impl Frame {
                 .began()
                 .map_or(Pace::Hour, |began| now.saturating_sub(began).max(Ticks::Second)),
         };
-        let width = length.div_ceil(Pace::Buckets).max(1);
+        let width = length.div_ceil(Pace::Steps).max(1);
         let end = now.div_ceil(width) * width;
         Self {
-            start: end.saturating_sub(width * Pace::Buckets),
+            start: end.saturating_sub(width * Pace::Steps),
             width,
         }
     }
 
-    fn end(&self) -> u64 {
-        self.start + self.width * Pace::Buckets
+    fn length(&self) -> u64 {
+        self.width * Pace::Steps
     }
 
-    fn bucket(&self, at: u64) -> Option<usize> {
-        (self.start..self.end())
-            .contains(&at)
-            .then(|| ((at - self.start) / self.width) as usize)
+    fn end(&self) -> u64 {
+        self.start + self.length()
+    }
+
+    fn x(&self, at: u64) -> f32 {
+        (at.saturating_sub(self.start) as f64 / self.length() as f64) as f32
+    }
+
+    fn at(&self, x: f32) -> u64 {
+        self.start + (f64::from(x.clamp(0.0, 1.0)) * self.length() as f64) as u64
     }
 }
 
-pub fn bucket_range(log: &Log, now: u64, span: Span, index: usize) -> Option<(u64, u64)> {
+pub fn select(log: &Log, now: u64, span: Span, area: Area) -> Selection {
     let frame = Frame::of(log, now, span);
-    (index < Pace::Buckets as usize).then(|| {
-        let from = frame.start + frame.width * index as u64;
-        (from, from + frame.width)
-    })
+    Selection {
+        from: frame.at(area.left.min(area.right)),
+        to: frame.at(area.left.max(area.right)),
+        bottom: area.bottom.min(area.top),
+        top: area.bottom.max(area.top),
+    }
+}
+
+fn came_y(log: &Log, started: &Started) -> f32 {
+    log.ended
+        .get(&started.came.instance)
+        .map_or(Lifetime::Alive, |went| lived_y(went.at.saturating_sub(started.came.at)))
+}
+
+fn went_y(log: &Log, went: &ProcessWent) -> f32 {
+    log.started
+        .get(&went.instance)
+        .map_or(Lifetime::Orphan, |started| lived_y(went.at.saturating_sub(started.came.at)))
+}
+
+fn scatter(log: &Log, frame: &Frame) -> Scatter {
+    let mut dots = Vec::new();
+    let mut orphans = Vec::new();
+    let span = (frame.start, Kind::Came, ProcessInstance::default())..(frame.end(), Kind::Came, ProcessInstance::default());
+    for (at, kind, instance) in log.timeline.range(span) {
+        match kind {
+            Kind::Came => {
+                if let Some(started) = log.started.get(instance) {
+                    let y = came_y(log, started);
+                    dots.push(Dot {
+                        key: *instance,
+                        x: frame.x(*at),
+                        y,
+                        alive: y == Lifetime::Alive,
+                    });
+                }
+            }
+            Kind::Went => {
+                if !log.started.contains_key(instance) {
+                    orphans.push(Dot {
+                        key: *instance,
+                        x: frame.x(*at),
+                        y: Lifetime::Orphan,
+                        alive: false,
+                    });
+                }
+            }
+        }
+    }
+    Scatter {
+        dots,
+        orphans,
+        levels: Lifetime::Levels.iter().map(|&lived| Level { y: lived_y(lived), lived }).collect(),
+        alive_y: Lifetime::Alive,
+        ticks: Vec::new(),
+        area: None,
+    }
 }
 
 fn exit_of(went: &ProcessWent, since: Option<u64>, clock: fn(u64) -> Clock) -> Exit {
@@ -360,13 +452,29 @@ struct Walk<'a> {
     log: &'a Log,
     filter: &'a Filter,
     text: String,
+    band: Option<(f32, f32)>,
     rows: Vec<(u64, Light)>,
     open: HashMap<ProcessInstance, Group>,
 }
 
 impl Walk<'_> {
+    fn within(&self, row: &Light) -> bool {
+        let Some((bottom, top)) = self.band else {
+            return true;
+        };
+        let held = |y: f32| (bottom..=top).contains(&y);
+        let came = |instance: &ProcessInstance| {
+            self.log.started.get(instance).is_some_and(|started| held(came_y(self.log, started)))
+        };
+        match row {
+            Light::Came(instance) => came(instance),
+            Light::Went(instance) => self.log.ended.get(instance).is_some_and(|went| held(went_y(self.log, went))),
+            Light::Burst(group) => group.members.iter().any(|(_, instance)| came(instance)),
+        }
+    }
+
     fn keep(&mut self, at: u64, row: Light) {
-        if kept(self.log, &row, self.filter, &self.text) {
+        if self.within(&row) && kept(self.log, &row, self.filter, &self.text) {
             self.rows.push((at, row));
         }
     }
@@ -474,27 +582,31 @@ fn row_of(log: &Log, row: Light, clock: fn(u64) -> Clock) -> Option<ActivityRow>
     })
 }
 
+pub fn row(log: &Log, key: ProcessInstance, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
+    let light = if log.started.contains_key(&key) {
+        Light::Came(key)
+    } else {
+        Light::Went(key)
+    };
+    row_of(log, light, clock)
+}
+
 pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     let clock = ask.clock;
     let frame = Frame::of(log, ask.now, ask.span);
+    let scatter = Scatter {
+        area: ask.area.map(|area| Area {
+            left: frame.x(area.from),
+            right: frame.x(area.to),
+            bottom: area.bottom,
+            top: area.top,
+        }),
+        ..scatter(log, &frame)
+    };
 
-    let mut buckets = vec![Bucket::default(); Pace::Buckets as usize];
-    for (at, kind, _) in log.timeline.range((frame.start, Kind::Came, ProcessInstance::default())..) {
-        let Some(bucket) = frame.bucket(*at) else {
-            break;
-        };
-        match kind {
-            Kind::Came => buckets[bucket].came += 1,
-            Kind::Went => buckets[bucket].went += 1,
-        }
-    }
-
-    let (from, to) = ask.range.unwrap_or((frame.start, frame.end()));
-    let picked = ask.range.and_then(|(from, to)| {
-        let first = frame.bucket(from)?;
-        let last = frame.bucket(to.saturating_sub(1).max(from))?;
-        Some((first, last + 1))
-    });
+    let (from, to) = ask
+        .area
+        .map_or((frame.start, frame.end()), |area| (area.from.max(frame.start), area.to.min(frame.end())));
 
     let window = |at: u64| (from..to).contains(&at);
     let span = (from, Kind::Came, ProcessInstance::default())..(to, Kind::Came, ProcessInstance::default());
@@ -514,6 +626,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
         log,
         filter: ask.filter,
         text: ask.filter.text.trim().to_lowercase(),
+        band: ask.area.map(|area| (area.bottom, area.top)),
         rows: Vec::new(),
         open: HashMap::new(),
     };
@@ -545,13 +658,12 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     let earlier = rows.len().saturating_sub(Pace::Shown) + unwalked;
     rows.truncate(Pace::Shown);
 
-    let quarter = frame.width * Pace::Buckets / 4;
+    let quarter = frame.length() / 4;
     ActivityView {
-        histogram: Histogram {
-            buckets,
+        scatter: Rc::new(Scatter {
             ticks: (0..5).map(|n| clock(frame.start + quarter * n)).collect(),
-            picked,
-        },
+            ..scatter
+        }),
         rows: rows.into_iter().filter_map(|(_, row)| row_of(log, row, clock)).collect(),
         earlier,
         came: came_count,
@@ -625,14 +737,14 @@ mod tests {
         }
     }
 
-    fn look(log: &Log, filter: &Filter, range: Option<(u64, u64)>) -> ActivityView {
+    fn look(log: &Log, filter: &Filter, area: Option<Selection>) -> ActivityView {
         view(
             log,
             &Ask {
                 now: at(59, 59),
                 span: Span::Hour,
                 filter,
-                range,
+                area,
                 clock: utc,
             },
         )
@@ -920,34 +1032,86 @@ mod tests {
         assert_eq!(look(&log, &filter, None).rows.len(), 1);
     }
 
-    #[test]
-    fn the_histogram_counts_each_minute_of_the_hour() {
-        let mut log = Log::default();
-        log.note_running(&[running(30, "old.exe", at(0, 0))]);
-        log.record(&[
-            came(20, 1, "a.exe", at(10, 5)),
-            came(21, 1, "b.exe", at(10, 50)),
-            went(30, at(42, 0)),
-        ]);
+    fn dot(scatter: &Scatter, pid: u32) -> Dot {
+        let found = scatter.dots.iter().find(|dot| dot.key == id(pid));
+        assert!(found.is_some(), "no dot for {pid}: {scatter:#?}");
+        *found.unwrap()
+    }
 
-        let histogram = look(&log, &Filter::default(), None).histogram;
-        assert_eq!(histogram.buckets.len(), 60);
-        assert_eq!(histogram.buckets[10].came, 2);
-        assert_eq!(histogram.buckets[42].went, 1);
-        assert_eq!(histogram.buckets.iter().map(|b| b.came + b.went).sum::<u32>(), 3);
+    fn near(a: f32, b: f32) -> bool {
+        (a - b).abs() < 0.001
     }
 
     #[test]
-    fn a_picked_bucket_narrows_the_rows_to_its_minute() {
+    fn each_process_of_the_hour_is_a_dot_placed_by_when_it_came_and_how_long_it_lived() {
         let mut log = Log::default();
-        log.record(&[came(20, 1, "a.exe", at(10, 5)), came(21, 1, "b.exe", at(11, 5))]);
+        log.record(&[
+            came(20, 1, "short.exe", at(15, 0)),
+            went(20, at(15, 1)),
+            came(21, 1, "long.exe", at(30, 0)),
+            went(21, at(40, 0)),
+            came(22, 1, "alive.exe", at(45, 0)),
+            went(30, at(50, 0)),
+        ]);
 
-        let range = bucket_range(&log, at(59, 59), Span::Hour, 10).expect("a bucket of the hour");
-        let view = look(&log, &Filter::default(), Some(range));
+        let scatter = look(&log, &Filter::default(), None).scatter;
+        assert_eq!(scatter.dots.len(), 3, "{scatter:#?}");
+        let (short, long, alive) = (dot(&scatter, 20), dot(&scatter, 21), dot(&scatter, 22));
+        assert!(near(short.x, 0.25) && near(long.x, 0.5) && near(alive.x, 0.75), "{scatter:#?}");
+        assert!(short.y < long.y && long.y < alive.y, "{scatter:#?}");
+        assert!(alive.alive && !short.alive && !long.alive);
+        assert_eq!(alive.y, scatter.alive_y);
+        let level = |lived: u64| scatter.levels.iter().find(|level| level.lived == lived).map(|level| level.y);
+        assert!(level(Ticks::Second).is_some_and(|y| near(y, short.y)), "{scatter:#?}");
+        let [orphan] = scatter.orphans.as_slice() else {
+            panic!("one exit from before the history: {scatter:#?}");
+        };
+        assert_eq!(orphan.key, id(30));
+        assert!(near(orphan.x, 50.0 / 60.0) && orphan.y < 0.0, "{orphan:?}");
+    }
+
+    #[test]
+    fn a_hovered_dot_is_its_full_row() {
+        let mut log = Log::default();
+        log.record(&[came(20, 1, "tool.exe", at(10, 0)), went(20, at(10, 2)), went(30, at(20, 0))]);
+
+        match row(&log, id(20), utc) {
+            Some(ActivityRow::Came(came)) => {
+                assert_eq!(&*came.name, "tool.exe");
+                assert!(came.exit.is_some(), "{came:#?}");
+            }
+            other => panic!("a came row: {other:#?}"),
+        }
+        assert!(matches!(row(&log, id(30), utc), Some(ActivityRow::Went(_))));
+        assert_eq!(row(&log, id(99), utc), None);
+    }
+
+    #[test]
+    fn an_area_keeps_only_the_processes_inside_it() {
+        let mut log = Log::default();
+        log.record(&[
+            came(20, 1, "short.exe", at(15, 0)),
+            went(20, at(15, 1)),
+            came(21, 1, "long.exe", at(16, 0)),
+            went(21, at(26, 0)),
+            came(22, 1, "later.exe", at(40, 0)),
+            went(22, at(40, 1)),
+        ]);
+        let short = dot(&look(&log, &Filter::default(), None).scatter, 20);
+        let area = Area {
+            left: 10.0 / 60.0,
+            right: 20.0 / 60.0,
+            bottom: 0.0,
+            top: short.y + 0.01,
+        };
+
+        let view = look(&log, &Filter::default(), Some(select(&log, at(59, 59), Span::Hour, area)));
+
         assert_eq!(view.rows.len(), 1, "{:#?}", view.rows);
-        assert_eq!(&*only_came(&view.rows[0]).name, "a.exe");
-        assert_eq!(view.histogram.picked, Some((10, 11)));
-        assert_eq!((view.came, view.went), (1, 0));
+        assert_eq!(&*only_came(&view.rows[0]).name, "short.exe");
+        let shown = view.scatter.area.expect("the area is drawn");
+        assert!(near(shown.left, area.left) && near(shown.right, area.right), "{shown:?}");
+        assert!(near(shown.top, area.top) && near(shown.bottom, area.bottom), "{shown:?}");
     }
 
     #[test]

@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityMsg, ActivityState, ClearRange, Filter, NewOnly, PickBucket, Search, ShowBursts, ShowCame, ShowSpan,
-    ShowWent, Span,
+    ActivityMsg, ActivityState, ClearArea, Filter, Hover, NewOnly, PickArea, Search, ShowBursts, ShowCame,
+    ShowSpan, ShowWent, Span,
 };
 use app_contracts::features::agents::{WindowsProcessEvents, WindowsReportMessage};
 use guinea::prelude::*;
 
 use super::install::ActivityDeps;
-use super::log::{bucket_range, view, Ask, Log};
+use super::log::{row, select, view, Ask, Log, Selection};
 
 pub struct ActivityActor {
     push: Push<ActivityState>,
@@ -16,7 +16,7 @@ pub struct ActivityActor {
     log: Log,
     span: Span,
     filter: Filter,
-    range: Option<(u64, u64)>,
+    area: Option<Selection>,
     stale: bool,
 }
 
@@ -25,7 +25,7 @@ impl std::fmt::Debug for ActivityActor {
         f.debug_struct("ActivityActor")
             .field("span", &self.span)
             .field("filter", &self.filter)
-            .field("range", &self.range)
+            .field("area", &self.area)
             .finish_non_exhaustive()
     }
 }
@@ -38,7 +38,7 @@ impl ActivityActor {
             log: Log::default(),
             span: Span::default(),
             filter: Filter::default(),
-            range: None,
+            area: None,
             stale: false,
         }
     }
@@ -51,7 +51,7 @@ impl ActivityActor {
                 now: (self.deps.now)(),
                 span: self.span,
                 filter: &self.filter,
-                range: self.range,
+                area: self.area,
                 clock: self.deps.clock,
             },
         );
@@ -73,7 +73,7 @@ actor! {
     ActivityActor {
         handlers {
             WindowsProcessEvents, WindowsReportMessage, Refresh, Flush, ShowSpan, ShowCame, ShowWent, NewOnly,
-            ShowBursts, Search, PickBucket, ClearRange
+            ShowBursts, Search, PickArea, ClearArea, Hover
         }
     }
 }
@@ -106,7 +106,7 @@ fn refresh(this: &mut ActivityActor, _msg: Refresh) {
 #[handler]
 fn show_span(this: &mut ActivityActor, ShowSpan(span): ShowSpan) {
     this.span = span;
-    this.range = None;
+    this.area = None;
     this.push.send(ActivityMsg::Span(span));
     this.publish();
 }
@@ -137,14 +137,19 @@ fn search(this: &mut ActivityActor, Search(text): Search) {
 }
 
 #[handler]
-fn pick_bucket(this: &mut ActivityActor, PickBucket(index): PickBucket) {
-    let picked = bucket_range(&this.log, (this.deps.now)(), this.span, index);
-    this.range = if picked == this.range { None } else { picked };
+fn pick_area(this: &mut ActivityActor, PickArea(area): PickArea) {
+    this.area = Some(select(&this.log, (this.deps.now)(), this.span, area));
     this.publish();
 }
 
 #[handler]
-fn clear_range(this: &mut ActivityActor, _msg: ClearRange) {
-    this.range = None;
+fn clear_area(this: &mut ActivityActor, _msg: ClearArea) {
+    this.area = None;
     this.publish();
+}
+
+#[handler]
+fn hover(this: &mut ActivityActor, Hover(key): Hover) {
+    let hovered = key.and_then(|key| row(&this.log, key, this.deps.clock));
+    this.push.send(ActivityMsg::Hovered(hovered));
 }

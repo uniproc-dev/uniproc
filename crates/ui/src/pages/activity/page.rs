@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityState, ActivityView, ClearRange, NewOnly, PickBucket, Search, ShowBursts, ShowCame, ShowSpan, ShowWent,
-    Span,
+    ActivityState, ActivityView, Area, ClearArea, Hover, NewOnly, PickArea, Search, ShowBursts, ShowCame, ShowSpan,
+    ShowWent, Span,
 };
 use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
@@ -16,8 +16,10 @@ use windows_reactor::{
     ScrollBarVisibility, ScrollViewer, StackPanel, TextBox, Thickness, VerticalAlignment, View,
 };
 
-use super::components::histogram::histogram;
+use super::components::card::card;
+use super::components::lasted::lasted;
 use super::components::rows::{rows, Rows};
+use super::components::scatter::{labels, ticks, Plotted, ScatterPlot};
 use super::marks::ActivityMark;
 use crate::format;
 use crate::l10n::L10n;
@@ -123,15 +125,15 @@ impl ActivityPage {
     fn range_bar(view: &ActivityView, state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
         let searched = dispatch.clone();
         let cleared = dispatch.clone();
-        let where_: View = match view.histogram.picked {
+        let where_: View = match view.scatter.area {
             Some(_) => StackPanel::new()
                 .orientation(Orientation::Horizontal)
                 .spacing(space::Control)
                 .children((
                     caption(l10n.activity_paused(format::clock(view.from), format::clock(view.to)))
                         .vertical_alignment(VerticalAlignment::Center),
-                    command_button(ActivityMark::ClearRange, l10n.activity_live(), None, true, move || {
-                        cleared.emit(ClearRange)
+                    command_button(ActivityMark::ClearArea, l10n.activity_live(), None, true, move || {
+                        cleared.emit(ClearArea)
                     }),
                 )),
             None => caption(
@@ -158,6 +160,33 @@ impl ActivityPage {
             ))
     }
 
+    fn chart(view: &ActivityView, state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+        let scatter = &view.scatter;
+        let (picked, cleared, hovered) = (dispatch.clone(), dispatch.clone(), dispatch.clone());
+        let plot = View::component::<ScatterPlot>(Plotted {
+            scatter: scatter.clone(),
+            card: state.hovered.as_ref().map(|row| (row.key(), card(row, l10n, palette))),
+            palette,
+            on_pick: Callback::new(move |area: Area| picked.emit(PickArea(area))),
+            on_clear: Callback::new(move |()| cleared.emit(ClearArea)),
+            on_hover: Callback::new(move |key| hovered.emit(Hover(key))),
+        });
+        Grid::new()
+            .columns([GridLength::Auto, GridLength::Star(1.0)])
+            .rows([GridLength::Auto, GridLength::Auto])
+            .children((
+                Border::new().grid_column(0).grid_row(0).content(labels(
+                    scatter,
+                    |lived| lasted(l10n, lived),
+                    l10n.activity_axis_running(),
+                    l10n.activity_axis_before(),
+                    palette,
+                )),
+                Border::new().grid_column(1).grid_row(0).content(plot),
+                Border::new().grid_column(1).grid_row(1).content(ticks(scatter, palette)),
+            ))
+    }
+
     pub fn view(
         &self,
         state: &ActivityState,
@@ -171,7 +200,6 @@ impl ActivityPage {
             return page_frame(header, loading(), status_text(l10n.activity_loading(), palette), palette);
         };
 
-        let picked = dispatch.clone();
         let list: View = if view.rows.is_empty() {
             text(l10n.activity_empty())
                 .mark(ActivityMark::Empty)
@@ -199,12 +227,7 @@ impl ActivityPage {
                 Border::new()
                     .grid_row(0)
                     .margin(Thickness::new(space::Cell, space::Card, space::Cell, 0.0))
-                    .content(histogram(
-                        &view.histogram,
-                        l10n,
-                        palette,
-                        Callback::new(move |at: usize| picked.emit(PickBucket(at))),
-                    )),
+                    .content(Self::chart(view, state, dispatch, l10n, palette)),
                 Border::new()
                     .grid_row(1)
                     .content(Self::range_bar(view, state, dispatch, l10n, palette)),

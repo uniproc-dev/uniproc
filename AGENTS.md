@@ -99,8 +99,10 @@ catches up (Processes resets its rates and asks for the service state).
   `GlobalEventBus::answer_fn`.
 - Uniproc never offers to end or suspend itself or its service (`ProcessRow::is_monitor`).
 - Process starts and exits are `WindowsProcessEvents` (a history on connect, then live
-  batches), keyed by `ProcessInstance` (pid, sequence). The contract runs ahead of the
-  service; nothing publishes it yet. `activity` keeps the log for the whole run.
+  batches), keyed by `ProcessInstance` (pid, sequence), from the service's
+  `watch_process_events` (or the monitor in process). `activity` keeps the log for the
+  whole run; batches only record, a 250 ms flush publishes the view, and the view builds
+  full rows only for the newest 200.
 
 UI text says **service**, never "agent".
 

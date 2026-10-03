@@ -43,7 +43,7 @@ mod tests {
     };
     use domain::features::activity::{ActivityDeps, ActivityFeature};
     use guinea::app::Harness;
-    use guinea::winui::harness::{Mounted, Node};
+    use guinea::winui::harness::{Drag, Mounted, Node};
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::StorePlugin;
     use ui::pages::activity::ActivityMark;
@@ -129,6 +129,11 @@ mod tests {
         .settle();
     }
 
+    fn mentions(node: &Node, part: &str) -> bool {
+        node.text.as_deref().is_some_and(|text| text.replace(['\u{2068}', '\u{2069}'], "").contains(part))
+            || node.children.iter().any(|child| mentions(child, part))
+    }
+
     fn live(h: &Harness, page: &mut Mounted<'_, Activity>, events: Vec<ProcessEvent>) {
         tell(h, events);
         h.advance(Duration::from_secs(1));
@@ -166,6 +171,64 @@ mod tests {
 
         assert!(DRAWN.with(Cell::get) <= 2, "drawn {} times", DRAWN.with(Cell::get));
         assert_eq!(rows(&page.tree()), 40, "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn how_long_a_process_lived_is_one_unit_picked_by_its_size(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        let quick = ProcessEvent::Went(ProcessWent {
+            instance: id(20),
+            at: BASE + 10 * 60 * SECOND + 340 * SECOND / 1000,
+            ..Default::default()
+        });
+        live(h, &mut page, vec![came(20, 10), quick, came(21, 20), went(21, 26)]);
+
+        let tree = page.tree();
+        assert!(says(&tree, "340 ms"), "{tree:#?}");
+        assert!(says(&tree, "6 min"), "{tree:#?}");
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn an_area_drawn_on_the_chart_narrows_the_list_and_a_click_brings_it_back(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10), came(21, 40)]);
+        assert_eq!(rows(&page.tree()), 2, "{:#?}", page.tree());
+
+        page.drag(ActivityMark::Scatter, Drag::by(400.0, 120.0).from(0.0, 2.0)).settle();
+        h.advance(Duration::from_secs(1));
+        page.settle();
+        assert_eq!(rows(&page.tree()), 1, "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::ClearArea).is_some(), "{:#?}", page.tree());
+
+        page.drag(ActivityMark::Scatter, Drag::by(1.0, 1.0).from(600.0, 60.0)).settle();
+        h.advance(Duration::from_secs(1));
+        page.settle();
+        assert_eq!(rows(&page.tree()), 2, "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn an_exit_code_waits_in_the_opened_row(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        let coded = ProcessEvent::Went(ProcessWent {
+            instance: id(30),
+            at: BASE + 20 * 60 * SECOND,
+            exit_code: 3,
+            image_name: "tool.exe".into(),
+            ..Default::default()
+        });
+        live(h, &mut page, vec![coded]);
+        let shows_code = |node: &Node| mentions(node, "code 3");
+        assert!(!shows_code(&page.tree()), "{:#?}", page.tree());
+
+        page.click(ActivityMark::Row).settle();
+        page.settle();
+        assert!(shows_code(&page.tree()), "{:#?}", page.tree());
     }
 
     #[guinea::test(iterations = 4)]

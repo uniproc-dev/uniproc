@@ -1,4 +1,4 @@
-use app_contracts::features::activity::{Came, Launcher};
+use app_contracts::features::activity::{Came, Launcher, Went};
 use guinea::winui::MarkExt;
 use windows_reactor::{
     ChildrenControl, Grid, GridChildExt, GridLength, LayoutControl, TextWrapping, Thickness, View,
@@ -88,7 +88,19 @@ pub fn facts(came: &Came, l10n: &L10n, palette: Palette, indent: f64) -> View {
             l10n.activity_fact_exit_value(format::clock(exit.at), i64::from(exit.code), lasted(l10n, exit.lived)),
         ));
     }
+    table(lines, palette, indent)
+}
 
+pub fn went_facts(went: &Went, l10n: &L10n, palette: Palette, indent: f64) -> View {
+    let exit = &went.exit;
+    let value = match went.lived {
+        Some(lived) => l10n.activity_fact_exit_value(format::clock(exit.at), i64::from(exit.code), lasted(l10n, lived)),
+        None => l10n.activity_fact_exit_code(format::clock(exit.at), i64::from(exit.code)),
+    };
+    table(vec![(l10n.activity_fact_exit(), value)], palette, indent)
+}
+
+fn table(lines: Vec<(String, String)>, palette: Palette, indent: f64) -> View {
     let rows = vec![GridLength::Auto; lines.len()];
     let cells: Vec<(String, View)> = lines
         .into_iter()

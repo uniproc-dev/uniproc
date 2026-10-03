@@ -11,7 +11,7 @@ use windows_reactor::{
 };
 
 use super::super::marks::ActivityMark;
-use super::facts::facts;
+use super::facts::{facts, went_facts};
 use super::lasted::lasted;
 use crate::format;
 use crate::l10n::L10n;
@@ -126,7 +126,7 @@ fn joined(names: &[std::sync::Arc<str>], l10n: &L10n) -> String {
         .join(&l10n.activity_burst_names_separator())
 }
 
-fn launcher_text(came: &Came, l10n: &L10n) -> Option<String> {
+pub fn launcher_text(came: &Came, l10n: &L10n) -> Option<String> {
     match &came.launcher {
         Launcher::Task(task) => Some(l10n.activity_from_task(task.name.to_string())),
         Launcher::Services(names) => Some(l10n.activity_from_services(joined(names, l10n))),
@@ -155,7 +155,7 @@ fn came_main(came: &Came, l10n: &L10n, palette: Palette) -> View {
 fn came_view(list: &Rows, came: &Came) -> View {
     let Rows { l10n, palette, .. } = list;
     let trailing = match &came.exit {
-        Some(exit) => l10n.activity_went_after(lasted(l10n, exit.lived)),
+        Some(exit) => lasted(l10n, exit.lived),
         None => l10n.activity_still_running(),
     };
     let head = line(
@@ -175,13 +175,9 @@ fn came_view(list: &Rows, came: &Came) -> View {
 
 fn went_view(list: &Rows, went: &Went) -> View {
     let Rows { l10n, palette, .. } = list;
-    let parts: Vec<(String, View)> = match (&went.name, went.lived) {
-        (Some(name), Some(lived)) => vec![
-            ("name".into(), centered(name.to_string())),
-            ("lived".into(), secondary(l10n.activity_went_lived(lasted(l10n, lived)), *palette)),
-        ],
-        (Some(name), None) => vec![("name".into(), centered(name.to_string()))],
-        (None, _) => vec![
+    let parts: Vec<(String, View)> = match &went.name {
+        Some(name) => vec![("name".into(), centered(name.to_string()))],
+        None => vec![
             ("name".into(), centered(l10n.activity_unknown_process(i64::from(went.key.pid)))),
             ("why".into(), secondary(l10n.activity_unknown_process_why(), *palette)),
         ],
@@ -190,10 +186,15 @@ fn went_view(list: &Rows, went: &Went) -> View {
         format::clock(went.exit.at),
         icon!(went).size(size::Icon).build(),
         spaced(parts),
-        secondary(l10n.activity_went_code(i64::from(went.exit.code)), *palette),
+        secondary(went.lived.map(|lived| lasted(l10n, lived)).unwrap_or_default(), *palette),
         *palette,
     );
-    toggled(head, went.key, &list.on_toggle)
+    let body = if list.expanded.contains(&went.key) {
+        StackPanel::new().children((head, went_facts(went, l10n, *palette, Line::Indent)))
+    } else {
+        head
+    };
+    toggled(body, went.key, &list.on_toggle)
 }
 
 fn burst_names(burst: &Burst, l10n: &L10n) -> String {

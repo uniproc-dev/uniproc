@@ -2,13 +2,15 @@ use std::rc::Rc;
 
 use serde::Deserialize;
 
-use super::model::{ActivityView, Filter, Span};
+use super::model::{ActivityRow, ActivityView, Area, Filter, Span};
+use crate::features::agents::ProcessInstance;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ActivityMsg {
     View(Rc<ActivityView>),
     Span(Span),
     Filter(Filter),
+    Hovered(Option<ActivityRow>),
 }
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
@@ -37,8 +39,12 @@ pub struct Search(pub String);
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
-pub struct PickBucket(pub usize);
+pub struct PickArea(pub Area);
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
-pub struct ClearRange;
+pub struct ClearArea;
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct Hover(pub Option<ProcessInstance>);

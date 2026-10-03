@@ -4,19 +4,24 @@ struct Ticks;
 
 #[expect(non_upper_case_globals)]
 impl Ticks {
-    const Second: u64 = 10_000_000;
-    const Tenth: u64 = Self::Second / 10;
+    const Milli: u64 = 10_000;
+    const Second: u64 = 1000 * Self::Milli;
+    const Minute: u64 = 60 * Self::Second;
+    const Hour: u64 = 60 * Self::Minute;
+    const Day: u64 = 24 * Self::Hour;
 }
 
 pub fn lasted(l10n: &L10n, ticks: u64) -> String {
-    let seconds = (ticks / Ticks::Second) as i64;
-    if seconds < 10 {
-        l10n.activity_seconds((ticks / Ticks::Tenth) as f64 / 10.0)
-    } else if seconds < 60 {
-        l10n.activity_seconds(seconds)
-    } else if seconds < 3600 {
-        l10n.activity_minutes(seconds / 60, seconds % 60)
+    let count = |unit: u64| (ticks / unit) as i64;
+    if ticks < Ticks::Second {
+        l10n.activity_milliseconds(count(Ticks::Milli))
+    } else if ticks < Ticks::Minute {
+        l10n.activity_seconds(count(Ticks::Second))
+    } else if ticks < Ticks::Hour {
+        l10n.activity_minutes(count(Ticks::Minute))
+    } else if ticks < Ticks::Day {
+        l10n.activity_hours(count(Ticks::Hour))
     } else {
-        l10n.activity_hours(seconds / 3600, seconds / 60 % 60)
+        l10n.activity_days(count(Ticks::Day))
     }
 }
