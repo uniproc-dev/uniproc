@@ -1,13 +1,17 @@
 use crate::features::processes::MachineSummary;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum MetricsMsg {
-    SetHistory {
-        cpu: Vec<(u64, f32)>,
-        memory: Vec<(u64, f32)>,
-        disk: Vec<(u64, f32)>,
-        network: Vec<(u64, f32)>,
-        gpu: Vec<(u64, f32)>,
+    Machine {
+        at: u64,
+        cpu: f32,
+        memory: f32,
+        gpu: f32,
         machine: MachineSummary,
+    },
+    Rates {
+        at: u64,
+        disk: u64,
+        network: u64,
     },
 }

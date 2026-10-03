@@ -1,4 +1,4 @@
-use app_contracts::features::metrics::MetricsState;
+use app_contracts::features::metrics::{History, MetricsState};
 use app_contracts::features::processes::MachineSummary;
 use app_contracts::features::settings::{SidebarChart, Units};
 use guicons::icon;
@@ -62,7 +62,7 @@ impl SidebarMark {
     }
 }
 
-fn history(metrics: &MetricsState, chart: SidebarChart) -> &Load<Vec<(u64, f32)>> {
+fn history(metrics: &MetricsState, chart: SidebarChart) -> &Load<History> {
     match chart {
         SidebarChart::Cpu => &metrics.cpu_history,
         SidebarChart::Memory => &metrics.memory_history,

@@ -4,16 +4,6 @@ use app_contracts::features::agents::{WindowsMachineSample, WindowsReportMessage
 use app_contracts::features::metrics::{MetricsMsg, MetricsState};
 use app_contracts::features::processes::MachineSummary;
 use guinea::prelude::*;
-use guinea_widgets::chart::RingSeries;
-
-type Histories = [Vec<(u64, f32)>; 5];
-
-struct History;
-
-#[expect(non_upper_case_globals)]
-impl History {
-    const Points: usize = 600;
-}
 
 #[derive(Clone, Copy, Debug)]
 struct Totals {
@@ -65,52 +55,22 @@ impl Trailing {
 #[derive(Debug)]
 pub struct MetricsActor {
     ui_port: Push<MetricsState>,
-    cpu_history: RingSeries,
-    memory_history: RingSeries,
-    disk_history: RingSeries,
-    network_history: RingSeries,
-    gpu_history: RingSeries,
     totals: Trailing,
-    machine: MachineSummary,
-    stats: std::cell::RefCell<crate::push_stats::PushStats<(Histories, MachineSummary)>>,
+    stats: std::cell::RefCell<crate::push_stats::PushStats<MetricsMsg>>,
 }
 
 impl MetricsActor {
     pub fn new(ui_port: Push<MetricsState>) -> Self {
         Self {
             ui_port,
-            cpu_history: RingSeries::new(History::Points),
-            memory_history: RingSeries::new(History::Points),
-            disk_history: RingSeries::new(History::Points),
-            network_history: RingSeries::new(History::Points),
-            gpu_history: RingSeries::new(History::Points),
             totals: Trailing::default(),
-            machine: MachineSummary::default(),
             stats: std::cell::RefCell::new(crate::push_stats::PushStats::new("metrics")),
         }
     }
 
-    fn publish(&self) {
-        let [cpu, memory, disk, network, gpu] = [
-            &self.cpu_history,
-            &self.memory_history,
-            &self.disk_history,
-            &self.network_history,
-            &self.gpu_history,
-        ]
-        .map(RingSeries::as_points);
-        self.stats.borrow_mut().note((
-            [cpu.clone(), memory.clone(), disk.clone(), network.clone(), gpu.clone()],
-            self.machine.clone(),
-        ));
-        self.ui_port.send(MetricsMsg::SetHistory {
-            cpu,
-            memory,
-            disk,
-            network,
-            gpu,
-            machine: self.machine.clone(),
-        });
+    fn publish(&self, msg: MetricsMsg) {
+        self.stats.borrow_mut().note(msg.clone());
+        self.ui_port.send(msg);
     }
 }
 
@@ -144,27 +104,28 @@ fn on_windows_report(this: &mut MetricsActor, msg: WindowsReportMessage) {
         }
     };
     let machine = &report.machine;
-    let timestamp = now_ms();
     let memory_percent = if machine.total_physical_bytes > 0 {
         (machine.used_physical_bytes() as f32 / machine.total_physical_bytes as f32) * 100.0
     } else {
         0.0
     };
 
-    this.cpu_history.push((timestamp, machine.cpu_percent));
-    this.memory_history.push((timestamp, memory_percent));
-    this.gpu_history.push((timestamp, machine.gpu_percent()));
-    this.machine = MachineSummary {
-        cpu_percent: machine.cpu_percent,
-        cpu_current_mhz: machine.cpu_current_mhz,
-        cpu_max_mhz: machine.cpu_max_mhz,
-        memory_used_bytes: machine.used_physical_bytes(),
-        memory_total_bytes: machine.total_physical_bytes,
-        gpu_percent: machine.gpu_percent(),
-        gpu_memory_used_bytes: machine.gpu_dedicated_used_bytes(),
-        ..this.machine.clone()
-    };
-    this.publish();
+    this.publish(MetricsMsg::Machine {
+        at: now_ms(),
+        cpu: machine.cpu_percent,
+        memory: memory_percent,
+        gpu: machine.gpu_percent(),
+        machine: MachineSummary {
+            cpu_percent: machine.cpu_percent,
+            cpu_current_mhz: machine.cpu_current_mhz,
+            cpu_max_mhz: machine.cpu_max_mhz,
+            memory_used_bytes: machine.used_physical_bytes(),
+            memory_total_bytes: machine.total_physical_bytes,
+            gpu_percent: machine.gpu_percent(),
+            gpu_memory_used_bytes: machine.gpu_dedicated_used_bytes(),
+            ..MachineSummary::default()
+        },
+    });
 }
 
 #[handler]
@@ -179,12 +140,11 @@ fn on_machine_sample(this: &mut MetricsActor, sample: WindowsMachineSample) {
         return;
     };
 
-    let timestamp = now_ms();
-    this.disk_history.push((timestamp, disk as f32));
-    this.network_history.push((timestamp, network as f32));
-    this.machine.disk_bytes_per_sec = disk;
-    this.machine.network_bytes_per_sec = network;
-    this.publish();
+    this.publish(MetricsMsg::Rates {
+        at: now_ms(),
+        disk,
+        network,
+    });
 }
 
 #[cfg(test)]

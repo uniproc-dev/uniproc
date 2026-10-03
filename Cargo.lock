@@ -992,7 +992,6 @@ dependencies = [
  "futures",
  "guinea",
  "guinea-plugin-store",
- "guinea-widgets",
  "ogurpchik",
  "serde",
  "tokio",

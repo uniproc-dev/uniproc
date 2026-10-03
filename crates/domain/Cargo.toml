@@ -7,7 +7,6 @@ publish = false
 [dependencies]
 app-contracts = { workspace = true }
 guinea = { workspace = true }
-guinea-widgets = { workspace = true }
 amethystate = { workspace = true }
 amethystate-guinea = { workspace = true }
 guinea-plugin-store = { workspace = true }

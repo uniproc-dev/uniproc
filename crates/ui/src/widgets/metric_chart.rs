@@ -1,3 +1,4 @@
+use app_contracts::features::metrics::History;
 use app_contracts::features::settings::SidebarChart;
 use guinea::prelude::Load;
 use guinea_widgets::chart::{Chart, ChartGrid, HoverInfo, Interpolation, LineChartOptions, Live, Series};
@@ -90,10 +91,14 @@ fn round_up(peak: u64, least: u64, units: &[u64]) -> u64 {
         .unwrap_or(peak)
 }
 
-fn rate_ceiling(points: &[(u64, f32)], rate: Rate) -> u64 {
-    let latest = points.last().map_or(0, |&(t, _)| t);
+fn rate_ceiling<'a, P>(points: P, rate: Rate) -> u64
+where
+    P: IntoIterator<Item = &'a (u64, f32)>,
+    P::IntoIter: DoubleEndedIterator + Clone,
+{
+    let points = points.into_iter();
+    let latest = points.clone().next_back().map_or(0, |&(t, _)| t);
     let peak = points
-        .iter()
         .filter(|&&(t, _)| latest.saturating_sub(t) <= Timeline::Window)
         .map(|&(_, v)| v.max(0.0) as u64)
         .max()
@@ -107,16 +112,16 @@ fn rate_ceiling(points: &[(u64, f32)], rate: Rate) -> u64 {
     }
 }
 
-fn current(history: &Load<Vec<(u64, f32)>>) -> f32 {
-    history.ready().and_then(|points| points.last()).map_or(0.0, |&(_, v)| v)
+fn current(history: &Load<History>) -> f32 {
+    history.ready().and_then(History::last).map_or(0.0, |(_, v)| v)
 }
 
-pub fn chart_level(history: &Load<Vec<(u64, f32)>>, scale: Scale) -> f32 {
+pub fn chart_level(history: &Load<History>, scale: Scale) -> f32 {
     let value = current(history);
     match scale {
         Scale::Percent => value,
         Scale::Rate(rate) => {
-            let ceiling = history.ready().map_or(0, |points| rate_ceiling(points, rate));
+            let ceiling = history.ready().map_or(0, |points| rate_ceiling(points.iter(), rate));
             if ceiling == 0 {
                 0.0
             } else {
@@ -184,7 +189,7 @@ pub struct MetricChart<'a> {
     pub l10n: &'a L10n,
     pub chart: &'a Chart,
     pub kind: SidebarChart,
-    pub history: &'a Load<Vec<(u64, f32)>>,
+    pub history: &'a Load<History>,
     pub scale: Scale,
     pub cadence_ms: u64,
     pub height: f64,
@@ -207,7 +212,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
         palette,
     } = props;
 
-    let points = history.ready().cloned().unwrap_or_default();
+    let points: Vec<(u64, f32)> = history.ready().map(|history| history.iter().copied().collect()).unwrap_or_default();
     let now = points.last().map_or(0.0, |&(_, v)| v);
     let (ceiling, reading, bound) = match scale {
         Scale::Percent => (100.0, format::percent(now), None),
