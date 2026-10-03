@@ -15,7 +15,7 @@ struct Bars;
 
 #[expect(non_upper_case_globals)]
 impl Bars {
-    const Half: f64 = 28.0;
+    const Half: f64 = 42.0;
     const Least: f64 = 3.0;
     const Gap: f64 = 1.0;
     const Axis: f64 = 1.0;
