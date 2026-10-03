@@ -49,7 +49,7 @@ impl Page for Processes {
         self.0.update(message);
     }
 
-    fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
+    fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
         let (state, dispatch) = cx.read::<ProcessesState, _>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));

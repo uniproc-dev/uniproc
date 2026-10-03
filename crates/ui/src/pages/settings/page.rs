@@ -8,8 +8,8 @@ use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, CheckBox, ChildrenControl, ContentControl, Expander, HorizontalAlignment, LayoutControl,
-    NumberBox, Orientation, Slider, StackPanel, Thickness, VerticalAlignment, View,
+    Border, CheckBox, Expander, HorizontalAlignment, NumberBox, Orientation, Slider, StackPanel, Thickness,
+    VerticalAlignment, View,
 };
 
 use super::marks::SettingsMark;
@@ -152,13 +152,16 @@ fn sidebar_chart_label(l10n: &L10n, chart: SidebarChart) -> String {
 }
 
 fn sidebar_charts_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
-    let toggles = SidebarChart::ALL.map(|chart| {
+    let toggles: [View; 5] = SidebarChart::ALL.map(|chart| {
         let dispatch = dispatch.clone();
         CheckBox::new()
             .mark(SettingsMark::sidebar_chart(chart))
             .is_checked(state.sidebar_charts.shows(chart))
-            .on_is_checked_changed(move |shown: bool| dispatch.emit(ShowSidebarChart(chart, shown)))
+            .on_is_checked_changed(move |shown: Option<bool>| {
+                dispatch.emit(ShowSidebarChart(chart, shown == Some(true)))
+            })
             .content(text(sidebar_chart_label(l10n, chart)))
+            .into()
     });
     let header = StackPanel::new()
         .orientation(Orientation::Horizontal)

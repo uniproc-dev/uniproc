@@ -5,6 +5,7 @@ pub mod card;
 pub mod distro_icon;
 pub mod link_card;
 pub mod metric_chart;
+pub mod nothing;
 pub mod page;
 pub mod selection;
 pub mod separator;
@@ -14,4 +15,5 @@ pub mod table;
 pub mod table_cell;
 pub mod text;
 
+pub use nothing::nothing;
 pub use separator::separator;

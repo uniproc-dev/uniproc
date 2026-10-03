@@ -2,8 +2,7 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Button, ChildrenControl, ContentControl, Grid, GridChildExt, GridLength, HorizontalAlignment, LayoutControl,
-    ResourceOverrides, Thickness, VerticalAlignment, View,
+    Button, Grid, GridLength, HorizontalAlignment, ResourceOverrides, Thickness, VerticalAlignment, View,
 };
 
 use crate::theme::{setting, space, Palette};
@@ -18,10 +17,10 @@ impl LinkCardSize {
     fn content_margin() -> Thickness {
         let button = Thickness::new(11.0, 5.0, 11.0, 6.0);
         Thickness::new(
-            space::Card - button.left(),
-            space::Card - button.top(),
-            space::Card - button.right(),
-            space::Card - button.bottom(),
+            space::Card - button.left,
+            space::Card - button.top,
+            space::Card - button.right,
+            space::Card - button.bottom,
         )
     }
 }
@@ -70,24 +69,42 @@ pub fn link_card(mark: impl Mark, card: LinkCard, palette: Palette, on_click: im
     } = card;
 
     let words = card_words(title, description, palette);
-    let icon = match icon {
-        Some(icon) => Grid::new()
-            .grid_column(0)
-            .margin(setting::icon_margin())
+    let mut parts: Vec<View> = Vec::new();
+    if let Some(icon) = icon {
+        parts.push(
+            Grid::new()
+                .grid_column(0)
+                .margin(setting::icon_margin())
+                .vertical_alignment(VerticalAlignment::Center)
+                .children((icon,))
+                .into(),
+        );
+    }
+    parts.push(
+        Grid::new()
+            .grid_column(1)
             .vertical_alignment(VerticalAlignment::Center)
-            .children((icon,))
+            .children((words,))
             .into(),
-        None => View::empty(),
-    };
-    let accessory = match accessory {
-        Some(accessory) => Grid::new()
-            .grid_column(2)
+    );
+    if let Some(accessory) = accessory {
+        parts.push(
+            Grid::new()
+                .grid_column(2)
+                .margin(Thickness::new(space::Card, 0.0, 0.0, 0.0))
+                .vertical_alignment(VerticalAlignment::Center)
+                .children((accessory,))
+                .into(),
+        );
+    }
+    parts.push(
+        Grid::new()
+            .grid_column(3)
             .margin(Thickness::new(space::Card, 0.0, 0.0, 0.0))
             .vertical_alignment(VerticalAlignment::Center)
-            .children((accessory,))
+            .children((trailing_glyph(trailing),))
             .into(),
-        None => View::empty(),
-    };
+    );
 
     Button::new()
         .mark(mark)
@@ -100,19 +117,7 @@ pub fn link_card(mark: impl Mark, card: LinkCard, palette: Palette, on_click: im
             Grid::new()
                 .margin(LinkCardSize::content_margin())
                 .columns([GridLength::Auto, GridLength::Star(1.0), GridLength::Auto, GridLength::Auto])
-                .children((
-                    icon,
-                    Grid::new()
-                        .grid_column(1)
-                        .vertical_alignment(VerticalAlignment::Center)
-                        .children((words,)),
-                    accessory,
-                    Grid::new()
-                        .grid_column(3)
-                        .margin(Thickness::new(space::Card, 0.0, 0.0, 0.0))
-                        .vertical_alignment(VerticalAlignment::Center)
-                        .children((trailing_glyph(trailing),)),
-                )),
+                .children(parts),
         )
         .into()
 }

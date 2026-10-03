@@ -1,7 +1,7 @@
 use app_contracts::features::agents::WindowsServiceState;
 use app_contracts::features::services::{ServiceColumn, ServiceRow};
 use crate::widgets::table::ColumnSpec;
-use windows_reactor::{ChildrenControl, Orientation, StackPanel, View};
+use windows_reactor::{Orientation, StackPanel, View};
 
 use crate::l10n::L10n;
 use crate::theme::{space, Palette};

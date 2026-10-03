@@ -117,7 +117,7 @@ impl Layout for ShellLayout {
         }
     }
 
-    fn view(&self, cx: &mut LayoutCx<'_, Self>) -> View {
+    fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
         let on_scheme = cx.on(ShellMsg::Scheme);
         cx.on_color_scheme(on_scheme);
         let (settings, settings_dispatch) = cx.read::<SettingsState, _>();
@@ -167,7 +167,7 @@ impl Layout for ShellLayout {
         });
         let on_resize = cx.on(ShellMsg::Resize);
         let on_open_changed = cx.on(ShellMsg::OpenChanged);
-        let content = View::provide(ui::theme::scheme_context(), self.scheme, cx.outlet());
+        let content = windows_reactor::provide(ui::theme::scheme_context(), self.scheme, cx.outlet());
 
         let palette = ui::theme::Palette::of(self.scheme);
         ui::shell_view(ui::ShellProps {

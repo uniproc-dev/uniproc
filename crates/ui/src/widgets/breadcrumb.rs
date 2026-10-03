@@ -2,8 +2,8 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Callback, ChildrenControl, Color, ContentControl, Grid, LayoutControl, Orientation, PointerEventInfo,
-    StackPanel, ThemeBrush, Thickness, VerticalAlignment, View,
+    Border, Callback, Color, Grid, Orientation, PointerEventInfo, StackPanel, ThemeBrush, Thickness,
+    VerticalAlignment, View,
 };
 
 use crate::theme::{space, Palette};

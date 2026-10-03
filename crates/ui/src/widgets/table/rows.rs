@@ -3,9 +3,8 @@ use std::rc::Rc;
 
 use guinea::Mark;
 use windows_reactor::{
-    AutomationExt, Border, Callback, ChildrenControl, Color, Component, ComponentContext, ContentControl,
-    CornerRadius, Grid, GridChildExt, HorizontalAlignment, LayoutControl, PointerEventInfo, Thickness,
-    VerticalAlignment, View, ViewContext, VirtualSource,
+    keyed, Border, Callback, Color, Component, ComponentContext, CornerRadius, Grid, HorizontalAlignment,
+    PointerEventInfo, Thickness, VerticalAlignment, View, ViewContext, VirtualSource,
 };
 
 use super::columns::{ColumnSpec, Laid, Look};
@@ -120,8 +119,7 @@ impl Component for Pointed {
             Border::new()
                 .margin(Thickness::new(across, top, across, bottom))
                 .corner_radius(CornerRadius::new(upper, upper, lower, lower))
-                .background(plate)
-                .content(View::empty()),
+                .background(plate),
             line.cells.clone(),
         ));
 
@@ -140,29 +138,27 @@ impl Component for Pointed {
                     let _ = on_select.call(Some(index));
                 }))
                 .content(layered)
+                .into()
             }
-            None => row.content(layered),
+            None => row.content(layered).into(),
         }
     }
 }
 
 fn row_view<T, C: Mark>(row: &T, columns: &[ColumnSpec<T, C>], laid: &Laid) -> View {
-    let cells: Vec<(String, View)> = columns
-        .iter()
-        .enumerate()
-        .map(|(at, column)| {
-            let cell = Border::new()
-                .automation_id(column.id.name())
-                .padding(Thickness::xy(column.inset(), 0.0))
-                .grid_column(laid.slots[at] as i32)
-                .vertical_alignment(VerticalAlignment::Center)
-                .content((column.cell)(row));
-            (column.id.name().to_string(), cell)
-        })
-        .collect();
+    let cells = columns.iter().enumerate().map(|(at, column)| {
+        let cell = Border::new()
+            .automation_id(column.id.name())
+            .padding(Thickness::xy(column.inset(), 0.0))
+            .grid_column(laid.slots[at] as i32)
+            .vertical_alignment(VerticalAlignment::Center)
+            .content((column.cell)(row));
+        keyed(column.id.name(), cell)
+    });
 
     Grid::new()
         .columns(laid.lengths.clone())
         .min_width(laid.least)
-        .children((View::keyed_fragment(cells),))
+        .keyed_children(cells)
+        .into()
 }

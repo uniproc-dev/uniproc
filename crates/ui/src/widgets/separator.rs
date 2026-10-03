@@ -1,4 +1,4 @@
-use windows_reactor::{LayoutControl, Rectangle};
+use windows_reactor::Rectangle;
 
 use crate::theme::Palette;
 

@@ -4,9 +4,8 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, ChildrenControl, ContentControl, Expander, Grid,
-    GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation, StackPanel, Thickness,
-    ToggleSwitch, VerticalAlignment, View,
+    keyed, Border, Button, ButtonStyle, Callback, Expander, Grid, GridLength, HorizontalAlignment, KeyedView,
+    Orientation, StackPanel, Thickness, ToggleSwitch, VerticalAlignment, View,
 };
 
 use super::components::column_layout::ColumnLayout;
@@ -181,7 +180,7 @@ impl ProcessesSettingsPage {
                 move |step| ProcessesSettingsMsg::MoveColumn(column, step),
             );
             let switch = shown_switch(column, self.layout.visible(column), l10n, palette, &forward);
-            row(column, column_label(l10n, column), (moves, switch), palette)
+            row(column, column_label(l10n, column), (moves, Some(switch)), palette)
         });
 
         let sections = self.sections.ids().iter().map(|&section| {
@@ -190,7 +189,7 @@ impl ProcessesSettingsPage {
                 &forward,
                 move |step| ProcessesSettingsMsg::MoveSection(section, step),
             );
-            row(section, section_label(l10n, section), (moves, View::empty()), palette)
+            row(section, section_label(l10n, section), (moves, None), palette)
         });
 
         let columns = expander(
@@ -291,11 +290,9 @@ fn expander(
         .mark(group.mark())
         .horizontal_alignment(HorizontalAlignment::Stretch)
         .is_expanded(open)
-        .on_is_expanded_changed(move |open: bool| {
-            let _ = expanded.call(ProcessesSettingsMsg::Expand(group, open));
-        })
+        .on_is_expanded_changed(move |open: bool| expanded.call(ProcessesSettingsMsg::Expand(group, open)))
         .header(header)
-        .content(StackPanel::new().children((View::keyed_fragment(rows), reset)))
+        .content(StackPanel::new().keyed_children(rows.into_iter().chain([keyed("reset", reset)])))
         .into()
 }
 
@@ -397,25 +394,31 @@ fn move_buttons(
         .into()
 }
 
-fn row(mark: impl Mark, label: String, (moves, control): (View, View), palette: Palette) -> KeyedView {
+fn row(mark: impl Mark, label: String, (moves, control): (View, Option<View>), palette: Palette) -> KeyedView {
     let key = mark.name();
+    let mut cells: Vec<View> = vec![
+        text(label)
+            .vertical_alignment(VerticalAlignment::Center)
+            .grid_column(0)
+            .into(),
+        Grid::new()
+            .grid_column(1)
+            .vertical_alignment(VerticalAlignment::Center)
+            .children((moves,))
+            .into(),
+    ];
+    cells.extend(control.map(|control| {
+        Grid::new()
+            .grid_column(2)
+            .vertical_alignment(VerticalAlignment::Center)
+            .children((control,))
+            .into()
+    }));
     let line = Border::new().mark(mark).min_height(Layout::RowMinHeight).content(
         Grid::new()
             .columns([GridLength::Star(1.0), GridLength::Auto, GridLength::Auto])
             .column_spacing(space::Card)
-            .children((
-                text(label)
-                    .vertical_alignment(VerticalAlignment::Center)
-                    .grid_column(0),
-                Grid::new()
-                    .grid_column(1)
-                    .vertical_alignment(VerticalAlignment::Center)
-                    .children((moves,)),
-                Grid::new()
-                    .grid_column(2)
-                    .vertical_alignment(VerticalAlignment::Center)
-                    .children((control,)),
-            )),
+            .children(cells),
     );
-    KeyedView::new(key, StackPanel::new().children((line, separator(palette))))
+    keyed(key, StackPanel::new().children((line, separator(palette))))
 }

@@ -8,10 +8,9 @@ use app_contracts::features::settings::Units;
 use guicons::icon;
 use crate::widgets::table::ColumnSpec;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, CornerRadius, EncodedImage, Grid,
-    GridChildExt, GridLength, HorizontalAlignment, Image, LayoutControl, PointerEventInfo,
-    ResourceOverrides, StackPanel, TextTrimming, TextWrapping, ThemeBrush, Thickness, Tooltip, TooltipExt,
-    VerticalAlignment, View,
+    Border, Button, ButtonStyle, Callback, Color, CornerRadius, EncodedImage, Grid, GridLength, HorizontalAlignment,
+    Image, PointerEventInfo, ResourceOverrides, StackPanel, TextTrimming, TextWrapping, ThemeBrush, Thickness,
+    Tooltip, TooltipExt, VerticalAlignment, View,
 };
 
 use crate::format::{self, percent, Rate};
@@ -98,7 +97,7 @@ fn fallback_process_icon() -> View {
     icon!(app).size(size::Icon).build_element()
 }
 
-fn chevron_slot(content: View, on_press: Option<Callback<()>>, height: f64) -> View {
+fn chevron_slot(content: Option<View>, on_press: Option<Callback<()>>, height: f64) -> View {
     let reach = NameLine::Spacing / 2.0;
     let slot = Border::new()
         .width(space::Cell + Chevron::Slot + reach)
@@ -106,15 +105,17 @@ fn chevron_slot(content: View, on_press: Option<Callback<()>>, height: f64) -> V
         .padding(Thickness::new(space::Cell, 0.0, reach, 0.0))
         .margin(Thickness::new(-space::Cell, 0.0, -reach, 0.0))
         .vertical_alignment(VerticalAlignment::Center);
+    let slot = match content {
+        Some(content) => slot.content(content),
+        None => slot,
+    };
     match on_press {
         Some(on_press) => slot
             .mark(ProcessesMark::Chevron)
             .background(Color::transparent())
-            .on_pointer_released(move |_: PointerEventInfo| {
-                let _ = on_press.call(());
-            })
-            .content(content),
-        None => slot.content(content),
+            .on_pointer_released(move |_: PointerEventInfo| on_press.call(()))
+            .into(),
+        None => slot.into(),
     }
 }
 
@@ -143,7 +144,7 @@ struct NameLine {
     chevron: View,
     icon: Option<View>,
     label: View,
-    count: View,
+    count: Option<View>,
 }
 
 #[expect(non_upper_case_globals)]
@@ -152,33 +153,29 @@ impl NameLine {
 }
 
 fn name_line(line: NameLine) -> View {
-    let icon = match line.icon {
-        Some(icon) => Border::new()
-            .grid_column(1)
-            .vertical_alignment(VerticalAlignment::Center)
-            .margin(Thickness::new(NameLine::Spacing, 0.0, 0.0, 0.0))
-            .content(icon)
-            .into(),
-        None => View::empty(),
-    };
+    let mut words: Vec<View> = vec![Border::new().grid_column(0).content(line.label).into()];
+    words.extend(line.count.map(|count| Border::new().grid_column(1).content(count).into()));
     let label_and_count = Grid::new()
         .grid_column(2)
         .columns([GridLength::Star(1.0), GridLength::Auto])
         .horizontal_alignment(HorizontalAlignment::Left)
         .vertical_alignment(VerticalAlignment::Center)
         .margin(Thickness::new(NameLine::Spacing, 0.0, 0.0, 0.0))
-        .children((
-            Border::new().grid_column(0).content(line.label),
-            Border::new().grid_column(1).content(line.count),
-        ));
+        .children(words);
+    let mut parts: Vec<View> = vec![Border::new().grid_column(0).content(line.chevron).into()];
+    parts.extend(line.icon.map(|icon| {
+        Border::new()
+            .grid_column(1)
+            .vertical_alignment(VerticalAlignment::Center)
+            .margin(Thickness::new(NameLine::Spacing, 0.0, 0.0, 0.0))
+            .content(icon)
+            .into()
+    }));
+    parts.push(label_and_count.into());
     Grid::new()
         .columns([GridLength::Auto, GridLength::Auto, GridLength::Star(1.0)])
         .margin(Thickness::new(space::Cell + line.indent, 0.0, 0.0, 0.0))
-        .children((
-            Border::new().grid_column(0).content(line.chevron),
-            icon,
-            label_and_count,
-        ))
+        .children(parts)
         .into()
 }
 
@@ -298,29 +295,25 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
     }
 
     let chevron = if matches!(d.wsl, Some(WslRow::Environment { .. })) {
-        chevron_slot(expand_chevron(d.is_expanded), None, d.height())
+        chevron_slot(Some(expand_chevron(d.is_expanded)), None, d.height())
     } else if d.has_children {
         let toggle = cell.actions.toggle_group.clone();
         let group = d.row.name.to_string();
         chevron_slot(
-            expand_chevron(d.is_expanded),
-            Some(Callback::new(move |()| {
-                let _ = toggle.call(group.clone());
-            })),
+            Some(expand_chevron(d.is_expanded)),
+            Some(Callback::new(move |()| toggle.call(group.clone()))),
             d.height(),
         )
     } else if d.details {
         let toggle = cell.actions.toggle_process.clone();
         let pid = d.row.pid;
         chevron_slot(
-            expand_chevron(d.details_expanded),
-            Some(Callback::new(move |()| {
-                let _ = toggle.call(pid);
-            })),
+            Some(expand_chevron(d.details_expanded)),
+            Some(Callback::new(move |()| toggle.call(pid))),
             d.height(),
         )
     } else {
-        chevron_slot(View::empty(), None, d.height())
+        chevron_slot(None, None, d.height())
     };
 
     let note = |mark: ProcessesMark, label: String| -> View {
@@ -332,13 +325,13 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
             .into()
     };
     let count = if d.absent {
-        note(ProcessesMark::NotRunning, cell.l10n.processes_not_running())
+        Some(note(ProcessesMark::NotRunning, cell.l10n.processes_not_running()))
     } else if d.exited {
-        note(ProcessesMark::Exited, cell.l10n.processes_exited())
+        Some(note(ProcessesMark::Exited, cell.l10n.processes_exited()))
     } else if d.has_children {
-        group_count(d.group_size, cell.l10n, cell.palette)
+        Some(group_count(d.group_size, cell.l10n, cell.palette))
     } else {
-        View::empty()
+        None
     };
     let label = match (&d.row.owner, &d.wsl) {
         (Some(owner), _) if !d.has_children && d.child.is_none() => {
@@ -381,57 +374,59 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
     name_row(d, line, cell.palette)
 }
 
-fn rules(d: &DisplayRow, palette: Palette) -> View {
+fn rules(d: &DisplayRow, palette: Palette) -> Option<View> {
     if !has_rules(d) {
-        return View::empty();
+        return None;
     }
-    let pinned: View = if d.rule_below {
-        separator(palette)
-            .mark(ProcessesMark::PinnedRule)
-            .vertical_alignment(VerticalAlignment::Bottom)
-            .into()
-    } else {
-        View::empty()
-    };
-    let drop: View = match d.drop_edge {
-        Some(edge) => Border::new()
-            .mark(ProcessesMark::DropLine)
-            .height(DropLine::Thickness)
-            .background(ThemeBrush::Accent)
-            .vertical_alignment(match edge {
-                DropEdge::Above => VerticalAlignment::Top,
-                DropEdge::Below => VerticalAlignment::Bottom,
-            })
-            .into(),
-        None => View::empty(),
-    };
-    Grid::new().children((pinned, drop)).into()
+    let mut lines: Vec<View> = Vec::new();
+    if d.rule_below {
+        lines.push(
+            separator(palette)
+                .mark(ProcessesMark::PinnedRule)
+                .vertical_alignment(VerticalAlignment::Bottom)
+                .into(),
+        );
+    }
+    if let Some(edge) = d.drop_edge {
+        lines.push(
+            Border::new()
+                .mark(ProcessesMark::DropLine)
+                .height(DropLine::Thickness)
+                .background(ThemeBrush::Accent)
+                .vertical_alignment(match edge {
+                    DropEdge::Above => VerticalAlignment::Top,
+                    DropEdge::Below => VerticalAlignment::Bottom,
+                })
+                .into(),
+        );
+    }
+    Some(Grid::new().children(lines).into())
 }
 
 fn has_rules(d: &DisplayRow) -> bool {
     d.rule_below || d.drop_edge.is_some()
 }
 
+fn ruled(d: &DisplayRow, palette: Palette, layers: impl IntoIterator<Item = View>) -> View {
+    let mut layers: Vec<View> = layers.into_iter().collect();
+    layers.extend(rules(d, palette));
+    Grid::new().height(d.height()).children(layers).into()
+}
+
 fn name_row(d: &DisplayRow, line: View, palette: Palette) -> View {
-    let bar = match d.highlight {
-        Some(band) => selection_bar_for(d.height(), band),
-        None => View::empty(),
-    };
-    Grid::new()
-        .height(d.height())
-        .children((bar, line, rules(d, palette)))
-        .into()
+    let bar = d.highlight.map(|band| selection_bar_for(d.height(), band));
+    ruled(d, palette, bar.into_iter().chain([line]))
 }
 
 fn service_name_cell(cell: &NameCell<'_>, d: &DisplayRow, service: &HostedService) -> View {
     let line = name_line(NameLine {
         indent: indent(d.depth),
-        chevron: chevron_slot(View::empty(), None, d.height()),
+        chevron: chevron_slot(None, None, d.height()),
         icon: Some(table_cell::service_icon()),
         label: table_cell::cell_text(&*service.display_name)
             .vertical_alignment(VerticalAlignment::Center)
             .into(),
-        count: View::empty(),
+        count: None,
     });
 
     name_row(d, line, cell.palette)
@@ -445,13 +440,13 @@ fn window_name_cell(cell: &NameCell<'_>, d: &DisplayRow, window: &ProcessWindow)
     };
     let line = name_line(NameLine {
         indent: indent(d.depth),
-        chevron: chevron_slot(View::empty(), None, d.height()),
+        chevron: chevron_slot(None, None, d.height()),
         icon: Some(window_icon(&cell.actions.icons, window, &d.row)),
         label: table_cell::cell_text(title)
             .foreground(cell.palette.secondary_text)
             .vertical_alignment(VerticalAlignment::Center)
             .into(),
-        count: View::empty(),
+        count: None,
     });
 
     name_row(d, line, cell.palette)
@@ -480,19 +475,15 @@ fn section_name_cell(cell: &NameCell<'_>, d: &DisplayRow, section: &SectionRow) 
     };
     let line = name_line(NameLine {
         indent: 0.0,
-        chevron: chevron_slot(expand_chevron(d.is_expanded), None, d.height()),
+        chevron: chevron_slot(Some(expand_chevron(d.is_expanded)), None, d.height()),
         icon: None,
         label,
-        count: group_count(d.group_size, cell.l10n, cell.palette),
+        count: Some(group_count(d.group_size, cell.l10n, cell.palette)),
     });
     let line = table_cell::dimmed(line, d.lifted);
 
     section_grip(&cell.actions.section_gesture, section.id)
-        .content(
-            Grid::new()
-                .height(d.height())
-                .children((line, rules(d, cell.palette))),
-        )
+        .content(ruled(d, cell.palette, [line]))
         .into()
 }
 
@@ -524,15 +515,19 @@ fn section_grip(gesture: &Callback<SectionGesture>, section: SectionId) -> Borde
         })
 }
 
-fn sort_mark(sorted: Option<bool>) -> View {
-    match sorted {
-        Some(descending) => Border::new()
+fn sort_mark(sorted: Option<bool>) -> Option<View> {
+    sorted.map(|descending| {
+        Border::new()
             .horizontal_alignment(HorizontalAlignment::Center)
             .vertical_alignment(VerticalAlignment::Top)
             .margin(Thickness::new(0.0, -Header::Padding, 0.0, 0.0))
-            .content(sort_indicator_icon(descending)),
-        None => View::empty(),
-    }
+            .content(sort_indicator_icon(descending))
+            .into()
+    })
+}
+
+fn header(sorted: Option<bool>, parts: impl IntoIterator<Item = View>) -> Grid {
+    header_frame().children(sort_mark(sorted).into_iter().chain(parts).collect::<Vec<View>>())
 }
 
 fn group_by_type_toggle(group_by_type: &GroupByType) -> View {
@@ -549,17 +544,14 @@ fn group_by_type_toggle(group_by_type: &GroupByType) -> View {
         .horizontal_alignment(HorizontalAlignment::Right)
         .vertical_alignment(VerticalAlignment::Bottom)
         .margin(Thickness::new(0.0, 0.0, space::Cell, 0.0))
-        .on_click(move || {
-            let _ = toggle.call(());
-        })
+        .on_click(move || toggle.call(()))
         .content(icon.size(size::Icon).build_element())
         .into()
 }
 
 fn name_header(label: String, place: &Place, group_by_type: &GroupByType) -> View {
     let (sorted, palette) = (place.sorted, place.palette);
-    with_column_menu(&place.menu, header_frame().children((
-        sort_mark(sorted),
+    with_column_menu(&place.menu, header(sorted, [
         caption(label)
             .foreground(palette.tertiary_text)
             .vertical_alignment(VerticalAlignment::Bottom)
@@ -568,15 +560,15 @@ fn name_header(label: String, place: &Place, group_by_type: &GroupByType) -> Vie
                 0.0,
                 0.0,
                 0.0,
-            )),
+            ))
+            .into(),
         group_by_type_toggle(group_by_type),
-    )))
+    ]))
 }
 
 fn metric_header(label: String, value: String, place: &Place) -> View {
     let (sorted, palette) = (place.sorted, place.palette);
-    with_column_menu(&place.menu, header_frame().children((
-        sort_mark(sorted),
+    with_column_menu(&place.menu, header(sorted, [
         StackPanel::new()
             .horizontal_alignment(HorizontalAlignment::Right)
             .vertical_alignment(VerticalAlignment::Bottom)
@@ -591,21 +583,22 @@ fn metric_header(label: String, value: String, place: &Place) -> View {
                     .text_wrapping(TextWrapping::NoWrap)
                     .text_trimming(TextTrimming::CharacterEllipsis)
                     .horizontal_alignment(HorizontalAlignment::Right),
-            )),
-    )))
+            ))
+            .into(),
+    ]))
 }
 
 fn text_header(label: String, place: &Place, align: HorizontalAlignment) -> View {
-    with_column_menu(&place.menu, header_frame().children((
-        sort_mark(place.sorted),
+    with_column_menu(&place.menu, header(place.sorted, [
         caption(label)
             .foreground(place.palette.tertiary_text)
             .text_wrapping(TextWrapping::NoWrap)
             .text_trimming(TextTrimming::CharacterEllipsis)
             .horizontal_alignment(align)
             .vertical_alignment(VerticalAlignment::Bottom)
-            .margin(Thickness::xy(space::Cell, 0.0)),
-    )))
+            .margin(Thickness::xy(space::Cell, 0.0))
+            .into(),
+    ]))
 }
 
 #[derive(Clone)]
@@ -650,18 +643,14 @@ where
     let (width, min_width, palette) = (place.width, place.min_width, place.palette);
     let header = move || text_header(label.clone(), &place, align);
     ColumnSpec::new_with_header(id, header, width, move |d: &DisplayRow| {
-        let text: View = match value(d) {
-            Some(value) => table_cell::cell_text(value)
+        let text = value(d).map(|value| {
+            table_cell::cell_text(value)
                 .horizontal_alignment(align)
                 .vertical_alignment(VerticalAlignment::Center)
                 .margin(Thickness::xy(space::Cell, 0.0))
-                .into(),
-            None => View::empty(),
-        };
-        Grid::new()
-            .height(d.height())
-            .children((text, rules(d, palette)))
-            .into()
+                .into()
+        });
+        ruled(d, palette, text)
     })
     .min_width(min_width)
     .flush()
@@ -809,10 +798,7 @@ where
     let header = move || metric_header(label.clone(), total.clone(), &place);
     ColumnSpec::new_with_header(id, header, width, move |d: &DisplayRow| {
         if d.absent || d.child.as_ref().is_some_and(|child| !child.has_metrics()) {
-            return Grid::new()
-                .height(d.height())
-                .children((rules(d, palette),))
-                .into();
+            return ruled(d, palette, []);
         }
         let (text, zero) = value(&d.row);
         let heat = if d.section.is_some() || zero {
@@ -834,10 +820,9 @@ where
             },
             palette,
         );
-        if has_rules(d) {
-            Grid::new().children((cell, rules(d, palette))).into()
-        } else {
-            cell
+        match rules(d, palette) {
+            Some(rules) => Grid::new().children((cell, rules)).into(),
+            None => cell,
         }
     })
     .min_width(min_width)

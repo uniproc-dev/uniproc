@@ -4,9 +4,8 @@ use std::rc::Rc;
 use guinea::Mark;
 use guinea_widgets::resize::resize_handle;
 use windows_reactor::{
-    AutomationExt, Border, Callback, ChildrenControl, Color, Component, ComponentContext, ContentControl,
-    CornerRadius, Grid, GridChildExt, GridLength, LayoutControl, PointerEventInfo, TextBlock, Thickness, View,
-    ViewContext,
+    Border, Callback, Color, Component, ComponentContext, CornerRadius, Grid, GridLength, PointerEventInfo,
+    TextBlock, Thickness, View, ViewContext,
 };
 
 use super::columns::{ColumnSpec, Reordered, Resized, Space};
@@ -17,7 +16,7 @@ pub(super) struct HeaderCell<'a, T, C> {
     pub(super) column: &'a ColumnSpec<T, C>,
     pub(super) sort_state: Option<&'a SortState<C>>,
     pub(super) on_sort: Option<&'a Callback<C>>,
-    pub(super) sort_indicator: Option<&'a Rc<dyn Fn(bool) -> View>>,
+    pub(super) sort_indicator: Option<&'a Rc<dyn Fn(bool) -> Option<View>>>,
     pub(super) moving: Option<Moving>,
     pub(super) hovered: Color,
     pub(super) rounded: (f64, f64),
@@ -38,14 +37,16 @@ pub(super) fn header_cell<T, C: Mark + Clone + PartialEq + 'static>(cell: Header
     let active = sort_state.filter(|s| column.sortable && s.field_id.as_ref() == Some(&column.id));
 
     let base = (column.header)();
-    let content = match active {
-        Some(state) => {
-            let indicator = match sort_indicator {
-                Some(render) => render(state.descending),
-                None => TextBlock::new()
-                    .text(if state.descending { "▼" } else { "▲" })
-                    .into(),
-            };
+    let indicator = active.and_then(|state| match sort_indicator {
+        Some(render) => render(state.descending),
+        None => Some(
+            TextBlock::new()
+                .text(if state.descending { "▼" } else { "▲" })
+                .into(),
+        ),
+    });
+    let content = match indicator {
+        Some(indicator) => {
             Grid::new()
                 .columns([GridLength::Star(1.0), GridLength::Auto])
                 .children((
@@ -156,8 +157,7 @@ impl<C: Mark + Clone + PartialEq + 'static> Component for PointedHeading<C> {
             Border::new()
                 .margin(Thickness::new(0.0, 0.0, rail, 0.0))
                 .corner_radius(CornerRadius::new(left, right, 0.0, 0.0))
-                .background(plate)
-                .content(View::empty()),
+                .background(plate),
             heading.content.clone(),
         ));
 
@@ -175,10 +175,8 @@ impl<C: Mark + Clone + PartialEq + 'static> Component for PointedHeading<C> {
                 if released.moved.replace(false) {
                     return;
                 }
-                if let Some(on_sort) = &on_sort
-                    && !on_sort.call(column.clone())
-                {
-                    tracing::debug!(column = column.name(), "sort dropped: no active publication");
+                if let Some(on_sort) = &on_sort {
+                    on_sort.call(column.clone());
                 }
             }));
 
@@ -207,9 +205,8 @@ impl<C: Mark + Clone + PartialEq + 'static> Component for PointedHeading<C> {
                 if !dragged.moved.get() || dragged.sent_from.get() == Some(moving.at) {
                     return;
                 }
-                if let Some((order, shift)) = moving.step(delta)
-                    && moving.on_reorder.call(Reordered { order })
-                {
+                if let Some((order, shift)) = moving.step(delta) {
+                    moving.on_reorder.call(Reordered { order });
                     dragged.anchor.set(Some(anchor + shift));
                     dragged.sent_from.set(Some(moving.at));
                 }

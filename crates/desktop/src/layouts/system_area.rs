@@ -15,7 +15,7 @@ impl Layout for SystemArea {
         ctx.install(&ctx.require_or_default::<SystemDeps>())
     }
 
-    fn view(&self, cx: &mut LayoutCx<'_, Self>) -> View {
+    fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
         cx.outlet()
     }
 }

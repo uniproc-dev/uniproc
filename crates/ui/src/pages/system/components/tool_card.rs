@@ -3,8 +3,7 @@ use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Button, ButtonStyle, ChildrenControl, ContentControl, Grid, Orientation, ResourceOverrides, StackPanel, Thickness,
-    TooltipExt, View,
+    Button, ButtonStyle, Grid, Orientation, ResourceOverrides, StackPanel, Thickness, TooltipExt, View,
 };
 
 use super::super::marks::{SystemMark, ToolMark};
@@ -146,14 +145,14 @@ fn forget_button(dispatch: &Dispatch, l10n: &L10n, tool: SystemTool) -> View {
 }
 
 fn accessory(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, tool: SystemTool, place: CardPlace) -> View {
-    let forget = match place {
-        CardPlace::Favourites => forget_button(dispatch, l10n, tool),
-        CardPlace::Catalog => View::empty(),
-    };
+    let mut buttons = vec![pin_button(state, dispatch, l10n, tool)];
+    if place == CardPlace::Favourites {
+        buttons.push(forget_button(dispatch, l10n, tool));
+    }
     StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(space::Compact)
-        .children((pin_button(state, dispatch, l10n, tool), forget))
+        .children(buttons)
         .into()
 }
 

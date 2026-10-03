@@ -1,8 +1,7 @@
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, ChildrenControl, Color, ContentControl, CornerRadius, Grid, GridChildExt, GridLength,
-    HorizontalAlignment, KeyedView, LayoutControl, Orientation, StackPanel, Thickness, VerticalAlignment,
-    View,
+    Border, Color, CornerRadius, Grid, GridLength, HorizontalAlignment, Orientation, StackPanel, Thickness,
+    VerticalAlignment, View,
 };
 
 use super::super::marks::ProcessesMark;
@@ -74,10 +73,6 @@ fn parts(counts: &StatusCounts, l10n: &L10n, palette: Palette) -> Vec<Part> {
     parts
 }
 
-fn keyed(views: Vec<View>) -> View {
-    View::keyed_fragment(views.into_iter().enumerate().map(|(at, view)| KeyedView::new(at, view)))
-}
-
 fn share_bar(parts: &[Part]) -> View {
     let shown: Vec<&Part> = parts.iter().filter(|part| part.count > 0).collect();
     let last = shown.len().saturating_sub(1);
@@ -94,12 +89,12 @@ fn share_bar(parts: &[Part]) -> View {
                 .corner_radius(CornerRadius::new(left, right, right, left))
                 .into()
         })
-        .collect();
+        .collect::<Vec<View>>();
     Grid::new()
         .height(Share::Height)
         .margin(Thickness::new(0.0, space::Compact, 0.0, space::Compact))
         .columns(shown.iter().map(|part| GridLength::Star(part.count as f64)))
-        .children((keyed(segments),))
+        .children(segments)
         .into()
 }
 
@@ -139,7 +134,7 @@ pub(crate) fn status_bar(counts: &StatusCounts, l10n: &L10n, palette: Palette) -
         .orientation(Orientation::Horizontal)
         .spacing(Share::Between)
         .grid_column(0)
-        .children((keyed(parts.iter().map(|part| legend_item(part, palette)).collect()),));
+        .children(parts.iter().map(|part| legend_item(part, palette)).collect::<Vec<View>>());
     let total = Border::new().grid_column(2).content(reserved(
         l10n.processes_status_processes(total as i64),
         l10n.processes_status_processes(most as i64),

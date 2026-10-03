@@ -11,7 +11,7 @@ impl FontSize {
 }
 
 pub fn text(content: impl Into<String>) -> TextBlock {
-    TextBlock::new().text(content)
+    TextBlock::new().text(content.into())
 }
 
 pub fn caption(content: impl Into<String>) -> TextBlock {

@@ -2,8 +2,8 @@ use app_contracts::features::agent_link::InProcess;
 use guicons::icon;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, Callback, ChildrenControl, ContentControl, Grid, HorizontalAlignment, LayoutControl,
-    Orientation, ProgressRing, StackPanel, ThemeBrush, Thickness, VerticalAlignment, View,
+    Border, Callback, Grid, HorizontalAlignment, Orientation, ProgressRing, StackPanel, ThemeBrush, Thickness,
+    VerticalAlignment, View,
 };
 
 use crate::l10n::L10n;
@@ -72,30 +72,36 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
         .vertical_alignment(VerticalAlignment::Bottom)
         .margin(Thickness::new(0.0, 0.0, 0.0, Splash::SpinnerFromBottom));
 
-    let (slow, corner): (View, View) = if props.in_process_offered {
+    let mut layers: Vec<View> = vec![middle.into()];
+    if props.in_process_offered {
         let start_in_process = props.on_start_in_process;
-        let trouble: View = match props.service_trouble {
-            Some(ServiceTrouble::Unreachable(service)) => {
+        let mut lines: Vec<View> = vec![line(props.l10n.shell_splash_slow(), props.palette).into()];
+        match props.service_trouble {
+            Some(ServiceTrouble::Unreachable(service)) => lines.push(
                 line(props.l10n.shell_splash_unreachable(service.to_string()), props.palette)
                     .mark(SplashMark::Unreachable)
-                    .into()
-            }
-            Some(ServiceTrouble::Outdated(service)) => {
+                    .into(),
+            ),
+            Some(ServiceTrouble::Outdated(service)) => lines.push(
                 line(props.l10n.shell_splash_outdated(service.to_string()), props.palette)
                     .mark(SplashMark::Outdated)
-                    .into()
-            }
-            None => View::empty(),
-        };
-        let in_process_error: View = match props.in_process {
-            InProcess::NotElevated => line(props.l10n.shell_splash_in_process_not_elevated(), props.palette)
-                .mark(SplashMark::InProcessError)
-                .into(),
-            InProcess::Failed => line(props.l10n.shell_splash_in_process_failed(), props.palette)
-                .mark(SplashMark::InProcessError)
-                .into(),
-            InProcess::Off | InProcess::Starting | InProcess::Running => View::empty(),
-        };
+                    .into(),
+            ),
+            None => {}
+        }
+        match props.in_process {
+            InProcess::NotElevated => lines.push(
+                line(props.l10n.shell_splash_in_process_not_elevated(), props.palette)
+                    .mark(SplashMark::InProcessError)
+                    .into(),
+            ),
+            InProcess::Failed => lines.push(
+                line(props.l10n.shell_splash_in_process_failed(), props.palette)
+                    .mark(SplashMark::InProcessError)
+                    .into(),
+            ),
+            InProcess::Off | InProcess::Starting | InProcess::Running => {}
+        }
         let slow = StackPanel::new()
             .orientation(Orientation::Vertical)
             .spacing(space::Compact)
@@ -107,12 +113,7 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
                 0.0,
                 Splash::SpinnerFromBottom + Splash::Spinner + space::Card,
             ))
-            .children((
-                line(props.l10n.shell_splash_slow(), props.palette),
-                trouble,
-                in_process_error,
-            ))
-            .into();
+            .children(lines);
         let corner = Border::new()
             .horizontal_alignment(HorizontalAlignment::Right)
             .vertical_alignment(VerticalAlignment::Bottom)
@@ -122,19 +123,16 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
                 props.l10n.shell_splash_open_in_process(),
                 Some(icon!(open).size(size::Icon).build_element()),
                 !matches!(props.in_process, InProcess::Starting | InProcess::Running),
-                move || {
-                    let _ = start_in_process.call(());
-                },
-            ))
-            .into();
-        (slow, corner)
+                move || start_in_process.call(()),
+            ));
+        layers.extend([slow.into(), spinner.into(), corner.into()]);
     } else {
-        (View::empty(), View::empty())
-    };
+        layers.push(spinner.into());
+    }
 
     Border::new()
         .mark(SplashMark::Splash)
         .background(ThemeBrush::SolidBackground)
-        .content(Grid::new().children((middle, slow, spinner, corner)))
+        .content(Grid::new().children(layers))
         .into()
 }

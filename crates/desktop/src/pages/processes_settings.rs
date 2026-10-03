@@ -28,7 +28,7 @@ impl Page for ProcessesSettings {
         self.0.update(message);
     }
 
-    fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
+    fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ProcessesSettingsMsg| message);

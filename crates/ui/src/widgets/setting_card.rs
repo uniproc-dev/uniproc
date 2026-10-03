@@ -1,8 +1,7 @@
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    ChildrenControl, ComboBox, ContentControl, Grid, GridChildExt, GridLength, LayoutControl, StackPanel,
-    ThemeBrush, Thickness, VerticalAlignment, View,
+    ComboBox, Grid, GridLength, StackPanel, ThemeBrush, Thickness, VerticalAlignment, View,
 };
 
 use crate::theme::{radius, setting, space, Palette};
@@ -25,13 +24,14 @@ pub struct SettingCard {
 }
 
 pub fn card_words(title: impl Into<String>, description: Option<String>, palette: Palette) -> View {
-    let description: View = match description {
-        Some(description) => caption(description).foreground(palette.secondary_text).into(),
-        None => View::empty(),
-    };
+    let mut words: Vec<View> = vec![text(title).into()];
+    if let Some(description) = description {
+        words.push(caption(description).foreground(palette.secondary_text).into());
+    }
     StackPanel::new()
         .vertical_alignment(VerticalAlignment::Center)
-        .children((text(title), description))
+        .children(words)
+        .into()
 }
 
 pub fn choice<T: Copy + PartialEq + 'static>(
@@ -63,15 +63,33 @@ pub fn setting_card(setting: SettingCard, palette: Palette) -> View {
     } = setting;
 
     let words = card_words(title, Some(description), palette);
-    let icon = match icon {
-        Some(icon) => Grid::new()
-            .grid_column(0)
-            .margin(setting::icon_margin())
+    let mut parts: Vec<View> = Vec::new();
+    if let Some(icon) = icon {
+        parts.push(
+            Grid::new()
+                .grid_column(0)
+                .margin(setting::icon_margin())
+                .vertical_alignment(VerticalAlignment::Center)
+                .children((icon,))
+                .into(),
+        );
+    }
+    parts.push(
+        Grid::new()
+            .grid_column(1)
             .vertical_alignment(VerticalAlignment::Center)
-            .children((icon,))
+            .children((words,))
             .into(),
-        None => View::empty(),
-    };
+    );
+    parts.push(
+        Grid::new()
+            .grid_column(2)
+            .min_width(SettingCardSize::ContentMinWidth)
+            .margin(Thickness::new(space::Card, 0.0, 0.0, 0.0))
+            .vertical_alignment(VerticalAlignment::Center)
+            .children((control,))
+            .into(),
+    );
 
     card()
         .corner_radius(radius::Control)
@@ -82,19 +100,7 @@ pub fn setting_card(setting: SettingCard, palette: Palette) -> View {
         .content(
             Grid::new()
                 .columns([GridLength::Auto, GridLength::Star(1.0), GridLength::Auto])
-                .children((
-                    icon,
-                    Grid::new()
-                        .grid_column(1)
-                        .vertical_alignment(VerticalAlignment::Center)
-                        .children((words,)),
-                    Grid::new()
-                        .grid_column(2)
-                        .min_width(SettingCardSize::ContentMinWidth)
-                        .margin(Thickness::new(space::Card, 0.0, 0.0, 0.0))
-                        .vertical_alignment(VerticalAlignment::Center)
-                        .children((control,)),
-                )),
+                .children(parts),
         )
         .into()
 }

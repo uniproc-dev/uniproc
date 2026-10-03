@@ -1,6 +1,6 @@
 use windows_reactor::{
-    Border, ChildrenControl, Color, ContentControl, Grid, HorizontalAlignment, LayoutControl,
-    TextBlock, TextTrimming, TextWrapping, Thickness, VerticalAlignment, View,
+    Border, Color, Grid, HorizontalAlignment, TextBlock, TextTrimming, TextWrapping, Thickness, VerticalAlignment,
+    View,
 };
 
 use guicons::icon;
@@ -86,6 +86,7 @@ pub fn heat_cell(content: impl Into<String>, intensity: f32, accent: Color) -> V
         .corner_radius(radius::Control)
         .margin(Thickness::xy(space::Compact, 0.0))
         .content(text_cell(content))
+        .into()
 }
 
 pub struct Metric {
@@ -106,20 +107,23 @@ pub fn metric_cell(metric: Metric, palette: Palette) -> View {
         value
     };
 
-    let wash: View = match metric.heat {
-        Some(heat) if heat.alpha() > 0 => Border::new()
-            .background(Color {
-                a: heat.alpha(),
-                ..heat.color
-            })
-            .corner_radius(radius::Control)
-            .margin(Thickness::uniform(space::Compact))
-            .into(),
-        _ => View::empty(),
-    };
+    let mut layers: Vec<View> = Vec::new();
+    if let Some(heat) = metric.heat.filter(|heat| heat.alpha() > 0) {
+        layers.push(
+            Border::new()
+                .background(Color {
+                    a: heat.alpha(),
+                    ..heat.color
+                })
+                .corner_radius(radius::Control)
+                .margin(Thickness::uniform(space::Compact))
+                .into(),
+        );
+    }
+    layers.push(value.into());
 
     Grid::new()
         .height(metric.height)
-        .children((wash, value))
+        .children(layers)
         .into()
 }
