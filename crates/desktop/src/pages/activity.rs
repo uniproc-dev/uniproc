@@ -105,7 +105,8 @@ mod tests {
     }
 
     fn says(node: &Node, wanted: &str) -> bool {
-        node.text.as_deref() == Some(wanted) || node.children.iter().any(|child| says(child, wanted))
+        node.text.as_deref().map(|text| text.replace(['\u{2068}', '\u{2069}'], "")).as_deref() == Some(wanted)
+            || node.children.iter().any(|child| says(child, wanted))
     }
 
     fn live(h: &Harness, page: &mut Mounted<'_, Activity>, events: Vec<ProcessEvent>) {
@@ -117,16 +118,20 @@ mod tests {
         page.settle();
     }
 
+    fn rows(node: &Node) -> usize {
+        usize::from(node.id.as_deref() == Some("Row")) + node.children.iter().map(rows).sum::<usize>()
+    }
+
     #[guinea::test(iterations = 4)]
-    fn a_process_that_came_is_listed_with_its_command_line(h: &mut Harness) {
+    fn a_process_that_came_is_listed_by_name_and_its_command_line_waits_in_its_facts(h: &mut Harness) {
         start(h);
         let h = &*h;
         let mut page = mount(h);
         live(h, &mut page, vec![came(20, 10)]);
 
-        let items = page.items();
-        assert!(items.iter().any(|item| says(item, "tool.exe")), "{items:#?}");
-        assert!(items.iter().any(|item| says(item, "tool.exe --check")), "{items:#?}");
+        let tree = page.tree();
+        assert!(says(&tree, "tool.exe"), "{tree:#?}");
+        assert!(!says(&tree, "tool.exe --check"), "{tree:#?}");
     }
 
     #[guinea::test(iterations = 4)]
@@ -135,23 +140,37 @@ mod tests {
         let h = &*h;
         let mut page = mount(h);
         live(h, &mut page, vec![came(20, 10)]);
-        assert!(page.find(ActivityMark::Rows).is_some(), "{:#?}", page.tree());
+        assert_eq!(rows(&page.tree()), 1, "{:#?}", page.tree());
         assert!(page.find(ActivityMark::Facts).is_none());
 
-        page.item(0).click_here();
+        page.click(ActivityMark::Row).settle();
         page.settle();
 
-        assert!(page.find(ActivityMark::Facts).is_some(), "{:#?}", page.tree());
+        let tree = page.tree();
+        assert!(page.find(ActivityMark::Facts).is_some(), "{tree:#?}");
+        assert!(says(&tree, "tool.exe --check"), "{tree:#?}");
     }
 
     #[guinea::test(iterations = 4)]
-    fn hiding_exits_leaves_nothing_when_only_exits_happened(h: &mut Harness) {
+    fn an_exit_of_a_process_never_seen_says_so_instead_of_a_bare_number(h: &mut Harness) {
         start(h);
         let h = &*h;
         let mut page = mount(h);
         live(h, &mut page, vec![went(30, 20)]);
-        assert!(page.find(ActivityMark::Rows).is_some(), "{:#?}", page.tree());
-        assert_eq!(page.item_count(), 1, "{:#?}", page.tree());
+
+        let tree = page.tree();
+        assert!(says(&tree, "Process 30"), "{tree:#?}");
+        assert!(!says(&tree, "30"), "{tree:#?}");
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn hiding_exits_from_the_menu_leaves_nothing_when_only_exits_happened(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![went(30, 20)]);
+        assert_eq!(rows(&page.tree()), 1, "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::Menu).is_some(), "{:#?}", page.tree());
 
         page.click(ActivityMark::Went).settle();
         page.settle();

@@ -92,7 +92,7 @@ pub struct Came {
 #[derive(Clone, PartialEq, Debug)]
 pub struct Went {
     pub key: ProcessInstance,
-    pub name: Arc<str>,
+    pub name: Option<Arc<str>>,
     pub lived: Option<u64>,
     pub exit: Exit,
 }
@@ -129,6 +129,7 @@ impl ActivityRow {
 pub struct ActivityView {
     pub histogram: Histogram,
     pub rows: Vec<ActivityRow>,
+    pub earlier: usize,
     pub came: usize,
     pub went: usize,
     pub from: Clock,

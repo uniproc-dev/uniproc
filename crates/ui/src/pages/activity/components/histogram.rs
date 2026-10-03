@@ -8,7 +8,7 @@ use windows_reactor::{
 use super::super::marks::ActivityMark;
 use crate::format;
 use crate::l10n::L10n;
-use crate::theme::{accent_color, space, Palette};
+use crate::theme::{space, Palette};
 use crate::widgets::text::caption;
 
 struct Bars;
@@ -49,13 +49,13 @@ fn bucket(at: usize, came: f64, went: f64, picked: bool, palette: Palette, on_pi
                         .grid_row(0)
                         .height(came)
                         .vertical_alignment(VerticalAlignment::Bottom)
-                        .fill(accent_color()),
+                        .fill(palette.success),
                     Rectangle::new().grid_row(1).fill(palette.divider_stroke),
                     Rectangle::new()
                         .grid_row(2)
                         .height(went)
                         .vertical_alignment(VerticalAlignment::Top)
-                        .fill(palette.secondary_text),
+                        .fill(palette.critical),
                 )),
         )
 }

@@ -290,9 +290,11 @@ paint = "none"
 
 [came]
 iconify = "fluent:arrow-up-right-24-regular"
+paint = { light = "#0F7B0F", dark = "#6CCB5F" }
 
 [went]
 iconify = "fluent:arrow-down-left-24-regular"
+paint = { light = "#C42B1C", dark = "#FF99A4" }
 
 [burst]
 iconify = "fluent:stack-24-regular"

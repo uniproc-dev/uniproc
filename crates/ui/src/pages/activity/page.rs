@@ -6,13 +6,14 @@ use app_contracts::features::activity::{
     Span,
 };
 use app_contracts::features::agents::ProcessInstance;
+use guicons::icon;
 use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Callback, ChildrenControl, ContentControl, Grid, GridChildExt, GridLength, HorizontalAlignment,
-    LayoutControl, Orientation, ScrollBarVisibility, ScrollViewer, StackPanel, TextBox, Thickness, ToggleButton,
-    VerticalAlignment, View,
+    Border, Button, ButtonStyle, Callback, CheckBox, ChildrenControl, ContentControl, Flyout, FlyoutExt,
+    FlyoutPlacement, Grid, GridChildExt, GridLength, HorizontalAlignment, LayoutControl, Orientation, RadioButton,
+    ScrollBarVisibility, ScrollViewer, StackPanel, TextBox, Thickness, VerticalAlignment, View,
 };
 
 use super::components::histogram::histogram;
@@ -20,9 +21,10 @@ use super::components::rows::{rows, Rows};
 use super::marks::ActivityMark;
 use crate::format;
 use crate::l10n::L10n;
-use crate::theme::{space, Palette};
+use crate::theme::{size, space, Palette};
 use crate::widgets::button::command_button;
 use crate::widgets::page::{loading, page_frame, page_title, status_text};
+use crate::widgets::separator;
 use crate::widgets::text::{caption, text};
 
 struct SearchBox;
@@ -41,8 +43,8 @@ pub struct ActivityPage {
     expanded: Rc<HashSet<ProcessInstance>>,
 }
 
-fn chip(mark: impl Mark, label: String, checked: bool, on_change: impl Fn(bool) + 'static) -> View {
-    ToggleButton::new()
+fn shown(mark: impl Mark, label: String, checked: bool, on_change: impl Fn(bool) + 'static) -> View {
+    CheckBox::new()
         .mark(mark)
         .is_checked(checked)
         .on_is_checked_changed(on_change)
@@ -69,7 +71,7 @@ impl ActivityPage {
         }
     }
 
-    fn header(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n) -> View {
+    fn menu(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
         let filter = &state.filter;
         let (came, went, new_only, bursts) = (dispatch.clone(), dispatch.clone(), dispatch.clone(), dispatch.clone());
         let spans: Vec<(String, View)> = [Span::Quarter, Span::Hour, Span::Connected]
@@ -78,58 +80,74 @@ impl ActivityPage {
                 let dispatch = dispatch.clone();
                 (
                     span.name().to_string(),
-                    chip(span, span_label(span, l10n), state.span == span, move |_| {
-                        dispatch.emit(ShowSpan(span))
-                    }),
+                    RadioButton::new()
+                        .mark(span)
+                        .group_name("activity-span")
+                        .is_checked(state.span == span)
+                        .on_checked(move |_: bool| dispatch.emit(ShowSpan(span)))
+                        .content(text(span_label(span, l10n))),
                 )
             })
             .collect();
+        let choices = StackPanel::new().children((
+            shown(ActivityMark::Came, l10n.activity_came(), filter.came, move |on| came.emit(ShowCame(on))),
+            shown(ActivityMark::Went, l10n.activity_went(), filter.went, move |on| went.emit(ShowWent(on))),
+            shown(ActivityMark::NewOnly, l10n.activity_new_only(), filter.new_only, move |on| {
+                new_only.emit(NewOnly(on))
+            }),
+            shown(ActivityMark::Bursts, l10n.activity_bursts(), filter.bursts, move |on| {
+                bursts.emit(ShowBursts(on))
+            }),
+            separator(palette).margin(Thickness::xy(0.0, space::Control)),
+            StackPanel::new().children((View::keyed_fragment(spans),)),
+        ));
+        Button::new()
+            .mark(ActivityMark::Menu)
+            .style(ButtonStyle::Subtle)
+            .content(icon!(more_horizontal).size(size::Icon).build())
+            .flyout_with(Flyout::rich(choices).placement(FlyoutPlacement::BottomEdgeAlignedRight))
+    }
 
+    fn header(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
         Grid::new()
-            .columns([GridLength::Auto, GridLength::Star(1.0), GridLength::Auto])
+            .columns([GridLength::Star(1.0), GridLength::Auto])
             .children((
-                StackPanel::new()
-                    .grid_column(0)
-                    .orientation(Orientation::Horizontal)
-                    .spacing(space::Control)
-                    .children((
-                        page_title(l10n.activity_title()),
-                        chip(ActivityMark::Came, l10n.activity_came(), filter.came, move |on| {
-                            came.emit(ShowCame(on))
-                        }),
-                        chip(ActivityMark::Went, l10n.activity_went(), filter.went, move |on| {
-                            went.emit(ShowWent(on))
-                        }),
-                        chip(ActivityMark::NewOnly, l10n.activity_new_only(), filter.new_only, move |on| {
-                            new_only.emit(NewOnly(on))
-                        }),
-                        chip(ActivityMark::Bursts, l10n.activity_bursts(), filter.bursts, move |on| {
-                            bursts.emit(ShowBursts(on))
-                        }),
-                    )),
-                StackPanel::new()
-                    .grid_column(2)
-                    .orientation(Orientation::Horizontal)
-                    .spacing(space::Control)
-                    .children((View::keyed_fragment(spans),)),
+                Border::new().grid_column(0).content(page_title(l10n.activity_title())),
+                Border::new()
+                    .grid_column(1)
+                    .vertical_alignment(VerticalAlignment::Center)
+                    .content(Self::menu(state, dispatch, l10n, palette)),
             ))
     }
 
     fn range_bar(view: &ActivityView, state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
         let searched = dispatch.clone();
         let cleared = dispatch.clone();
-        let since = view
-            .history_since
-            .map(|at| l10n.activity_history_since(format::clock(at)))
-            .unwrap_or_default();
+        let where_: View = match view.histogram.picked {
+            Some(_) => StackPanel::new()
+                .orientation(Orientation::Horizontal)
+                .spacing(space::Control)
+                .children((
+                    caption(l10n.activity_paused(format::clock(view.from), format::clock(view.to)))
+                        .vertical_alignment(VerticalAlignment::Center),
+                    command_button(ActivityMark::ClearRange, l10n.activity_live(), None, true, move || {
+                        cleared.emit(ClearRange)
+                    }),
+                )),
+            None => caption(
+                view.history_since
+                    .map(|at| l10n.activity_history_since(format::clock(at)))
+                    .unwrap_or_default(),
+            )
+            .foreground(palette.secondary_text)
+            .vertical_alignment(VerticalAlignment::Center)
+            .into(),
+        };
         Grid::new()
-            .columns([GridLength::Star(1.0), GridLength::Auto, GridLength::Auto])
+            .columns([GridLength::Star(1.0), GridLength::Auto])
             .margin(Thickness::xy(space::Cell, space::Control))
             .children((
-                caption(since)
-                    .grid_column(0)
-                    .foreground(palette.secondary_text)
-                    .vertical_alignment(VerticalAlignment::Center),
+                Border::new().grid_column(0).vertical_alignment(VerticalAlignment::Center).content(where_),
                 TextBox::new()
                     .mark(ActivityMark::Search)
                     .grid_column(1)
@@ -137,16 +155,6 @@ impl ActivityPage {
                     .text(state.filter.text.clone())
                     .placeholder_text(l10n.activity_search())
                     .on_text_changed(move |text: String| searched.emit(Search(text))),
-                Border::new()
-                    .grid_column(2)
-                    .margin(Thickness::new(space::Control, 0.0, 0.0, 0.0))
-                    .content(command_button(
-                        ActivityMark::ClearRange,
-                        l10n.activity_clear_range(),
-                        None,
-                        view.histogram.picked.is_some(),
-                        move || cleared.emit(ClearRange),
-                    )),
             ))
     }
 
@@ -158,7 +166,7 @@ impl ActivityPage {
         palette: Palette,
         forward: Callback<ActivityPageMsg>,
     ) -> View {
-        let header = Self::header(state, dispatch, l10n);
+        let header = Self::header(state, dispatch, l10n, palette);
         let Load::Ready(view) = &state.view else {
             return page_frame(header, loading(), status_text(l10n.activity_loading(), palette), palette);
         };
@@ -175,6 +183,7 @@ impl ActivityPage {
                 .horizontal_scroll_bar_visibility(ScrollBarVisibility::Disabled)
                 .content(rows(Rows {
                     rows: Rc::from(view.rows.as_slice()),
+                    earlier: view.earlier,
                     expanded: self.expanded.clone(),
                     l10n: l10n.clone(),
                     palette,

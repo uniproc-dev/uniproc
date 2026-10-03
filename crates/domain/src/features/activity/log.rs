@@ -27,6 +27,7 @@ impl Pace {
     const BurstGap: u64 = 2 * Ticks::Second;
     const BurstLeast: usize = 3;
     const ChainDepth: usize = 16;
+    const Shown: usize = 200;
     const Shells: [&str; 5] = ["cmd.exe", "powershell.exe", "pwsh.exe", "wscript.exe", "cscript.exe"];
 }
 
@@ -271,7 +272,7 @@ fn went_of(log: &Log, went: &ProcessWent, clock: fn(u64) -> Clock) -> Went {
     });
     Went {
         key: went.instance,
-        name: log.named(went.instance).unwrap_or_else(|| went.instance.pid.to_string().into()),
+        name: log.named(went.instance),
         lived: started.map(|start| went.at - start),
         exit: exit_of(went, started, clock),
     }
@@ -353,7 +354,11 @@ fn matches(came: &Came, text: &str) -> bool {
 fn kept(row: &ActivityRow, filter: &Filter, text: &str) -> bool {
     match row {
         ActivityRow::Came(came) => filter.came && (!filter.new_only || came.first_seen) && matches(came, text),
-        ActivityRow::Went(went) => filter.went && !filter.new_only && went.name.to_lowercase().contains(text),
+        ActivityRow::Went(went) => {
+            filter.went
+                && !filter.new_only
+                && went.name.as_deref().unwrap_or_default().to_lowercase().contains(text)
+        }
         ActivityRow::Burst(burst) => {
             filter.came
                 && filter.bursts
@@ -419,6 +424,8 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     let text = ask.filter.text.trim().to_lowercase();
     rows.retain(|(_, row)| kept(row, ask.filter, &text));
     rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.key().cmp(&a.1.key())));
+    let earlier = rows.len().saturating_sub(Pace::Shown);
+    rows.truncate(Pace::Shown);
 
     let quarter = frame.width * Pace::Buckets / 4;
     ActivityView {
@@ -428,6 +435,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
             picked,
         },
         rows: rows.into_iter().map(|(_, row)| row).collect(),
+        earlier,
         came: came_count,
         went: went_count,
         from: clock(from),
@@ -553,8 +561,32 @@ mod tests {
         let [ActivityRow::Went(row)] = rows.as_slice() else {
             panic!("one went row: {rows:#?}");
         };
-        assert_eq!(&*row.name, "OneDrive.exe");
+        assert_eq!(row.name.as_deref(), Some("OneDrive.exe"));
         assert_eq!(row.lived, Some(2 * HOUR + 45 * Ticks::Minute));
+    }
+
+    #[test]
+    fn a_process_never_seen_before_it_went_has_no_name_rather_than_a_number() {
+        let mut log = Log::default();
+        log.record(&[went(47, at(45, 0))]);
+
+        let rows = rows(&log);
+        let [ActivityRow::Went(row)] = rows.as_slice() else {
+            panic!("one went row: {rows:#?}");
+        };
+        assert_eq!(row.name, None);
+        assert_eq!(row.lived, None);
+    }
+
+    #[test]
+    fn only_the_newest_rows_are_listed_and_the_rest_are_counted() {
+        let mut log = Log::default();
+        let starts: Vec<_> = (0..250).map(|n| came(1000 + n, 1, "a.exe", at(10, 0) + u64::from(n) * Ticks::Second)).collect();
+        log.record(&starts);
+
+        let view = look(&log, &Filter::default(), None);
+        assert_eq!((view.rows.len(), view.earlier), (200, 50));
+        assert_eq!(view.rows[0].key(), id(1249));
     }
 
     #[test]

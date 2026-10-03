@@ -8,6 +8,8 @@ pub enum ActivityMark {
     ClearRange,
     Histogram,
     Rows,
+    Row,
+    Menu,
     Facts,
     Empty,
 }
