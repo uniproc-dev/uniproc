@@ -69,7 +69,7 @@ mod tests {
             });
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn processes_come_back_as_they_were_left_and_catch_up_after(h: &mut Harness) {
         start(h);
         let h = &*h;

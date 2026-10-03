@@ -361,7 +361,7 @@ mod tests {
         page.settle();
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn the_group_by_type_toggle_drops_the_sections_and_brings_them_back(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -387,7 +387,7 @@ mod tests {
         assert!(kept());
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn a_selected_process_that_exits_stays_until_something_else_is_selected(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -439,7 +439,7 @@ mod tests {
         );
     }
 
-    #[guinea::test(iterations = 32, exclusive = "store")]
+    #[guinea::test(iterations = 32)]
     fn of_two_reports_built_at_once_the_newer_one_stays(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -459,7 +459,7 @@ mod tests {
         assert!(!after.iter().any(|l| l.starts_with("notepad.exe")), "{after:?}");
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn a_process_that_exits_unselected_drops_out_at_once(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -495,7 +495,7 @@ mod tests {
         );
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn a_selected_group_keeps_members_that_exit(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -543,7 +543,7 @@ mod tests {
         assert!(!end_task_enabled(&page));
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn a_selected_group_holds_its_place_when_the_rest_resorts(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -571,7 +571,7 @@ mod tests {
         assert_ne!(position(&mut page, "chrome.exe (3)"), Some(before), "{:?}", labels(&mut page));
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn a_group_is_selected_as_one_block_and_a_member_alone(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -600,7 +600,7 @@ mod tests {
         assert!(h.state::<ProcessesState>().selected.is_some_and(|pid| CHROME.contains(&pid)));
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn a_chevron_opens_windows_services_and_consoles(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -633,7 +633,7 @@ mod tests {
         assert!(under("cmd.exe", "conhost.exe"), "{after:?}");
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn a_header_sorts_and_a_heading_folds_its_section(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -674,7 +674,7 @@ mod tests {
         assert_eq!(h.state::<ProcessesState>().selected, None, "a heading is not selectable");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn run_new_task_opens_the_run_dialog_without_a_selection(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -686,7 +686,7 @@ mod tests {
         assert_eq!(shell_requests(), [ShellRequest::RunNewTask]);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_settings_button_opens_the_processes_settings(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -698,7 +698,7 @@ mod tests {
         assert_eq!(page.navigated::<Route>(), [Route::ProcessesSettings {}]);
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn end_task_keeps_the_selection(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -726,7 +726,7 @@ mod tests {
         page.property(tip, property).cloned()
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn a_refused_end_task_says_why_until_dismissed(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -753,7 +753,7 @@ mod tests {
         assert_eq!(h.state::<ProcessesState>().failure, None);
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn an_app_whose_window_closes_before_it_exits(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -798,7 +798,7 @@ mod tests {
             .find(|text| page.find_text(text).is_some())
     }
 
-    #[guinea::test(iterations = 16, exclusive = "store")]
+    #[guinea::test(iterations = 16, exclusive = "agent")]
     fn a_lost_agent_is_retried_behind_an_overlay_not_the_splash(h: &mut Harness) {
         start(h);
         crate::test_agent::reset(true);
@@ -849,7 +849,7 @@ mod tests {
         assert_eq!(overlay(&page), None, "{:#?}", page.tree());
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_chevron_click_also_selects_its_row(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -859,7 +859,7 @@ mod tests {
         assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_click_below_the_rows_drops_the_selection(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -876,7 +876,7 @@ mod tests {
         assert!(!end_task_enabled(&page));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_press_away_from_the_table_drops_the_selection(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -900,7 +900,7 @@ mod tests {
         }
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_table_its_menu_and_end_task_keep_the_selection(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -922,7 +922,7 @@ mod tests {
         })), "{tree:#?}");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_selection_bar_runs_through_the_window_rows_of_its_block(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -942,7 +942,7 @@ mod tests {
         page.find(ProcessesMark::Menu).is_some()
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_right_click_opens_the_menu_of_that_process_and_suspend_goes_to_the_agent(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -961,7 +961,7 @@ mod tests {
         assert!(!menu_open(&page), "a command closes the menu");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_left_click_opens_no_menu(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1006,7 +1006,7 @@ mod tests {
         false
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn an_open_menu_lies_over_the_whole_list_so_the_wheel_cannot_reach_it(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1035,7 +1035,7 @@ mod tests {
         );
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn an_open_menu_covers_the_table_and_a_click_on_it_only_closes_the_menu(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1052,7 +1052,7 @@ mod tests {
         assert_eq!(h.state::<ProcessesState>().selected, Some(NOTEPAD));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn menu_commands_run_on_the_process_the_menu_was_opened_for(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1072,7 +1072,7 @@ mod tests {
         );
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_group_menu_offers_nothing_that_would_hit_only_one_member(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1090,7 +1090,7 @@ mod tests {
         assert!(page.find(ProcessesMark::MenuSearchOnline).is_some());
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_group_menu_ends_every_member(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1118,7 +1118,7 @@ mod tests {
         assert!(!menu_open(&page));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_selected_group_ends_as_a_tree_from_the_header(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1164,7 +1164,7 @@ mod tests {
             .collect()
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_menu_offers_resume_to_a_suspended_process_and_suspend_to_a_running_one(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1182,7 +1182,7 @@ mod tests {
         assert!(page.find(ProcessesMark::MenuResume).is_none());
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn set_priority_opens_the_levels_and_a_level_goes_to_the_service(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1219,7 +1219,7 @@ mod tests {
         assert!(!menu_open(&page));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_group_menu_suspends_every_member(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1243,7 +1243,7 @@ mod tests {
         assert_eq!(suspended, CHROME);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_window_row_menu_acts_on_the_window(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1263,7 +1263,7 @@ mod tests {
         );
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn dropping_the_selection_closes_the_menu(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1301,7 +1301,7 @@ mod tests {
         page.property(node, PropertyId::ButtonIsEnabled) == Some(&PropertyValue::Bool(false))
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_kernel_process_offers_nothing_to_do_to_it(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1328,7 +1328,7 @@ mod tests {
         assert!(end_task_enabled(&page));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn uniproc_and_its_service_cannot_be_ended_or_suspended_from_uniproc(h: &mut Harness) {
         const SERVICE: u32 = 70;
         start(h);
@@ -1366,7 +1366,7 @@ mod tests {
         assert!(end_task_enabled(&page));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_pin_that_is_not_running_stays_until_unpinned(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1435,7 +1435,7 @@ mod tests {
         }
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn name_alone_in_the_table_keeps_its_resize_handle(h: &mut Harness) {
         start(h);
         let columns = stored(h).columns().configs();
@@ -1450,7 +1450,7 @@ mod tests {
         assert!(page.find(NameHandle).is_some(), "{:#?}", page.tree());
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_header_menu_holds_the_metrics_and_leads_to_the_rest(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1482,7 +1482,7 @@ mod tests {
         assert_eq!(page.navigated::<Route>(), [Route::ProcessesSettings {}]);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn pid_and_process_name_chosen_in_the_settings_show_in_the_table(h: &mut Harness) {
         start(h);
         show_in_settings(h, ProcessColumn::Pid);
@@ -1498,7 +1498,7 @@ mod tests {
         assert_eq!(cell(&group, ProcessColumn::ProcessName), "chrome.exe");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn details_columns_show_the_process_and_what_a_group_shares(h: &mut Harness) {
         start(h);
         for column in [
@@ -1538,7 +1538,7 @@ mod tests {
         assert_eq!(cell(&group, ProcessColumn::CommandLine), "", "a group has no single command line");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_press_away_closes_the_header_menu(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1559,7 +1559,7 @@ mod tests {
         assert!(!menu_open(&page), "with a selection too");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn sorting_by_pid_starts_with_the_lowest(h: &mut Harness) {
         start(h);
         show_in_settings(h, ProcessColumn::Pid);
@@ -1590,7 +1590,7 @@ mod tests {
         stored(h).grouping().pins().get(&name.to_string())
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn pinning_from_the_menu_moves_the_process_into_a_pinned_section_on_top(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1616,7 +1616,7 @@ mod tests {
         assert_eq!(pin_kept(h, "notepad.exe"), None);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn pinning_a_group_pins_every_member(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1628,7 +1628,7 @@ mod tests {
         assert_eq!(all[..2], ["Pinned (1)".to_string(), "chrome.exe (3)".to_string()], "{all:?}");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn without_grouping_by_type_pinned_processes_sit_on_top_above_a_rule(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1649,7 +1649,7 @@ mod tests {
         assert_eq!(ruled, ["RuntimeBroker.exe"]);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_window_row_cannot_be_pinned(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1662,7 +1662,7 @@ mod tests {
         assert!(page.find(ProcessesMark::MenuUnpin).is_none());
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_right_click_on_a_section_heading_does_not_collapse_it(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1728,7 +1728,7 @@ mod tests {
         page
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn wsl_is_a_section_headed_by_the_vm_whose_distributions_open_to_their_processes(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1755,7 +1755,7 @@ mod tests {
         assert!(!labels(&mut page).contains(&"init".to_string()));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn without_grouping_by_type_the_vm_opens_to_its_distributions(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1814,7 +1814,7 @@ mod tests {
         said.join(" ").replace(['\u{2068}', '\u{2069}'], "")
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_status_bar_counts_what_the_table_holds(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1846,7 +1846,7 @@ mod tests {
         }
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn every_status_part_reserves_room_for_its_widest_count(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1868,7 +1868,7 @@ mod tests {
         );
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_wsl_heading_carries_the_notes_on_how_it_is_shown(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1883,7 +1883,7 @@ mod tests {
         assert_eq!(with_notes, ["WSL (1)"]);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn an_environment_chevron_leaves_the_press_to_its_row_so_it_toggles_once(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1914,7 +1914,7 @@ mod tests {
         first_margin(page, cell).unwrap_or_else(|| panic!("{cell:#?}"))
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn linux_processes_sit_flush_with_their_environment(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1933,7 +1933,7 @@ mod tests {
         );
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_linux_process_is_selected_apart_from_the_windows_process_with_its_pid(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1965,7 +1965,7 @@ mod tests {
         assert_eq!(marked_selected(&mut page), Vec::<String>::new());
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_lost_linux_agent_leaves_the_vm_heading_alone(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -1995,7 +1995,7 @@ mod tests {
         slots.into_iter().map(|(_, column)| column).collect()
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_column_dragged_along_the_header_moves_and_stays_there(h: &mut Harness) {
         use ProcessColumn::*;
         start(h);
@@ -2037,7 +2037,7 @@ mod tests {
         stored(h).grouping().section_order().get(&section.id().to_string())
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_section_dragged_below_the_rest_goes_last_and_stays_there(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -2058,7 +2058,7 @@ mod tests {
         assert!(!apps_open(&mut page), "a plain click still folds it");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_nudge_or_a_lost_pointer_moves_nothing(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -2081,7 +2081,7 @@ mod tests {
         assert!(!apps_open(&mut page), "the next click is a click");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_kept_order_is_there_from_the_start(h: &mut Harness) {
         start(h);
         stored(h)
@@ -2114,7 +2114,7 @@ mod tests {
         h.publish(WindowsReportMessage::Report(Arc::new(report))).settle();
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_memory_header_shows_how_much_is_used(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -2130,7 +2130,7 @@ mod tests {
         assert!(page.find_text("4.0 GiB").is_some(), "{:#?}", page.tree());
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn network_speed_is_in_bits_unless_bytes_are_chosen(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -2165,7 +2165,7 @@ mod tests {
         assert!(net.ends_with("B/s"), "{net}");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn memory_kept_as_percents_shows_a_share_in_the_header(h: &mut Harness) {
         start(h);
         stored(h).columns().memory_as_percent().set(true).unwrap();

@@ -71,7 +71,7 @@ mod tests {
             .is_some()
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "system")]
     fn every_tool_has_a_card(h: &mut Harness) {
         test_system::start(h);
         let h = &*h;
@@ -81,7 +81,7 @@ mod tests {
         }
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "system")]
     fn a_found_tool_opens_and_a_missing_one_is_downloaded(h: &mut Harness) {
         test_system::start(h);
         let h = &*h;
@@ -115,7 +115,7 @@ mod tests {
         assert!(test_system::stored(h).uses().get(SystemTool::ProcessMonitor.id()).is_none(), "a download is not a use");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "system")]
     fn a_pin_is_kept(h: &mut Harness) {
         test_system::start(h);
         let h = &*h;
@@ -129,7 +129,7 @@ mod tests {
         assert!(launched().is_empty(), "pinning does not open the tool");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "system")]
     fn the_crumb_goes_back_to_system(h: &mut Harness) {
         test_system::start(h);
         let h = &*h;

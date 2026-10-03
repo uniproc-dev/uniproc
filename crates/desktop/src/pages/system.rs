@@ -67,7 +67,7 @@ mod tests {
         found
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "system")]
     fn the_tools_card_opens_the_tools_page(h: &mut Harness) {
         test_system::start(h);
         let h = &*h;
@@ -79,7 +79,7 @@ mod tests {
         assert_eq!(page.navigated::<Route>(), [Route::SystemTools {}]);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "system")]
     fn pinned_tools_come_first_then_the_most_opened(h: &mut Harness) {
         test_system::start(h);
         let h = &*h;
@@ -111,7 +111,7 @@ mod tests {
         assert_eq!(favourites(&page), [SystemTool::EventViewer, SystemTool::RegistryEditor]);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "system")]
     fn the_cross_takes_a_tool_off_the_list(h: &mut Harness) {
         test_system::start(h);
         let h = &*h;

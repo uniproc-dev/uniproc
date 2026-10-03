@@ -72,7 +72,7 @@ mod tests {
         value(page, SettingsMark::UpdateSpeedValue, PropertyId::NumberBoxValue)
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_page_shows_the_defaults(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -89,7 +89,7 @@ mod tests {
         assert!(page.find_text("Use system setting").is_none(), "a closed choice shows no list");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn choices_are_shown_and_kept(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -122,7 +122,7 @@ mod tests {
         value(page, SettingsMark::sidebar_chart(chart), PropertyId::CheckBoxIsChecked)
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_chart_unticked_here_leaves_the_pane_and_is_kept(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -140,7 +140,7 @@ mod tests {
         assert_eq!(stored(h).hidden_sidebar_charts().get(), "network");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn an_interval_edited_out_of_range_in_the_file_is_read_inside_it(h: &mut Harness) {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("settings.json"), r#"{"general":{"update_interval_ms":0}}"#).unwrap();
@@ -149,7 +149,7 @@ mod tests {
         assert_eq!(stored(h).update_interval(), UpdateInterval::Min);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_new_interval_is_announced_once_and_inside_the_range(h: &mut Harness) {
         start(h);
         let h = &*h;

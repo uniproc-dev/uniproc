@@ -126,7 +126,7 @@ mod tests {
         property(page, column, ProcessesSettingsMark::Shown, PropertyId::ToggleSwitchIsOn)
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_groups_start_closed_and_stay_as_they_were_left(h: &mut Harness) {
         use ProcessesSettingsMark::{ColumnsGroup, SectionsGroup};
         start(h);
@@ -151,7 +151,7 @@ mod tests {
         assert_eq!(expanded(&mut page, ColumnsGroup), Some(PropertyValue::Bool(false)));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn every_column_is_listed_in_table_order_with_whether_it_is_shown(h: &mut Harness) {
         use ProcessColumn::*;
         start(h);
@@ -168,7 +168,7 @@ mod tests {
         );
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_name_column_stays_first(h: &mut Harness) {
         use ProcessColumn::*;
         start(h);
@@ -184,7 +184,7 @@ mod tests {
         assert!(!enabled(&mut page, last, ProcessesSettingsMark::Down));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_column_moved_down_trades_places_and_stays_there(h: &mut Harness) {
         use ProcessColumn::*;
         start(h);
@@ -204,7 +204,7 @@ mod tests {
         assert_eq!(ranks.get("cpu"), Some(4));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_column_shown_here_is_kept_shown(h: &mut Harness) {
         use ProcessColumn::*;
         start(h);
@@ -226,7 +226,7 @@ mod tests {
         assert!(kept.is_some_and(|config| !config.visible));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_columns_come_back_to_their_defaults(h: &mut Harness) {
         use ProcessColumn::*;
         start(h);
@@ -251,7 +251,7 @@ mod tests {
         assert!(kept.columns().configs().get(Pid.id()).is_some_and(|config| !config.visible));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_section_moves_up_and_the_order_can_be_reset(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -278,7 +278,7 @@ mod tests {
         assert_eq!(ranks.get(services.name()), None);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn memory_is_shown_as_values_until_percents_are_chosen(h: &mut Harness) {
         start(h);
         let h = &*h;
@@ -296,7 +296,7 @@ mod tests {
         assert!(stored(h).columns().memory_as_percent().get());
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn the_breadcrumb_leads_back_to_the_processes(h: &mut Harness) {
         start(h);
         let h = &*h;

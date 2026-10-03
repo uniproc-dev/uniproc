@@ -262,7 +262,7 @@ mod tests {
         answered.take()
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn an_action_with_no_service_and_no_monitor_in_process_says_not_connected(h: &mut Harness) {
         start(h, false);
         let h = &*h;
@@ -277,7 +277,7 @@ mod tests {
         page.settle();
     }
 
-    #[guinea::test(iterations = 16, exclusive = "store")]
+    #[guinea::test(iterations = 16, exclusive = "agent")]
     fn the_splash_gives_up_after_five_attempts_and_keeps_trying(h: &mut Harness) {
         start(h, false);
         let h = &*h;
@@ -307,7 +307,7 @@ mod tests {
         assert!(content_shown(&page), "{:#?}", page.tree());
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8, exclusive = "agent")]
     fn a_shorter_ping_interval_takes_effect_at_once(h: &mut Harness) {
         start(h, true);
         let h = &*h;
@@ -323,7 +323,7 @@ mod tests {
         assert!(test_agent::pings() > before, "a minute-long wait is not sat out after the interval shrank");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn the_settings_item_opens_the_settings_page(h: &mut Harness) {
         start(h, true);
         let h = &*h;
@@ -335,7 +335,7 @@ mod tests {
         assert_eq!(page.navigated::<Route>(), [Route::Settings {}]);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn the_system_item_opens_the_system_page(h: &mut Harness) {
         start(h, true);
         let h = &*h;
@@ -353,7 +353,7 @@ mod tests {
             .and_then(|node| node.text.clone())
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8, exclusive = "agent")]
     fn the_splash_names_the_service_it_cannot_reach(h: &mut Harness) {
         start(h, false);
         let h = &*h;
@@ -379,7 +379,7 @@ mod tests {
         assert_eq!(unreachable_line(&page), None, "{:#?}", page.tree());
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8, exclusive = "agent")]
     fn the_splash_says_the_service_is_older_than_uniproc_and_keeps_trying(h: &mut Harness) {
         start(h, false);
         test_agent::set_outdated(true);
@@ -406,7 +406,7 @@ mod tests {
         assert!(!splash_shown(&page), "an updated service is picked up: {:#?}", page.tree());
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8, exclusive = "agent")]
     fn a_service_that_drops_every_connection_at_once_is_not_hammered(h: &mut Harness) {
         start(h, true);
         test_agent::set_drops(true);
@@ -422,7 +422,7 @@ mod tests {
         assert!(test_agent::connects() >= 3, "still reconnecting: {}", test_agent::connects());
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn the_splash_is_gone_as_soon_as_the_agent_answers(h: &mut Harness) {
         start(h, true);
         let h = &*h;
@@ -447,7 +447,7 @@ mod tests {
         page.settle();
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn the_splash_offers_the_monitor_in_process_after_five_seconds(h: &mut Harness) {
         start(h, false);
         let h = &*h;
@@ -464,7 +464,7 @@ mod tests {
         assert_eq!(in_process(h), InProcess::Off);
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8, exclusive = "agent")]
     fn the_monitor_in_process_takes_over_from_the_service(h: &mut Harness) {
         start(h, false);
         test_agent::set_elevated(true);
@@ -501,7 +501,7 @@ mod tests {
         );
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8, exclusive = "agent")]
     fn the_monitor_in_process_needs_an_elevated_uniproc(h: &mut Harness) {
         start(h, false);
         let h = &*h;
@@ -532,7 +532,7 @@ mod tests {
         assert!(!splash_shown(&page), "{:#?}", page.tree());
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn the_service_still_wins_after_the_monitor_in_process_was_refused(h: &mut Harness) {
         start(h, false);
         let h = &*h;
@@ -557,7 +557,7 @@ mod tests {
         page.find(ui::SidebarMark::tile(chart)).is_some()
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn a_hidden_chart_leaves_the_pane_and_comes_back(h: &mut Harness) {
         start(h, true);
         let h = &*h;
@@ -580,7 +580,7 @@ mod tests {
         assert!(h.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Disk));
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn rate_charts_name_the_top_of_their_scale(h: &mut Harness) {
         start(h, true);
         let h = &*h;
@@ -600,7 +600,7 @@ mod tests {
         assert!(!scale(SidebarChart::Cpu, "100 KB/s"), "a percent chart needs no scale");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn the_cpu_chart_names_its_frequency_where_rate_charts_name_their_scale(h: &mut Harness) {
         start(h, true);
         let h = &*h;
@@ -634,7 +634,7 @@ mod tests {
         assert!(!shown.iter().any(|text| text.contains('/') || text.contains("2.9")), "{shown:?}");
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn disk_and_network_rates_come_from_the_machine_samples(h: &mut Harness) {
         start(h, true);
         let h = &*h;

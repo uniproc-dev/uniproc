@@ -75,7 +75,7 @@ mod tests {
 
     use super::settings_store;
 
-    #[guinea::test(iterations = 1, exclusive = "store")]
+    #[guinea::test(iterations = 1)]
     fn a_key_no_setting_declares_any_more_is_dropped_in_a_debug_build(h: &mut Harness) {
         let dir = tempfile::tempdir().unwrap();
         let at = dir.path().join("settings");

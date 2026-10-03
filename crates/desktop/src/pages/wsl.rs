@@ -69,12 +69,12 @@ mod tests {
         SCANS.get()
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_wsl_that_does_not_answer_is_not_asked_again(h: &mut Harness) {
         assert_eq!(scans_in_ten_seconds(h, hanging), 1);
     }
 
-    #[guinea::test(iterations = 4, exclusive = "store")]
+    #[guinea::test(iterations = 4)]
     fn a_wsl_that_answers_is_asked_every_tick(h: &mut Harness) {
         assert!(scans_in_ten_seconds(h, answering) > 1);
     }

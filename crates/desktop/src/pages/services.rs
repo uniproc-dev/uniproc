@@ -58,7 +58,7 @@ mod tests {
         page.property(tip, property).cloned()
     }
 
-    #[guinea::test(iterations = 8, exclusive = "store")]
+    #[guinea::test(iterations = 8)]
     fn a_service_that_will_not_stop_says_why(h: &mut Harness) {
         h.plugin(StorePlugin::in_memory())
             .unwrap()
