@@ -1,4 +1,5 @@
 shell-window-title = { -brand-name }
+shell-nav-activity = Activity
 shell-nav-wsl = WSL
 shell-nav-system = System
 shell-nav-settings = Settings

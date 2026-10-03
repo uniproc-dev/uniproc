@@ -55,6 +55,11 @@ fn nav_items(l10n: &L10n) -> Vec<(&'static str, String, View)> {
             icon!(apps_list).size(size::NavIcon).build(),
         ),
         (
+            "activity",
+            l10n.shell_nav_activity(),
+            icon!(activity).size(size::NavIcon).build(),
+        ),
+        (
             "services",
             l10n.shell_nav_services(),
             icon!(puzzle).size(size::NavIcon).build(),

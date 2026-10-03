@@ -1,0 +1,46 @@
+activity-title = Activity
+activity-came = Came
+activity-went = Went
+activity-new-only = New exe only
+activity-bursts = Bursts
+activity-span-quarter = 15 min
+activity-span-hour = 1 h
+activity-span-connected = Since connect
+activity-search = Search names and command lines
+activity-clear-range = Clear range
+activity-axis-came = came
+activity-axis-went = went
+activity-range = { $from } – { $to } · { $came } came, { $went } went
+activity-history-since = History starts at { $at }
+activity-history-full = History since the service connected
+activity-empty = Nothing came or went here
+activity-loading = Waiting for the service
+
+activity-from = from { $launcher }
+activity-from-task = task “{ $task }”
+activity-first-seen = first seen
+activity-still-running = still running
+activity-went-after = went after { $lived }
+activity-went-lived = lived { $lived }
+activity-went-code = exit code { $code }
+activity-burst-name = { $name } × { $count }
+activity-burst-names-separator = {", "}
+activity-burst-summary = { $came } came, { $went } went · { $lasted }
+activity-chain-separator = {" › "}
+
+activity-fact-command-line = Command line
+activity-fact-launched-by = Launched by
+activity-fact-task = Scheduled task
+activity-fact-task-value = “{ $name }” · { $path }
+activity-fact-services = Services
+activity-fact-folder = Folder
+activity-fact-user = User
+activity-fact-user-value = { $user } · session { $session }
+activity-fact-user-elevated = { $user } · session { $session } · administrator
+activity-fact-exit = Exit
+activity-fact-exit-value = { $at } · code { $code } · lived { $lived }
+activity-fact-unknown = Not known
+
+activity-seconds = { $seconds } s
+activity-minutes = { $minutes } min { $seconds } s
+activity-hours = { $hours } h { $minutes } min

@@ -1,3 +1,4 @@
+use app_contracts::features::activity::Clock;
 use app_contracts::features::settings::{ByteUnits, NetworkUnits, Units};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -101,6 +102,10 @@ pub fn rate_bound(rate: Rate, v: u64) -> String {
     format!("{value:.0} {suffix}/s")
 }
 
+pub fn clock(at: Clock) -> String {
+    format!("{:02}:{:02}:{:02}", at.hour, at.minute, at.second)
+}
+
 pub fn bytes(units: ByteUnits, v: u64) -> String {
     let [kilo, mega, giga] = suffixes(units);
     let f = v as f64;
@@ -125,6 +130,16 @@ mod tests {
         assert_eq!(bytes(ByteUnits::Iec, 3 << 30), "3.0 GiB");
         assert_eq!(bytes_per_second(ByteUnits::Windows, 20 << 10), "20 KB/s");
         assert_eq!(bytes(ByteUnits::Iec, 512), "512 B");
+    }
+
+    #[test]
+    fn a_clock_reads_in_two_digits_each() {
+        let at = Clock {
+            hour: 9,
+            minute: 5,
+            second: 0,
+        };
+        assert_eq!(clock(at), "09:05:00");
     }
 
     #[test]

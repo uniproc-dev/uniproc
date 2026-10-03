@@ -1,3 +1,4 @@
+pub mod activity;
 pub mod processes;
 pub mod services;
 pub mod settings;

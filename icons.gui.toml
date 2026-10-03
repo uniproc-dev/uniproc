@@ -284,6 +284,19 @@ iconify = "fluent:dismiss-circle-24-regular"
 [window]
 iconify = "fluent:window-24-regular"
 
+[activity]
+iconify = "fluent-color:history-24"
+paint = "none"
+
+[came]
+iconify = "fluent:arrow-up-right-24-regular"
+
+[went]
+iconify = "fluent:arrow-down-left-24-regular"
+
+[burst]
+iconify = "fluent:stack-24-regular"
+
 [uniproc-logo]
 file = "uniproc-logo.svg"
 paint = "none"

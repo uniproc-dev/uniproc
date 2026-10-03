@@ -58,7 +58,8 @@ polish it.
 - **Where it is installed decides how long it lives.** A page's own state goes in the page
   or in the area layout above it (`ProcessesArea`, `SystemArea`), never in `ShellLayout`:
   the shell installs only what the shell itself shows (sidebar, metrics, agent link,
-  settings). App-lifetime features implement `AppFeature` and go in `main.rs` (`agents`).
+  settings). App-lifetime features implement `AppFeature` and go in `main.rs` (`agents`,
+  `activity`); one whose state a page reads claims it with `app.state` and `app.export`.
 
 Routes are in `desktop/src/routes.rs`. `ShellLayout` is the root and is `restorable`: the
 last route survives a restart, see `route_memory.rs`. `ProcessesArea` is `keep`: leaving it
@@ -97,6 +98,9 @@ catches up (Processes resets its rates and asks for the service state).
   at once without being published. Page tests that act fake the service with
   `GlobalEventBus::answer_fn`.
 - Uniproc never offers to end or suspend itself or its service (`ProcessRow::is_monitor`).
+- Process starts and exits are `WindowsProcessEvents` (a history on connect, then live
+  batches), keyed by `ProcessInstance` (pid, sequence). The contract runs ahead of the
+  service; nothing publishes it yet. `activity` keeps the log for the whole run.
 
 UI text says **service**, never "agent".
 
