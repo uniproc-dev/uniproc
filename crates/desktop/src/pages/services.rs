@@ -65,9 +65,8 @@ mod tests {
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
             .unwrap();
         let h = &*h;
-        let below = h.child();
         let mut page =
-            Mounted::mount_at(&below, crate::routes::ServicesParams::default(), Route::Services {}).unwrap();
+            Mounted::mount_at(h.child(), crate::routes::ServicesParams::default(), Route::Services {}).unwrap();
         let report = WindowsReport {
             services: vec![WindowsServiceStats {
                 name: "Audiosrv".into(),

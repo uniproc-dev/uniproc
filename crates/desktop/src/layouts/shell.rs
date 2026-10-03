@@ -217,7 +217,7 @@ mod tests {
     use crate::test_agent;
 
     fn mount(h: &Harness) -> Mounted<'_, ShellLayout> {
-        Mounted::<ShellLayout>::mount_at(&h.segment(), crate::routes::ShellLayoutParams::default(), Route::Processes {})
+        Mounted::<ShellLayout>::mount_at(h.segment(), crate::routes::ShellLayoutParams::default(), Route::Processes {})
             .unwrap()
     }
 

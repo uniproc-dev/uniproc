@@ -117,7 +117,6 @@ mod tests {
     use app_contracts::features::window::PressedAway;
 
     use super::*;
-    use crate::test_page::Below;
 
     const NOTEPAD: u32 = 10;
     const NOTEPAD_PATH: &str = r"C:\Windows\notepad.exe";
@@ -244,7 +243,7 @@ mod tests {
             });
     }
 
-    fn mount(h: &Harness) -> Below<'_, Processes> {
+    fn mount(h: &Harness) -> Mounted<'_, Processes> {
         h.install::<SettingsFeature>(&()).unwrap();
         h.install::<ProcessesFeature>(&ProcessesDeps {
             windows: desktop_windows,
@@ -252,7 +251,7 @@ mod tests {
         })
         .unwrap();
         let params = crate::routes::ProcessesParams::default();
-        let mut page = Below::mount(h, |below| Mounted::mount_at(below, params, Route::Processes {}));
+        let mut page = Mounted::mount_at(h.child(), params, Route::Processes {}).unwrap();
         report(h, machine());
         page.settle();
         page
@@ -819,8 +818,7 @@ mod tests {
         })
         .unwrap();
         let params = crate::routes::ProcessesParams::default();
-        let below = h.child();
-        let mut page = Mounted::mount_at(&below, params, Route::Processes {}).unwrap();
+        let mut page = Mounted::mount_at(h.child(), params, Route::Processes {}).unwrap();
         let after =|seconds: u64, page: &mut Mounted<'_, Processes>| {
             h.advance(Duration::from_secs(seconds));
             page.settle();
@@ -1720,7 +1718,7 @@ mod tests {
         .settle();
     }
 
-    fn wsl_page(h: &Harness) -> Below<'_, Processes> {
+    fn wsl_page(h: &Harness) -> Mounted<'_, Processes> {
         let mut page = mount(h);
         report(h, with_vm());
         linux_report(h);

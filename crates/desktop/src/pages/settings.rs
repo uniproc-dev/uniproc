@@ -43,7 +43,6 @@ mod tests {
     use ui::pages::settings::SettingsMark;
 
     use super::*;
-    use crate::test_page::Below;
 
     fn stored(h: &Harness) -> GeneralSettings {
         h.segment().settings::<GeneralSettings>().unwrap()
@@ -56,9 +55,9 @@ mod tests {
             .unwrap();
     }
 
-    fn mount(h: &Harness) -> Below<'_, Settings> {
+    fn mount(h: &Harness) -> Mounted<'_, Settings> {
         h.install::<SettingsFeature>(&()).unwrap();
-        let mut page = Below::mount(h, |below| Mounted::mount(below, crate::routes::SettingsParams::default()));
+        let mut page = Mounted::mount(h.child(), crate::routes::SettingsParams::default()).unwrap();
         page.settle();
         page
     }

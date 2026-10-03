@@ -50,7 +50,6 @@ mod tests {
     use ui::pages::processes::{Group, ProcessesSettingsMark, SectionId};
 
     use super::*;
-    use crate::test_page::Below;
 
     fn stored(h: &Harness) -> Stored {
         h.segment().settings::<Stored>().unwrap()
@@ -63,9 +62,9 @@ mod tests {
             .unwrap();
     }
 
-    fn mount(h: &Harness) -> Below<'_, ProcessesSettings> {
+    fn mount(h: &Harness) -> Mounted<'_, ProcessesSettings> {
         let params = crate::routes::ProcessesSettingsParams::default();
-        let mut page = Below::mount(h, |below| Mounted::mount_at(below, params, Route::ProcessesSettings {}));
+        let mut page = Mounted::mount_at(h.child(), params, Route::ProcessesSettings {}).unwrap();
         page.settle();
         page
     }

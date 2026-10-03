@@ -52,13 +52,12 @@ mod tests {
     use ui::pages::system::{SystemMark, ToolMark};
 
     use super::*;
-    use crate::test_page::Below;
     use crate::test_system::{self, launch, launched};
 
-    fn mount(h: &Harness) -> Below<'_, SystemTools> {
-        let mut page = Below::mount(h, |below| {
-            Mounted::mount_at(below, crate::routes::SystemToolsParams::default(), Route::SystemTools {})
-        });
+    fn mount(h: &Harness) -> Mounted<'_, SystemTools> {
+        let mut page =
+            Mounted::mount_at(h.child(), crate::routes::SystemToolsParams::default(), Route::SystemTools {})
+                .unwrap();
         page.settle();
         page
     }

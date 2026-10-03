@@ -7,8 +7,6 @@ mod routes;
 #[cfg(test)]
 mod test_agent;
 #[cfg(test)]
-mod test_page;
-#[cfg(test)]
 mod test_system;
 mod tracing_init;
 mod window_press;
