@@ -28,7 +28,7 @@ pub struct ProcessCame {
     pub session_id: u32,
     pub elevated: Option<bool>,
     pub scheduled_task: Option<ScheduledTask>,
-    pub services: Arc<[Arc<str>]>,
+    pub parent_services: Arc<[Arc<str>]>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
@@ -69,9 +69,10 @@ impl ProcessEvent {
     }
 }
 
-#[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
+#[derive(Clone, Debug, Default, Event, Deserialize, guinea::Remote)]
 #[remote(event)]
-pub enum WindowsProcessEvents {
-    History { since: u64, events: Arc<[ProcessEvent]> },
-    Live(Arc<[ProcessEvent]>),
+pub struct WindowsProcessEvents {
+    pub history_from: Option<u64>,
+    pub events: Arc<[ProcessEvent]>,
+    pub lost: u32,
 }

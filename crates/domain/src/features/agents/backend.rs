@@ -21,12 +21,17 @@ pub trait AgentBackend: std::fmt::Debug + Send + Sync + 'static {
 
     const NAME: &'static str;
     const STREAMS_MACHINE: bool = false;
+    const STREAMS_PROCESS_EVENTS: bool = false;
 
     fn connect(timeout: Duration, update_interval_ms: Field<u64>) -> impl Future<Output=anyhow::Result<Self::Client>> + Send;
     fn ping(client: &Self::Client) -> impl Future<Output=anyhow::Result<i32>> + Send;
     fn perform_scan(client: &Self::Client) -> impl Future<Output=anyhow::Result<()>> + Send;
 
     fn perform_machine_scan(_client: &Self::Client) -> impl Future<Output=anyhow::Result<()>> + Send {
+        std::future::pending()
+    }
+
+    fn perform_process_events(_client: &Self::Client) -> impl Future<Output=anyhow::Result<()>> + Send {
         std::future::pending()
     }
 

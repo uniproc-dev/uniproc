@@ -104,6 +104,15 @@ fn toggled(content: impl Into<View>, key: ProcessInstance, on_toggle: &Callback<
 fn launcher_text(came: &Came, l10n: &L10n) -> Option<String> {
     match &came.launcher {
         Launcher::Task(task) => Some(l10n.activity_from_task(task.name.to_string())),
+        Launcher::Services(names) => Some(
+            l10n.activity_from_services(
+                names
+                    .iter()
+                    .map(|name| name.to_string())
+                    .collect::<Vec<_>>()
+                    .join(&l10n.activity_burst_names_separator()),
+            ),
+        ),
         Launcher::Process(name) => Some(l10n.activity_from(name.to_string())),
         Launcher::Unknown => None,
     }

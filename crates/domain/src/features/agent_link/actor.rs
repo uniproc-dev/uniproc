@@ -6,7 +6,7 @@ use amethystate::Field;
 use app_contracts::features::agent_link::{AgentLinkMsg, AgentLinkState, InProcess, StartInProcess};
 use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample,
-    WindowsReport, WindowsReportMessage,
+    WindowsProcessEvents, WindowsReport, WindowsReportMessage,
 };
 use guinea::prelude::*;
 
@@ -38,6 +38,8 @@ struct InProcessStarted(Result<Arc<dyn InProcessAgent>, InProcessStartError>);
 struct InProcessReport(Option<WindowsReport>);
 
 struct InProcessMachine(Option<WindowsMachineSample>);
+
+struct InProcessEvents(WindowsProcessEvents);
 
 pub struct AgentLinkActor {
     ui_port: Push<AgentLinkState>,
@@ -88,6 +90,7 @@ actor! {
             InProcessOfferDue,
             InProcessReport,
             InProcessMachine,
+            InProcessEvents,
             AgentStateRequest,
         }
     }
@@ -126,6 +129,7 @@ fn on_in_process_started(this: &mut AgentLinkActor, InProcessStarted(started): I
             GlobalEventBus::publish(WindowsAgentInProcess);
             this.announce_in_process();
             cx.spawn_source(machine_samples(agent.clone()), InProcessMachine);
+            cx.spawn_source(process_events(agent.clone()), InProcessEvents);
             cx.spawn_source(reports(agent), InProcessReport);
         }
         Err(InProcessStartError::NotElevated) => {
@@ -167,6 +171,25 @@ fn machine_samples(
         };
         Some((sample, agent))
     })
+}
+
+fn process_events(
+    agent: Arc<dyn InProcessAgent>,
+) -> impl futures::Stream<Item = WindowsProcessEvents> + Send + 'static {
+    futures::stream::unfold(agent, |agent| async move {
+        match agent.clone().process_events().await {
+            Ok(events) => Some((events, agent)),
+            Err(error) => {
+                tracing::warn!(%error, "the in-process agent stopped telling process starts and exits");
+                None
+            }
+        }
+    })
+}
+
+#[handler]
+fn on_process_events(_this: &AgentLinkActor, InProcessEvents(events): InProcessEvents) {
+    GlobalEventBus::publish(events);
 }
 
 #[handler]

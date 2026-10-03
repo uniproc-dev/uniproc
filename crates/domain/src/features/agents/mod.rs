@@ -4,6 +4,7 @@ pub mod backend;
 pub mod connection;
 pub mod decode;
 pub mod linux_report;
+pub mod process_events;
 pub mod providers;
 pub mod rpc;
 pub mod settings;

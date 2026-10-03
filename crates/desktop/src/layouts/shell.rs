@@ -209,7 +209,13 @@ mod tests {
     use guinea_plugin_store::{StoreAccess, StorePlugin};
     use uuid::Uuid;
 
+    use std::sync::Arc;
+
+    use app_contracts::features::activity::{ActivityState, Clock};
     use app_contracts::features::agent_link::InProcess;
+    use app_contracts::features::agents::{ProcessCame, ProcessEvent, ProcessInstance, WindowsProcessEvents};
+    use domain::features::activity::{ActivityDeps, ActivityFeature};
+    use guinea::prelude::Load;
     use app_contracts::features::settings::SidebarChart;
     use app_contracts::features::agents::{
         ActionOutcome, AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsMachineSample,
@@ -678,5 +684,67 @@ mod tests {
         };
         assert!(reads(SidebarChart::Disk, "2.0 MB/s"), "{tree:#?}");
         assert!(reads(SidebarChart::Network, "8.4 Mbps"), "{tree:#?}");
+    }
+
+    const TICK: u64 = 10_000_000;
+    const HOUR: u64 = 3600 * TICK;
+
+    fn watch_activity(h: &mut Harness) {
+        h.provide(ActivityDeps {
+            now: || 1000 * HOUR + HOUR - TICK,
+            clock: |_| Clock::default(),
+        });
+        h.feature(ActivityFeature).unwrap();
+    }
+
+    fn a_start() -> WindowsProcessEvents {
+        WindowsProcessEvents {
+            history_from: Some(1000 * HOUR),
+            events: Arc::from([ProcessEvent::Came(ProcessCame {
+                instance: ProcessInstance { pid: 20, sequence: 9 },
+                at: 1000 * HOUR + 600 * TICK,
+                image_path: r"C:\Tools\tool.exe".into(),
+                ..ProcessCame::default()
+            })]),
+            lost: 0,
+        }
+    }
+
+    fn logged(h: &Harness) -> usize {
+        match &h.state::<ActivityState>().view {
+            Load::Ready(view) => view.rows.len(),
+            _ => 0,
+        }
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "agent")]
+    fn starts_the_service_tells_reach_the_activity_log(h: &mut Harness) {
+        start(h, true);
+        watch_activity(h);
+        let h = &*h;
+        let mut page = mount(h);
+        after(h, &mut page, 1);
+        assert_eq!(logged(h), 0);
+
+        test_agent::tell(a_start());
+        after(h, &mut page, 1);
+
+        assert_eq!(logged(h), 1);
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "agent")]
+    fn starts_the_monitor_in_process_tells_reach_the_activity_log(h: &mut Harness) {
+        start(h, false);
+        test_agent::set_elevated(true);
+        watch_activity(h);
+        let h = &*h;
+        let mut page = mount(h);
+        after(h, &mut page, 5);
+        start_in_process(&mut page);
+
+        test_agent::tell(a_start());
+        after(h, &mut page, 1);
+
+        assert_eq!(logged(h), 1);
     }
 }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use amethystate::Field;
-use app_contracts::features::agents::{WindowsAction, WindowsMachineSample, WindowsReport};
+use app_contracts::features::agents::{WindowsAction, WindowsMachineSample, WindowsProcessEvents, WindowsReport};
 use futures::future::BoxFuture;
 
 pub enum InProcessStartError {
@@ -13,6 +13,10 @@ pub trait InProcessAgent: Send + Sync + 'static {
     fn report(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<Option<WindowsReport>>>;
     fn machine(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<WindowsMachineSample>>;
     fn act(self: Arc<Self>, action: WindowsAction) -> BoxFuture<'static, u32>;
+
+    fn process_events(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<WindowsProcessEvents>> {
+        Box::pin(std::future::pending())
+    }
 }
 
 pub type InProcessStart =
@@ -23,7 +27,7 @@ pub use local::start_local;
 mod local {
     use std::sync::Arc;
 
-    use app_contracts::features::agents::{WindowsAction, WindowsMachineSample, WindowsReport};
+    use app_contracts::features::agents::{WindowsAction, WindowsMachineSample, WindowsProcessEvents, WindowsReport};
     use futures::future::BoxFuture;
     use uniproc_windows_agent::agent::Agent;
     use uniproc_windows_agent::local::{Local, StartError};
@@ -64,6 +68,10 @@ mod local {
 
         fn act(self: Arc<Self>, action: WindowsAction) -> BoxFuture<'static, u32> {
             Box::pin(async move { self.feed.act(action).await })
+        }
+
+        fn process_events(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<WindowsProcessEvents>> {
+            Box::pin(async move { self.feed.process_events().await })
         }
     }
 }

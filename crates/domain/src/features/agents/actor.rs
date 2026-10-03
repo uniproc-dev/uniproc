@@ -49,6 +49,7 @@ struct ConnectResult<C>(Result<C, Refused>);
 enum Feed {
     Report,
     Machine,
+    ProcessEvents,
 }
 
 impl Feed {
@@ -56,6 +57,7 @@ impl Feed {
         match self {
             Feed::Report => true,
             Feed::Machine => B::STREAMS_MACHINE,
+            Feed::ProcessEvents => B::STREAMS_PROCESS_EVENTS,
         }
     }
 
@@ -63,6 +65,7 @@ impl Feed {
         match self {
             Feed::Report => B::perform_scan(client).await,
             Feed::Machine => B::perform_machine_scan(client).await,
+            Feed::ProcessEvents => B::perform_process_events(client).await,
         }
     }
 }
@@ -106,7 +109,10 @@ impl<B: AgentBackend> GenericAgentActor<B> {
         let generation = self.generation;
         let open = Arc::new(AtomicBool::new(true));
         self.stream = Some((generation, open.clone()));
-        for feed in [Feed::Report, Feed::Machine].into_iter().filter(|feed| feed.streams::<B>()) {
+        for feed in [Feed::Report, Feed::Machine, Feed::ProcessEvents]
+            .into_iter()
+            .filter(|feed| feed.streams::<B>())
+        {
             let open = open.clone();
             let updates = futures::stream::unfold(Some(client.clone()), move |client| {
                 let open = open.clone();

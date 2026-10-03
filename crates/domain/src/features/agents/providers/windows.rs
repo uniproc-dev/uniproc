@@ -6,7 +6,7 @@ use crate::features::agents::windows_feed::WindowsFeed;
 use crate::features::settings::settings::GeneralSettings;
 use amethystate::Field;
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, WindowsAction, WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
+    AgentConnectionState, AgentStateRequest, WindowsAction, WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsProcessEvents, WindowsReport, WindowsReportMessage,
 };
 use guinea::prelude::*;
 use guinea_plugin_store::StoreAccess;
@@ -66,6 +66,10 @@ impl WindowsClient {
     pub async fn act(&self, action: WindowsAction) -> u32 {
         self.feed.act(action).await
     }
+
+    pub async fn process_events(&self) -> anyhow::Result<WindowsProcessEvents> {
+        self.feed.process_events().await
+    }
 }
 
 #[derive(Debug)]
@@ -77,6 +81,7 @@ impl AgentBackend for WindowsBackend {
     type ScanMessage = WindowsReportMessage;
     const NAME: &'static str = "Windows";
     const STREAMS_MACHINE: bool = true;
+    const STREAMS_PROCESS_EVENTS: bool = true;
 
     async fn connect(timeout: Duration, update_interval_ms: Field<u64>) -> anyhow::Result<Self::Client> {
         WindowsClient::connect(timeout, move || Duration::from_millis(update_interval_ms.get())).await
@@ -99,6 +104,11 @@ impl AgentBackend for WindowsBackend {
 
     async fn perform_machine_scan(client: &Self::Client) -> anyhow::Result<()> {
         GlobalEventBus::publish(client.machine().await?);
+        Ok(())
+    }
+
+    async fn perform_process_events(client: &Self::Client) -> anyhow::Result<()> {
+        GlobalEventBus::publish(client.process_events().await?);
         Ok(())
     }
 

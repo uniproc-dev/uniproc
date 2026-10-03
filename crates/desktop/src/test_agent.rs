@@ -5,7 +5,7 @@ use std::time::Duration;
 use amethystate::Field;
 use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, WindowsAction, WindowsAgentInProcess,
-    WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
+    WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsProcessEvents, WindowsReport, WindowsReportMessage,
 };
 use domain::features::agent_link::{InProcessAgent, InProcessStartError};
 use domain::features::agents::actions;
@@ -34,6 +34,7 @@ static ELEVATED: AtomicBool = AtomicBool::new(false);
 static IN_PROCESS_STARTS: AtomicU32 = AtomicU32::new(0);
 static IN_PROCESS_REPORTS: AtomicU32 = AtomicU32::new(0);
 static IN_PROCESS_ACTIONS: std::sync::Mutex<Vec<WindowsAction>> = std::sync::Mutex::new(Vec::new());
+static EVENTS: std::sync::Mutex<Option<WindowsProcessEvents>> = std::sync::Mutex::new(None);
 
 pub fn reset(up: bool) {
     UP.store(up, Ordering::SeqCst);
@@ -46,6 +47,19 @@ pub fn reset(up: bool) {
     IN_PROCESS_STARTS.store(0, Ordering::SeqCst);
     IN_PROCESS_REPORTS.store(0, Ordering::SeqCst);
     IN_PROCESS_ACTIONS.lock().unwrap().clear();
+    *EVENTS.lock().unwrap() = None;
+}
+
+pub fn tell(events: WindowsProcessEvents) {
+    *EVENTS.lock().unwrap() = Some(events);
+}
+
+async fn told() -> Option<WindowsProcessEvents> {
+    let events = EVENTS.lock().unwrap().take();
+    if events.is_none() {
+        tokio::time::sleep(Pace::Report).await;
+    }
+    events
 }
 
 pub fn set_elevated(elevated: bool) {
@@ -83,6 +97,16 @@ impl InProcessAgent for FakeInProcess {
     fn act(self: Arc<Self>, action: WindowsAction) -> BoxFuture<'static, u32> {
         IN_PROCESS_ACTIONS.lock().unwrap().push(action);
         Box::pin(async { 0 })
+    }
+
+    fn process_events(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<WindowsProcessEvents>> {
+        Box::pin(async {
+            loop {
+                if let Some(events) = told().await {
+                    return Ok(events);
+                }
+            }
+        })
     }
 }
 
@@ -141,6 +165,7 @@ impl AgentBackend for FakeAgent {
     type ScanMessage = WindowsReportMessage;
 
     const NAME: &'static str = "Fake";
+    const STREAMS_PROCESS_EVENTS: bool = true;
 
     async fn connect(_timeout: Duration, _update_interval_ms: Field<u64>) -> anyhow::Result<()> {
         CONNECTS.fetch_add(1, Ordering::SeqCst);
@@ -165,6 +190,14 @@ impl AgentBackend for FakeAgent {
             GlobalEventBus::publish(WindowsReportMessage::Report(std::sync::Arc::new(report)));
         }
         tokio::time::sleep(Pace::Report).await;
+        Ok(())
+    }
+
+    async fn perform_process_events(_client: &()) -> anyhow::Result<()> {
+        up()?;
+        if let Some(events) = told().await {
+            GlobalEventBus::publish(events);
+        }
         Ok(())
     }
 

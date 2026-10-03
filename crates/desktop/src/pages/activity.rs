@@ -109,7 +109,11 @@ mod tests {
     }
 
     fn live(h: &Harness, page: &mut Mounted<'_, Activity>, events: Vec<ProcessEvent>) {
-        h.publish(WindowsProcessEvents::Live(Arc::from(events))).settle();
+        h.publish(WindowsProcessEvents {
+            events: Arc::from(events),
+            ..WindowsProcessEvents::default()
+        })
+        .settle();
         page.settle();
     }
 

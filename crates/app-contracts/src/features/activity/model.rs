@@ -55,6 +55,7 @@ pub struct Histogram {
 #[derive(Clone, PartialEq, Debug)]
 pub enum Launcher {
     Task(ScheduledTask),
+    Services(Arc<[Arc<str>]>),
     Process(Arc<str>),
     Unknown,
 }
@@ -83,7 +84,7 @@ pub struct Came {
     pub elevated: Option<bool>,
     pub launcher: Launcher,
     pub chain: Vec<Arc<str>>,
-    pub services: Arc<[Arc<str>]>,
+    pub parent_services: Arc<[Arc<str>]>,
     pub first_seen: bool,
     pub exit: Option<Exit>,
 }
@@ -133,4 +134,5 @@ pub struct ActivityView {
     pub from: Clock,
     pub to: Clock,
     pub history_since: Option<Clock>,
+    pub lost: u64,
 }

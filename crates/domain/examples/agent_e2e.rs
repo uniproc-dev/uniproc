@@ -51,8 +51,54 @@ mod windows {
 
         concurrency_probe(&handle).await?;
         action_probe(&handle).await?;
+        process_events_probe(&handle).await?;
         teardown_probe(handle).await?;
 
+        Ok(())
+    }
+
+    async fn process_events_probe(handle: &WindowsClient) -> anyhow::Result<()> {
+        use app_contracts::features::agents::ProcessEvent;
+
+        let history = handle.process_events().await.context("watchProcessEvents failed")?;
+        println!(
+            "process events: history from {:?}, {} events, {} lost",
+            history.history_from,
+            history.events.len(),
+            history.lost
+        );
+        if history.history_from.is_none() {
+            bail!("the first batch did not say where history starts");
+        }
+
+        let child = std::process::Command::new("cmd").args(["/d", "/c", "exit 7"]).spawn()?;
+        let pid = child.id();
+        let deadline = Instant::now() + Duration::from_secs(15);
+        let (mut came, mut went) = (None, None);
+        while Instant::now() < deadline && (came.is_none() || went.is_none()) {
+            let batch = tokio::time::timeout(Duration::from_secs(5), handle.process_events())
+                .await
+                .context("no batch within 5 s")??;
+            for event in batch.events.iter().filter(|event| event.instance().pid == pid) {
+                match event {
+                    ProcessEvent::Came(started) => came = Some(started.clone()),
+                    ProcessEvent::Went(ended) => went = Some(ended.clone()),
+                }
+            }
+        }
+        let came = came.with_context(|| format!("no start of cmd {pid}"))?;
+        let went = went.with_context(|| format!("no exit of cmd {pid}"))?;
+        println!(
+            "  cmd {pid}: {} by {} (parent {}), exit {} after {} ms",
+            came.command_line,
+            came.user,
+            came.parent.pid,
+            went.exit_code,
+            went.at.saturating_sub(came.at) / 10_000
+        );
+        if went.exit_code != 7 || came.instance != went.instance {
+            bail!("the exit does not match the start: {came:?} / {went:?}");
+        }
         Ok(())
     }
 

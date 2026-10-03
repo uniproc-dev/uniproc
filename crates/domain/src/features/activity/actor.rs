@@ -74,11 +74,8 @@ actor! {
 }
 
 #[handler]
-fn on_events(this: &mut ActivityActor, msg: WindowsProcessEvents) {
-    match msg {
-        WindowsProcessEvents::History { since, events } => this.log.history(since, &events),
-        WindowsProcessEvents::Live(events) => this.log.record(&events),
-    }
+fn on_events(this: &mut ActivityActor, batch: WindowsProcessEvents) {
+    this.log.take(&batch);
     this.publish();
 }
 

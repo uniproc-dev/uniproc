@@ -61,10 +61,10 @@ pub fn facts(came: &Came, l10n: &L10n, palette: Palette, indent: f64) -> View {
             l10n.activity_fact_task_value(task.name.to_string(), task.path.to_string()),
         ));
     }
-    if !came.services.is_empty() {
+    if !came.parent_services.is_empty() {
         lines.push((
-            l10n.activity_fact_services(),
-            came.services
+            l10n.activity_fact_parent_services(),
+            came.parent_services
                 .iter()
                 .map(|name| name.to_string())
                 .collect::<Vec<_>>()

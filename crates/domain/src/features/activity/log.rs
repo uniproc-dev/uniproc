@@ -5,7 +5,9 @@ use std::sync::Arc;
 use app_contracts::features::activity::{
     ActivityRow, ActivityView, Bucket, Burst, Came, Clock, Exit, Filter, Histogram, Launcher, Span, Went,
 };
-use app_contracts::features::agents::{ProcessCame, ProcessEvent, ProcessInstance, ProcessWent, WindowsProcessStats};
+use app_contracts::features::agents::{
+    ProcessCame, ProcessEvent, ProcessInstance, ProcessWent, WindowsProcessEvents, WindowsProcessStats,
+};
 
 pub struct Ticks;
 
@@ -53,6 +55,7 @@ pub struct Log {
     seen: HashSet<String>,
     running: HashMap<u32, Known>,
     since: Option<u64>,
+    lost: u64,
 }
 
 fn file_name(path: &str) -> &str {
@@ -98,6 +101,14 @@ impl Log {
                     self.ended.insert(went.instance, went.clone());
                 }
             }
+        }
+    }
+
+    pub fn take(&mut self, batch: &WindowsProcessEvents) {
+        self.lost += u64::from(batch.lost);
+        match batch.history_from {
+            Some(since) => self.history(since, &batch.events),
+            None => self.record(&batch.events),
         }
     }
 
@@ -222,8 +233,10 @@ fn exit_of(went: &ProcessWent, since: Option<u64>, clock: fn(u64) -> Clock) -> E
 fn came_of(log: &Log, started: &Started, clock: fn(u64) -> Clock) -> (Came, Option<ProcessInstance>) {
     let came = &started.came;
     let (chain, launched_by) = log.lineage(started);
+    let by_parent = launched_by == Some(came.parent) && !came.parent_services.is_empty();
     let launcher = match (&came.scheduled_task, launched_by.and_then(|at| log.named(at))) {
         (Some(task), _) => Launcher::Task(task.clone()),
+        (None, Some(_)) if by_parent => Launcher::Services(came.parent_services.clone()),
         (None, Some(name)) => Launcher::Process(name),
         (None, None) => Launcher::Unknown,
     };
@@ -239,7 +252,7 @@ fn came_of(log: &Log, started: &Started, clock: fn(u64) -> Clock) -> (Came, Opti
         elevated: came.elevated,
         launcher,
         chain,
-        services: came.services.clone(),
+        parent_services: came.parent_services.clone(),
         first_seen: started.first_seen,
         exit: log
             .ended
@@ -420,6 +433,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
         from: clock(from),
         to: clock(to),
         history_since: log.since.map(clock),
+        lost: log.lost,
     }
 }
 
@@ -754,6 +768,54 @@ mod tests {
         assert_eq!(&*only_came(&view.rows[0]).name, "a.exe");
         assert_eq!(view.histogram.picked, Some((10, 11)));
         assert_eq!((view.came, view.went), (1, 0));
+    }
+
+    #[test]
+    fn a_batch_with_a_start_of_history_says_where_history_starts() {
+        let mut log = Log::default();
+        log.take(&WindowsProcessEvents {
+            history_from: Some(at(5, 0)),
+            events: Arc::from([came(20, 1, "a.exe", at(10, 0))]),
+            lost: 0,
+        });
+        log.take(&WindowsProcessEvents {
+            history_from: None,
+            events: Arc::from([went(20, at(10, 1))]),
+            lost: 0,
+        });
+
+        let view = look(&log, &Filter::default(), None);
+        assert_eq!(view.history_since, Some(utc(at(5, 0))));
+        assert_eq!(view.rows.len(), 1, "{:#?}", view.rows);
+    }
+
+    #[test]
+    fn missed_events_add_up() {
+        let mut log = Log::default();
+        for lost in [3, 2] {
+            log.take(&WindowsProcessEvents {
+                lost,
+                ..WindowsProcessEvents::default()
+            });
+        }
+
+        assert_eq!(look(&log, &Filter::default(), None).lost, 5);
+    }
+
+    #[test]
+    fn a_parent_hosting_services_launches_by_its_services() {
+        let mut log = Log::default();
+        log.note_running(&[running(4, "svchost.exe", at(0, 0))]);
+        let ProcessEvent::Came(mut started) = came(20, 4, "taskhostw.exe", at(10, 0)) else {
+            unreachable!()
+        };
+        started.parent_services = Arc::from([Arc::from("Schedule")]);
+        log.record(&[ProcessEvent::Came(started)]);
+
+        assert_eq!(
+            only_came(first(&rows(&log))).launcher,
+            Launcher::Services(Arc::from([Arc::from("Schedule")]))
+        );
     }
 
     #[test]

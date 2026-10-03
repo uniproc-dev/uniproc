@@ -202,12 +202,12 @@ impl ActivityPage {
                 Border::new().grid_row(2).content(list),
             ));
 
-        let status = l10n.activity_range(
-            format::clock(view.from),
-            format::clock(view.to),
-            view.came as i64,
-            view.went as i64,
-        );
+        let (from, to) = (format::clock(view.from), format::clock(view.to));
+        let status = if view.lost > 0 {
+            l10n.activity_range_lost(from, to, view.came as i64, view.went as i64, view.lost as i64)
+        } else {
+            l10n.activity_range(from, to, view.came as i64, view.went as i64)
+        };
         page_frame(header, body, status_text(status, palette), palette)
     }
 }
