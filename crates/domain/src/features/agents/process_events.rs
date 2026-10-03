@@ -46,6 +46,9 @@ fn event(told: &Told) -> ProcessEvent {
             peak_commit_bytes: exited.peak_commit,
             handles: exited.handles,
             hard_faults: exited.hard_faults,
+            image_path: exited.image_path.as_str().into(),
+            image_name: exited.image_name.as_str().into(),
+            started_at: (exited.start_time != 0).then_some(exited.start_time),
         }),
     }
 }
@@ -132,6 +135,43 @@ mod tests {
         assert_eq!(&*came.parent_services, [Arc::from("Schedule")]);
         assert_eq!(went.instance, me);
         assert_eq!((went.at, went.exit_code, went.handles, went.peak_commit_bytes), (200, 7, 92, 4096));
+    }
+
+    #[test]
+    fn an_exit_carries_its_image_and_when_it_started() {
+        let exited = ProcessExited {
+            image_path: r"C:\Windows\System32\cmd.exe".into(),
+            image_name: "cmd.exe".into(),
+            start_time: 100,
+            ..ProcessExited::default()
+        };
+
+        let events = batch(ProcessEventBatch {
+            history_from: 0,
+            events: vec![told(20, 200, ProcessEventKind::Exited(exited))],
+            lost: 0,
+        });
+
+        let [ProcessEvent::Went(went)] = &*events.events else {
+            panic!("an exit: {:#?}", events.events);
+        };
+        assert_eq!(&*went.image_path, r"C:\Windows\System32\cmd.exe");
+        assert_eq!(&*went.image_name, "cmd.exe");
+        assert_eq!(went.started_at, Some(100));
+    }
+
+    #[test]
+    fn an_exit_without_a_start_time_has_none() {
+        let events = batch(ProcessEventBatch {
+            history_from: 0,
+            events: vec![told(20, 200, ProcessEventKind::Exited(ProcessExited::default()))],
+            lost: 0,
+        });
+
+        let [ProcessEvent::Went(went)] = &*events.events else {
+            panic!("an exit: {:#?}", events.events);
+        };
+        assert_eq!(went.started_at, None);
     }
 
     #[test]

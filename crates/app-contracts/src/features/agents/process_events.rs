@@ -36,6 +36,9 @@ pub struct ProcessCame {
 pub struct ProcessWent {
     pub instance: ProcessInstance,
     pub at: u64,
+    pub image_path: Arc<str>,
+    pub image_name: Arc<str>,
+    pub started_at: Option<u64>,
     pub exit_code: u32,
     pub cpu_cycles: u64,
     pub io_read_ops: u64,

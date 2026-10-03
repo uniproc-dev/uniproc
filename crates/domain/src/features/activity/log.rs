@@ -275,16 +275,30 @@ fn came_of(log: &Log, started: &Started, clock: fn(u64) -> Clock) -> (Came, Opti
     (row, launched_by)
 }
 
+fn went_name(log: &Log, went: &ProcessWent) -> Option<Arc<str>> {
+    log.started
+        .get(&went.instance)
+        .map(|started| started.name.clone())
+        .or_else(|| (!went.image_path.is_empty()).then(|| file_name(&went.image_path).into()))
+        .or_else(|| (!went.image_name.is_empty()).then(|| went.image_name.clone()))
+        .or_else(|| log.named(went.instance))
+}
+
 fn went_of(log: &Log, went: &ProcessWent, clock: fn(u64) -> Clock) -> Went {
-    let started = log.started.get(&went.instance).map(|started| started.came.at).or_else(|| {
-        log.running
-            .get(&went.instance.pid)
-            .map(|known| known.start_time)
-            .filter(|start| (1..=went.at).contains(start))
-    });
+    let started = log
+        .started
+        .get(&went.instance)
+        .map(|started| started.came.at)
+        .or(went.started_at)
+        .or_else(|| {
+            log.running
+                .get(&went.instance.pid)
+                .map(|known| known.start_time)
+                .filter(|start| (1..=went.at).contains(start))
+        });
     Went {
         key: went.instance,
-        name: log.named(went.instance),
+        name: went_name(log, went),
         lived: started.map(|start| went.at - start),
         exit: exit_of(went, started, clock),
     }
@@ -433,7 +447,16 @@ fn kept(log: &Log, row: &Light, filter: &Filter, text: &str) -> bool {
     match row {
         Light::Came(instance) => filter.came && came_kept(log, instance, filter, text),
         Light::Went(instance) => {
-            filter.went && !filter.new_only && contains(log.named(*instance).as_deref().unwrap_or_default(), text)
+            filter.went
+                && !filter.new_only
+                && contains(
+                    log.ended
+                        .get(instance)
+                        .and_then(|went| went_name(log, went))
+                        .as_deref()
+                        .unwrap_or_default(),
+                    text,
+                )
         }
         Light::Burst(group) => {
             filter.came
@@ -671,6 +694,36 @@ mod tests {
         };
         assert_eq!(row.name, None);
         assert_eq!(row.lived, None);
+    }
+
+    #[test]
+    fn an_exit_from_before_the_history_is_named_by_what_the_service_says_about_it() {
+        let mut log = Log::default();
+        log.record(&[
+            ProcessEvent::Went(ProcessWent {
+                instance: id(40),
+                at: at(45, 0),
+                image_path: r"C:\Windows\System32\cmd.exe".into(),
+                image_name: "cmd.exe".into(),
+                started_at: Some(at(44, 0)),
+                ..Default::default()
+            }),
+            ProcessEvent::Went(ProcessWent {
+                instance: id(41),
+                at: at(46, 0),
+                image_name: "SearchProtocol".into(),
+                ..Default::default()
+            }),
+        ]);
+
+        let rows = rows(&log);
+        let [ActivityRow::Went(short), ActivityRow::Went(full)] = rows.as_slice() else {
+            panic!("two went rows: {rows:#?}");
+        };
+        assert_eq!(full.name.as_deref(), Some("cmd.exe"));
+        assert_eq!(full.lived, Some(Ticks::Minute));
+        assert_eq!(short.name.as_deref(), Some("SearchProtocol"));
+        assert_eq!(short.lived, None);
     }
 
     #[test]
