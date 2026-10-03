@@ -28,6 +28,7 @@ static UP: AtomicBool = AtomicBool::new(false);
 static OUTDATED: AtomicBool = AtomicBool::new(false);
 static DROPS: AtomicBool = AtomicBool::new(false);
 static CONNECTS: AtomicU32 = AtomicU32::new(0);
+static PINGS: AtomicU32 = AtomicU32::new(0);
 static REPORT: std::sync::Mutex<Option<WindowsReport>> = std::sync::Mutex::new(None);
 static ELEVATED: AtomicBool = AtomicBool::new(false);
 static IN_PROCESS_STARTS: AtomicU32 = AtomicU32::new(0);
@@ -39,6 +40,7 @@ pub fn reset(up: bool) {
     OUTDATED.store(false, Ordering::SeqCst);
     DROPS.store(false, Ordering::SeqCst);
     CONNECTS.store(0, Ordering::SeqCst);
+    PINGS.store(0, Ordering::SeqCst);
     *REPORT.lock().unwrap() = None;
     ELEVATED.store(false, Ordering::SeqCst);
     IN_PROCESS_STARTS.store(0, Ordering::SeqCst);
@@ -114,6 +116,10 @@ pub fn connects() -> u32 {
     CONNECTS.load(Ordering::SeqCst)
 }
 
+pub fn pings() -> u32 {
+    PINGS.load(Ordering::SeqCst)
+}
+
 pub fn serve(report: WindowsReport) {
     *REPORT.lock().unwrap() = Some(report);
 }
@@ -145,6 +151,7 @@ impl AgentBackend for FakeAgent {
     }
 
     async fn ping(_client: &()) -> anyhow::Result<i32> {
+        PINGS.fetch_add(1, Ordering::SeqCst);
         up().map(|()| 1)
     }
 
@@ -182,7 +189,7 @@ impl AppFeature for FakeAgentFeature {
             general.update_interval_ms(),
         ));
 
-        app.every(Duration::from_secs(1), &addr, || Ping);
+        app.every(settings.ping_period(), &addr, || Ping);
         addr.subscribe_on::<AgentStateRequest>(Bus::Global);
         addr.subscribe_on::<WindowsAgentInProcess>(Bus::Global);
         addr.send(Init);

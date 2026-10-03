@@ -415,8 +415,6 @@ impl AgentBackend for WslBackend {
 pub fn wsl_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
     let settings = app.settings::<AgentSettings>()?;
     let general = app.settings::<GeneralSettings>()?;
-    let ping_interval = settings.ping_interval_ms();
-
     let (distro, agent_path) = (settings.wsl_distro(), settings.wsl_agent_path());
     set_launch_config(move || (distro.get(), agent_path.get()));
 
@@ -425,12 +423,7 @@ pub fn wsl_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
         general.update_interval_ms(),
     ));
 
-    app.every(
-        Period::varying(move || Duration::from_millis(ping_interval.get())),
-        &addr,
-        || Ping,
-    )
-    .named("wsl-agent-ping");
+    app.every(settings.ping_period(), &addr, || Ping).named("wsl-agent-ping");
 
     addr.subscribe_on::<AgentStateRequest>(Bus::Global);
     addr.send(Init);

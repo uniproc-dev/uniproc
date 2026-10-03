@@ -202,7 +202,8 @@ mod tests {
     use guinea::prelude::GlobalEventBus;
     use guinea::winui::harness::{Mounted, Outlet};
     use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::StorePlugin;
+    use domain::features::agents::settings::AgentSettings;
+    use guinea_plugin_store::{StoreAccess, StorePlugin};
     use uuid::Uuid;
 
     use app_contracts::features::agent_link::InProcess;
@@ -304,6 +305,22 @@ mod tests {
         after(h, &mut page, 3);
         assert!(!splash_shown(&page), "{:#?}", page.tree());
         assert!(content_shown(&page), "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "store")]
+    fn a_shorter_ping_interval_takes_effect_at_once(h: &mut Harness) {
+        start(h, true);
+        let h = &*h;
+        let mut page = mount(h);
+        let interval = h.segment().settings::<AgentSettings>().unwrap().ping_interval_ms();
+        interval.set(60_000).unwrap();
+        after(h, &mut page, 5);
+        let before = test_agent::pings();
+
+        interval.set(1_000).unwrap();
+        after(h, &mut page, 2);
+
+        assert!(test_agent::pings() > before, "a minute-long wait is not sat out after the interval shrank");
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

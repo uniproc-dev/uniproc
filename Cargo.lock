@@ -58,12 +58,12 @@ dependencies = [
 
 [[package]]
 name = "amethystate"
-version = "0.23.1"
+version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4f882c35cdc57aece66d5cbeb306b1bd745aac21524e04ba89b2fd6c10840b5"
+checksum = "fc430ebed2369178b93c8bbfdc0dc413b7304a7d021b49dddd6167af56118cd1"
 dependencies = [
- "amethystate-core 0.23.1",
- "amethystate-macros 0.23.1",
+ "amethystate-core 0.23.2",
+ "amethystate-macros 0.23.2",
  "arc-swap",
  "dashmap",
  "directories",
@@ -110,9 +110,9 @@ dependencies = [
 
 [[package]]
 name = "amethystate-core"
-version = "0.23.1"
+version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7b28143f93821c2f3530e6a02e2976248741b35810a1aa4eba794e4726ef5f2"
+checksum = "a55c1588bad7f57d9261bb5e9cb526ad31470eed68cf8e14346f9ac5e2a56be3"
 dependencies = [
  "arc-swap",
  "dashmap",
@@ -126,6 +126,16 @@ dependencies = [
  "thiserror",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "amethystate-guinea"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dccd991df9d5899687730bd79c93ca47f76f0da9d7f34a5c111dce61376e819f"
+dependencies = [
+ "amethystate 0.23.2",
+ "guinea-app",
 ]
 
 [[package]]
@@ -144,11 +154,11 @@ dependencies = [
 
 [[package]]
 name = "amethystate-macros"
-version = "0.23.1"
+version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ef46708b207c3102f9e86491e6efeb2027fc16f7a57ea8f31471a592a830264"
+checksum = "1aae10a212acd64af980701b87c521d9ffce6da4971eb32d1070f95aafc027d7"
 dependencies = [
- "amethystate-macros-core 0.23.1",
+ "amethystate-macros-core 0.23.2",
  "darling 0.23.0",
  "proc-macro-crate",
  "proc-macro2",
@@ -170,9 +180,9 @@ dependencies = [
 
 [[package]]
 name = "amethystate-macros-core"
-version = "0.23.1"
+version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4929240e3dea1525cd04e8afbaf9fea94ef69492005043e5ed21232e0ff715cc"
+checksum = "e9cedbf9b91e63d0a255695d5749d1f2e52949a105d5daa1b31789b9e70c8a70"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",
@@ -880,7 +890,7 @@ dependencies = [
 name = "desktop"
 version = "0.1.0"
 dependencies = [
- "amethystate 0.23.1",
+ "amethystate 0.23.2",
  "anyhow",
  "app-contracts",
  "dhat",
@@ -971,7 +981,8 @@ dependencies = [
 name = "domain"
 version = "0.1.0"
 dependencies = [
- "amethystate 0.23.1",
+ "amethystate 0.23.2",
+ "amethystate-guinea",
  "anyhow",
  "app-contracts",
  "capnp",
@@ -1693,7 +1704,7 @@ name = "guinea-plugin-store"
 version = "0.23.5"
 source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.18.0#44d4924088f93fa91ad7a2c66edab4a736b4f8cf"
 dependencies = [
- "amethystate 0.23.1",
+ "amethystate 0.23.2",
  "anyhow",
  "guinea",
  "guinea-core",
@@ -3254,7 +3265,7 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 name = "ui"
 version = "0.1.0"
 dependencies = [
- "amethystate 0.23.1",
+ "amethystate 0.23.2",
  "app-contracts",
  "context",
  "guicons",

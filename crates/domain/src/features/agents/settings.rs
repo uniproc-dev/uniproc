@@ -1,7 +1,10 @@
 use std::ops::RangeInclusive;
+use std::time::Duration;
 
 use amethystate::amethystate;
 use amethystate::store::{Invalid, RuleContext};
+use amethystate_guinea::IntoChanging;
+use guinea::timers::Period;
 
 #[amethystate(prefix = "agents")]
 pub struct AgentSettings {
@@ -19,6 +22,12 @@ pub struct AgentSettings {
 
     #[amestate(default = "/usr/local/bin/uniproc-agent".to_string())]
     pub wsl_agent_path: String,
+}
+
+impl AgentSettings {
+    pub fn ping_period(&self) -> Period {
+        Period::follows(self.ping_interval_ms().changing(), Duration::from_millis)
+    }
 }
 
 struct Limits;

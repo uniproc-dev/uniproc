@@ -121,19 +121,12 @@ impl AgentBackend for WindowsBackend {
 pub fn windows_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
     let settings = app.settings::<AgentSettings>()?;
     let general = app.settings::<GeneralSettings>()?;
-    let ping_interval = settings.ping_interval_ms();
-
     let addr = app.spawn(GenericAgentActor::<WindowsBackend>::new(
         settings.connect_attempt_secs(),
         general.update_interval_ms(),
     ));
 
-    app.every(
-        Period::varying(move || Duration::from_millis(ping_interval.get())),
-        &addr,
-        || Ping,
-    )
-    .named("windows-agent-ping");
+    app.every(settings.ping_period(), &addr, || Ping).named("windows-agent-ping");
 
     addr.subscribe_on::<AgentStateRequest>(Bus::Global);
     addr.subscribe_on::<WindowsAgentInProcess>(Bus::Global);

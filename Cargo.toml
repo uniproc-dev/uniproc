@@ -34,7 +34,8 @@ guicons-build = "0.8.0"
 # --- amethystate ---
 # Same minor as guinea-plugin-store's own amethystate dep: the store is a thin
 # lid on it and re-exports it, so a minor apart means two incompatible Stores.
-amethystate = "0.23.1"
+amethystate = "0.23.2"
+amethystate-guinea = "0.23.2"
 
 # --- windows-rs ---
 windows-reactor = { package = "windows-reactor-pre", version = "0.100" }
