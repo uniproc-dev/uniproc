@@ -272,13 +272,7 @@ mod tests {
     }
 
     fn detached_port() -> Push<WslState> {
-        let scope = Rc::new(guinea::core::scope::Scope::new());
-        let token = guinea::core::actor::UiThreadToken::dangerously_create_token_unchecked();
-        let registry = Rc::new(guinea::core::actor::registry::DebugRegistry::new());
-        let bus = Rc::new(guinea::core::actor::event_bus::EventBus::new());
-        guinea::core::feature::Claim::<WslState>::new(&scope, &bus, &token, &registry)
-            .plain()
-            .port()
+        Push::new(guinea::core::scope::ScopeTree::new().scope())
     }
 
     fn configured_for(distro: &str, distros: Vec<DistroRow>) -> WslActor {

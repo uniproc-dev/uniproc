@@ -22,7 +22,7 @@ impl Page for System {
     fn update(&mut self, _message: (), _cx: &mut UpdateCx<'_, Self>) {}
 
     fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
-        let (state, dispatch) = cx.use_reducer::<SystemState, _>();
+        let (state, dispatch) = cx.read::<SystemState, _>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let nav = cx.navigate::<Route>();
@@ -39,11 +39,12 @@ mod tests {
     use ui::pages::system::{SystemMark, ToolMark};
 
     use super::*;
+    use crate::test_page::Below;
     use crate::test_system::{self, launch, launched};
 
-    fn mount(h: &Harness) -> Mounted<'_, System> {
+    fn mount(h: &Harness) -> Below<'_, System> {
         let mut page =
-            Mounted::mount_at(&h.child(), crate::routes::SystemParams::default(), Route::System {}).unwrap();
+            Below::mount(h, |below| Mounted::mount_at(below, crate::routes::SystemParams::default(), Route::System {}));
         page.settle();
         page
     }

@@ -1,8 +1,8 @@
-use guinea::winui::Refreshable;
-use windows_reactor::ViewContext;
+use guinea::feature::Reads;
+use guinea_plugin_l10n::L10nAccess;
 
 pub use app_contracts::l10n::L10n;
 
-pub fn use_tr<C: Refreshable>(cx: &mut ViewContext<C>) -> L10n {
-    guinea_plugin_l10n::ui::use_l10n::<L10n, C>(cx)
+pub fn use_tr(cx: &mut impl Reads) -> L10n {
+    cx.l10n::<L10n>()
 }

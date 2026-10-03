@@ -26,7 +26,7 @@ impl Page for Services {
     }
 
     fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
-        let (state, dispatch) = cx.use_reducer::<ServicesState, _>();
+        let (state, dispatch) = cx.read::<ServicesState, _>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ServicesMsg| message);
@@ -65,8 +65,9 @@ mod tests {
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
             .unwrap();
         let h = &*h;
+        let below = h.child();
         let mut page =
-            Mounted::mount_at(&h.child(), crate::routes::ServicesParams::default(), Route::Services {}).unwrap();
+            Mounted::mount_at(&below, crate::routes::ServicesParams::default(), Route::Services {}).unwrap();
         let report = WindowsReport {
             services: vec![WindowsServiceStats {
                 name: "Audiosrv".into(),

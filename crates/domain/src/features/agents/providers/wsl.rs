@@ -13,7 +13,6 @@ use app_contracts::features::agents::{
 use futures::StreamExt;
 use futures::channel::{mpsc, oneshot};
 use guinea::prelude::*;
-use guinea::ratelimit;
 use guinea_plugin_store::StoreAccess;
 use ogurpchik::auth::handshake::{HandshakeMode, Protocol, authenticate_client};
 use ogurpchik::endpoint::Endpoint;
@@ -401,7 +400,6 @@ impl AgentBackend for WslBackend {
             environments: report.environments,
             docker_containers: report.docker_containers,
         }));
-        ratelimit!(3600, info!("Report published to event bus"));
         Ok(())
     }
 

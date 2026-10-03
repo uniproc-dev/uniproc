@@ -1,8 +1,8 @@
 use amethystate::{amethystate, Open};
 use app_contracts::features::settings::StartPage;
 use domain::features::settings::settings::GeneralSettings;
-use guinea::feature::FeatureInitContext;
-use guinea_plugin_store::{Store, StoreAccess};
+use guinea::feature::{FeatureInitContext, ScopeContext};
+use guinea_plugin_store::StoreAccess;
 
 use crate::routes::Route;
 
@@ -33,17 +33,16 @@ pub fn remember(settings: &RouteSettings, route: &Route) {
     }
 }
 
-fn opened<S: Open>() -> Option<S> {
-    let store = guinea::app::app_services().get::<Store>()?;
-    S::new_with(&store)
+fn opened<S: Open>(cx: &ScopeContext) -> Option<S> {
+    cx.settings::<S>()
         .inspect_err(|err| tracing::warn!(?err, settings = std::any::type_name::<S>(), "could not open"))
         .ok()
 }
 
-pub fn restore() -> Route {
-    let page = opened::<GeneralSettings>().map(|general| general.start_page_choice()).unwrap_or_default();
+pub fn restore(cx: &ScopeContext) -> Route {
+    let page = opened::<GeneralSettings>(cx).map(|general| general.start_page_choice()).unwrap_or_default();
     route_for(page, || {
-        opened::<RouteSettings>().and_then(|settings| Route::restore(&settings.last_route().get()))
+        opened::<RouteSettings>(cx).and_then(|settings| Route::restore(&settings.last_route().get()))
     })
 }
 

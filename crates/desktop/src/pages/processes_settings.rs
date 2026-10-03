@@ -46,10 +46,15 @@ mod tests {
     use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
     use guinea::Mark;
     use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::StorePlugin;
+    use guinea_plugin_store::{StoreAccess, StorePlugin};
     use ui::pages::processes::{Group, ProcessesSettingsMark, SectionId};
 
     use super::*;
+    use crate::test_page::Below;
+
+    fn stored(h: &Harness) -> Stored {
+        h.segment().settings::<Stored>().unwrap()
+    }
 
     fn start(h: &mut Harness) {
         h.plugin(StorePlugin::in_memory())
@@ -58,9 +63,9 @@ mod tests {
             .unwrap();
     }
 
-    fn mount(h: &Harness) -> Mounted<'_, ProcessesSettings> {
+    fn mount(h: &Harness) -> Below<'_, ProcessesSettings> {
         let params = crate::routes::ProcessesSettingsParams::default();
-        let mut page = Mounted::mount_at(&h.child(), params, Route::ProcessesSettings {}).unwrap();
+        let mut page = Below::mount(h, |below| Mounted::mount_at(below, params, Route::ProcessesSettings {}));
         page.settle();
         page
     }
@@ -194,7 +199,7 @@ mod tests {
         traded.swap(cpu, cpu + 1);
         assert_eq!(traded[cpu], Memory);
         assert_eq!(columns(&page), names(&traded));
-        let ranks = Stored::new().unwrap().columns().order();
+        let ranks = stored(h).columns().order();
         assert_eq!(ranks.get("memory"), Some(3));
         assert_eq!(ranks.get("cpu"), Some(4));
     }
@@ -210,15 +215,15 @@ mod tests {
         page.settle();
 
         assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(true)));
-        let stored = Stored::new().unwrap().columns().configs().get(Pid.id());
-        assert!(stored.is_some_and(|config| config.visible));
+        let kept = stored(h).columns().configs().get(Pid.id());
+        assert!(kept.is_some_and(|config| config.visible));
 
         page.within(Pid).click(ProcessesSettingsMark::Shown).settle();
         page.settle();
 
         assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(false)));
-        let stored = Stored::new().unwrap().columns().configs().get(Pid.id());
-        assert!(stored.is_some_and(|config| !config.visible));
+        let kept = stored(h).columns().configs().get(Pid.id());
+        assert!(kept.is_some_and(|config| !config.visible));
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -241,9 +246,9 @@ mod tests {
         assert_eq!(columns(&page), names(&ProcessColumn::ALL));
         assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(false)));
         assert!(!enabled(&mut page, reset, reset));
-        let stored = Stored::new().unwrap();
-        assert_eq!(stored.columns().order().get("cpu"), None);
-        assert!(stored.columns().configs().get(Pid.id()).is_some_and(|config| !config.visible));
+        let kept = stored(h);
+        assert_eq!(kept.columns().order().get("cpu"), None);
+        assert!(kept.columns().configs().get(Pid.id()).is_some_and(|config| !config.visible));
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]
@@ -262,14 +267,14 @@ mod tests {
         let moved = sections(&page);
         let at = |section: SectionId| moved.iter().position(|name| name == section.name());
         assert_eq!(at(services).map(|at| at + 1), at(background), "{moved:?}");
-        let ranks = Stored::new().unwrap().grouping().section_order();
+        let ranks = stored(h).grouping().section_order();
         assert_eq!(ranks.get(services.name()), at(services).map(|at| at as u32));
 
         page.click(ProcessesSettingsMark::ResetSections).settle();
         page.settle();
 
         assert_eq!(sections(&page), names(&all_sections()));
-        let ranks = Stored::new().unwrap().grouping().section_order();
+        let ranks = stored(h).grouping().section_order();
         assert_eq!(ranks.get(services.name()), None);
     }
 
@@ -288,7 +293,7 @@ mod tests {
         page.settle();
 
         assert_eq!(choice(&mut page), Some(PropertyValue::SelectionIndex(Some(1))));
-        assert!(Stored::new().unwrap().columns().memory_as_percent().get());
+        assert!(stored(h).columns().memory_as_percent().get());
     }
 
     #[guinea::test(iterations = 4, exclusive = "store")]

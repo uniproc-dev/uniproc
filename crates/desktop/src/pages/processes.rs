@@ -50,7 +50,7 @@ impl Page for Processes {
     }
 
     fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
-        let (state, dispatch) = cx.use_reducer::<ProcessesState, _>();
+        let (state, dispatch) = cx.read::<ProcessesState, _>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ProcessesMsg| message);
@@ -70,7 +70,7 @@ impl Page for Processes {
         });
         let nav = cx.navigate::<Route>();
         let open_settings = Callback::new(move |()| nav.to(Route::ProcessesSettings {}));
-        let (settings, _) = cx.use_reducer::<SettingsState, _>();
+        let (settings, _) = cx.read::<SettingsState, _>();
         let units = settings.units;
         self.0.view(&state, &dispatch, &l10n, palette, forward, open_settings, units)
     }
@@ -117,6 +117,7 @@ mod tests {
     use app_contracts::features::window::PressedAway;
 
     use super::*;
+    use crate::test_page::Below;
 
     const NOTEPAD: u32 = 10;
     const NOTEPAD_PATH: &str = r"C:\Windows\notepad.exe";
@@ -243,7 +244,7 @@ mod tests {
             });
     }
 
-    fn mount(h: &Harness) -> Mounted<'_, Processes> {
+    fn mount(h: &Harness) -> Below<'_, Processes> {
         h.install::<SettingsFeature>(&()).unwrap();
         h.install::<ProcessesFeature>(&ProcessesDeps {
             windows: desktop_windows,
@@ -251,7 +252,7 @@ mod tests {
         })
         .unwrap();
         let params = crate::routes::ProcessesParams::default();
-        let mut page = Mounted::mount_at(&h.child(), params, Route::Processes {}).unwrap();
+        let mut page = Below::mount(h, |below| Mounted::mount_at(below, params, Route::Processes {}));
         report(h, machine());
         page.settle();
         page
@@ -818,8 +819,9 @@ mod tests {
         })
         .unwrap();
         let params = crate::routes::ProcessesParams::default();
-        let mut page = Mounted::mount_at(&h.child(), params, Route::Processes {}).unwrap();
-        let after = |seconds: u64, page: &mut Mounted<'_, Processes>| {
+        let below = h.child();
+        let mut page = Mounted::mount_at(&below, params, Route::Processes {}).unwrap();
+        let after =|seconds: u64, page: &mut Mounted<'_, Processes>| {
             h.advance(Duration::from_secs(seconds));
             page.settle();
         };
@@ -1718,7 +1720,7 @@ mod tests {
         .settle();
     }
 
-    fn wsl_page(h: &Harness) -> Mounted<'_, Processes> {
+    fn wsl_page(h: &Harness) -> Below<'_, Processes> {
         let mut page = mount(h);
         report(h, with_vm());
         linux_report(h);

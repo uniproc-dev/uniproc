@@ -9,7 +9,6 @@ use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, WindowsAction, WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsReport, WindowsReportMessage,
 };
 use guinea::prelude::*;
-use guinea::ratelimit;
 use guinea_plugin_store::StoreAccess;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -92,10 +91,7 @@ impl AgentBackend for WindowsBackend {
     #[instrument(skip(client), level = "debug", err)]
     async fn perform_scan(client: &Self::Client) -> anyhow::Result<()> {
         match client.report().await? {
-            Some(report) => {
-                GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(report)));
-                ratelimit!(3600, info!("Report published to event bus"));
-            }
+            Some(report) => GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(report))),
             None => tracing::debug!("process list kept moving under the metrics, skipping this update"),
         }
         Ok(())

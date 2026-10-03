@@ -164,7 +164,8 @@ migrations or compatibility shims for old local data.
 `cargo test --workspace`. Behaviour is proved by tests, not by clicking through the app.
 
 - UI behaviour: guinea harness tests in `desktop` (`#[guinea::test(iterations = .., exclusive = "store")]`).
-  A page: `h.install::<F>(..)` + `Mounted::mount_at(&h.child(), ..)`. A layout:
+  A page: `h.install::<F>(..)` + `Below::mount(h, |below| Mounted::mount_at(below, ..))`
+  (`test_page.rs`): a dropped `h.child()` tears its scope down under the mounted page. A layout:
   `Mounted::mount_at(&h.segment(), ..)`; its outlet is `Outlet`, navigation is read with
   `navigated()`. No probe pages.
 - Fakes: `<F>Deps` through `h.provide(..)`; `test_agent.rs` is a fake Windows agent

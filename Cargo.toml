@@ -17,15 +17,15 @@ members = [
 
 [workspace.dependencies]
 # --- guinea ---
-guinea = "0.18.9"
-guinea-meta-build = "0.18.9"
+guinea = "0.20.0"
+guinea-meta-build = "0.20.0"
 
-guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.15.2" }
-guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.15.2", features = ["winui"] }
-guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.15.2" }
-guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.15.2" }
-guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.15.2" }
-guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.15.2" }
+guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.18.0" }
+guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.18.0" }
+guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.18.0" }
+guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.18.0" }
+guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.18.0" }
+guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.18.0" }
 
 # --- guicons ---
 guicons = "0.8.0"
@@ -34,7 +34,7 @@ guicons-build = "0.8.0"
 # --- amethystate ---
 # Same minor as guinea-plugin-store's own amethystate dep: the store is a thin
 # lid on it and re-exports it, so a minor apart means two incompatible Stores.
-amethystate = "0.23.0"
+amethystate = "0.23.1"
 
 # --- windows-rs ---
 windows-reactor = { package = "windows-reactor-pre", version = "0.100" }

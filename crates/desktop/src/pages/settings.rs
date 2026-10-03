@@ -20,7 +20,7 @@ impl Page for Settings {
     fn update(&mut self, _message: (), _cx: &mut UpdateCx<'_, Self>) {}
 
     fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
-        let (state, dispatch) = cx.use_reducer::<SettingsState, _>();
+        let (state, dispatch) = cx.read::<SettingsState, _>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         ui::pages::settings::settings_view(&state, &dispatch, &l10n, palette)
@@ -43,6 +43,7 @@ mod tests {
     use ui::pages::settings::SettingsMark;
 
     use super::*;
+    use crate::test_page::Below;
 
     fn stored(h: &Harness) -> GeneralSettings {
         h.segment().settings::<GeneralSettings>().unwrap()
@@ -55,9 +56,9 @@ mod tests {
             .unwrap();
     }
 
-    fn mount(h: &Harness) -> Mounted<'_, Settings> {
+    fn mount(h: &Harness) -> Below<'_, Settings> {
         h.install::<SettingsFeature>(&()).unwrap();
-        let mut page = Mounted::<Settings>::mount(&h.child(), crate::routes::SettingsParams::default()).unwrap();
+        let mut page = Below::mount(h, |below| Mounted::mount(below, crate::routes::SettingsParams::default()));
         page.settle();
         page
     }
