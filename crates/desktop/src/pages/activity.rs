@@ -33,7 +33,9 @@ impl Page for Activity {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
     use std::sync::Arc;
+    use std::time::Duration;
 
     use app_contracts::features::activity::Clock;
     use app_contracts::features::agents::{
@@ -63,15 +65,25 @@ mod tests {
     }
 
     fn start(h: &mut Harness) {
+        start_at(h, || BASE + HOUR - SECOND);
+    }
+
+    fn start_at(h: &mut Harness, now: fn() -> u64) {
         h.plugin(StorePlugin::in_memory())
             .unwrap()
             .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
             .unwrap()
-            .provide(ActivityDeps {
-                now: || BASE + HOUR - SECOND,
-                clock: utc,
-            });
+            .provide(ActivityDeps { now, clock: utc });
         h.feature(ActivityFeature).unwrap();
+    }
+
+    thread_local! {
+        static DRAWN: Cell<usize> = const { Cell::new(0) };
+    }
+
+    fn counted_now() -> u64 {
+        DRAWN.with(|drawn| drawn.set(drawn.get() + 1));
+        BASE + HOUR - SECOND
     }
 
     fn mount(h: &Harness) -> Mounted<'_, Activity> {
@@ -109,12 +121,17 @@ mod tests {
             || node.children.iter().any(|child| says(child, wanted))
     }
 
-    fn live(h: &Harness, page: &mut Mounted<'_, Activity>, events: Vec<ProcessEvent>) {
+    fn tell(h: &Harness, events: Vec<ProcessEvent>) {
         h.publish(WindowsProcessEvents {
             events: Arc::from(events),
             ..WindowsProcessEvents::default()
         })
         .settle();
+    }
+
+    fn live(h: &Harness, page: &mut Mounted<'_, Activity>, events: Vec<ProcessEvent>) {
+        tell(h, events);
+        h.advance(Duration::from_secs(1));
         page.settle();
     }
 
@@ -132,6 +149,23 @@ mod tests {
         let tree = page.tree();
         assert!(says(&tree, "tool.exe"), "{tree:#?}");
         assert!(!says(&tree, "tool.exe --check"), "{tree:#?}");
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_flood_of_batches_is_drawn_once_and_still_within_a_second(h: &mut Harness) {
+        start_at(h, counted_now);
+        let h = &*h;
+        let mut page = mount(h);
+        DRAWN.with(|drawn| drawn.set(0));
+
+        for pid in 100..140 {
+            tell(h, vec![came(pid, 10)]);
+        }
+        h.advance(Duration::from_secs(1));
+        page.settle();
+
+        assert!(DRAWN.with(Cell::get) <= 2, "drawn {} times", DRAWN.with(Cell::get));
+        assert_eq!(rows(&page.tree()), 40, "{:#?}", page.tree());
     }
 
     #[guinea::test(iterations = 4)]

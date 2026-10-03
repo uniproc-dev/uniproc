@@ -17,6 +17,7 @@ pub struct ActivityActor {
     span: Span,
     filter: Filter,
     range: Option<(u64, u64)>,
+    stale: bool,
 }
 
 impl std::fmt::Debug for ActivityActor {
@@ -38,10 +39,12 @@ impl ActivityActor {
             span: Span::default(),
             filter: Filter::default(),
             range: None,
+            stale: false,
         }
     }
 
-    fn publish(&self) {
+    fn publish(&mut self) {
+        self.stale = false;
         let view = view(
             &self.log,
             &Ask {
@@ -64,10 +67,12 @@ impl ActivityActor {
 
 pub struct Refresh;
 
+pub struct Flush;
+
 actor! {
     ActivityActor {
         handlers {
-            WindowsProcessEvents, WindowsReportMessage, Refresh, ShowSpan, ShowCame, ShowWent, NewOnly,
+            WindowsProcessEvents, WindowsReportMessage, Refresh, Flush, ShowSpan, ShowCame, ShowWent, NewOnly,
             ShowBursts, Search, PickBucket, ClearRange
         }
     }
@@ -76,7 +81,14 @@ actor! {
 #[handler]
 fn on_events(this: &mut ActivityActor, batch: WindowsProcessEvents) {
     this.log.take(&batch);
-    this.publish();
+    this.stale = true;
+}
+
+#[handler]
+fn flush(this: &mut ActivityActor, _msg: Flush) {
+    if this.stale {
+        this.publish();
+    }
 }
 
 #[handler]

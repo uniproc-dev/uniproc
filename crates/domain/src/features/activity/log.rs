@@ -148,25 +148,37 @@ impl Log {
             .or_else(|| self.running.get(&instance.pid).map(|known| known.name.clone()))
     }
 
+    fn ancestors<'a>(&'a self, started: &Started) -> impl Iterator<Item = (ProcessInstance, Arc<str>)> + 'a {
+        let mut next = Some(started.came.parent);
+        std::iter::from_fn(move || {
+            let at = next.take()?;
+            let name = self.named(at)?;
+            if is_shell(&name) {
+                next = self.started.get(&at).map(|parent| parent.came.parent);
+            }
+            Some((at, name))
+        })
+        .take(Pace::ChainDepth)
+    }
+
+    fn launched_by(&self, started: &Started) -> Option<ProcessInstance> {
+        self.ancestors(started)
+            .last()
+            .filter(|(_, name)| !is_shell(name))
+            .map(|(at, _)| at)
+    }
+
     fn lineage(&self, started: &Started) -> (Vec<Arc<str>>, Option<ProcessInstance>) {
         let mut chain = vec![started.name.clone()];
-        let mut at = started.came.parent;
-        for _ in 0..Pace::ChainDepth {
-            let Some(name) = self.named(at) else {
-                break;
-            };
-            chain.push(name.clone());
+        let mut launched_by = None;
+        for (at, name) in self.ancestors(started) {
             if !is_shell(&name) {
-                chain.reverse();
-                return (chain, Some(at));
+                launched_by = Some(at);
             }
-            match self.started.get(&at) {
-                Some(parent) => at = parent.came.parent,
-                None => break,
-            }
+            chain.push(name);
         }
         chain.reverse();
-        (chain, None)
+        (chain, launched_by)
     }
 }
 
@@ -282,12 +294,33 @@ struct Group {
     launcher: ProcessInstance,
     first: u64,
     last: u64,
-    members: Vec<(u64, Rc<Came>)>,
+    members: Vec<(u64, ProcessInstance)>,
+}
+
+enum Light {
+    Came(ProcessInstance),
+    Went(ProcessInstance),
+    Burst(Group),
+}
+
+impl Light {
+    fn key(&self) -> ProcessInstance {
+        match self {
+            Light::Came(instance) | Light::Went(instance) => *instance,
+            Light::Burst(group) => group.members[0].1,
+        }
+    }
 }
 
 fn burst_of(group: Group, log: &Log, clock: fn(u64) -> Clock) -> Burst {
+    let members: Vec<Rc<Came>> = group
+        .members
+        .iter()
+        .filter_map(|(_, instance)| log.started.get(instance))
+        .map(|started| Rc::new(came_of(log, started, clock).0))
+        .collect();
     let mut names: BTreeMap<Arc<str>, usize> = BTreeMap::new();
-    for (_, came) in &group.members {
+    for came in &members {
         *names.entry(came.name.clone()).or_default() += 1;
     }
     let mut names: Vec<_> = names.into_iter().collect();
@@ -295,32 +328,54 @@ fn burst_of(group: Group, log: &Log, clock: fn(u64) -> Clock) -> Burst {
     let ended = group
         .members
         .iter()
-        .filter_map(|(_, came)| log.ended.get(&came.key).map(|went| went.at))
+        .filter_map(|(_, instance)| log.ended.get(instance).map(|went| went.at))
         .max()
         .unwrap_or(group.last);
     Burst {
-        key: group.members[0].1.key,
+        key: group.members[0].1,
         at: clock(group.first),
         launcher: log.named(group.launcher).unwrap_or_default(),
         names,
-        went: group.members.iter().filter(|(_, came)| came.exit.is_some()).count(),
+        went: members.iter().filter(|came| came.exit.is_some()).count(),
         lasted: ended.max(group.last) - group.first,
-        members: group.members.into_iter().map(|(_, came)| came).collect(),
+        members,
     }
 }
 
-fn fold_bursts(log: &Log, cames: Vec<(u64, Rc<Came>, Option<ProcessInstance>)>, clock: fn(u64) -> Clock) -> Vec<(u64, ActivityRow)> {
-    let mut rows = Vec::new();
-    let mut open: HashMap<ProcessInstance, Group> = HashMap::new();
-    let mut closed = Vec::new();
-    for (at, came, launcher) in cames {
+struct Walk<'a> {
+    log: &'a Log,
+    filter: &'a Filter,
+    text: String,
+    rows: Vec<(u64, Light)>,
+    open: HashMap<ProcessInstance, Group>,
+}
+
+impl Walk<'_> {
+    fn keep(&mut self, at: u64, row: Light) {
+        if kept(self.log, &row, self.filter, &self.text) {
+            self.rows.push((at, row));
+        }
+    }
+
+    fn close(&mut self, mut group: Group) {
+        group.members.reverse();
+        if group.members.len() >= Pace::BurstLeast {
+            self.keep(group.first, Light::Burst(group));
+        } else {
+            for (at, came) in group.members {
+                self.keep(at, Light::Came(came));
+            }
+        }
+    }
+
+    fn came(&mut self, at: u64, came: ProcessInstance, launcher: Option<ProcessInstance>) {
         let Some(launcher) = launcher else {
-            rows.push((at, ActivityRow::Came(came)));
-            continue;
+            self.keep(at, Light::Came(came));
+            return;
         };
-        match open.get_mut(&launcher) {
-            Some(group) if at - group.last <= Pace::BurstGap => {
-                group.last = at;
+        match self.open.get_mut(&launcher) {
+            Some(group) if group.first - at <= Pace::BurstGap => {
+                group.first = at;
                 group.members.push((at, came));
             }
             _ => {
@@ -330,44 +385,70 @@ fn fold_bursts(log: &Log, cames: Vec<(u64, Rc<Came>, Option<ProcessInstance>)>, 
                     last: at,
                     members: vec![(at, came)],
                 };
-                closed.extend(open.insert(launcher, group));
+                if let Some(done) = self.open.insert(launcher, group) {
+                    self.close(done);
+                }
             }
         }
     }
-    closed.extend(open.into_values());
-    for group in closed {
-        if group.members.len() >= Pace::BurstLeast {
-            rows.push((group.first, ActivityRow::Burst(Rc::new(burst_of(group, log, clock)))));
-        } else {
-            rows.extend(group.members.into_iter().map(|(at, came)| (at, ActivityRow::Came(came))));
+
+    fn settle(&mut self, at: u64) {
+        if self.open.values().all(|group| group.first - at <= Pace::BurstGap) {
+            return;
+        }
+        let (done, open): (Vec<_>, Vec<_>) =
+            std::mem::take(&mut self.open).into_values().partition(|group| group.first - at > Pace::BurstGap);
+        self.open = open.into_iter().map(|group| (group.launcher, group)).collect();
+        for group in done {
+            self.close(group);
         }
     }
-    rows
-}
 
-fn matches(came: &Came, text: &str) -> bool {
-    [&came.name, &came.command_line, &came.image_path]
-        .iter()
-        .any(|field| field.to_lowercase().contains(text))
-}
+    fn enough(&self) -> bool {
+        self.open.is_empty() && self.rows.len() >= Pace::Shown
+    }
 
-fn kept(row: &ActivityRow, filter: &Filter, text: &str) -> bool {
-    match row {
-        ActivityRow::Came(came) => filter.came && (!filter.new_only || came.first_seen) && matches(came, text),
-        ActivityRow::Went(went) => {
-            filter.went
-                && !filter.new_only
-                && went.name.as_deref().unwrap_or_default().to_lowercase().contains(text)
+    fn finish(mut self) -> Vec<(u64, Light)> {
+        for group in std::mem::take(&mut self.open).into_values().collect::<Vec<_>>() {
+            self.close(group);
         }
-        ActivityRow::Burst(burst) => {
+        self.rows
+    }
+}
+
+fn contains(field: &str, text: &str) -> bool {
+    text.is_empty() || field.to_lowercase().contains(text)
+}
+
+fn came_kept(log: &Log, instance: &ProcessInstance, filter: &Filter, text: &str) -> bool {
+    log.started.get(instance).is_some_and(|started| {
+        (!filter.new_only || started.first_seen)
+            && [&*started.name, &*started.came.command_line, &*started.came.image_path]
+                .iter()
+                .any(|field| contains(field, text))
+    })
+}
+
+fn kept(log: &Log, row: &Light, filter: &Filter, text: &str) -> bool {
+    match row {
+        Light::Came(instance) => filter.came && came_kept(log, instance, filter, text),
+        Light::Went(instance) => {
+            filter.went && !filter.new_only && contains(log.named(*instance).as_deref().unwrap_or_default(), text)
+        }
+        Light::Burst(group) => {
             filter.came
                 && filter.bursts
-                && burst
-                    .members
-                    .iter()
-                    .any(|came| (!filter.new_only || came.first_seen) && matches(came, text))
+                && group.members.iter().any(|(_, instance)| came_kept(log, instance, filter, text))
         }
     }
+}
+
+fn row_of(log: &Log, row: Light, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
+    Some(match row {
+        Light::Came(instance) => ActivityRow::Came(Rc::new(came_of(log, log.started.get(&instance)?, clock).0)),
+        Light::Went(instance) => ActivityRow::Went(Rc::new(went_of(log, log.ended.get(&instance)?, clock))),
+        Light::Burst(group) => ActivityRow::Burst(Rc::new(burst_of(group, log, clock))),
+    })
 }
 
 pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
@@ -393,38 +474,52 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     });
 
     let window = |at: u64| (from..to).contains(&at);
-    let mut came_count = 0;
-    let mut went_count = 0;
-    let mut cames = Vec::new();
-    let mut rows = Vec::new();
-    for (at, kind, instance) in log.timeline.range((from, Kind::Came, ProcessInstance::default())..) {
-        if *at >= to {
+    let span = (from, Kind::Came, ProcessInstance::default())..(to, Kind::Came, ProcessInstance::default());
+    let (mut came_count, mut went_count) = (0, 0);
+    for (_, kind, _) in log.timeline.range(span.clone()) {
+        match kind {
+            Kind::Came => came_count += 1,
+            Kind::Went => went_count += 1,
+        }
+    }
+
+    let shown_kind = |kind: &Kind| match kind {
+        Kind::Came => ask.filter.came,
+        Kind::Went => ask.filter.went,
+    };
+    let mut walk = Walk {
+        log,
+        filter: ask.filter,
+        text: ask.filter.text.trim().to_lowercase(),
+        rows: Vec::new(),
+        open: HashMap::new(),
+    };
+    let mut unwalked = 0;
+    let mut events = log.timeline.range(span).rev();
+    while let Some((at, kind, instance)) = events.next() {
+        walk.settle(*at);
+        if walk.enough() {
+            unwalked = usize::from(shown_kind(kind)) + events.filter(|(_, kind, _)| shown_kind(kind)).count();
             break;
         }
         match kind {
             Kind::Came => {
-                came_count += 1;
                 if let Some(started) = log.started.get(instance) {
-                    let (came, launcher) = came_of(log, started, clock);
-                    cames.push((*at, Rc::new(came), launcher));
+                    walk.came(*at, *instance, log.launched_by(started));
                 }
             }
             Kind::Went => {
-                went_count += 1;
                 let shown = ask.filter.came
                     && log.started.get(instance).is_some_and(|started| window(started.came.at));
-                if !shown && let Some(went) = log.ended.get(instance) {
-                    rows.push((*at, ActivityRow::Went(Rc::new(went_of(log, went, clock)))));
+                if !shown && log.ended.contains_key(instance) {
+                    walk.keep(*at, Light::Went(*instance));
                 }
             }
         }
     }
-    rows.extend(fold_bursts(log, cames, clock));
-
-    let text = ask.filter.text.trim().to_lowercase();
-    rows.retain(|(_, row)| kept(row, ask.filter, &text));
+    let mut rows = walk.finish();
     rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.key().cmp(&a.1.key())));
-    let earlier = rows.len().saturating_sub(Pace::Shown);
+    let earlier = rows.len().saturating_sub(Pace::Shown) + unwalked;
     rows.truncate(Pace::Shown);
 
     let quarter = frame.width * Pace::Buckets / 4;
@@ -434,7 +529,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
             ticks: (0..5).map(|n| clock(frame.start + quarter * n)).collect(),
             picked,
         },
-        rows: rows.into_iter().map(|(_, row)| row).collect(),
+        rows: rows.into_iter().filter_map(|(_, row)| row_of(log, row, clock)).collect(),
         earlier,
         came: came_count,
         went: went_count,

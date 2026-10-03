@@ -4,7 +4,7 @@ use app_contracts::features::activity::{ActivityState, Clock};
 use app_contracts::features::agents::{WindowsProcessEvents, WindowsReportMessage};
 use guinea::prelude::*;
 
-use super::actor::{ActivityActor, Refresh};
+use super::actor::{ActivityActor, Flush, Refresh};
 use super::clock;
 
 #[derive(Clone, Copy)]
@@ -27,6 +27,7 @@ struct Pace;
 #[expect(non_upper_case_globals)]
 impl Pace {
     const Refresh: Duration = Duration::from_secs(5);
+    const Flush: Duration = Duration::from_millis(250);
 }
 
 pub struct ActivityFeature;
@@ -41,6 +42,7 @@ impl AppFeature for ActivityFeature {
         addr.subscribe_on::<WindowsProcessEvents>(Bus::Global);
         addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
         app.every(Pace::Refresh, &addr, || Refresh).named("activity-refresh");
+        app.every(Pace::Flush, &addr, || Flush).named("activity-flush");
         addr.send(Refresh);
         Ok(())
     }
