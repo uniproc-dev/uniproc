@@ -4,10 +4,8 @@ use std::time::Duration;
 use app_contracts::features::agents::{WindowsAction, WindowsMachineSample, WindowsProcessEvents, WindowsReport};
 use app_contracts::features::settings::UpdateInterval;
 use tokio::sync::Mutex;
-use uniproc_windows_agent::agent::{Agent, Watch};
-use uniproc_windows_agent::api::{MetricSpec, ProcessEventBatch, Update};
-use uniproc_windows_agent::local::ProcessEventsWatch;
-use uniproc_windows_agent::remote::RemoteProcessEvents;
+use uniproc_windows_agent::agent::{Agent, ProcessEvents, Watch};
+use uniproc_windows_agent::api::{MetricSpec, Update};
 
 use super::process_events;
 use super::windows_report::{self, Reports};
@@ -17,7 +15,7 @@ pub struct WindowsFeed {
     interval: Box<dyn Fn() -> Duration + Send + Sync>,
     sampling: Mutex<Sampling>,
     machine: Mutex<Sampling>,
-    events: Mutex<Option<EventsWatch>>,
+    events: Mutex<Option<ProcessEvents>>,
 }
 
 #[derive(Default)]
@@ -93,14 +91,12 @@ impl WindowsFeed {
         let watch = match &mut *slot {
             Some(watch) => watch,
             None => {
-                let opened = match &self.agent {
-                    Agent::Local(local) => EventsWatch::Local(local.watch_process_events()),
-                    Agent::Remote(remote) if remote.can_watch_process_events() => {
-                        EventsWatch::Remote(remote.watch_process_events().await?)
-                    }
-                    Agent::Remote(_) => return std::future::pending().await,
-                };
-                slot.insert(opened)
+                if let Agent::Remote(remote) = &self.agent
+                    && !remote.can_watch_process_events()
+                {
+                    return std::future::pending().await;
+                }
+                slot.insert(self.agent.watch_process_events().await?)
             }
         };
         match watch.next().await {
@@ -109,23 +105,6 @@ impl WindowsFeed {
                 *slot = None;
                 Err(error)
             }
-        }
-    }
-}
-
-enum EventsWatch {
-    Remote(RemoteProcessEvents),
-    Local(ProcessEventsWatch),
-}
-
-impl EventsWatch {
-    async fn next(&mut self) -> anyhow::Result<ProcessEventBatch> {
-        match self {
-            Self::Remote(watch) => watch.next().await,
-            Self::Local(watch) => watch
-                .next()
-                .await
-                .ok_or_else(|| anyhow::anyhow!("monitoring in process stopped")),
         }
     }
 }

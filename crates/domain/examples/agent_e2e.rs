@@ -79,10 +79,15 @@ mod windows {
             let batch = tokio::time::timeout(Duration::from_secs(5), handle.process_events())
                 .await
                 .context("no batch within 5 s")??;
-            for event in batch.events.iter().filter(|event| event.instance().pid == pid) {
+            for event in batch.events.iter() {
                 match event {
-                    ProcessEvent::Came(started) => came = Some(started.clone()),
-                    ProcessEvent::Went(ended) => went = Some(ended.clone()),
+                    ProcessEvent::Came(started) if started.instance.pid == pid && started.command_line.contains("exit 7") => {
+                        came = Some(started.clone())
+                    }
+                    ProcessEvent::Went(ended) if came.as_ref().is_some_and(|came| came.instance == ended.instance) => {
+                        went = Some(ended.clone())
+                    }
+                    _ => {}
                 }
             }
         }
@@ -96,7 +101,7 @@ mod windows {
             went.exit_code,
             went.at.saturating_sub(came.at) / 10_000
         );
-        if went.exit_code != 7 || came.instance != went.instance {
+        if went.exit_code != 7 {
             bail!("the exit does not match the start: {came:?} / {went:?}");
         }
         Ok(())
