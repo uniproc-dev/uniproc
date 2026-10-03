@@ -1,0 +1,35 @@
+use std::rc::Rc;
+
+use guinea::feature::AppExport;
+use guinea::prelude::*;
+
+use super::messages::ActivityMsg;
+use super::model::{ActivityView, Filter, Span};
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct ActivityState {
+    pub view: Load<Rc<ActivityView>>,
+    pub span: Span,
+    pub filter: Filter,
+}
+
+impl Default for ActivityState {
+    fn default() -> Self {
+        Self {
+            view: Load::Loading,
+            span: Span::default(),
+            filter: Filter::default(),
+        }
+    }
+}
+
+impl AppExport for ActivityState {}
+
+#[reducer]
+fn activity(this: &mut ActivityState, msg: ActivityMsg) {
+    match msg {
+        ActivityMsg::View(view) => this.view = Load::Ready(view),
+        ActivityMsg::Span(span) => this.span = span,
+        ActivityMsg::Filter(filter) => this.filter = filter,
+    }
+}
