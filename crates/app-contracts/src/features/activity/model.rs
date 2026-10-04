@@ -50,35 +50,33 @@ impl Default for Filter {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Default, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default, serde::Deserialize)]
+pub enum Lived {
+    #[default]
+    Unknown,
+    For(u64),
+    Running,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Deserialize)]
 pub struct Area {
     pub from: u64,
     pub to: u64,
-    pub bottom: f32,
-    pub top: f32,
+    pub shortest: Lived,
+    pub longest: Lived,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Dot {
     pub key: ProcessInstance,
     pub at: u64,
-    pub y: f32,
-    pub alive: bool,
+    pub lived: Lived,
     pub faint: bool,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Level {
-    pub y: f32,
-    pub lived: u64,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Scatter {
     pub dots: Vec<Dot>,
-    pub orphans: Vec<Dot>,
-    pub levels: Vec<Level>,
-    pub alive_y: f32,
     pub now: u64,
     pub now_clock: Clock,
     pub length: u64,

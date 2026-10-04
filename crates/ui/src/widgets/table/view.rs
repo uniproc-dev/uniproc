@@ -5,9 +5,8 @@ use guinea::winui::MarkExt;
 use guinea::Mark;
 use guinea_widgets::resize::RESIZE_HANDLE_WIDTH;
 use windows_reactor::{
-    AutomationExt, Border, Callback, ChildrenControl, Color, ContentControl, Grid, GridChildExt, GridLength,
-    HorizontalAlignment, IntoPayloadCallback, ItemsRepeater, LayoutControl, PointerEventInfo, Rectangle,
-    ScrollBarVisibility, ScrollViewer, Thickness, VerticalAlignment, View,
+    keyed, Border, Callback, Color, Grid, GridLength, HorizontalAlignment, IntoPayloadCallback, ItemsRepeater,
+    PointerEventInfo, Rectangle, ScrollBarVisibility, ScrollViewer, Thickness, VerticalAlignment, View,
 };
 
 use super::columns::{placed, width_of, ColumnOrder, ColumnSpec, ColumnWidths, Laid, Look, Reordered, Resized};
@@ -30,7 +29,7 @@ pub struct Table<T, C> {
     sort: Option<(SortState<C>, Callback<C>)>,
     selection: Option<(Option<usize>, Callback<Option<usize>>)>,
     span: Option<Range<usize>>,
-    sort_indicator: Option<Rc<dyn Fn(bool) -> View>>,
+    sort_indicator: Option<Rc<dyn Fn(bool) -> Option<View>>>,
     look: Look,
     corner_radius: f64,
 }
@@ -98,7 +97,7 @@ impl<T: 'static, C: Mark + Clone + PartialEq + 'static> Table<T, C> {
         self
     }
 
-    pub fn sort_indicator(mut self, render: impl Fn(bool) -> View + 'static) -> Self {
+    pub fn sort_indicator(mut self, render: impl Fn(bool) -> Option<View> + 'static) -> Self {
         self.sort_indicator = Some(Rc::new(render));
         self
     }
@@ -195,7 +194,7 @@ impl<T: 'static, C: Mark + Clone + PartialEq + 'static> Table<T, C> {
             .columns(laid.lengths.clone())
             .min_width(laid.least)
             .grid_row(0)
-            .children((View::keyed_fragment(header_cells),));
+            .keyed_children(header_cells.into_iter().map(|(key, cell)| keyed(key, cell)));
 
         let separator = Rectangle::new().fill(look.rule).height(1.0).grid_row(1);
 
@@ -214,9 +213,8 @@ impl<T: 'static, C: Mark + Clone + PartialEq + 'static> Table<T, C> {
                         .horizontal_alignment(HorizontalAlignment::Stretch)
                         .vertical_alignment(VerticalAlignment::Stretch)
                         .on_pointer_released(Callback::new(move |_: PointerEventInfo| {
-                            let _ = on_deselect.call(None);
-                        }))
-                        .content(View::empty()),
+                            on_deselect.call(None);
+                        })),
                     lines,
                 ))
                 .into(),

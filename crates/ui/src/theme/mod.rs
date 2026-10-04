@@ -7,7 +7,7 @@ pub mod space;
 
 use windows_reactor::{ColorScheme, Context};
 
-pub use palette::{accent_color, Palette};
+pub use palette::{accent_color, color_f, Palette};
 
 pub fn scheme_context() -> &'static Context<ColorScheme> {
     thread_local! {

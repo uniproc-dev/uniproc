@@ -3,10 +3,12 @@ use app_contracts::features::settings::{SidebarChart, SidebarCharts, Units};
 use guicons::icon;
 use guinea_widgets::chart::Chart;
 use guinea_widgets::resize::{resize_handle, RESIZE_HANDLE_WIDTH};
+use std::rc::Rc;
+
 use windows_reactor::{
-    AutoSuggestBox, Border, Callback, ChildrenControl, ContentControl, Grid, GridChildExt, GridLength,
-    HorizontalAlignment, LayoutControl, NavigationView, NavigationViewBackButtonVisible, NavigationViewItem,
-    NavigationViewPaneDisplayMode, Thickness, TitleBar, VerticalAlignment, View, WindowTitleBarHeight,
+    keyed, AutoSuggestBox, Border, Callback, Grid, GridLength, HorizontalAlignment, Icon, NavigationView,
+    NavigationViewBackButtonVisible, NavigationViewItem, NavigationViewPaneDisplayMode, Thickness, TitleBar,
+    VerticalAlignment, View, WindowTitleBarHeight,
 };
 
 use super::metrics_pane::metrics_pane;
@@ -47,42 +49,18 @@ pub struct ShellProps<'a> {
     pub on_open_changed: Callback<bool>,
 }
 
-fn nav_items(l10n: &L10n) -> Vec<(&'static str, String, View)> {
+fn nav_items(l10n: &L10n) -> Vec<(&'static str, String, Icon)> {
     vec![
-        (
-            "processes",
-            l10n.shell_nav_processes(),
-            icon!(apps_list).size(size::NavIcon).build(),
-        ),
-        (
-            "activity",
-            l10n.shell_nav_activity(),
-            icon!(activity).size(size::NavIcon).build(),
-        ),
-        (
-            "services",
-            l10n.shell_nav_services(),
-            icon!(puzzle).size(size::NavIcon).build(),
-        ),
-        (
-            "wsl",
-            l10n.shell_nav_wsl(),
-            icon!(linux).size(size::NavIcon).build(),
-        ),
-        (
-            "system",
-            l10n.shell_nav_system(),
-            icon!(system).size(size::NavIcon).build(),
-        ),
+        ("processes", l10n.shell_nav_processes(), icon!(apps_list).size(size::NavIcon).build()),
+        ("activity", l10n.shell_nav_activity(), icon!(activity).size(size::NavIcon).build()),
+        ("services", l10n.shell_nav_services(), icon!(puzzle).size(size::NavIcon).build()),
+        ("wsl", l10n.shell_nav_wsl(), icon!(linux).size(size::NavIcon).build()),
+        ("system", l10n.shell_nav_system(), icon!(system).size(size::NavIcon).build()),
     ]
 }
 
-fn footer_nav_items(l10n: &L10n) -> Vec<(&'static str, String, View)> {
-    vec![(
-        "settings",
-        l10n.shell_nav_settings(),
-        icon!(settings).size(size::NavIcon).build(),
-    )]
+fn footer_nav_items(l10n: &L10n) -> Vec<(&'static str, String, Icon)> {
+    vec![("settings", l10n.shell_nav_settings(), icon!(settings).size(size::NavIcon).build())]
 }
 
 pub fn shell_view(mut props: ShellProps<'_>) -> View {
@@ -91,17 +69,15 @@ pub fn shell_view(mut props: ShellProps<'_>) -> View {
         .is_pane_toggle_button_visible(false)
         .grid_row(0);
 
-    let (backdrop, title_bar, body, handle): (View, TitleBar, View, View) = match props.splash.take() {
-        Some(splash) => (
+    let layers: Vec<View> = match props.splash.take() {
+        Some(splash) => vec![
             Border::new()
                 .grid_row(0)
                 .grid_row_span(2)
                 .content(splash)
                 .into(),
-            title_bar,
-            View::empty(),
-            View::empty(),
-        ),
+            title_bar.into(),
+        ],
         None => {
             let title_bar = title_bar.title(props.l10n.shell_window_title()).content(
                 AutoSuggestBox::new()
@@ -110,22 +86,24 @@ pub fn shell_view(mut props: ShellProps<'_>) -> View {
                     .vertical_alignment(VerticalAlignment::Center),
             );
             let handle = sidebar_resize_handle(&props);
-            (View::empty(), title_bar, navigation(props), handle)
+            let mut layers = vec![title_bar.into(), navigation(props)];
+            layers.extend(handle);
+            layers
         }
     };
 
     Grid::new()
         .rows([GridLength::Auto, GridLength::Star(1.0)])
         .columns([GridLength::Star(1.0)])
-        .children((backdrop, title_bar, body, handle))
+        .children(layers)
         .into()
 }
 
 fn navigation(props: ShellProps<'_>) -> View {
     let l10n = props.l10n;
     let selected_tag = props.selected_tag;
-    let to_nav_item = |(tag, label, icon): (&'static str, String, View)| {
-        (
+    let to_nav_item = |(tag, label, icon): (&'static str, String, Icon)| {
+        keyed(
             tag,
             NavigationViewItem::new()
                 .tag(tag)
@@ -136,12 +114,13 @@ fn navigation(props: ShellProps<'_>) -> View {
     };
     let nav_items: Vec<_> = nav_items(l10n).into_iter().map(to_nav_item).collect();
     let footer_nav_items: Vec<_> = footer_nav_items(l10n).into_iter().map(to_nav_item).collect();
+    let on_select = props.on_select.clone();
 
     NavigationView::new()
-        .menu_items(nav_items)
-        .footer_menu_items(footer_nav_items)
+        .keyed_menu_items(nav_items)
+        .keyed_footer_menu_items(footer_nav_items)
         .pane_footer(metrics_pane(&props))
-        .on_selected_tag_changed(props.on_select.clone())
+        .on_selected_tag_changed(move |tag: Option<Rc<str>>| on_select.call(tag.map(|tag| tag.to_string())))
         .is_pane_open(props.open)
         .pane_display_mode(NavigationViewPaneDisplayMode::Left)
         .is_pane_toggle_button_visible(true)
@@ -154,8 +133,8 @@ fn navigation(props: ShellProps<'_>) -> View {
         .into()
 }
 
-fn sidebar_resize_handle(props: &ShellProps<'_>) -> View {
-    if props.open {
+fn sidebar_resize_handle(props: &ShellProps<'_>) -> Option<View> {
+    props.open.then(|| {
         Border::new()
             .margin(Thickness::new(
                 props.width - RESIZE_HANDLE_WIDTH / 2.0,
@@ -172,7 +151,5 @@ fn sidebar_resize_handle(props: &ShellProps<'_>) -> View {
                     .build(),
             )
             .into()
-    } else {
-        View::empty()
-    }
+    })
 }

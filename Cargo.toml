@@ -17,19 +17,19 @@ members = [
 
 [workspace.dependencies]
 # --- guinea ---
-guinea = "0.21.0"
-guinea-meta-build = "0.21.0"
+guinea = "0.22.0"
+guinea-meta-build = "0.22.0"
 
-guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.19.1" }
-guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.19.1" }
-guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.19.1" }
-guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.19.1" }
-guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.19.1" }
-guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.19.1" }
+guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.21.0" }
+guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.21.0" }
+guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.21.0" }
+guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.21.0" }
+guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.21.0" }
+guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.21.0" }
 
 # --- guicons ---
-guicons = "0.8.0"
-guicons-build = "0.8.0"
+guicons = "0.11.0"
+guicons-build = "0.11.0"
 
 # --- amethystate ---
 # Same minor as guinea-plugin-store's own amethystate dep: the store is a thin
@@ -38,9 +38,9 @@ amethystate = "0.23.3"
 amethystate-guinea = "0.23.3"
 
 # --- windows-rs ---
-windows-reactor = { package = "windows-reactor-pre", version = "0.100" }
+windows-reactor = { package = "windows-reactor-pre", version = "0.101" }
 windows-reactor-setup = "0.100"
-windows-canvas = { package = "windows-canvas-pre", version = "0.100", features = ["reactor"] }
+windows-canvas = { package = "windows-canvas-pre", version = "0.101", features = ["reactor"] }
 windows-collections = "0.100"
 windows-core = "0.100"
 windows-reference = "0.100"
@@ -110,3 +110,7 @@ codegen-units = 256
 
 [profile.dev.package."*"]
 debug = 0
+
+[patch.crates-io]
+amethystate = { path = "../amethystate/crates/main/amethystate" }
+amethystate-guinea = { path = "../amethystate/crates/adapters/amethystate-guinea" }

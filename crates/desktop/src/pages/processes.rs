@@ -49,7 +49,7 @@ impl Page for Processes {
         self.0.update(message);
     }
 
-    fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
+    fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
         let (state, dispatch) = cx.read::<ProcessesState, _>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
@@ -303,7 +303,7 @@ mod tests {
 
     fn end_task_enabled(page: &Mounted<'_, Processes>) -> bool {
         let button = page.find(ProcessesMark::EndTask).expect("End task is on the page");
-        page.property(button, PropertyId::ButtonIsEnabled) != Some(&PropertyValue::Bool(false))
+        page.property(button, PropertyId::IsEnabled) != Some(&PropertyValue::Bool(false))
     }
 
     fn is_marked_selected(item: &Node) -> bool {
@@ -315,7 +315,7 @@ mod tests {
     fn plate(page: &mut Mounted<'_, Processes>, index: usize) -> Option<PropertyValue> {
         let row = page.item(index).tree();
         let plate = row.children.first()?.children.first()?.at;
-        page.at(plate).property(PropertyId::BorderBackground).cloned()
+        page.at(plate).property(PropertyId::Background).cloned()
     }
 
     fn painted(page: &mut Mounted<'_, Processes>) -> Vec<String> {
@@ -337,7 +337,7 @@ mod tests {
             .item_where(|item| label(item) == wanted)
             .find(ProcessesMark::Chevron)
             .expect("the row has a chevron");
-        page.property(chevron, PropertyId::BorderBackground).is_some()
+        page.property(chevron, PropertyId::Background).is_some()
     }
 
     fn marked_selected(page: &mut Mounted<'_, Processes>) -> Vec<String> {
@@ -731,24 +731,24 @@ mod tests {
         let h = &*h;
         let mut page = mount(h);
         let _service = GlobalEventBus::answer_fn(|_: WindowsActionRequest| ActionOutcome::Denied);
-        assert_eq!(tip(&page, PropertyId::TeachingTipIsOpen), Some(PropertyValue::Bool(false)));
+        assert_eq!(tip(&page, PropertyId::IsOpen), Some(PropertyValue::Bool(false)));
 
         select(&mut page, "notepad.exe");
         page.click(ProcessesMark::EndTask).settle();
         page.settle();
-        assert_eq!(tip(&page, PropertyId::TeachingTipIsOpen), Some(PropertyValue::Bool(true)));
-        let Some(PropertyValue::Str(title)) = tip(&page, PropertyId::TeachingTipTitle) else {
+        assert_eq!(tip(&page, PropertyId::IsOpen), Some(PropertyValue::Bool(true)));
+        let Some(PropertyValue::String(title)) = tip(&page, PropertyId::Title) else {
             panic!("the tip has a title");
         };
         assert_eq!(title.replace(['\u{2068}', '\u{2069}'], ""), "Couldn’t end notepad.exe");
         assert_eq!(
-            tip(&page, PropertyId::TeachingTipSubtitle),
-            Some(PropertyValue::Str("Access is denied.".into()))
+            tip(&page, PropertyId::Subtitle),
+            Some(PropertyValue::String("Access is denied.".into()))
         );
 
         h.dispatch::<ProcessesState>().emit(DismissFailure);
         page.settle();
-        assert_eq!(tip(&page, PropertyId::TeachingTipIsOpen), Some(PropertyValue::Bool(false)));
+        assert_eq!(tip(&page, PropertyId::IsOpen), Some(PropertyValue::Bool(false)));
         assert_eq!(h.state::<ProcessesState>().failure, None);
     }
 
@@ -1028,7 +1028,7 @@ mod tests {
         }
         let backdrop = path.last().unwrap();
         assert!(
-            page.property(backdrop.at, PropertyId::BorderBackground).is_some(),
+            page.property(backdrop.at, PropertyId::Background).is_some(),
             "a layer without a background lets the pointer and the wheel through"
         );
     }
@@ -1296,7 +1296,7 @@ mod tests {
 
     fn disabled(page: &Mounted<'_, Processes>, mark: ProcessesMark) -> bool {
         let node = page.find(mark).unwrap_or_else(|| panic!("{mark:?} is on the page"));
-        page.property(node, PropertyId::ButtonIsEnabled) == Some(&PropertyValue::Bool(false))
+        page.property(node, PropertyId::IsEnabled) == Some(&PropertyValue::Bool(false))
     }
 
     #[guinea::test(iterations = 4)]

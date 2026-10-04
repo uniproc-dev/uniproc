@@ -1,4 +1,5 @@
 use windows::UI::ViewManagement::{UIColorType, UISettings};
+use windows_canvas::ColorF;
 use windows_reactor::{Color, ColorScheme};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -98,6 +99,10 @@ impl Accent {
         g: 120,
         b: 212,
     };
+}
+
+pub fn color_f(color: Color) -> ColorF {
+    ColorF::from_rgba8(color.r, color.g, color.b, color.a)
 }
 
 pub fn accent_color() -> Color {

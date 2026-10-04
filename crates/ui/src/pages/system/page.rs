@@ -3,7 +3,7 @@ use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use guinea::Mark;
-use windows_reactor::{Callback, ChildrenControl, KeyedView, LayoutControl, StackPanel, Thickness, View};
+use windows_reactor::{Callback, KeyedView, StackPanel, Thickness, View};
 
 use super::components::tool_card::{tool_card, CardPlace};
 use super::marks::{SystemMark, ToolMark};
@@ -33,7 +33,7 @@ fn favourites(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, palette: Pa
         StackPanel::new()
             .mark(SystemMark::Favourites)
             .spacing(setting::CardSpacing)
-            .children((View::keyed_fragment(cards),))
+            .keyed_children(cards)
             .into()
     };
     settings_section(l10n.system_section_favourites(), (content,))
@@ -49,7 +49,7 @@ pub fn system_view(
     let tools = link_card(
         SystemMark::Tools,
         LinkCard {
-            icon: Some(icon!(toolbox).size(setting::Icon).build()),
+            icon: Some(icon!(toolbox).size(setting::Icon).build_element()),
             title: l10n.system_tools(),
             description: Some(l10n.system_tools_description()),
             trailing: Trailing::Chevron,

@@ -1,10 +1,9 @@
 use app_contracts::features::system::{SystemState, SystemTool, ToolGroup};
 use guinea::prelude::Dispatch;
-use guinea::Mark;
-use windows_reactor::{Callback, KeyedView, LayoutControl, Thickness, View};
+use windows_reactor::{Callback, Thickness, View};
 
 use super::components::tool_card::{group_title, tool_card, CardPlace};
-use super::marks::{SystemMark, ToolMark};
+use super::marks::SystemMark;
 use crate::l10n::L10n;
 use crate::theme::{setting, space, Palette};
 use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
@@ -29,20 +28,19 @@ fn group_section(props: &ToolsProps<'_>, group: ToolGroup) -> View {
         palette,
         ..
     } = *props;
-    let hint = match group {
-        ToolGroup::Sysinternals => caption(l10n.system_sysinternals_hint())
-            .foreground(palette.secondary_text)
-            .margin(Thickness::new(setting::CaptionInset, 0.0, 0.0, space::Control))
-            .into(),
-        _ => View::empty(),
-    };
-    let cards = SystemTool::in_group(group).map(|tool| {
-        KeyedView::new(
-            ToolMark(tool).name(),
-            tool_card(state, dispatch, l10n, palette, tool, CardPlace::Catalog),
-        )
-    });
-    settings_section(group_title(l10n, group), (hint, View::keyed_fragment(cards)))
+    let mut content: Vec<View> = Vec::new();
+    if group == ToolGroup::Sysinternals {
+        content.push(
+            caption(l10n.system_sysinternals_hint())
+                .foreground(palette.secondary_text)
+                .margin(Thickness::new(setting::CaptionInset, 0.0, 0.0, space::Control))
+                .into(),
+        );
+    }
+    content.extend(
+        SystemTool::in_group(group).map(|tool| tool_card(state, dispatch, l10n, palette, tool, CardPlace::Catalog)),
+    );
+    settings_section(group_title(l10n, group), content)
 }
 
 pub fn tools_view(props: ToolsProps<'_>) -> View {

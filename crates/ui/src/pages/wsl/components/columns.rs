@@ -1,10 +1,7 @@
 use app_contracts::features::settings::ByteUnits;
 use app_contracts::features::wsl::{AgentPresence, DistroRow, LinuxMachineSummary};
 use crate::widgets::table::ColumnSpec;
-use windows_reactor::{
-    Border, ChildrenControl, Color, ContentControl, LayoutControl, Orientation, StackPanel,
-    Thickness, VerticalAlignment, View,
-};
+use windows_reactor::{Border, Color, Orientation, StackPanel, Thickness, VerticalAlignment, View};
 
 use crate::format;
 use crate::l10n::L10n;
@@ -57,13 +54,14 @@ fn agent_dot(presence: AgentPresence, palette: Palette) -> View {
         .corner_radius(AgentDot::Size / 2.0)
         .background(color)
         .vertical_alignment(VerticalAlignment::Center)
-        .content(View::empty())
+        .into()
 }
 
 fn name_header(l10n: &L10n) -> View {
     Border::new()
         .padding(Thickness::new(NameHeader::TextInset, 0.0, 0.0, 0.0))
         .content(text(l10n.wsl_col_distribution()))
+        .into()
 }
 
 fn metric_column(

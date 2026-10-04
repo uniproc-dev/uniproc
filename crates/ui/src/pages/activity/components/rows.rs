@@ -6,8 +6,8 @@ use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, Callback, ChildrenControl, Color, ContentControl, Grid, GridChildExt, GridLength, LayoutControl, Orientation, PointerEventInfo, StackPanel, TextTrimming, TextWrapping, Thickness,
-    VerticalAlignment, View,
+    keyed, Border, Callback, Color, Grid, GridLength, KeyedView, Orientation, PointerEventInfo, StackPanel,
+    TextTrimming, TextWrapping, Thickness, VerticalAlignment, View,
 };
 
 use super::super::marks::ActivityMark;
@@ -43,23 +43,20 @@ fn key(instance: ProcessInstance) -> String {
 }
 
 pub fn rows(list: Rows) -> View {
-    let mut children: Vec<(String, View)> = list
+    let mut children: Vec<KeyedView> = list
         .rows
         .iter()
-        .map(|row| (key(row.key()), row_view(&list, row)))
+        .map(|row| keyed(key(row.key()), row_view(&list, row)))
         .collect();
     if list.earlier > 0 {
-        children.push((
-            "earlier".into(),
+        children.push(keyed(
+            "earlier",
             caption(list.l10n.activity_earlier(list.earlier as i64))
                 .foreground(list.palette.secondary_text)
-                .margin(Thickness::uniform(space::Cell))
-                .into(),
+                .margin(Thickness::uniform(space::Cell)),
         ));
     }
-    StackPanel::new()
-        .mark(ActivityMark::Rows)
-        .children((View::keyed_fragment(children),))
+    StackPanel::new().mark(ActivityMark::Rows).keyed_children(children).into()
 }
 
 fn centered(content: impl Into<String>) -> View {
@@ -75,12 +72,13 @@ fn secondary(content: impl Into<String>, palette: Palette) -> View {
         .into()
 }
 
-fn spaced(parts: Vec<(String, View)>) -> View {
+fn spaced(parts: Vec<KeyedView>) -> View {
     StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(space::Control)
         .vertical_alignment(VerticalAlignment::Center)
-        .children((View::keyed_fragment(parts),))
+        .keyed_children(parts)
+        .into()
 }
 
 fn line(at: String, glyph: View, main: View, trailing: View, palette: Palette) -> View {
@@ -107,6 +105,7 @@ fn line(at: String, glyph: View, main: View, trailing: View, palette: Palette) -
                 .vertical_alignment(VerticalAlignment::Center)
                 .content(trailing),
         ))
+        .into()
 }
 
 fn toggled(content: impl Into<View>, key: ProcessInstance, on_toggle: &Callback<ProcessInstance>) -> View {
@@ -115,10 +114,9 @@ fn toggled(content: impl Into<View>, key: ProcessInstance, on_toggle: &Callback<
         .mark(ActivityMark::Row)
         .background(Color::transparent())
         .padding(Thickness::xy(space::Cell, 0.0))
-        .on_pointer_released(Callback::new(move |_: PointerEventInfo| {
-            let _ = on_toggle.call(key);
-        }))
+        .on_pointer_released(move |_: PointerEventInfo| on_toggle.call(key))
         .content(content)
+        .into()
 }
 
 fn joined(names: &[std::sync::Arc<str>], l10n: &L10n) -> String {
@@ -139,17 +137,16 @@ pub fn launcher_text(came: &Came, l10n: &L10n) -> Option<String> {
 }
 
 fn came_main(came: &Came, l10n: &L10n, palette: Palette) -> View {
-    let mut parts: Vec<(String, View)> = vec![("name".into(), centered(came.name.to_string()))];
+    let mut parts = vec![keyed("name", centered(came.name.to_string()))];
     if let Some(from) = launcher_text(came, l10n) {
-        parts.push(("from".into(), secondary(from, palette)));
+        parts.push(keyed("from", secondary(from, palette)));
     }
     if came.first_seen {
-        parts.push((
-            "first-seen".into(),
+        parts.push(keyed(
+            "first-seen",
             caption(l10n.activity_first_seen())
                 .foreground(accent_color())
-                .vertical_alignment(VerticalAlignment::Center)
-                .into(),
+                .vertical_alignment(VerticalAlignment::Center),
         ));
     }
     spaced(parts)
@@ -163,17 +160,19 @@ fn came_view(list: &Rows, came: &Came) -> View {
     };
     let head = line(
         format::clock(came.at),
-        icon!(came).size(size::Icon).build(),
+        icon!(came).size(size::Icon).build_element(),
         came_main(came, l10n, *palette),
         secondary(trailing, *palette),
         *palette,
     );
     let body = if list.expanded.contains(&came.key) {
-        StackPanel::new().children((
-            head,
-            facts(came, l10n, *palette, Line::Indent),
-            pick_buttons(&came.picks, l10n, &list.on_only, &list.on_hide, Line::Indent),
-        ))
+        StackPanel::new()
+            .children((
+                head,
+                facts(came, l10n, *palette, Line::Indent),
+                pick_buttons(&came.picks, l10n, &list.on_only, &list.on_hide, Line::Indent),
+            ))
+            .into()
     } else {
         head
     };
@@ -182,22 +181,22 @@ fn came_view(list: &Rows, came: &Came) -> View {
 
 fn went_view(list: &Rows, went: &Went) -> View {
     let Rows { l10n, palette, .. } = list;
-    let parts: Vec<(String, View)> = match &went.name {
-        Some(name) => vec![("name".into(), centered(name.to_string()))],
+    let parts = match &went.name {
+        Some(name) => vec![keyed("name", centered(name.to_string()))],
         None => vec![
-            ("name".into(), centered(l10n.activity_unknown_process(i64::from(went.key.pid)))),
-            ("why".into(), secondary(l10n.activity_unknown_process_why(), *palette)),
+            keyed("name", centered(l10n.activity_unknown_process(i64::from(went.key.pid)))),
+            keyed("why", secondary(l10n.activity_unknown_process_why(), *palette)),
         ],
     };
     let head = line(
         format::clock(went.exit.at),
-        icon!(went).size(size::Icon).build(),
+        icon!(went).size(size::Icon).build_element(),
         spaced(parts),
         secondary(went.lived.map(|lived| lasted(l10n, lived)).unwrap_or_default(), *palette),
         *palette,
     );
     let body = if list.expanded.contains(&went.key) {
-        StackPanel::new().children((head, went_facts(went, l10n, *palette, Line::Indent)))
+        StackPanel::new().children((head, went_facts(went, l10n, *palette, Line::Indent))).into()
     } else {
         head
     };
@@ -222,28 +221,29 @@ fn member_view(came: &Came, l10n: &L10n, palette: Palette) -> View {
         .margin(Thickness::new(Line::Icon, 0.0, 0.0, 0.0))
         .content(line(
             format::clock(came.at),
-            icon!(came).size(size::Icon).build(),
+            icon!(came).size(size::Icon).build_element(),
             centered(came.name.to_string()),
             secondary(trailing, palette),
             palette,
         ))
+        .into()
 }
 
 fn series_view(list: &Rows, series: &Series) -> View {
     let Rows { l10n, palette, .. } = list;
     let open = list.expanded.contains(&series.key);
     let chevron = if open {
-        icon!(chevron_down_regular).size(size::Icon).build()
+        icon!(chevron_down_regular).size(size::Icon).build_element()
     } else {
-        icon!(chevron_right_regular).size(size::Icon).build()
+        icon!(chevron_right_regular).size(size::Icon).build_element()
     };
     let head = line(
         format::clock(series.at),
-        icon!(burst).size(size::Icon).build(),
+        icon!(burst).size(size::Icon).build_element(),
         spaced(vec![
-            ("chevron".into(), chevron),
-            ("launcher".into(), centered(series.launcher.to_string())),
-            ("names".into(), secondary(series_names(series, l10n), *palette)),
+            keyed("chevron", chevron),
+            keyed("launcher", centered(series.launcher.to_string())),
+            keyed("names", secondary(series_names(series, l10n), *palette)),
         ]),
         secondary(
             l10n.activity_series_summary(series.count as i64, series.went as i64),
@@ -252,16 +252,18 @@ fn series_view(list: &Rows, series: &Series) -> View {
         *palette,
     );
     let body = if open {
-        let members: Vec<(String, View)> = series
+        let members: Vec<KeyedView> = series
             .members
             .iter()
-            .map(|came| (key(came.key), member_view(came, l10n, *palette)))
+            .map(|came| keyed(key(came.key), member_view(came, l10n, *palette)))
             .collect();
-        StackPanel::new().children((
-            head,
-            pick_buttons(&series.picks, l10n, &list.on_only, &list.on_hide, Line::Indent),
-            StackPanel::new().children((View::keyed_fragment(members),)),
-        ))
+        StackPanel::new()
+            .children((
+                head,
+                pick_buttons(&series.picks, l10n, &list.on_only, &list.on_hide, Line::Indent),
+                StackPanel::new().keyed_children(members),
+            ))
+            .into()
     } else {
         head
     };

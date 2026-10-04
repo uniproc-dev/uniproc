@@ -5,13 +5,13 @@ use guinea_widgets::chart::{Chart, ChartGrid, HoverInfo, Interpolation, LineChar
 use guinea_widgets::color::{hex, hex_alpha};
 use windows_canvas::ColorF;
 use windows_reactor::{
-    Border, ChildrenControl, Color, ContentControl, Grid, GridChildExt, GridLength, HorizontalAlignment,
-    LayoutControl, StackPanel, ThemeBrush, Thickness, VerticalAlignment, View,
+    Border, Color, Grid, GridLength, HorizontalAlignment, StackPanel, ThemeBrush, Thickness, VerticalAlignment,
+    View,
 };
 
 use crate::format::{self, Rate};
 use crate::l10n::L10n;
-use crate::theme::{radius, space, Palette};
+use crate::theme::{color_f, radius, space, Palette};
 use crate::widgets::text::caption;
 
 pub fn chart_title(l10n: &L10n, chart: SidebarChart) -> String {
@@ -168,8 +168,7 @@ pub fn metric_mini_bar(palette: Palette, chart: SidebarChart, level: f32, warns:
         .height(MiniBar::Height * (level as f64 / 100.0))
         .background(fill)
         .corner_radius(MiniBar::Width / 2.0)
-        .vertical_alignment(VerticalAlignment::Bottom)
-        .content(View::empty());
+        .vertical_alignment(VerticalAlignment::Bottom);
 
     Border::new()
         .width(MiniBar::Width)
@@ -179,10 +178,7 @@ pub fn metric_mini_bar(palette: Palette, chart: SidebarChart, level: f32, warns:
         .horizontal_alignment(HorizontalAlignment::Center)
         .vertical_alignment(VerticalAlignment::Bottom)
         .content(bar)
-}
-
-fn color_f(color: Color) -> ColorF {
-    ColorF::from_rgba8(color.r, color.g, color.b, color.a)
+        .into()
 }
 
 pub struct MetricChart<'a> {
@@ -255,19 +251,17 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
         Some(detail) => l10n.metric_chart_reading_detail(reading, detail),
         None => reading,
     };
-    let title = Grid::new()
-        .columns([GridLength::Auto, GridLength::Star(1.0)])
-        .children((
-            caption(chart_title(l10n, kind)).grid_column(0),
-            match bound.or(corner) {
-                Some(corner) => caption(corner)
-                    .foreground(palette.tertiary_text)
-                    .horizontal_alignment(HorizontalAlignment::Right)
-                    .grid_column(1)
-                    .into(),
-                None => View::empty(),
-            },
-        ));
+    let mut heading: Vec<View> = vec![caption(chart_title(l10n, kind)).grid_column(0).into()];
+    if let Some(corner) = bound.or(corner) {
+        heading.push(
+            caption(corner)
+                .foreground(palette.tertiary_text)
+                .horizontal_alignment(HorizontalAlignment::Right)
+                .grid_column(1)
+                .into(),
+        );
+    }
+    let title = Grid::new().columns([GridLength::Auto, GridLength::Star(1.0)]).children(heading);
     let label = StackPanel::new()
         .margin(Thickness::xy(space::Header, space::Compact))
         .vertical_alignment(VerticalAlignment::Top)
@@ -280,6 +274,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
         .border_thickness(Thickness::uniform(1.0))
         .corner_radius(radius::Control)
         .content(Grid::new().children((chart.view(|_: Option<HoverInfo>| {}), label)))
+        .into()
 }
 
 #[cfg(test)]

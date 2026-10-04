@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use app_contracts::features::activity::{
-    ActivityRow, ActivityView, Area, Came, Clock, Dot, Exit, Filter, Launcher, Level, Pick, Scatter, Series, Span,
+    ActivityRow, ActivityView, Area, Came, Clock, Dot, Exit, Filter, Launcher, Lived, Pick, Scatter, Series, Span,
     Went,
 };
 use app_contracts::features::agents::{
@@ -30,31 +30,6 @@ impl Pace {
     const Shown: usize = 200;
     const Shells: [&str; 5] = ["cmd.exe", "powershell.exe", "pwsh.exe", "wscript.exe", "cscript.exe"];
     const ConsoleHost: &str = "conhost.exe";
-}
-
-struct Lifetime;
-
-#[expect(non_upper_case_globals)]
-impl Lifetime {
-    const Shortest: u64 = Ticks::Second / 10;
-    const Longest: u64 = 60 * Ticks::Minute;
-    const Finite: f32 = 0.88;
-    const Alive: f32 = 1.0;
-    const Orphan: f32 = -0.08;
-    const Levels: [u64; 6] = [
-        Ticks::Second / 10,
-        Ticks::Second,
-        10 * Ticks::Second,
-        Ticks::Minute,
-        10 * Ticks::Minute,
-        60 * Ticks::Minute,
-    ];
-}
-
-fn lived_y(lived: u64) -> f32 {
-    let decades = (Lifetime::Longest as f64 / Lifetime::Shortest as f64).log10();
-    let at = (lived.max(Lifetime::Shortest) as f64 / Lifetime::Shortest as f64).log10() / decades;
-    at.min(1.0) as f32 * Lifetime::Finite
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -331,43 +306,39 @@ impl Frame {
     }
 }
 
-fn came_y(log: &Log, started: &Started) -> f32 {
+fn came_lived(log: &Log, started: &Started) -> Lived {
     log.ended
         .get(&started.came.instance)
-        .map_or(Lifetime::Alive, |went| lived_y(went.at.saturating_sub(started.came.at)))
+        .map_or(Lived::Running, |went| Lived::For(went.at.saturating_sub(started.came.at)))
 }
 
-fn went_y(log: &Log, went: &ProcessWent) -> f32 {
+fn went_lived(log: &Log, went: &ProcessWent) -> Lived {
     log.started
         .get(&went.instance)
-        .map_or(Lifetime::Orphan, |started| lived_y(went.at.saturating_sub(started.came.at)))
+        .map_or(Lived::Unknown, |started| Lived::For(went.at.saturating_sub(started.came.at)))
 }
 
 fn scatter(log: &Log, frame: &Frame, filter: &Filter, clock: fn(u64) -> Clock) -> Scatter {
     let mut dots = Vec::new();
-    let mut orphans = Vec::new();
     let span = (frame.start, Kind::Came, ProcessInstance::default())..(frame.end, Kind::Came, ProcessInstance::default());
     for (at, kind, instance) in log.timeline.range(span) {
         match kind {
             Kind::Came => {
                 if let Some(started) = log.started.get(instance).filter(|started| !log.hosted(started)) {
-                    let y = came_y(log, started);
                     dots.push(Dot {
                         key: *instance,
                         at: *at,
-                        y,
-                        alive: y == Lifetime::Alive,
+                        lived: came_lived(log, started),
                         faint: log.routine(started) || !admitted(filter, |pick| started.has(pick)),
                     });
                 }
             }
             Kind::Went => {
                 if let Some(went) = log.ended.get(instance).filter(|_| !log.started.contains_key(instance)) {
-                    orphans.push(Dot {
+                    dots.push(Dot {
                         key: *instance,
                         at: *at,
-                        y: Lifetime::Orphan,
-                        alive: false,
+                        lived: Lived::Unknown,
                         faint: !admitted(filter, |pick| log.went_has(went, pick)),
                     });
                 }
@@ -376,9 +347,6 @@ fn scatter(log: &Log, frame: &Frame, filter: &Filter, clock: fn(u64) -> Clock) -
     }
     Scatter {
         dots,
-        orphans,
-        levels: Lifetime::Levels.iter().map(|&lived| Level { y: lived_y(lived), lived }).collect(),
-        alive_y: Lifetime::Alive,
         now: frame.end - 1,
         now_clock: clock(frame.end - 1),
         length: frame.length(),
@@ -514,21 +482,21 @@ struct Walk<'a> {
     log: &'a Log,
     filter: &'a Filter,
     text: String,
-    band: Option<(f32, f32)>,
+    band: Option<(Lived, Lived)>,
     rows: Vec<(u64, Light)>,
     series: HashMap<(ProcessInstance, Arc<str>), usize>,
 }
 
 impl Walk<'_> {
-    fn held(&self, y: f32) -> bool {
-        self.band.is_none_or(|(bottom, top)| (bottom..=top).contains(&y))
+    fn held(&self, lived: Lived) -> bool {
+        self.band.is_none_or(|(shortest, longest)| (shortest..=longest).contains(&lived))
     }
 
     fn admits_came(&self, started: &Started) -> bool {
         self.filter.came
             && (!self.filter.new_only || started.first_seen)
             && !self.log.hosted(started)
-            && self.held(came_y(self.log, started))
+            && self.held(came_lived(self.log, started))
             && admitted(self.filter, |pick| started.has(pick))
             && [&*started.name, &*started.came.command_line, &*started.came.image_path]
                 .iter()
@@ -539,7 +507,7 @@ impl Walk<'_> {
         self.filter.went
             && !self.filter.new_only
             && !self.log.started.get(&went.instance).is_some_and(|started| self.log.hosted(started))
-            && self.held(went_y(self.log, went))
+            && self.held(went_lived(self.log, went))
             && admitted(self.filter, |pick| self.log.went_has(went, pick))
             && contains(went_name(self.log, went).as_deref().unwrap_or_default(), &self.text)
     }
@@ -637,7 +605,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
         log,
         filter: ask.filter,
         text: ask.filter.text.trim().to_lowercase(),
-        band: ask.area.map(|area| (area.bottom, area.top)),
+        band: ask.area.map(|area| (area.shortest, area.longest)),
         rows: Vec::new(),
         series: HashMap::new(),
     };
@@ -1161,10 +1129,6 @@ mod tests {
         *found.unwrap()
     }
 
-    fn near(a: f32, b: f32) -> bool {
-        (a - b).abs() < 0.001
-    }
-
     #[test]
     fn each_process_of_the_hour_is_a_dot_placed_by_when_it_came_and_how_long_it_lived() {
         let mut log = Log::default();
@@ -1178,21 +1142,16 @@ mod tests {
         ]);
 
         let scatter = look(&log, &Filter::default(), None).scatter;
-        assert_eq!(scatter.dots.len(), 3, "{scatter:#?}");
+        assert_eq!(scatter.dots.len(), 4, "{scatter:#?}");
         assert_eq!((scatter.now, scatter.length), (at(59, 59), HOUR));
         assert_eq!(scatter.now_clock, utc(at(59, 59)));
         let (short, long, alive) = (dot(&scatter, 20), dot(&scatter, 21), dot(&scatter, 22));
         assert_eq!((short.at, long.at, alive.at), (at(15, 0), at(30, 0), at(45, 0)));
-        assert!(short.y < long.y && long.y < alive.y, "{scatter:#?}");
-        assert!(alive.alive && !short.alive && !long.alive);
-        assert_eq!(alive.y, scatter.alive_y);
-        let level = |lived: u64| scatter.levels.iter().find(|level| level.lived == lived).map(|level| level.y);
-        assert!(level(Ticks::Second).is_some_and(|y| near(y, short.y)), "{scatter:#?}");
-        let [orphan] = scatter.orphans.as_slice() else {
-            panic!("one exit from before the history: {scatter:#?}");
-        };
-        assert_eq!(orphan.key, id(30));
-        assert!(orphan.at == at(50, 0) && orphan.y < 0.0, "{orphan:?}");
+        assert_eq!(short.lived, Lived::For(Ticks::Second));
+        assert_eq!(long.lived, Lived::For(10 * Ticks::Minute));
+        assert_eq!(alive.lived, Lived::Running);
+        let orphan = dot(&scatter, 30);
+        assert_eq!((orphan.at, orphan.lived), (at(50, 0), Lived::Unknown));
     }
 
     #[test]
@@ -1222,12 +1181,11 @@ mod tests {
             came(22, 1, "later.exe", at(40, 0)),
             went(22, at(40, 1)),
         ]);
-        let short = dot(&look(&log, &Filter::default(), None).scatter, 20);
         let area = Area {
             from: at(10, 0),
             to: at(20, 0),
-            bottom: 0.0,
-            top: short.y + 0.01,
+            shortest: Lived::For(0),
+            longest: Lived::For(2 * Ticks::Second),
         };
 
         let view = look(&log, &Filter::default(), Some(area));

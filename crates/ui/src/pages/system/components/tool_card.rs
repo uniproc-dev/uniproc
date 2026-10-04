@@ -3,8 +3,7 @@ use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Button, ButtonStyle, ChildrenControl, ContentControl, Grid, Orientation, ResourceOverrides, StackPanel, Thickness,
-    TooltipExt, View,
+    Button, ButtonStyle, Grid, Orientation, ResourceOverrides, StackPanel, Thickness, TooltipExt, View,
 };
 
 use super::super::marks::{SystemMark, ToolMark};
@@ -49,7 +48,7 @@ fn tool_icon(tool: SystemTool) -> View {
         SystemTool::RamMap => icon!(tool_rammap),
         SystemTool::VmMap => icon!(tool_vmmap),
     };
-    icon.size(setting::Icon).build()
+    icon.size(setting::Icon).build_element()
 }
 
 fn tool_words(l10n: &L10n, tool: SystemTool) -> (String, String) {
@@ -130,7 +129,7 @@ fn pin_button(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, tool: Syste
     } else {
         (icon!(pin), l10n.system_pin())
     };
-    card_button(SystemMark::Pin, glyph.size(size::Icon).build(), hint, move || {
+    card_button(SystemMark::Pin, glyph.size(size::Icon).build_element(), hint, move || {
         dispatch.emit(PinTool(tool, !pinned))
     })
 }
@@ -139,21 +138,21 @@ fn forget_button(dispatch: &Dispatch, l10n: &L10n, tool: SystemTool) -> View {
     let dispatch = dispatch.clone();
     card_button(
         SystemMark::Forget,
-        icon!(dismiss).size(size::Icon).build(),
+        icon!(dismiss).size(size::Icon).build_element(),
         l10n.system_forget(),
         move || dispatch.emit(ForgetTool(tool)),
     )
 }
 
 fn accessory(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, tool: SystemTool, place: CardPlace) -> View {
-    let forget = match place {
-        CardPlace::Favourites => forget_button(dispatch, l10n, tool),
-        CardPlace::Catalog => View::empty(),
-    };
+    let mut buttons = vec![pin_button(state, dispatch, l10n, tool)];
+    if place == CardPlace::Favourites {
+        buttons.push(forget_button(dispatch, l10n, tool));
+    }
     StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(space::Compact)
-        .children((pin_button(state, dispatch, l10n, tool), forget))
+        .children(buttons)
         .into()
 }
 

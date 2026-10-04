@@ -1,8 +1,6 @@
 use app_contracts::features::activity::{Came, Launcher, Went};
 use guinea::winui::MarkExt;
-use windows_reactor::{
-    ChildrenControl, Grid, GridChildExt, GridLength, LayoutControl, TextWrapping, Thickness, View,
-};
+use windows_reactor::{keyed, Grid, GridLength, KeyedView, TextWrapping, Thickness, View};
 
 use super::super::marks::ActivityMark;
 use super::lasted::lasted;
@@ -11,26 +9,24 @@ use crate::l10n::L10n;
 use crate::theme::{space, Palette};
 use crate::widgets::text::caption;
 
-fn fact(at: usize, label: String, value: String, palette: Palette) -> [(String, View); 2] {
+fn fact(at: usize, label: String, value: String, palette: Palette) -> [KeyedView; 2] {
     [
-        (
+        keyed(
             format!("{at}/label"),
             caption(label)
                 .grid_row(at as i32)
                 .grid_column(0)
                 .foreground(palette.secondary_text)
-                .margin(Thickness::new(0.0, 0.0, space::Section, space::Compact))
-                .into(),
+                .margin(Thickness::new(0.0, 0.0, space::Section, space::Compact)),
         ),
-        (
+        keyed(
             format!("{at}/value"),
             caption(value)
                 .grid_row(at as i32)
                 .grid_column(1)
                 .text_wrapping(TextWrapping::Wrap)
                 .is_text_selection_enabled(true)
-                .margin(Thickness::new(0.0, 0.0, 0.0, space::Compact))
-                .into(),
+                .margin(Thickness::new(0.0, 0.0, 0.0, space::Compact)),
         ),
     ]
 }
@@ -102,7 +98,7 @@ pub fn went_facts(went: &Went, l10n: &L10n, palette: Palette, indent: f64) -> Vi
 
 fn table(lines: Vec<(String, String)>, palette: Palette, indent: f64) -> View {
     let rows = vec![GridLength::Auto; lines.len()];
-    let cells: Vec<(String, View)> = lines
+    let cells: Vec<KeyedView> = lines
         .into_iter()
         .enumerate()
         .flat_map(|(at, (label, value))| fact(at, label, value, palette))
@@ -112,5 +108,6 @@ fn table(lines: Vec<(String, String)>, palette: Palette, indent: f64) -> View {
         .columns([GridLength::Auto, GridLength::Star(1.0)])
         .rows(rows)
         .margin(Thickness::new(indent + space::Control, space::Compact, 0.0, space::Control))
-        .children((View::keyed_fragment(cells),))
+        .keyed_children(cells)
+        .into()
 }

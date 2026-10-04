@@ -19,7 +19,7 @@ impl Page for Settings {
 
     fn update(&mut self, _message: (), _cx: &mut UpdateCx<'_, Self>) {}
 
-    fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
+    fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
         let (state, dispatch) = cx.read::<SettingsState, _>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
@@ -68,7 +68,7 @@ mod tests {
     }
 
     fn shown_interval(page: &Mounted<'_, Settings>) -> PropertyValue {
-        value(page, SettingsMark::UpdateSpeedValue, PropertyId::NumberBoxValue)
+        value(page, SettingsMark::UpdateSpeedValue, PropertyId::Value)
     }
 
     #[guinea::test(iterations = 4)]
@@ -77,14 +77,14 @@ mod tests {
         let h = &*h;
         let page = mount(h);
 
-        assert_eq!(value(&page, SettingsMark::Theme, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(0)));
-        assert_eq!(value(&page, SettingsMark::StartPage, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(0)));
-        assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::SliderValue), PropertyValue::F64(1500.0));
-        assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::SliderMinimum), PropertyValue::F64(100.0));
-        assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::SliderMaximum), PropertyValue::F64(5000.0));
+        assert_eq!(value(&page, SettingsMark::Theme, PropertyId::SelectedIndex), PropertyValue::SelectionIndex(Some(0)));
+        assert_eq!(value(&page, SettingsMark::StartPage, PropertyId::SelectedIndex), PropertyValue::SelectionIndex(Some(0)));
+        assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::Value), PropertyValue::F64(1500.0));
+        assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::Minimum), PropertyValue::F64(100.0));
+        assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::Maximum), PropertyValue::F64(5000.0));
         assert_eq!(shown_interval(&page), PropertyValue::OptionalF64(Some(1500.0)));
-        assert_eq!(value(&page, SettingsMark::ByteUnits, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(0)));
-        assert_eq!(value(&page, SettingsMark::NetworkUnits, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(0)));
+        assert_eq!(value(&page, SettingsMark::ByteUnits, PropertyId::SelectedIndex), PropertyValue::SelectionIndex(Some(0)));
+        assert_eq!(value(&page, SettingsMark::NetworkUnits, PropertyId::SelectedIndex), PropertyValue::SelectionIndex(Some(0)));
         assert!(page.find_text("Use system setting").is_none(), "a closed choice shows no list");
     }
 
@@ -102,12 +102,12 @@ mod tests {
         dispatch.emit(SetNetworkUnits(NetworkUnits::Bytes));
         page.settle();
 
-        assert_eq!(value(&page, SettingsMark::Theme, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(2)));
-        assert_eq!(value(&page, SettingsMark::StartPage, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(3)));
-        assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::SliderValue), PropertyValue::F64(300.0));
+        assert_eq!(value(&page, SettingsMark::Theme, PropertyId::SelectedIndex), PropertyValue::SelectionIndex(Some(2)));
+        assert_eq!(value(&page, SettingsMark::StartPage, PropertyId::SelectedIndex), PropertyValue::SelectionIndex(Some(3)));
+        assert_eq!(value(&page, SettingsMark::UpdateSpeed, PropertyId::Value), PropertyValue::F64(300.0));
         assert_eq!(shown_interval(&page), PropertyValue::OptionalF64(Some(300.0)));
-        assert_eq!(value(&page, SettingsMark::ByteUnits, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(1)));
-        assert_eq!(value(&page, SettingsMark::NetworkUnits, PropertyId::ComboBoxSelectedIndex), PropertyValue::SelectionIndex(Some(1)));
+        assert_eq!(value(&page, SettingsMark::ByteUnits, PropertyId::SelectedIndex), PropertyValue::SelectionIndex(Some(1)));
+        assert_eq!(value(&page, SettingsMark::NetworkUnits, PropertyId::SelectedIndex), PropertyValue::SelectionIndex(Some(1)));
 
         let stored = stored(h);
         assert_eq!(stored.byte_units_choice(), ByteUnits::Iec);
@@ -118,7 +118,7 @@ mod tests {
     }
 
     fn ticked(page: &Mounted<'_, Settings>, chart: SidebarChart) -> PropertyValue {
-        value(page, SettingsMark::sidebar_chart(chart), PropertyId::CheckBoxIsChecked)
+        value(page, SettingsMark::sidebar_chart(chart), PropertyId::IsChecked)
     }
 
     #[guinea::test(iterations = 4)]
@@ -127,14 +127,14 @@ mod tests {
         let h = &*h;
         let mut page = mount(h);
         for chart in SidebarChart::ALL {
-            assert_eq!(ticked(&page, chart), PropertyValue::Bool(true), "{chart:?}");
+            assert_eq!(ticked(&page, chart), PropertyValue::OptionalBool(Some(true)), "{chart:?}");
         }
 
         page.click(SettingsMark::sidebar_chart(SidebarChart::Network)).settle();
         page.settle();
 
-        assert_eq!(ticked(&page, SidebarChart::Network), PropertyValue::Bool(false));
-        assert_eq!(ticked(&page, SidebarChart::Disk), PropertyValue::Bool(true));
+        assert_eq!(ticked(&page, SidebarChart::Network), PropertyValue::OptionalBool(Some(false)));
+        assert_eq!(ticked(&page, SidebarChart::Disk), PropertyValue::OptionalBool(Some(true)));
         assert!(!h.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Network));
         assert_eq!(stored(h).hidden_sidebar_charts().get(), "network");
     }

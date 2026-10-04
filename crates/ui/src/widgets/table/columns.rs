@@ -233,7 +233,7 @@ mod tests {
     fn columns() -> Vec<ColumnSpec<(), Col>> {
         [Col::Name, Col::Size, Col::Kind, Col::Date]
             .into_iter()
-            .map(|id| ColumnSpec::new(id, id.name(), 100.0, |_: &()| View::empty()))
+            .map(|id| ColumnSpec::new(id, id.name(), 100.0, |_: &()| crate::widgets::nothing()))
             .collect()
     }
 

@@ -28,7 +28,7 @@ impl Page for ProcessesSettings {
         self.0.update(message);
     }
 
-    fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
+    fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ProcessesSettingsMsg| message);
@@ -71,7 +71,7 @@ mod tests {
 
     fn expanded(page: &mut Mounted<'_, ProcessesSettings>, group: ProcessesSettingsMark) -> Option<PropertyValue> {
         let node = page.find(group)?;
-        page.property(node, PropertyId::ExpanderIsExpanded).cloned()
+        page.property(node, PropertyId::IsExpanded).cloned()
     }
 
     fn marked(node: &Node, wanted: &[&str], out: &mut Vec<String>) {
@@ -118,11 +118,11 @@ mod tests {
     }
 
     fn enabled(page: &mut Mounted<'_, ProcessesSettings>, row: impl Mark, mark: ProcessesSettingsMark) -> bool {
-        property(page, row, mark, PropertyId::ButtonIsEnabled) != Some(PropertyValue::Bool(false))
+        property(page, row, mark, PropertyId::IsEnabled) != Some(PropertyValue::Bool(false))
     }
 
     fn shown(page: &mut Mounted<'_, ProcessesSettings>, column: ProcessColumn) -> Option<PropertyValue> {
-        property(page, column, ProcessesSettingsMark::Shown, PropertyId::ToggleSwitchIsOn)
+        property(page, column, ProcessesSettingsMark::Shown, PropertyId::IsOn)
     }
 
     #[guinea::test(iterations = 4)]
@@ -161,7 +161,7 @@ mod tests {
         assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(false)));
         assert_eq!(shown(&mut page, Cpu), Some(PropertyValue::Bool(true)));
         assert_eq!(
-            property(&mut page, Name, ProcessesSettingsMark::Shown, PropertyId::ToggleSwitchIsEnabled),
+            property(&mut page, Name, ProcessesSettingsMark::Shown, PropertyId::IsEnabled),
             Some(PropertyValue::Bool(false)),
             "the name column cannot be hidden"
         );
@@ -284,7 +284,7 @@ mod tests {
         let mut page = mount(h);
         let choice = |page: &mut Mounted<'_, ProcessesSettings>| {
             let node = page.find(ProcessesSettingsMark::MemoryValues)?;
-            page.property(node, PropertyId::ComboBoxSelectedIndex).cloned()
+            page.property(node, PropertyId::SelectedIndex).cloned()
         };
         assert_eq!(choice(&mut page), Some(PropertyValue::SelectionIndex(Some(0))));
 

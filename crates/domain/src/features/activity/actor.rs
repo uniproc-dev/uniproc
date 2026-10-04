@@ -163,8 +163,8 @@ fn pick_area(this: &mut ActivityActor, PickArea(area): PickArea) {
     this.area = Some(Area {
         from: area.from.min(area.to),
         to: area.from.max(area.to),
-        bottom: area.bottom.min(area.top),
-        top: area.bottom.max(area.top),
+        shortest: area.shortest.min(area.longest),
+        longest: area.shortest.max(area.longest),
     });
     this.publish();
 }

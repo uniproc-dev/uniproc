@@ -1,8 +1,7 @@
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Button, ButtonStyle, ChildrenControl, ContentControl, LayoutControl, Orientation, ResourceOverrides,
-    StackPanel, Thickness, View,
+    Border, Button, ButtonStyle, Orientation, ResourceOverrides, StackPanel, Thickness, View,
 };
 
 use crate::theme::{opacity, space};
@@ -72,4 +71,5 @@ fn labelled_button(
         ),
         None => button.content(text(label)),
     }
+    .into()
 }

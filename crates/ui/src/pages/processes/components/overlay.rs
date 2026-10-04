@@ -1,7 +1,6 @@
 use app_contracts::features::agents::AgentConnectionState;
 use windows_reactor::{
-    Border, ChildrenControl, ContentControl, HorizontalAlignment, LayoutControl, Orientation,
-    ProgressRing, StackPanel, Thickness, VerticalAlignment, View,
+    Border, HorizontalAlignment, Orientation, ProgressRing, StackPanel, Thickness, VerticalAlignment, View,
 };
 
 use crate::l10n::L10n;
@@ -33,4 +32,5 @@ pub(crate) fn disconnected_overlay(l10n: &L10n, palette: Palette, agent: AgentCo
                     text(status),
                 )),
         )
+        .into()
 }

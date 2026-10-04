@@ -15,7 +15,7 @@ impl Layout for ProcessesArea {
         ctx.install(&ctx.require_or_default::<ProcessesDeps>())
     }
 
-    fn view(&self, cx: &mut LayoutCx<'_, Self>) -> View {
+    fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
         cx.outlet()
     }
 }

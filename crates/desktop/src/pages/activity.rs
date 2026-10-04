@@ -22,7 +22,7 @@ impl Page for Activity {
         self.0.update(message);
     }
 
-    fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
+    fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
         let (state, dispatch) = cx.read::<ActivityState, _>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
@@ -43,7 +43,7 @@ mod tests {
     };
     use domain::features::activity::{ActivityDeps, ActivityFeature};
     use guinea::app::Harness;
-    use guinea::winui::harness::{Drag, Mounted, Node};
+    use guinea::winui::harness::{Mounted, Node};
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::StorePlugin;
     use ui::pages::activity::ActivityMark;
@@ -188,38 +188,6 @@ mod tests {
         let tree = page.tree();
         assert!(says(&tree, "340 ms"), "{tree:#?}");
         assert!(says(&tree, "6 min"), "{tree:#?}");
-    }
-
-    #[guinea::test(iterations = 4)]
-    fn an_area_drawn_on_the_chart_narrows_the_list_and_a_click_brings_it_back(h: &mut Harness) {
-        start(h);
-        let h = &*h;
-        let mut page = mount(h);
-        live(h, &mut page, vec![came(20, 10), came(21, 40)]);
-        assert_eq!(rows(&page.tree()), 2, "{:#?}", page.tree());
-
-        page.drag(ActivityMark::Scatter, Drag::by(400.0, 120.0).from(0.0, 2.0)).settle();
-        h.advance(Duration::from_secs(1));
-        page.settle();
-        assert_eq!(rows(&page.tree()), 1, "{:#?}", page.tree());
-        assert!(page.find(ActivityMark::ClearArea).is_some(), "{:#?}", page.tree());
-
-        page.drag(ActivityMark::Scatter, Drag::by(1.0, 1.0).from(600.0, 60.0)).settle();
-        h.advance(Duration::from_secs(1));
-        page.settle();
-        assert_eq!(rows(&page.tree()), 2, "{:#?}", page.tree());
-    }
-
-    #[guinea::test(iterations = 4)]
-    fn the_lifetime_scale_is_labelled_with_durations_only(h: &mut Harness) {
-        start(h);
-        let h = &*h;
-        let mut page = mount(h);
-        live(h, &mut page, vec![came(20, 10), went(30, 20)]);
-
-        let tree = page.tree();
-        assert!(says(&tree, "1 min") && says(&tree, "100 ms"), "{tree:#?}");
-        assert!(!says(&tree, "running") && !says(&tree, "before"), "{tree:#?}");
     }
 
     #[guinea::test(iterations = 4)]

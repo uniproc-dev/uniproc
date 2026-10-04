@@ -1,4 +1,4 @@
-use app_contracts::features::activity::{Area, Clock};
+use app_contracts::features::activity::Clock;
 
 pub struct Ticks;
 
@@ -21,36 +21,6 @@ struct Marks;
 impl Marks {
     const Steps: [u64; 11] = [1, 2, 5, 10, 15, 30, 60, 120, 180, 360, 720];
     const Most: u64 = 6;
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Scale {
-    pub now: u64,
-    pub length: u64,
-    pub width: f64,
-}
-
-impl Scale {
-    fn per_tick(&self) -> f64 {
-        self.width / self.length as f64
-    }
-
-    pub fn x(&self, at: u64) -> f64 {
-        self.width - (self.now as f64 - at as f64) * self.per_tick()
-    }
-
-    pub fn at(&self, x: f64) -> u64 {
-        (self.now as f64 - (self.width - x) / self.per_tick()).max(0.0) as u64
-    }
-
-    pub fn area(&self, from: f64, to: f64, bottom: f32, top: f32) -> Area {
-        Area {
-            from: self.at(from.min(to)),
-            to: self.at(from.max(to)),
-            bottom,
-            top,
-        }
-    }
 }
 
 fn of_day(clock: Clock) -> u64 {
@@ -93,26 +63,6 @@ mod tests {
 
     fn clock(hour: u8, minute: u8, second: u8) -> Clock {
         Clock { hour, minute, second }
-    }
-
-    #[test]
-    fn a_dot_slides_left_as_time_passes() {
-        let at = 1000 * HOUR;
-        let before = Scale { now: at + HOUR / 2, length: HOUR, width: 600.0 };
-        let after = Scale { now: before.now + 60 * Ticks::Second, ..before };
-
-        assert!((before.x(at) - 300.0).abs() < 0.001, "{}", before.x(at));
-        assert!((after.x(at) - 290.0).abs() < 0.001, "{}", after.x(at));
-        assert_eq!(before.at(600.0), before.now);
-    }
-
-    #[test]
-    fn a_dragged_span_is_the_time_it_covers_either_way_round() {
-        let scale = Scale { now: 1000 * HOUR, length: HOUR, width: 600.0 };
-
-        let area = scale.area(450.0, 150.0, 0.1, 0.6);
-
-        assert_eq!((area.from, area.to), (scale.now - 3 * HOUR / 4, scale.now - HOUR / 4));
     }
 
     #[test]

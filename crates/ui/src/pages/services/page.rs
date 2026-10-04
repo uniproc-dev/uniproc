@@ -5,7 +5,7 @@ use app_contracts::features::services::{
 };
 use guinea::prelude::{Dispatch, Load};
 use crate::widgets::table::{table, ColumnWidths, Resized, SortState};
-use windows_reactor::{Callback, ChildrenControl, Grid, Orientation, StackPanel, View};
+use windows_reactor::{Callback, Grid, Orientation, StackPanel, View};
 
 use super::components::columns::build_columns;
 use super::marks::ServicesMark;

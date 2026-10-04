@@ -8,8 +8,8 @@ use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, CheckBox, ChildrenControl, ContentControl, Expander, HorizontalAlignment, LayoutControl,
-    NumberBox, Orientation, Slider, StackPanel, Thickness, VerticalAlignment, View,
+    Border, CheckBox, Expander, HorizontalAlignment, NumberBox, Orientation, Slider, StackPanel, Thickness,
+    VerticalAlignment, View,
 };
 
 use super::marks::SettingsMark;
@@ -55,7 +55,7 @@ fn theme_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: 
     let dispatch = dispatch.clone();
     setting_card(
         SettingCard {
-            icon: Some(icon!(color).size(setting::Icon).build()),
+            icon: Some(icon!(color).size(setting::Icon).build_element()),
             title: l10n.settings_theme(),
             description: l10n.settings_theme_description(),
             control: choice(
@@ -74,7 +74,7 @@ fn start_page_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
     let dispatch = dispatch.clone();
     setting_card(
         SettingCard {
-            icon: Some(icon!(start_page).size(setting::Icon).build()),
+            icon: Some(icon!(start_page).size(setting::Icon).build_element()),
             title: l10n.settings_start_page(),
             description: l10n.settings_start_page_description(),
             control: choice(
@@ -100,7 +100,7 @@ fn byte_units_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pale
     let dispatch = dispatch.clone();
     setting_card(
         SettingCard {
-            icon: Some(icon!(byte_units).size(setting::Icon).build()),
+            icon: Some(icon!(byte_units).size(setting::Icon).build_element()),
             title: l10n.settings_byte_units(),
             description: l10n.settings_byte_units_description(),
             control: choice(
@@ -126,7 +126,7 @@ fn network_units_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, p
     let dispatch = dispatch.clone();
     setting_card(
         SettingCard {
-            icon: Some(icon!(network_units).size(setting::Icon).build()),
+            icon: Some(icon!(network_units).size(setting::Icon).build_element()),
             title: l10n.settings_network_units(),
             description: l10n.settings_network_units_description(),
             control: choice(
@@ -152,13 +152,16 @@ fn sidebar_chart_label(l10n: &L10n, chart: SidebarChart) -> String {
 }
 
 fn sidebar_charts_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
-    let toggles = SidebarChart::ALL.map(|chart| {
+    let toggles: [View; 5] = SidebarChart::ALL.map(|chart| {
         let dispatch = dispatch.clone();
         CheckBox::new()
             .mark(SettingsMark::sidebar_chart(chart))
             .is_checked(state.sidebar_charts.shows(chart))
-            .on_is_checked_changed(move |shown: bool| dispatch.emit(ShowSidebarChart(chart, shown)))
+            .on_is_checked_changed(move |shown: Option<bool>| {
+                dispatch.emit(ShowSidebarChart(chart, shown == Some(true)))
+            })
             .content(text(sidebar_chart_label(l10n, chart)))
+            .into()
     });
     let header = StackPanel::new()
         .orientation(Orientation::Horizontal)
@@ -167,7 +170,7 @@ fn sidebar_charts_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, 
         .children((
             Border::new()
                 .vertical_alignment(VerticalAlignment::Center)
-                .content(icon!(sidebar_charts).size(setting::Icon).build()),
+                .content(icon!(sidebar_charts).size(setting::Icon).build_element()),
             card_words(
                 l10n.settings_sidebar_charts(),
                 Some(l10n.settings_sidebar_charts_description()),
@@ -220,7 +223,7 @@ fn update_speed_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, pa
         .children((slider.margin(Thickness::new(0.0, 0.0, space::Header, 0.0)), value, unit));
     setting_card(
         SettingCard {
-            icon: Some(icon!(top_speed).size(setting::Icon).build()),
+            icon: Some(icon!(top_speed).size(setting::Icon).build_element()),
             title: l10n.settings_update_speed(),
             description: l10n.settings_update_speed_description(),
             control: control.into(),

@@ -17,9 +17,8 @@ use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
 use crate::widgets::table::{table, Look, Reordered, Resized, SortState};
 use windows_reactor::{
-    Border, Callback, ChildrenControl, ContentControl, Grid, GridChildExt, GridLength, LayoutControl,
-    PointerEventInfo, Orientation, StackPanel, Thickness,
-    VerticalAlignment, View,
+    Border, Callback, Grid, GridLength, PointerEventInfo, Orientation, StackPanel, Thickness, VerticalAlignment,
+    View,
 };
 
 use super::components::column_layout::ColumnLayout;
@@ -60,6 +59,7 @@ pub struct ProcessesSettingsMaps {
     pub section_order: ReactiveMap<String, u32>,
 }
 
+#[derive(Clone)]
 pub enum ProcessesMsg {
     Resized(Resized),
     Reordered(Reordered),
@@ -450,12 +450,13 @@ impl ProcessesPage {
                 )),
             ));
 
-        let body = if matches!(state.agent_state, AgentConnectionState::Connected) {
+        let body: View = if matches!(state.agent_state, AgentConnectionState::Connected) {
             body
         } else {
             Grid::new()
                 .rows([GridLength::Star(1.0)])
                 .children((body, disconnected_overlay(l10n, palette, state.agent_state)))
+                .into()
         };
 
         let dismiss = dispatch.clone();
@@ -748,17 +749,11 @@ impl ProcessesPage {
                 },
                 move |column: ProcessColumn| sort.emit(Sort(column)),
             )
-            .sort_indicator(|_| View::empty())
+            .sort_indicator(|_| None)
             .build();
 
-        Grid::new()
-            .mark(SelectionMark::Keeper)
-            .children((
-                Border::new()
-                    .on_pointer_pressed(on_pointer_pressed)
-                    .content(table),
-                menu.unwrap_or_else(View::empty),
-            ))
-            .into()
+        let mut layers: Vec<View> = vec![Border::new().on_pointer_pressed(on_pointer_pressed).content(table).into()];
+        layers.extend(menu);
+        Grid::new().mark(SelectionMark::Keeper).children(layers).into()
     }
 }

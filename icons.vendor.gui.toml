@@ -1,5 +1,6 @@
 [defaults]
 root = "assets/ui"
+paint = "none"
 
 [docker]
 iconify = "mdi:docker"

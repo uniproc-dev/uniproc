@@ -25,7 +25,7 @@ impl Page for Services {
         self.0.update(message);
     }
 
-    fn view(&self, cx: &mut PageCx<'_, Self>) -> View {
+    fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
         let (state, dispatch) = cx.read::<ServicesState, _>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
@@ -82,17 +82,17 @@ mod tests {
         page.settle();
         page.item(0).click_here();
         page.settle();
-        assert_eq!(tip(&page, PropertyId::TeachingTipIsOpen), Some(PropertyValue::Bool(false)));
+        assert_eq!(tip(&page, PropertyId::IsOpen), Some(PropertyValue::Bool(false)));
         page.click(ServicesMark::Stop).settle();
         page.settle();
-        assert_eq!(tip(&page, PropertyId::TeachingTipIsOpen), Some(PropertyValue::Bool(true)));
-        let Some(PropertyValue::Str(title)) = tip(&page, PropertyId::TeachingTipTitle) else {
+        assert_eq!(tip(&page, PropertyId::IsOpen), Some(PropertyValue::Bool(true)));
+        let Some(PropertyValue::String(title)) = tip(&page, PropertyId::Title) else {
             panic!("the tip has a title");
         };
         assert_eq!(title.replace(['\u{2068}', '\u{2069}'], ""), "Couldn’t stop Windows Audio");
         assert_eq!(
-            tip(&page, PropertyId::TeachingTipSubtitle),
-            Some(PropertyValue::Str("Another action on it hasn’t finished yet.".into()))
+            tip(&page, PropertyId::Subtitle),
+            Some(PropertyValue::String("Another action on it hasn’t finished yet.".into()))
         );
     }
 }

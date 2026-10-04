@@ -2,30 +2,31 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityState, ActivityView, Area, ClearArea, Hide, Hover, NewOnly, Only, Pick, PickArea, Search, ShowCame,
-    ShowSeries, ShowSpan, ShowWent, Span, Unhide,
+    ActivityState, ActivityView, ClearArea, Hide, Hover, NewOnly, Only, Pick, PickArea, Search, ShowCame, ShowSeries,
+    ShowSpan, ShowWent, Span, Unhide,
 };
 use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
 use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
 use guinea::Mark;
+use guinea_widgets::chart::scatter::{Scatter, ScatterEvent};
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, CheckBox, ChildrenControl, ContentControl, Flyout, FlyoutExt,
-    FlyoutPlacement, Grid, GridChildExt, GridLength, HorizontalAlignment, LayoutControl, Orientation, RadioButton,
-    ScrollBarVisibility, ScrollViewer, StackPanel, TextBox, Thickness, VerticalAlignment, View,
+    keyed, Border, Button, ButtonStyle, Callback, CheckBox, Flyout, FlyoutExt, FlyoutPlacement, Grid, GridLength,
+    HorizontalAlignment, KeyedView, Orientation, RadioButton, ScrollBarVisibility, ScrollViewer, StackPanel, TextBox,
+    Thickness, VerticalAlignment, View,
 };
 
 use super::components::card::card;
-use super::components::lasted::lasted;
+use super::components::lifetimes::{acts, options, series, Act};
 use super::components::picks::picked;
 use super::components::rows::{rows, Rows};
-use super::components::scatter::{labels, Plotted, ScatterPlot};
 use super::marks::ActivityMark;
 use crate::format;
 use crate::l10n::L10n;
 use crate::theme::{size, space, Palette};
 use crate::widgets::button::command_button;
+use crate::widgets::nothing::nothing;
 use crate::widgets::page::{loading, page_frame, page_title, status_text};
 use crate::widgets::separator;
 use crate::widgets::text::{caption, text};
@@ -37,6 +38,14 @@ impl SearchBox {
     const Width: f64 = 260.0;
 }
 
+struct Plot;
+
+#[expect(non_upper_case_globals)]
+impl Plot {
+    const Height: f64 = 220.0;
+    const CardGap: f64 = 12.0;
+}
+
 pub enum ActivityPageMsg {
     Toggle(ProcessInstance),
 }
@@ -44,14 +53,16 @@ pub enum ActivityPageMsg {
 #[derive(Default)]
 pub struct ActivityPage {
     expanded: Rc<HashSet<ProcessInstance>>,
+    chart: Scatter,
 }
 
 fn shown(mark: impl Mark, label: String, checked: bool, on_change: impl Fn(bool) + 'static) -> View {
     CheckBox::new()
         .mark(mark)
         .is_checked(checked)
-        .on_is_checked_changed(on_change)
+        .on_is_checked_changed(move |checked: Option<bool>| on_change(checked == Some(true)))
         .content(text(label))
+        .into()
 }
 
 fn span_label(span: Span, l10n: &L10n) -> String {
@@ -77,17 +88,17 @@ impl ActivityPage {
     fn menu(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
         let filter = &state.filter;
         let (came, went, new_only, series) = (dispatch.clone(), dispatch.clone(), dispatch.clone(), dispatch.clone());
-        let spans: Vec<(String, View)> = [Span::Quarter, Span::Hour, Span::Connected]
+        let spans: Vec<KeyedView> = [Span::Quarter, Span::Hour, Span::Connected]
             .into_iter()
             .map(|span| {
                 let dispatch = dispatch.clone();
-                (
-                    span.name().to_string(),
+                keyed(
+                    span.name(),
                     RadioButton::new()
                         .mark(span)
                         .group_name("activity-span")
                         .is_checked(state.span == span)
-                        .on_checked(move |_: bool| dispatch.emit(ShowSpan(span)))
+                        .on_checked(move |_: Option<bool>| dispatch.emit(ShowSpan(span)))
                         .content(text(span_label(span, l10n))),
                 )
             })
@@ -102,12 +113,12 @@ impl ActivityPage {
                 series.emit(ShowSeries(on))
             }),
             separator(palette).margin(Thickness::xy(0.0, space::Control)),
-            StackPanel::new().children((View::keyed_fragment(spans),)),
+            StackPanel::new().keyed_children(spans),
         ));
         Button::new()
             .mark(ActivityMark::Menu)
             .style(ButtonStyle::Subtle)
-            .content(icon!(more_horizontal).size(size::Icon).build())
+            .content(icon!(more_horizontal).size(size::Icon).build_element())
             .flyout_with(Flyout::rich(choices).placement(FlyoutPlacement::BottomEdgeAlignedRight))
     }
 
@@ -121,6 +132,7 @@ impl ActivityPage {
                     .vertical_alignment(VerticalAlignment::Center)
                     .content(Self::menu(state, dispatch, l10n, palette)),
             ))
+            .into()
     }
 
     fn range_bar(view: &ActivityView, state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
@@ -136,7 +148,8 @@ impl ActivityPage {
                     command_button(ActivityMark::ClearArea, l10n.activity_live(), None, true, move || {
                         cleared.emit(ClearArea)
                     }),
-                )),
+                ))
+                .into(),
             None => caption(
                 view.history_since
                     .map(|at| l10n.activity_history_since(format::clock(at)))
@@ -151,36 +164,46 @@ impl ActivityPage {
             .margin(Thickness::xy(space::Cell, space::Control))
             .children((
                 Border::new().grid_column(0).vertical_alignment(VerticalAlignment::Center).content(where_),
-                TextBox::new()
+                TextBox::new(&state.filter.text)
                     .mark(ActivityMark::Search)
                     .grid_column(1)
                     .width(SearchBox::Width)
-                    .text(state.filter.text.clone())
                     .placeholder_text(l10n.activity_search())
-                    .on_text_changed(move |text: String| searched.emit(Search(text))),
+                    .on_text_changed(move |text: Rc<str>| searched.emit(Search(text.to_string()))),
             ))
+            .into()
     }
 
-    fn chart(view: &ActivityView, state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
-        let scatter = &view.scatter;
-        let (picked, cleared, hovered) = (dispatch.clone(), dispatch.clone(), dispatch.clone());
-        let plot = View::component::<ScatterPlot>(Plotted {
-            scatter: scatter.clone(),
-            card: state.hovered.as_ref().map(|row| (row.key(), card(row, l10n, palette))),
-            palette,
-            on_pick: Callback::new(move |area: Area| picked.emit(PickArea(area))),
-            on_clear: Callback::new(move |()| cleared.emit(ClearArea)),
-            on_hover: Callback::new(move |key| hovered.emit(Hover(key))),
+    fn chart(&self, view: &ActivityView, state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+        let scatter = view.scatter.clone();
+        self.chart.publish(series(&scatter, palette), options(&scatter, l10n, palette));
+        let dispatch = dispatch.clone();
+        let plot = self.chart.view(move |event: ScatterEvent| {
+            for act in acts(&event, &scatter) {
+                match act {
+                    Act::Hover(key) => dispatch.emit(Hover(key)),
+                    Act::Pick(area) => dispatch.emit(PickArea(area)),
+                    Act::Clear => dispatch.emit(ClearArea),
+                }
+            }
         });
-        Grid::new()
-            .columns([GridLength::Auto, GridLength::Star(1.0)])
-            .children((
+        let mut layers: Vec<View> = vec![Border::new().mark(ActivityMark::Scatter).height(Plot::Height).content(plot).into()];
+        if let (Some(row), Some(hit)) = (&state.hovered, self.chart.hovered()) {
+            layers.push(
                 Border::new()
-                    .grid_column(0)
+                    .horizontal_alignment(HorizontalAlignment::Left)
                     .vertical_alignment(VerticalAlignment::Top)
-                    .content(labels(scatter, |lived| lasted(l10n, lived), palette)),
-                Border::new().grid_column(1).content(plot),
-            ))
+                    .margin(Thickness::new(
+                        f64::from(hit.x) + Plot::CardGap,
+                        f64::from(hit.y) + Plot::CardGap,
+                        0.0,
+                        0.0,
+                    ))
+                    .content(card(row, l10n, palette))
+                    .into(),
+            );
+        }
+        Grid::new().children(layers).into()
     }
 
     pub fn view(
@@ -218,12 +241,11 @@ impl ActivityPage {
                     expanded: self.expanded.clone(),
                     l10n: l10n.clone(),
                     palette,
-                    on_toggle: Callback::new(move |key: ProcessInstance| {
-                        let _ = forward.call(ActivityPageMsg::Toggle(key));
-                    }),
+                    on_toggle: Callback::new(move |key: ProcessInstance| forward.call(ActivityPageMsg::Toggle(key))),
                     on_only: Callback::new(move |pick: Pick| only.emit(Only(Some(pick)))),
                     on_hide: Callback::new(move |pick: Pick| hide.emit(Hide(pick))),
                 }))
+                .into()
         };
 
         let body = Grid::new()
@@ -232,11 +254,11 @@ impl ActivityPage {
                 Border::new()
                     .grid_row(0)
                     .margin(Thickness::new(space::Cell, space::Card, space::Cell, 0.0))
-                    .content(Self::chart(view, state, dispatch, l10n, palette)),
+                    .content(self.chart(view, state, dispatch, l10n, palette)),
                 Border::new()
                     .grid_row(1)
                     .content(Self::range_bar(view, state, dispatch, l10n, palette)),
-                Border::new().grid_row(2).content(chips.unwrap_or_else(|| Border::new().into())),
+                Border::new().grid_row(2).content(chips.unwrap_or_else(nothing)),
                 Border::new().grid_row(3).content(list),
             ));
 

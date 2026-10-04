@@ -7,8 +7,7 @@ use app_contracts::features::processes::{
 };
 use guicons::icon;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, ChildrenControl, Color, ContentControl, CornerRadius,
-    Grid, GridChildExt, GridLength, HorizontalAlignment, KeyedView, LayoutControl, Orientation,
+    Border, Button, ButtonStyle, Callback, Color, CornerRadius, Grid, GridLength, HorizontalAlignment, Orientation,
     PointerEventInfo, StackPanel, Thickness, VerticalAlignment, View,
 };
 
@@ -422,13 +421,7 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
         MenuTarget::Columns => column_lines(&columns, l10n),
     };
 
-    let items = View::keyed_fragment(
-        lines
-            .into_iter()
-            .map(|line| line_view(line, &on_command, palette))
-            .enumerate()
-            .map(|(at, view)| KeyedView::new(at, view)),
-    );
+    let items: Vec<View> = lines.into_iter().map(|line| line_view(line, &on_command, palette)).collect();
 
     let card = Border::new()
         .mark(ProcessesMark::Menu)
@@ -440,7 +433,7 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
         .border_thickness(Thickness::uniform(space::Hairline))
         .corner_radius(radius::Overlay)
         .padding(Thickness::uniform(space::Compact))
-        .content(StackPanel::new().children((items,)));
+        .content(StackPanel::new().children(items));
 
     let shadow = Border::new()
         .grid_row(1)
