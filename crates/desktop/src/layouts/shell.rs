@@ -24,6 +24,7 @@ pub enum ShellMsg {
 fn nav(route: &Route) -> ShellNav {
     match route {
         Route::Processes {} | Route::ProcessesSettings {} => ShellNav::Processes,
+        Route::Activity {} => ShellNav::Activity,
         Route::Services {} => ShellNav::Services,
         Route::Wsl {} => ShellNav::Wsl,
         Route::System {} | Route::SystemTools {} => ShellNav::System,
@@ -107,7 +108,7 @@ mod tests {
     use app_contracts::features::activity::{ActivityState, Clock};
     use app_contracts::features::agent_link::{AgentLinkState, InProcess};
     use app_contracts::features::agents::{ProcessCame, ProcessEvent, ProcessInstance, WindowsProcessEvents};
-    use domain::features::activity::{ActivityDeps, ActivityFeature};
+    use domain::features::activity::ActivityDeps;
     use guinea::prelude::Load;
     use app_contracts::features::settings::{SettingsState, SidebarChart};
     use app_contracts::features::agents::{
@@ -137,9 +138,13 @@ mod tests {
 
     fn start(h: &mut Harness, agent_up: bool) {
         test_agent::reset(agent_up);
-        h.install_application_with(crate::app::with_fakes)
-            .unwrap()
-            .provide(AgentLinkDeps {
+        h.provide(ActivityDeps {
+            now: || 1000 * HOUR + HOUR - TICK,
+            clock: |_| Clock::default(),
+        })
+        .install_application_with(crate::app::with_fakes)
+        .unwrap()
+        .provide(AgentLinkDeps {
                 start_in_process: test_agent::start_in_process,
             })
             .provide(SystemDeps {
@@ -235,6 +240,19 @@ mod tests {
         page.settle();
 
         assert_eq!(page.route(), Route::Settings {});
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "agent")]
+    fn the_activity_item_opens_the_activity_page(h: &mut Harness) {
+        start(h, true);
+        let h = &*h;
+        let mut page = mount(h);
+        assert!(page.find_text("Activity").is_some(), "the sidebar lists Activity");
+
+        page.click_text("Activity").settle();
+        page.settle();
+
+        assert_eq!(page.route(), Route::Activity {});
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]
@@ -569,14 +587,6 @@ mod tests {
     const TICK: u64 = 10_000_000;
     const HOUR: u64 = 3600 * TICK;
 
-    fn watch_activity(h: &mut Harness) {
-        h.provide(ActivityDeps {
-            now: || 1000 * HOUR + HOUR - TICK,
-            clock: |_| Clock::default(),
-        });
-        h.feature(ActivityFeature).unwrap();
-    }
-
     fn a_start() -> WindowsProcessEvents {
         WindowsProcessEvents {
             history_from: Some(1000 * HOUR),
@@ -600,7 +610,6 @@ mod tests {
     #[guinea::test(iterations = 4, exclusive = "agent")]
     fn starts_the_service_tells_reach_the_activity_log(h: &mut Harness) {
         start(h, true);
-        watch_activity(h);
         let h = &*h;
         let mut page = mount(h);
         after(h, &mut page, 1);
@@ -616,7 +625,6 @@ mod tests {
     fn starts_the_monitor_in_process_tells_reach_the_activity_log(h: &mut Harness) {
         start(h, false);
         test_agent::set_elevated(true);
-        watch_activity(h);
         let h = &*h;
         let mut page = mount(h);
         after(h, &mut page, 5);

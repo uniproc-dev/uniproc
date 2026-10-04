@@ -61,7 +61,7 @@ polish it.
   shell's slots is a part with its own feature (`SidebarCharts` → metrics, `Connecting` →
   agent link); window-wide state (settings) is in `MainWindow`. 
   App-lifetime features implement `AppFeature` and are installed by `#[installs] fn app`
-  in `desktop/src/app.rs` (`agents`), with the plugins. One whose state a page reads
+  in `desktop/src/app.rs` (`agents`, `activity`), with the plugins. One whose state a page reads
   claims it with `app.state`, lists it in `type Exports`, and goes in `installs` of `app!`.
   The route tree hangs from `app(App)`.
 

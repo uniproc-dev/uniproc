@@ -19,12 +19,12 @@ impl Page for Activity {
     }
 
     fn update(&mut self, message: ActivityPageMsg, cx: &mut UpdateCx<'_, Self>) {
-        let (_, dispatch) = cx.read::<ActivityState, _>();
+        let (_, dispatch) = cx.read::<ActivityState>();
         self.0.update(message, &dispatch);
     }
 
     fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
-        let (state, dispatch) = cx.read::<ActivityState, _>();
+        let (state, dispatch) = cx.read::<ActivityState>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let acts = RowActs {

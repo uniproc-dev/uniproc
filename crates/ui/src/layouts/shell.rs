@@ -28,6 +28,7 @@ impl Sidebar {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ShellNav {
     Processes,
+    Activity,
     Services,
     Wsl,
     System,
@@ -35,11 +36,12 @@ pub enum ShellNav {
 }
 
 impl ShellNav {
-    const ALL: [Self; 5] = [Self::Processes, Self::Services, Self::Wsl, Self::System, Self::Settings];
+    const ALL: [Self; 6] = [Self::Processes, Self::Activity, Self::Services, Self::Wsl, Self::System, Self::Settings];
 
     fn tag(self) -> &'static str {
         match self {
             Self::Processes => "processes",
+            Self::Activity => "activity",
             Self::Services => "services",
             Self::Wsl => "wsl",
             Self::System => "system",
@@ -58,6 +60,7 @@ impl ShellNav {
     fn label(self, l10n: &L10n) -> String {
         match self {
             Self::Processes => l10n.shell_nav_processes(),
+            Self::Activity => l10n.shell_nav_activity(),
             Self::Services => l10n.shell_nav_services(),
             Self::Wsl => l10n.shell_nav_wsl(),
             Self::System => l10n.shell_nav_system(),
@@ -68,6 +71,7 @@ impl ShellNav {
     fn icon(self) -> Icon {
         match self {
             Self::Processes => icon!(apps_list).build(),
+            Self::Activity => icon!(activity).build(),
             Self::Services => icon!(puzzle).build(),
             Self::Wsl => icon!(linux).build(),
             Self::System => icon!(system).build(),

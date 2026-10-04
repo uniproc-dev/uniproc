@@ -1,4 +1,5 @@
 use app_contracts::l10n::L10n;
+use domain::features::activity::ActivityFeature;
 use domain::features::agents::AgentsFeature;
 use guinea::prelude::*;
 use guinea_plugin_l10n::L10nPlugin;
@@ -9,7 +10,7 @@ use crate::meta;
 
 app! {
     pub App {
-        installs { L10nPlugin<L10n> }
+        installs { L10nPlugin<L10n>, ActivityFeature }
     }
 }
 
@@ -25,7 +26,7 @@ fn app(app: &mut FeatureBuilder) -> anyhow::Result<App> {
     }
 
     app.feature(AgentsFeature)?;
-    Ok(App(l10n))
+    Ok(App(l10n, app.feature(ActivityFeature)?))
 }
 
 #[cfg(test)]
@@ -33,7 +34,7 @@ pub fn with_fakes(app: &mut FeatureBuilder) -> anyhow::Result<App> {
     app.plugin(StorePlugin::in_memory())?;
     let l10n = app.plugin(L10nPlugin::<L10n>::new("en"))?;
     app.feature(crate::test_agent::FakeAgentFeature)?;
-    Ok(App(l10n))
+    Ok(App(l10n, app.feature(ActivityFeature)?))
 }
 
 fn settings_store(plugin: StorePlugin) -> StorePlugin {
