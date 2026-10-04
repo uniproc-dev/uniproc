@@ -234,6 +234,35 @@ mod tests {
         assert!(says(&tree, "tool.exe --check"), "{tree:#?}");
     }
 
+    fn first_row<'a>(node: &'a Node) -> Option<&'a Node> {
+        if node.id.as_deref() == Some("Row") {
+            return Some(node);
+        }
+        node.children.iter().find_map(first_row)
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_clicked_row_is_marked_and_stays_where_it_was_open_when_newer_rows_come(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10), came_from(21, 1, r"C:\Other\other.exe", 20)]);
+        assert!(page.find(ActivityMark::Selected).is_none(), "{:#?}", page.tree());
+
+        page.click(ActivityMark::Row).settle();
+        page.settle();
+        assert!(page.find(ActivityMark::Selected).is_some(), "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::Facts).is_some(), "{:#?}", page.tree());
+
+        live(h, &mut page, vec![came_from(22, 1, r"C:\Third\third.exe", 30)]);
+
+        let tree = page.tree();
+        assert_eq!(rows(&tree), 3, "{tree:#?}");
+        let top = first_row(&tree).expect("a row");
+        assert!(says(top, "other.exe"), "the clicked row is still first: {tree:#?}");
+        assert!(page.find(ActivityMark::Facts).is_some(), "{tree:#?}");
+    }
+
     #[guinea::test(iterations = 4)]
     fn an_exit_of_a_process_never_seen_says_so_instead_of_a_bare_number(h: &mut Harness) {
         start(h);

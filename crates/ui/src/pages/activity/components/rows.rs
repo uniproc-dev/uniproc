@@ -16,7 +16,7 @@ use super::lasted::lasted;
 use super::picks::pick_buttons;
 use crate::format;
 use crate::l10n::L10n;
-use crate::theme::{accent_color, size, space, Palette};
+use crate::theme::{accent_color, radius, size, space, Palette};
 use crate::widgets::text::{caption, text};
 
 struct Line;
@@ -38,6 +38,7 @@ pub struct Rows {
     pub rows: Rc<[ActivityRow]>,
     pub earlier: usize,
     pub expanded: Rc<HashSet<ProcessInstance>>,
+    pub selected: Option<ProcessInstance>,
     pub l10n: L10n,
     pub palette: Palette,
     pub acts: RowActs,
@@ -47,23 +48,46 @@ pub struct Rows {
 struct Item {
     row: ActivityRow,
     open: bool,
+    selected: bool,
     l10n: L10n,
     palette: Palette,
     acts: RowActs,
 }
 
-struct ItemView;
+enum Pointer {
+    Entered,
+    Exited,
+}
+
+struct ItemView(bool);
 
 impl Component for ItemView {
     type Input = Item;
-    type Message = ();
+    type Message = Pointer;
 
     fn create(_item: &Item, _cx: &ComponentContext<Self>) -> Self {
-        Self
+        Self(false)
     }
 
-    fn view(&self, item: &Item, _cx: &mut ViewContext<Self>) -> View {
-        row_view(item)
+    fn update(&mut self, message: Pointer, _cx: &ComponentContext<Self>) {
+        self.0 = matches!(message, Pointer::Entered);
+    }
+
+    fn view(&self, item: &Item, cx: &mut ViewContext<Self>) -> View {
+        let plate = Border::new()
+            .margin(Thickness::xy(space::Compact, space::Hairline))
+            .corner_radius(radius::Control);
+        let plate = match (item.selected, self.0) {
+            (true, _) => plate.mark(ActivityMark::Selected).background(item.palette.row_selected),
+            (false, true) => plate.background(item.palette.row_hovered),
+            (false, false) => plate,
+        };
+        Border::new()
+            .background(Color::transparent())
+            .on_pointer_entered(cx.callback(|_: PointerEventInfo| Pointer::Entered))
+            .on_pointer_exited(cx.callback(|_: PointerEventInfo| Pointer::Exited))
+            .content(Grid::new().children((plate, row_view(item))))
+            .into()
     }
 }
 
@@ -79,6 +103,7 @@ pub fn rows(list: Rows) -> View {
             let item = Item {
                 row: row.clone(),
                 open: list.expanded.contains(&row.key()),
+                selected: list.selected == Some(row.key()),
                 l10n: list.l10n.clone(),
                 palette: list.palette,
                 acts: list.acts.clone(),

@@ -15,6 +15,7 @@ pub enum ActivityMark {
     Card,
     Rows,
     Row,
+    Selected,
     Menu,
     Facts,
     Empty,

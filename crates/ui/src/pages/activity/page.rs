@@ -1,8 +1,9 @@
+use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityState, ActivityView, ClearArea, Hide, Hover, NewOnly, Only, Pick, PickArea, Search, ShowCame, ShowSeries,
+    ActivityRow, ActivityState, ActivityView, ClearArea, Filter, Hide, Hover, NewOnly, Only, Pick, PickArea, Search, ShowCame, ShowSeries,
     ShowSpan, ShowWent, Span, Unhide,
 };
 use app_contracts::features::agents::ProcessInstance;
@@ -28,6 +29,7 @@ use crate::theme::{size, space, Palette};
 use crate::widgets::button::command_button;
 use crate::widgets::nothing::nothing;
 use crate::widgets::page::{loading, page_frame, page_title, status_text};
+use crate::widgets::selection::Pinned;
 use crate::widgets::separator;
 use crate::widgets::text::{caption, text};
 
@@ -55,6 +57,9 @@ pub enum ActivityPageMsg {
 #[derive(Default)]
 pub struct ActivityPage {
     expanded: Rc<HashSet<ProcessInstance>>,
+    selected: Cell<Option<ProcessInstance>>,
+    pinned: RefCell<Pinned<ActivityRow, ProcessInstance>>,
+    asked: RefCell<Option<(Span, Filter)>>,
     chart: Scatter<ProcessInstance>,
 }
 
@@ -79,6 +84,7 @@ impl ActivityPage {
     pub fn update(&mut self, message: ActivityPageMsg, dispatch: &Dispatch) {
         match message {
             ActivityPageMsg::Toggle(key) => {
+                self.selected.set(Some(key));
                 let expanded = Rc::make_mut(&mut self.expanded);
                 if !expanded.remove(&key) {
                     expanded.insert(key);
@@ -230,7 +236,13 @@ impl ActivityPage {
             Callback::new(move |()| all.emit(Only(None))),
             Callback::new(move |pick: Pick| unhide.emit(Unhide(pick))),
         );
-        let list: View = if view.rows.is_empty() {
+        let asked = Some((state.span, state.filter.clone()));
+        if *self.asked.borrow() != asked {
+            self.selected.set(None);
+            self.asked.replace(asked);
+        }
+        let placed = self.pinned.borrow_mut().place(&view.rows, self.selected.get(), ActivityRow::key);
+        let list: View = if placed.is_empty() {
             text(l10n.activity_empty())
                 .mark(ActivityMark::Empty)
                 .horizontal_alignment(HorizontalAlignment::Center)
@@ -240,9 +252,10 @@ impl ActivityPage {
             ScrollViewer::new()
                 .horizontal_scroll_bar_visibility(ScrollBarVisibility::Disabled)
                 .content(rows(Rows {
-                    rows: Rc::from(view.rows.as_slice()),
+                    rows: Rc::from(placed),
                     earlier: view.earlier,
                     expanded: self.expanded.clone(),
+                    selected: self.selected.get(),
                     l10n: l10n.clone(),
                     palette,
                     acts,

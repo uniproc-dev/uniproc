@@ -7,6 +7,7 @@ use app_contracts::features::processes::{
 
 use super::Step;
 use crate::theme::size;
+use crate::widgets::selection::keep_place;
 use crate::widgets::table_cell::Highlight;
 
 pub(crate) struct ProcessName;
@@ -1173,23 +1174,9 @@ pub(crate) fn keep_group_place(
     previous: Option<(u32, usize)>,
 ) -> Option<(u32, usize)> {
     let pid = selected?;
-    let (section, current) = sections.iter().enumerate().find_map(|(at, section)| {
-        section
-            .groups
-            .iter()
-            .position(|group| group.members.iter().any(|member| member.pid == pid))
-            .map(|group| (at, group))
-    })?;
-
-    let groups = &mut sections[section].groups;
-    let target = previous
-        .filter(|(pinned, _)| *pinned == pid)
-        .map_or(current, |(_, at)| at.min(groups.len() - 1));
-    if target != current {
-        let group = groups.remove(current);
-        groups.insert(target, group);
-    }
-    Some((pid, target))
+    let holds = |group: &ProcessGroup| group.members.iter().any(|member| member.pid == pid);
+    let section = sections.iter().position(|section| section.groups.iter().any(holds))?;
+    keep_place(&mut sections[section].groups, pid, holds, previous)
 }
 
 #[cfg(test)]
