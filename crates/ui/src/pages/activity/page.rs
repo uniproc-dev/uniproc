@@ -53,7 +53,7 @@ pub enum ActivityPageMsg {
 #[derive(Default)]
 pub struct ActivityPage {
     expanded: Rc<HashSet<ProcessInstance>>,
-    chart: Scatter,
+    chart: Scatter<ProcessInstance>,
 }
 
 fn shown(mark: impl Mark, label: String, checked: bool, on_change: impl Fn(bool) + 'static) -> View {
@@ -178,7 +178,7 @@ impl ActivityPage {
         let scatter = view.scatter.clone();
         self.chart.publish(series(&scatter, palette), options(&scatter, l10n, palette));
         let dispatch = dispatch.clone();
-        let plot = self.chart.view(move |event: ScatterEvent| {
+        let plot = self.chart.view(move |event: ScatterEvent<ProcessInstance>| {
             for act in acts(&event, &scatter) {
                 match act {
                     Act::Hover(key) => dispatch.emit(Hover(key)),

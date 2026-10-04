@@ -64,14 +64,14 @@ fn marker(lived: Lived) -> Marker {
     }
 }
 
-pub fn series(scatter: &Scatter, palette: Palette) -> Vec<ScatterSeries> {
-    let mut series: Vec<ScatterSeries> = Vec::new();
-    for (key, dot) in scatter.dots.iter().enumerate() {
+pub fn series(scatter: &Scatter, palette: Palette) -> Vec<ScatterSeries<ProcessInstance>> {
+    let mut series: Vec<ScatterSeries<ProcessInstance>> = Vec::new();
+    for dot in &scatter.dots {
         let marker = marker(dot.lived);
         let base = if marker == Marker::Tick { palette.critical } else { palette.success };
         let color = color_f(if dot.faint { Color { a: Look::Faint, ..base } } else { base });
         let point = ScatterPoint {
-            key: key as u64,
+            key: dot.key,
             at: dot.at,
             value: level(dot.lived),
         };
@@ -116,10 +116,10 @@ pub fn options(scatter: &Scatter, l10n: &L10n, palette: Palette) -> ScatterOptio
     }
 }
 
-pub fn acts(event: &ScatterEvent, scatter: &Scatter) -> Vec<Act> {
+pub fn acts(event: &ScatterEvent<ProcessInstance>, scatter: &Scatter) -> Vec<Act> {
     match event {
         ScatterEvent::Hovered(hit) => {
-            vec![Act::Hover(hit.and_then(|hit| scatter.dots.get(hit.key as usize)).map(|dot| dot.key))]
+            vec![Act::Hover(hit.as_ref().map(|hit| hit.key))]
         }
         ScatterEvent::Brushed(area) => vec![Act::Pick(Area {
             from: area.x.0,
@@ -191,9 +191,9 @@ mod tests {
                 .map(|point| (point.key, point.value))
                 .collect::<Vec<_>>()
         };
-        assert_eq!(found(Marker::Dot), [(0, Level::Value(2.0))], "{series:#?}");
-        assert_eq!(found(Marker::Ring), [(1, Level::Above(0))], "{series:#?}");
-        assert_eq!(found(Marker::Tick), [(2, Level::Below(0))], "{series:#?}");
+        assert_eq!(found(Marker::Dot), [(id(20), Level::Value(2.0))], "{series:#?}");
+        assert_eq!(found(Marker::Ring), [(id(21), Level::Above(0))], "{series:#?}");
+        assert_eq!(found(Marker::Tick), [(id(22), Level::Below(0))], "{series:#?}");
         assert!(series.iter().all(|series| series.points.iter().all(|point| point.at == NOW - HOUR / 2)));
     }
 
@@ -206,13 +206,13 @@ mod tests {
 
         let series = series(&scatter, palette());
 
-        let alpha = |key: u64| {
+        let alpha = |pid: u32| {
             series
                 .iter()
-                .find(|series| series.points.iter().any(|point| point.key == key))
+                .find(|series| series.points.iter().any(|point| point.key == id(pid)))
                 .map(|series| series.color.a)
         };
-        assert!(matches!((alpha(0), alpha(1)), (Some(bold), Some(pale)) if pale < bold), "{series:#?}");
+        assert!(matches!((alpha(20), alpha(21)), (Some(bold), Some(pale)) if pale < bold), "{series:#?}");
     }
 
     #[test]
@@ -251,7 +251,7 @@ mod tests {
     #[test]
     fn a_hovered_point_names_its_process_and_a_click_lets_a_picked_area_go() {
         let mut scatter = scatter(vec![dot(20, Lived::Running, false), dot(21, Lived::Unknown, false)]);
-        let hit = Hit { series: 0, key: 1, x: 10.0, y: 10.0 };
+        let hit = Hit { series: 0, key: id(21), x: 10.0, y: 10.0 };
 
         assert_eq!(acts(&ScatterEvent::Hovered(Some(hit)), &scatter), [Act::Hover(Some(id(21)))]);
         assert_eq!(acts(&ScatterEvent::Hovered(None), &scatter), [Act::Hover(None)]);

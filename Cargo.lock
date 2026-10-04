@@ -982,7 +982,7 @@ dependencies = [
  "futures",
  "guinea",
  "guinea-plugin-store",
- "ogurpchik",
+ "ogurpchik 0.7.1",
  "serde",
  "tokio",
  "tracing",
@@ -1584,13 +1584,13 @@ dependencies = [
 
 [[package]]
 name = "guinea-devtools-protocol"
-version = "0.21.0"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.21.0#d0d34db300b69cc6f5f12c322fcc52a4138a2118"
+version = "0.22.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.0#99688c107c424fb9282c4210d8e6d8d140da79ac"
 dependencies = [
  "capnp",
  "capnp-rpc",
  "getrandom 0.4.3",
- "ogurpchik",
+ "ogurpchik 0.7.2",
  "serde",
  "serde_json",
 ]
@@ -1636,8 +1636,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-devtools"
-version = "0.21.0"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.21.0#d0d34db300b69cc6f5f12c322fcc52a4138a2118"
+version = "0.22.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.0#99688c107c424fb9282c4210d8e6d8d140da79ac"
 dependencies = [
  "anyhow",
  "capnp",
@@ -1647,14 +1647,14 @@ dependencies = [
  "guinea-core",
  "guinea-devtools-protocol",
  "guinea-plugin-single-instance",
- "ogurpchik",
+ "ogurpchik 0.7.2",
  "tracing",
 ]
 
 [[package]]
 name = "guinea-plugin-l10n"
-version = "0.21.0"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.21.0#d0d34db300b69cc6f5f12c322fcc52a4138a2118"
+version = "0.22.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.0#99688c107c424fb9282c4210d8e6d8d140da79ac"
 dependencies = [
  "anyhow",
  "fluent-bundle",
@@ -1668,8 +1668,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-l10n-build"
-version = "0.21.0"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.21.0#d0d34db300b69cc6f5f12c322fcc52a4138a2118"
+version = "0.22.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.0#99688c107c424fb9282c4210d8e6d8d140da79ac"
 dependencies = [
  "fluent-syntax",
  "proc-macro2",
@@ -1680,8 +1680,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-single-instance"
-version = "0.21.0"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.21.0#d0d34db300b69cc6f5f12c322fcc52a4138a2118"
+version = "0.22.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.0#99688c107c424fb9282c4210d8e6d8d140da79ac"
 dependencies = [
  "anyhow",
  "guinea",
@@ -1690,8 +1690,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-store"
-version = "0.23.8"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.21.0#d0d34db300b69cc6f5f12c322fcc52a4138a2118"
+version = "0.23.9"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.0#99688c107c424fb9282c4210d8e6d8d140da79ac"
 dependencies = [
  "amethystate 0.23.4",
  "anyhow",
@@ -1739,8 +1739,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-widgets"
-version = "0.21.0"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.21.0#d0d34db300b69cc6f5f12c322fcc52a4138a2118"
+version = "0.22.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.0#99688c107c424fb9282c4210d8e6d8d140da79ac"
 dependencies = [
  "guinea-mark",
  "tracing",
@@ -2293,6 +2293,35 @@ dependencies = [
  "widestring",
  "winapi",
  "windows 0.100.0",
+ "winreg",
+]
+
+[[package]]
+name = "ogurpchik"
+version = "0.7.2"
+source = "git+https://github.com/uniproc-dev/oguRPChik?tag=v0.7.2#934911742ffe1468a09878f8bd0fe7e515104ce7"
+dependencies = [
+ "base64",
+ "binrw",
+ "capnp",
+ "capnp-rpc",
+ "compio",
+ "ed25519-dalek",
+ "error-stack",
+ "futures",
+ "getrandom 0.4.3",
+ "hmac",
+ "libc",
+ "rustix",
+ "serde",
+ "serde_json",
+ "sha2",
+ "socket2",
+ "tracing",
+ "uuid",
+ "widestring",
+ "winapi",
+ "windows-core 0.100.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "winreg",
 ]
 
@@ -3364,7 +3393,7 @@ dependencies = [
  "crossbeam-channel",
  "futures",
  "ntapi",
- "ogurpchik",
+ "ogurpchik 0.7.1",
  "parking_lot",
  "tracing",
  "uniproc-agent-kit",
