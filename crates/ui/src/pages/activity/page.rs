@@ -14,7 +14,7 @@ use guinea::winui::MarkExt;
 use guinea::Mark;
 use guinea_widgets::chart::scatter::{Scatter, ScatterEvent};
 use windows_reactor::{
-    keyed, Border, Button, ButtonStyle, Callback, CheckBox, Flyout, FlyoutExt, FlyoutPlacement, Grid, GridLength,
+    keyed, Border, Button, ButtonStyle, Callback, Canvas, CheckBox, Flyout, FlyoutExt, FlyoutPlacement, Grid, GridLength,
     HorizontalAlignment, KeyedView, Orientation, PointerEventInfo, RadioButton, ScrollBarVisibility, ScrollViewer,
     StackPanel, TextBox, Thickness, VerticalAlignment, View,
 };
@@ -236,7 +236,7 @@ impl ActivityPage {
             .into()
     }
 
-    fn chart(&self, view: &ActivityView, state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+    fn chart(&self, view: &ActivityView, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
         let scatter = view.scatter.clone();
         self.chart.publish(series(&scatter, palette), options(&scatter, l10n, palette));
         let dispatch = dispatch.clone();
@@ -249,23 +249,16 @@ impl ActivityPage {
                 }
             }
         });
-        let mut layers: Vec<View> = vec![Border::new().mark(ActivityMark::Scatter).height(Plot::Height).content(plot).into()];
-        if let (Some(row), Some(hit)) = (&state.hovered, self.chart.hovered()) {
-            layers.push(
-                Border::new()
-                    .horizontal_alignment(HorizontalAlignment::Left)
-                    .vertical_alignment(VerticalAlignment::Top)
-                    .margin(Thickness::new(
-                        f64::from(hit.x) + Plot::CardGap,
-                        f64::from(hit.y) + Plot::CardGap,
-                        0.0,
-                        0.0,
-                    ))
-                    .content(card(row, l10n, palette))
-                    .into(),
-            );
-        }
-        Grid::new().children(layers).into()
+        Border::new().mark(ActivityMark::Scatter).height(Plot::Height).content(plot).into()
+    }
+
+    fn hover_card(&self, state: &ActivityState, l10n: &L10n, palette: Palette) -> Option<View> {
+        let (row, hit) = (state.hovered.as_ref()?, self.chart.hovered()?);
+        let placed = Border::new()
+            .canvas_left(f64::from(hit.x) + Plot::CardGap)
+            .canvas_top(f64::from(hit.y) + Plot::CardGap)
+            .content(card(row, l10n, palette));
+        Some(Canvas::new().children((placed,)).into())
     }
 
     pub fn view(
@@ -331,19 +324,26 @@ impl ActivityPage {
             Grid::new().children(layers).into()
         };
 
+        let plot_margin = Thickness::new(space::Cell, space::Card, space::Cell, 0.0);
+        let mut layers: Vec<View> = vec![
+            Border::new()
+                .grid_row(0)
+                .margin(plot_margin)
+                .content(self.chart(view, dispatch, l10n, palette))
+                .into(),
+            Border::new()
+                .grid_row(1)
+                .content(Self::range_bar(view, state, dispatch, l10n, palette))
+                .into(),
+            Border::new().grid_row(2).content(chips.unwrap_or_else(nothing)).into(),
+            Border::new().grid_row(3).content(list).into(),
+        ];
+        if let Some(card) = self.hover_card(state, l10n, palette) {
+            layers.push(Border::new().grid_row(0).margin(plot_margin).content(card).into());
+        }
         let body = Grid::new()
             .rows([GridLength::Auto, GridLength::Auto, GridLength::Auto, GridLength::Star(1.0)])
-            .children((
-                Border::new()
-                    .grid_row(0)
-                    .margin(Thickness::new(space::Cell, space::Card, space::Cell, 0.0))
-                    .content(self.chart(view, state, dispatch, l10n, palette)),
-                Border::new()
-                    .grid_row(1)
-                    .content(Self::range_bar(view, state, dispatch, l10n, palette)),
-                Border::new().grid_row(2).content(chips.unwrap_or_else(nothing)),
-                Border::new().grid_row(3).content(list),
-            ));
+            .children(layers);
 
         let (from, to) = (format::clock(view.from), format::clock(view.to));
         let status = if view.lost > 0 {
