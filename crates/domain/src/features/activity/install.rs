@@ -34,7 +34,7 @@ pub struct ActivityFeature;
 
 impl AppFeature for ActivityFeature {
     fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
-        let deps = app.try_require::<ActivityDeps>().map_or_else(ActivityDeps::default, |deps| *deps);
+        let deps = app.require_or_default::<ActivityDeps>();
         let (_, addr) = app
             .state::<ActivityState>()
             .driven_by(move |push| ActivityActor::new(push, deps));
