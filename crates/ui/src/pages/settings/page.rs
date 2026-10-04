@@ -8,7 +8,7 @@ use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, CheckBox, Expander, HorizontalAlignment, NumberBox, Orientation, Slider, StackPanel, Thickness,
+    Border, CheckBox, NumberBox, Orientation, Slider, StackPanel, Thickness,
     VerticalAlignment, View,
 };
 
@@ -16,7 +16,7 @@ use super::marks::SettingsMark;
 use crate::l10n::L10n;
 use crate::theme::{setting, space, Palette};
 use crate::widgets::settings_column::{settings_column, settings_section};
-use crate::widgets::setting_card::{card_words, choice, setting_card, SettingCard};
+use crate::widgets::setting_card::{card_words, choice, setting_card, setting_expander, SettingCard};
 use crate::widgets::text::{subtitle, text};
 
 struct Control;
@@ -177,9 +177,8 @@ fn sidebar_charts_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, 
                 palette,
             ),
         ));
-    Expander::new()
+    setting_expander()
         .mark(SettingsMark::SidebarCharts)
-        .horizontal_alignment(HorizontalAlignment::Stretch)
         .header(header)
         .content(
             StackPanel::new()

@@ -1,7 +1,8 @@
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    ComboBox, Grid, GridLength, StackPanel, ThemeBrush, Thickness, VerticalAlignment, View,
+    Color, ComboBox, Expander, Grid, GridLength, HorizontalAlignment, ResourceOverrides, StackPanel, ThemeBrush,
+    Thickness, VerticalAlignment, View,
 };
 
 use crate::theme::{radius, setting, space, Palette};
@@ -32,6 +33,14 @@ pub fn card_words(title: impl Into<String>, description: Option<String>, palette
         .vertical_alignment(VerticalAlignment::Center)
         .children(words)
         .into()
+}
+
+pub fn setting_expander() -> Expander {
+    Expander::new().horizontal_alignment(HorizontalAlignment::Stretch).resource_overrides(
+        ResourceOverrides::new()
+            .set("ExpanderChevronPointerOverBackground", Color::transparent())
+            .set("ExpanderChevronPressedBackground", Color::transparent()),
+    )
 }
 
 pub fn choice<T: Copy + PartialEq + 'static>(

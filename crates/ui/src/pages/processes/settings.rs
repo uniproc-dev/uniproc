@@ -4,7 +4,7 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    keyed, Border, Button, ButtonStyle, Callback, Expander, Grid, GridLength, HorizontalAlignment, KeyedView,
+    keyed, Border, Button, ButtonStyle, Callback, Grid, GridLength, KeyedView,
     Orientation, StackPanel, Thickness, ToggleSwitch, VerticalAlignment, View,
 };
 
@@ -20,7 +20,7 @@ use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
 use crate::widgets::button::action_button;
 use crate::widgets::settings_column::settings_column;
 use crate::widgets::separator;
-use crate::widgets::setting_card::{card_words, choice, setting_card, SettingCard};
+use crate::widgets::setting_card::{card_words, choice, setting_card, setting_expander, SettingCard};
 use crate::widgets::text::text;
 
 struct Layout;
@@ -286,9 +286,8 @@ fn expander(
         .margin(Thickness::xy(0.0, setting::ExpanderHeaderInset))
         .content(card_words(title, Some(description), palette));
     let expanded = forward.clone();
-    Expander::new()
+    setting_expander()
         .mark(group.mark())
-        .horizontal_alignment(HorizontalAlignment::Stretch)
         .is_expanded(open)
         .on_is_expanded_changed(move |open: bool| expanded.call(ProcessesSettingsMsg::Expand(group, open)))
         .header(header)
