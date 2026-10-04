@@ -1,7 +1,9 @@
 use app_contracts::features::activity::ActivityState;
+use app_contracts::features::window::PressedAway;
 use guinea::feature::FeatureInitContext;
+use guinea::prelude::GlobalEventBus;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
-use ui::pages::activity::{ActivityPage, ActivityPageMsg, RowActs};
+use ui::pages::activity::{ActivityPage, ActivityPageMsg};
 use ui::theme::{scheme_context, Palette};
 use windows_reactor::View;
 
@@ -27,12 +29,14 @@ impl Page for Activity {
         let (state, dispatch) = cx.read::<ActivityState>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
-        let acts = RowActs {
-            on_toggle: cx.on(ActivityPageMsg::Toggle),
-            on_only: cx.on(ActivityPageMsg::Only),
-            on_hide: cx.on(ActivityPageMsg::Hide),
-        };
-        self.0.view(&state, &dispatch, &l10n, palette, acts)
+        let forward = cx.on(|message: ActivityPageMsg| message);
+        let away = forward.clone();
+        cx.use_effect_guard("uniproc::activity::menu_closes_on_press_away", (), move || {
+            GlobalEventBus::subscribe_fn(move |_: PressedAway| {
+                away.call(ActivityPageMsg::MenuDismiss);
+            })
+        });
+        self.0.view(&state, &dispatch, &l10n, palette, forward)
     }
 }
 
@@ -312,17 +316,89 @@ mod tests {
         assert_eq!(rows(&page.tree()), 4, "{:#?}", page.tree());
     }
 
+    fn right_click(page: &mut Mounted<'_, Activity>) {
+        page.send(ActivityPageMsg::MenuAnchor { x: 40.0, y: 60.0 });
+        page.click(ActivityMark::Row).settle();
+        page.settle();
+    }
+
+    fn menu_open(page: &Mounted<'_, Activity>) -> bool {
+        page.find(ActivityMark::RowMenu).is_some()
+    }
+
     #[guinea::test(iterations = 4)]
-    fn a_program_hidden_from_its_opened_row_leaves_the_list_until_its_chip_is_clicked(h: &mut Harness) {
+    fn an_opened_row_shows_facts_and_leaves_hiding_to_its_menu(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10)]);
+
+        page.click(ActivityMark::Row).settle();
+        page.settle();
+        assert!(page.find(ActivityMark::Facts).is_some(), "{:#?}", page.tree());
+        assert!(!menu_open(&page), "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::HideExe).is_none(), "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::Only).is_none(), "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_right_click_opens_the_menu_of_that_row_and_does_not_open_the_row(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10)]);
+
+        right_click(&mut page);
+        assert!(menu_open(&page), "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::Facts).is_none(), "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::Selected).is_some(), "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::HideExe).is_some(), "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::HideFolder).is_some(), "{:#?}", page.tree());
+
+        page.click(ActivityMark::RowMenuBackdrop).settle();
+        page.settle();
+        assert!(!menu_open(&page), "{:#?}", page.tree());
+
+        right_click(&mut page);
+        assert!(menu_open(&page), "{:#?}", page.tree());
+        h.publish(PressedAway).settle();
+        page.settle();
+        assert!(!menu_open(&page), "a press elsewhere in the window closes it: {:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_series_menu_offers_to_hide_what_its_launcher_starts(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(
+            h,
+            &mut page,
+            vec![
+                came_from(4, 1, r"C:\Tools\claude.exe", 5),
+                came_from(20, 4, GIT, 10),
+                came_from(21, 4, GIT, 20),
+                came_from(22, 4, GIT, 30),
+            ],
+        );
+        assert_eq!(rows(&page.tree()), 2, "{:#?}", page.tree());
+
+        right_click(&mut page);
+        assert!(page.find(ActivityMark::HideLauncher).is_some(), "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_program_hidden_from_its_menu_leaves_the_list_until_its_chip_is_clicked(h: &mut Harness) {
         start(h);
         let h = &*h;
         let mut page = mount(h);
         live(h, &mut page, vec![came(20, 10), came_from(21, 1, r"C:\Other\other.exe", 20)]);
-        page.click(ActivityMark::Row).settle();
-        page.settle();
+        right_click(&mut page);
         assert!(page.find(ActivityMark::HideExe).is_some(), "{:#?}", page.tree());
 
         page.click(ActivityMark::HideExe).settle();
+        page.settle();
+        assert!(!menu_open(&page), "a command closes the menu");
         h.advance(Duration::from_secs(1));
         page.settle();
         assert_eq!(rows(&page.tree()), 1, "{:#?}", page.tree());
@@ -342,8 +418,7 @@ mod tests {
         let h = &*h;
         let mut page = mount(h);
         live(h, &mut page, vec![came(20, 10), came_from(21, 1, r"C:\Other\other.exe", 20)]);
-        page.click(ActivityMark::Row).settle();
-        page.settle();
+        right_click(&mut page);
         assert!(page.find(ActivityMark::Only).is_some(), "{:#?}", page.tree());
 
         page.click(ActivityMark::Only).settle();
@@ -364,9 +439,9 @@ mod tests {
         let h = &*h;
         let mut page = mount(h);
         live(h, &mut page, vec![came(20, 10), came_from(21, 1, r"C:\Other\other.exe", 20)]);
-        page.click(ActivityMark::Row).settle();
-        page.settle();
+        right_click(&mut page);
         page.click(ActivityMark::HideExe).settle();
+        page.settle();
         page.click(ActivityMark::Went).settle();
         page.settle();
 

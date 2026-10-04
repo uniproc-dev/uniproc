@@ -6,6 +6,7 @@ use super::super::marks::ActivityMark;
 use crate::l10n::L10n;
 use crate::theme::{size, space};
 use crate::widgets::button::command_button;
+use crate::widgets::popup_menu::MenuLine;
 
 fn named(pick: &Pick) -> String {
     match pick {
@@ -24,50 +25,42 @@ fn row(children: Vec<KeyedView>, margin: Thickness) -> View {
         .into()
 }
 
-pub fn pick_buttons(
-    picks: &[Pick],
-    l10n: &L10n,
-    on_only: &Callback<Pick>,
-    on_hide: &Callback<Pick>,
-    indent: f64,
-) -> View {
-    let mut buttons: Vec<KeyedView> = Vec::new();
+#[derive(Clone, PartialEq, Debug)]
+pub enum PickCommand {
+    Only(Pick),
+    Hide(Pick),
+}
+
+pub fn pick_lines(picks: &[Pick], l10n: &L10n) -> Vec<MenuLine<ActivityMark, PickCommand>> {
+    let hide = || icon!(eye_off).size(size::Icon).build_element();
+    let mut lines = Vec::new();
     for pick in picks {
-        let hide = {
-            let (on_hide, pick) = (on_hide.clone(), pick.clone());
-            move || on_hide.call(pick.clone())
-        };
+        let hidden = PickCommand::Hide(pick.clone());
         match pick {
             Pick::Exe(_) => {
-                let (on_only, only) = (on_only.clone(), pick.clone());
-                buttons.push(keyed(
-                    "only",
-                    command_button(ActivityMark::Only, l10n.activity_pick_only(), None, true, move || {
-                        on_only.call(only.clone())
-                    }),
+                lines.push(MenuLine::entry(
+                    ActivityMark::Only,
+                    icon!(filter).size(size::Icon).build_element(),
+                    l10n.activity_pick_only(),
+                    PickCommand::Only(pick.clone()),
                 ));
-                buttons.push(keyed(
-                    "exe",
-                    command_button(ActivityMark::HideExe, l10n.activity_pick_hide_exe(), None, true, hide),
-                ));
+                lines.push(MenuLine::entry(ActivityMark::HideExe, hide(), l10n.activity_pick_hide_exe(), hidden));
             }
-            Pick::Folder(_) => buttons.push(keyed(
-                "folder",
-                command_button(ActivityMark::HideFolder, l10n.activity_pick_hide_folder(), None, true, hide),
+            Pick::Folder(_) => lines.push(MenuLine::entry(
+                ActivityMark::HideFolder,
+                hide(),
+                l10n.activity_pick_hide_folder(),
+                hidden,
             )),
-            Pick::Launcher(name) => buttons.push(keyed(
-                "launcher",
-                command_button(
-                    ActivityMark::HideLauncher,
-                    l10n.activity_pick_hide_launcher(name.to_string()),
-                    None,
-                    true,
-                    hide,
-                ),
+            Pick::Launcher(name) => lines.push(MenuLine::entry(
+                ActivityMark::HideLauncher,
+                hide(),
+                l10n.activity_pick_hide_launcher(name.to_string()),
+                hidden,
             )),
         }
     }
-    row(buttons, Thickness::new(indent + space::Control, 0.0, 0.0, space::Control))
+    lines
 }
 
 pub fn picked(filter: &Filter, l10n: &L10n, on_all: Callback<()>, on_unhide: Callback<Pick>) -> Option<View> {

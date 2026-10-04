@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityRow, ActivityState, ActivityView, ClearArea, Filter, Hide, Hover, NewOnly, Only, Pick, PickArea, Search, ShowCame, ShowSeries,
+    ActivityRow, ActivityState, ActivityView, ClearArea, Filter, Hide, Hover, NewOnly, Only, Pick, PickArea, Search,
+    ShowCame, ShowSeries,
     ShowSpan, ShowWent, Span, Unhide,
 };
 use app_contracts::features::agents::ProcessInstance;
@@ -14,14 +15,14 @@ use guinea::Mark;
 use guinea_widgets::chart::scatter::{Scatter, ScatterEvent};
 use windows_reactor::{
     keyed, Border, Button, ButtonStyle, Callback, CheckBox, Flyout, FlyoutExt, FlyoutPlacement, Grid, GridLength,
-    HorizontalAlignment, KeyedView, Orientation, RadioButton, ScrollBarVisibility, ScrollViewer, StackPanel, TextBox,
-    Thickness, VerticalAlignment, View,
+    HorizontalAlignment, KeyedView, Orientation, PointerEventInfo, RadioButton, ScrollBarVisibility, ScrollViewer,
+    StackPanel, TextBox, Thickness, VerticalAlignment, View,
 };
 
 use super::components::card::card;
 use super::components::lifetimes::{acts, options, series, Act};
-use super::components::picks::picked;
-use super::components::rows::{rows, RowActs, Rows};
+use super::components::picks::{pick_lines, picked, PickCommand};
+use super::components::rows::{rows, Rows};
 use super::marks::ActivityMark;
 use crate::format;
 use crate::l10n::L10n;
@@ -29,6 +30,7 @@ use crate::theme::{size, space, Palette};
 use crate::widgets::button::command_button;
 use crate::widgets::nothing::nothing;
 use crate::widgets::page::{loading, page_frame, page_title, status_text};
+use crate::widgets::popup_menu::{popup_menu, PopupMenu};
 use crate::widgets::selection::Pinned;
 use crate::widgets::separator;
 use crate::widgets::text::{caption, text};
@@ -48,14 +50,24 @@ impl Plot {
     const CardGap: f64 = 12.0;
 }
 
+#[derive(Clone)]
 pub enum ActivityPageMsg {
-    Toggle(ProcessInstance),
-    Only(Pick),
-    Hide(Pick),
+    Press(ProcessInstance),
+    Pick(PickCommand),
+    MenuAnchor { x: f64, y: f64 },
+    MenuDismiss,
+}
+
+struct RowMenu {
+    x: f64,
+    y: f64,
+    row: ProcessInstance,
 }
 
 #[derive(Default)]
 pub struct ActivityPage {
+    anchor: Option<(f64, f64)>,
+    menu: Option<RowMenu>,
     expanded: Rc<HashSet<ProcessInstance>>,
     selected: Cell<Option<ProcessInstance>>,
     pinned: RefCell<Pinned<ActivityRow, ProcessInstance>>,
@@ -83,16 +95,56 @@ fn span_label(span: Span, l10n: &L10n) -> String {
 impl ActivityPage {
     pub fn update(&mut self, message: ActivityPageMsg, dispatch: &Dispatch) {
         match message {
-            ActivityPageMsg::Toggle(key) => {
-                self.selected.set(Some(key));
+            ActivityPageMsg::Press(row) => {
+                self.selected.set(Some(row));
+                if let Some((x, y)) = self.anchor.take() {
+                    self.menu = Some(RowMenu { x, y, row });
+                    return;
+                }
                 let expanded = Rc::make_mut(&mut self.expanded);
-                if !expanded.remove(&key) {
-                    expanded.insert(key);
+                if !expanded.remove(&row) {
+                    expanded.insert(row);
                 }
             }
-            ActivityPageMsg::Only(pick) => dispatch.emit(Only(Some(pick))),
-            ActivityPageMsg::Hide(pick) => dispatch.emit(Hide(pick)),
+            ActivityPageMsg::Pick(command) => {
+                self.menu = None;
+                match command {
+                    PickCommand::Only(pick) => dispatch.emit(Only(Some(pick))),
+                    PickCommand::Hide(pick) => dispatch.emit(Hide(pick)),
+                }
+            }
+            ActivityPageMsg::MenuAnchor { x, y } => self.anchor = Some((x, y)),
+            ActivityPageMsg::MenuDismiss => {
+                self.anchor = None;
+                self.menu = None;
+            }
         }
+    }
+
+    fn row_menu(
+        &self,
+        rows: &[ActivityRow],
+        l10n: &L10n,
+        palette: Palette,
+        forward: &Callback<ActivityPageMsg>,
+    ) -> Option<View> {
+        let menu = self.menu.as_ref()?;
+        let row = rows.iter().find(|row| row.key() == menu.row)?;
+        let lines = pick_lines(row.picks(), l10n);
+        if lines.is_empty() {
+            return None;
+        }
+        let (picked, dismissed) = (forward.clone(), forward.clone());
+        Some(popup_menu(PopupMenu {
+            x: menu.x,
+            y: menu.y,
+            lines,
+            card: ActivityMark::RowMenu,
+            backdrop: ActivityMark::RowMenuBackdrop,
+            palette,
+            on_command: Callback::new(move |command: PickCommand| picked.call(ActivityPageMsg::Pick(command))),
+            on_dismiss: Callback::new(move |()| dismissed.call(ActivityPageMsg::MenuDismiss)),
+        }))
     }
 
     fn menu(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
@@ -222,7 +274,7 @@ impl ActivityPage {
         dispatch: &Dispatch,
         l10n: &L10n,
         palette: Palette,
-        acts: RowActs,
+        forward: Callback<ActivityPageMsg>,
     ) -> View {
         let header = Self::header(state, dispatch, l10n, palette);
         let Load::Ready(view) = &state.view else {
@@ -249,7 +301,9 @@ impl ActivityPage {
                 .margin(Thickness::uniform(space::Section))
                 .into()
         } else {
-            ScrollViewer::new()
+            let menu = self.row_menu(&placed, l10n, palette, &forward);
+            let (pressed, anchored) = (forward.clone(), forward);
+            let scroller = ScrollViewer::new()
                 .horizontal_scroll_bar_visibility(ScrollBarVisibility::Disabled)
                 .content(rows(Rows {
                     rows: Rc::from(placed),
@@ -258,9 +312,23 @@ impl ActivityPage {
                     selected: self.selected.get(),
                     l10n: l10n.clone(),
                     palette,
-                    acts,
-                }))
-                .into()
+                    on_press: Callback::new(move |row: ProcessInstance| pressed.call(ActivityPageMsg::Press(row))),
+                }));
+            let mut layers: Vec<View> = vec![Border::new()
+                .on_pointer_pressed(move |pointer: PointerEventInfo| {
+                    anchored.call(if pointer.is_right_button_pressed {
+                        ActivityPageMsg::MenuAnchor {
+                            x: pointer.x,
+                            y: pointer.y,
+                        }
+                    } else {
+                        ActivityPageMsg::MenuDismiss
+                    })
+                })
+                .content(scroller)
+                .into()];
+            layers.extend(menu);
+            Grid::new().children(layers).into()
         };
 
         let body = Grid::new()

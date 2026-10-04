@@ -17,6 +17,8 @@ pub enum ActivityMark {
     Row,
     Selected,
     Menu,
+    RowMenu,
+    RowMenuBackdrop,
     Facts,
     Empty,
 }

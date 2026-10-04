@@ -181,6 +181,14 @@ impl ActivityRow {
             Self::Series(series) => series.key,
         }
     }
+
+    pub fn picks(&self) -> &[Pick] {
+        match self {
+            Self::Came(came) => &came.picks,
+            Self::Went(_) => &[],
+            Self::Series(series) => &series.picks,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]

@@ -6,27 +6,13 @@ use app_contracts::features::processes::{
     WindowCommand,
 };
 use guicons::icon;
-use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, Color, CornerRadius, Grid, GridLength, HorizontalAlignment, Orientation,
-    PointerEventInfo, StackPanel, Thickness, VerticalAlignment, View,
-};
-
-use guinea::winui::MarkExt;
+use windows_reactor::{Border, Callback, View};
 
 use super::super::marks::ProcessesMark;
 use super::columns::column_label;
 use crate::l10n::L10n;
-use crate::theme::{radius, size, space, Palette};
-use crate::widgets::separator;
-use crate::widgets::text::text;
-
-struct Menu;
-
-#[expect(non_upper_case_globals)]
-impl Menu {
-    const Width: f64 = 248.0;
-    const ShadowDrop: f64 = 2.0;
-}
+use crate::theme::{size, Palette};
+use crate::widgets::popup_menu::{popup_menu, MenuLine, PopupMenu};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum MenuTarget {
@@ -91,44 +77,16 @@ pub(crate) enum MenuCommand {
     OpenSettings,
 }
 
-struct Entry {
-    mark: ProcessesMark,
-    icon: View,
-    label: String,
-    enabled: bool,
-    command: MenuCommand,
-}
-
-enum Line {
-    Entry(Entry),
-    Separator,
-}
-
-fn entry(mark: ProcessesMark, icon: View, label: String, command: MenuCommand) -> Line {
-    Line::Entry(Entry {
-        mark,
-        icon,
-        label,
-        enabled: true,
-        command,
-    })
-}
-
-fn enabled_if(line: Line, enabled: bool) -> Line {
-    match line {
-        Line::Entry(entry) => Line::Entry(Entry { enabled, ..entry }),
-        Line::Separator => Line::Separator,
-    }
-}
+type Line = MenuLine<ProcessesMark, MenuCommand>;
 
 fn needs_path(line: Line, row: &ProcessRow) -> Line {
-    enabled_if(line, !row.exe_path.is_empty())
+    line.enabled_if(!row.exe_path.is_empty())
 }
 
 fn file_lines(row: &ProcessRow, l10n: &L10n) -> Vec<Line> {
     vec![
         needs_path(
-            entry(
+            Line::entry(
                 ProcessesMark::MenuOpenFileLocation,
                 icon!(folder).size(size::Icon).build_element(),
                 l10n.processes_menu_open_file_location(),
@@ -136,14 +94,14 @@ fn file_lines(row: &ProcessRow, l10n: &L10n) -> Vec<Line> {
             ),
             row,
         ),
-        entry(
+        Line::entry(
             ProcessesMark::MenuSearchOnline,
             icon!(search).size(size::Icon).build_element(),
             l10n.processes_menu_search_online(),
             MenuCommand::Process(ProcessCommand::SearchOnline),
         ),
         needs_path(
-            entry(
+            Line::entry(
                 ProcessesMark::MenuProperties,
                 icon!(info).size(size::Icon).build_element(),
                 l10n.processes_menu_properties(),
@@ -156,14 +114,14 @@ fn file_lines(row: &ProcessRow, l10n: &L10n) -> Vec<Line> {
 
 fn pin_lines(pinned: bool, l10n: &L10n) -> [Line; 2] {
     let pin = if pinned {
-        entry(
+        Line::entry(
             ProcessesMark::MenuUnpin,
             icon!(pin_off).size(size::Icon).build_element(),
             l10n.processes_menu_unpin(),
             MenuCommand::TogglePin,
         )
     } else {
-        entry(
+        Line::entry(
             ProcessesMark::MenuPin,
             icon!(pin).size(size::Icon).build_element(),
             l10n.processes_menu_pin(),
@@ -181,17 +139,17 @@ fn group_lines(leader: &ProcessRow, members: &[ProcessRow], pinned: bool, l10n: 
     let count = members.len() as i64;
     let acting: Vec<&ProcessRow> = members.iter().filter(|row| row.takes_actions()).collect();
     let mut lines = Vec::from(pin_lines(pinned, l10n));
-    lines.push(enabled_if(
-        entry(
+    lines.push(
+        Line::entry(
             ProcessesMark::MenuEndGroup,
             icon!(prohibited).size(size::Icon).build_element(),
             l10n.processes_menu_end_group(count),
             MenuCommand::Group(GroupCommand::End),
-        ),
-        !acting.is_empty(),
-    ));
+        )
+        .enabled_if(!acting.is_empty()),
+    );
     if acting.iter().any(|row| !is_suspended(row)) {
-        lines.push(entry(
+        lines.push(Line::entry(
             ProcessesMark::MenuSuspendGroup,
             icon!(pause).size(size::Icon).build_element(),
             l10n.processes_menu_suspend_group(count),
@@ -199,7 +157,7 @@ fn group_lines(leader: &ProcessRow, members: &[ProcessRow], pinned: bool, l10n: 
         ));
     }
     if acting.iter().any(|row| is_suspended(row)) {
-        lines.push(entry(
+        lines.push(Line::entry(
             ProcessesMark::MenuResumeGroup,
             icon!(play).size(size::Icon).build_element(),
             l10n.processes_menu_resume_group(count),
@@ -220,14 +178,14 @@ fn image_lines(image: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
 fn process_lines(row: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
     let actions = row.takes_actions();
     let pause = if is_suspended(row) {
-        entry(
+        Line::entry(
             ProcessesMark::MenuResume,
             icon!(play).size(size::Icon).build_element(),
             l10n.processes_menu_resume(),
             MenuCommand::Process(ProcessCommand::Resume),
         )
     } else {
-        entry(
+        Line::entry(
             ProcessesMark::MenuSuspend,
             icon!(pause).size(size::Icon).build_element(),
             l10n.processes_menu_suspend(),
@@ -237,21 +195,21 @@ fn process_lines(row: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
     let mut lines = Vec::from(pin_lines(pinned, l10n));
     lines.extend(
         [
-            entry(
+            Line::entry(
                 ProcessesMark::MenuEndTask,
                 icon!(prohibited).size(size::Icon).build_element(),
                 l10n.processes_menu_end_task(),
                 MenuCommand::EndTask,
             ),
             pause,
-            entry(
+            Line::entry(
                 ProcessesMark::MenuPriority,
                 icon!(top_speed).size(size::Icon).build_element(),
                 l10n.processes_menu_priority(),
                 MenuCommand::ShowPriority,
             ),
         ]
-        .map(|line| enabled_if(line, actions)),
+        .map(|line| line.enabled_if(actions)),
     );
     lines.push(Line::Separator);
     lines.extend(file_lines(row, l10n));
@@ -282,7 +240,7 @@ fn priority_lines(current: Option<ProcessPriority>, l10n: &L10n) -> Vec<Line> {
         } else {
             Border::new().width(size::Icon).height(size::Icon).into()
         };
-        entry(mark, icon, label, MenuCommand::Process(ProcessCommand::Priority(priority)))
+        Line::entry(mark, icon, label, MenuCommand::Process(ProcessCommand::Priority(priority)))
     })
     .collect()
 }
@@ -290,26 +248,26 @@ fn priority_lines(current: Option<ProcessPriority>, l10n: &L10n) -> Vec<Line> {
 fn window_lines(handle: isize, l10n: &L10n) -> Vec<Line> {
     let command = |command| MenuCommand::Window { handle, command };
     vec![
-        entry(
+        Line::entry(
             ProcessesMark::MenuSwitchTo,
             icon!(open).size(size::Icon).build_element(),
             l10n.processes_menu_switch_to(),
             command(WindowCommand::SwitchTo),
         ),
-        entry(
+        Line::entry(
             ProcessesMark::MenuMinimize,
             icon!(minimize).size(size::Icon).build_element(),
             l10n.processes_menu_minimize(),
             command(WindowCommand::Minimize),
         ),
-        entry(
+        Line::entry(
             ProcessesMark::MenuMaximize,
             icon!(maximize).size(size::Icon).build_element(),
             l10n.processes_menu_maximize(),
             command(WindowCommand::Maximize),
         ),
         Line::Separator,
-        entry(
+        Line::entry(
             ProcessesMark::MenuCloseWindow,
             icon!(dismiss).size(size::Icon).build_element(),
             l10n.processes_menu_close_window(),
@@ -351,45 +309,17 @@ fn column_lines(columns: &[(ProcessColumn, bool)], l10n: &L10n) -> Vec<Line> {
             } else {
                 Border::new().width(size::Icon).height(size::Icon).into()
             };
-            Some(entry(mark, icon, column_label(l10n, column), MenuCommand::ToggleColumn(column)))
+            Some(Line::entry(mark, icon, column_label(l10n, column), MenuCommand::ToggleColumn(column)))
         })
         .collect();
     lines.push(Line::Separator);
-    lines.push(entry(
+    lines.push(Line::entry(
         ProcessesMark::MenuMoreColumns,
         icon!(more_horizontal).size(size::Icon).build_element(),
         l10n.processes_menu_more_columns(),
         MenuCommand::OpenSettings,
     ));
     lines
-}
-
-fn line_view(line: Line, on_command: &Callback<MenuCommand>, palette: Palette) -> View {
-    match line {
-        Line::Separator => separator(palette)
-            .margin(Thickness::xy(0.0, space::Compact))
-            .into(),
-        Line::Entry(entry) => {
-            let on_command = on_command.clone();
-            let command = entry.command;
-            Button::new()
-                .mark(entry.mark)
-                .style(ButtonStyle::Subtle)
-                .is_enabled(entry.enabled)
-                .horizontal_alignment(HorizontalAlignment::Stretch)
-                .horizontal_content_alignment(HorizontalAlignment::Left)
-                .on_click(move || {
-                    on_command.call(command);
-                })
-                .content(
-                    StackPanel::new()
-                        .orientation(Orientation::Horizontal)
-                        .spacing(space::Header)
-                        .children((entry.icon, text(entry.label))),
-                )
-                .into()
-        }
-    }
 }
 
 pub(crate) struct MenuInputs<'a> {
@@ -421,53 +351,14 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
         MenuTarget::Columns => column_lines(&columns, l10n),
     };
 
-    let items: Vec<View> = lines.into_iter().map(|line| line_view(line, &on_command, palette)).collect();
-
-    let card = Border::new()
-        .mark(ProcessesMark::Menu)
-        .grid_row(1)
-        .grid_column(1)
-        .width(Menu::Width)
-        .background(palette.menu_fill)
-        .border_brush(palette.menu_stroke)
-        .border_thickness(Thickness::uniform(space::Hairline))
-        .corner_radius(radius::Overlay)
-        .padding(Thickness::uniform(space::Compact))
-        .content(StackPanel::new().children(items));
-
-    let shadow = Border::new()
-        .grid_row(1)
-        .grid_column(1)
-        .background(palette.menu_shadow)
-        .corner_radius(CornerRadius::uniform(radius::Overlay + space::Hairline))
-        .margin(Thickness::new(
-            -space::Hairline,
-            Menu::ShadowDrop,
-            -space::Hairline,
-            -Menu::ShadowDrop,
-        ));
-
-    let placed = Grid::new()
-        .horizontal_alignment(HorizontalAlignment::Left)
-        .vertical_alignment(VerticalAlignment::Top)
-        .rows([GridLength::Star(1.0), GridLength::Auto])
-        .columns([GridLength::Star(1.0), GridLength::Auto])
-        .children((
-            Border::new()
-                .grid_row(0)
-                .grid_column(0)
-                .width(menu.x)
-                .height(menu.y),
-            shadow,
-            card,
-        ));
-
-    let backdrop = Border::new()
-        .mark(ProcessesMark::MenuBackdrop)
-        .background(Color::transparent())
-        .on_pointer_released(Callback::new(move |_: PointerEventInfo| {
-            on_dismiss.call(());
-        }));
-
-    Grid::new().children((backdrop, placed)).into()
+    popup_menu(PopupMenu {
+        x: menu.x,
+        y: menu.y,
+        lines,
+        card: ProcessesMark::Menu,
+        backdrop: ProcessesMark::MenuBackdrop,
+        palette,
+        on_command,
+        on_dismiss,
+    })
 }

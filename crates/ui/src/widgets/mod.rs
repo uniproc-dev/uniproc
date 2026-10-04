@@ -7,6 +7,7 @@ pub mod link_card;
 pub mod metric_chart;
 pub mod nothing;
 pub mod page;
+pub mod popup_menu;
 pub mod selection;
 pub mod separator;
 pub mod setting_card;

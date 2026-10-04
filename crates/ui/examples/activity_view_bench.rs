@@ -9,7 +9,7 @@ use app_contracts::features::agents::ProcessInstance;
 use guinea::prelude::{Dispatch, Load};
 use guinea_plugin_l10n::Localization;
 use ui::l10n::L10n;
-use ui::pages::activity::{ActivityPage, RowActs};
+use ui::pages::activity::{ActivityPage, ActivityPageMsg};
 use ui::theme::Palette;
 use windows_reactor::{Callback, ColorScheme};
 
@@ -130,18 +130,14 @@ fn state(dots: usize, rows: usize) -> ActivityState {
 
 fn measure(label: &str, page: &ActivityPage, state: &ActivityState, l10n: &L10n, palette: Palette) {
     let dispatch = Dispatch::default();
-    let acts = RowActs {
-        on_toggle: Callback::new(|_: ProcessInstance| {}),
-        on_only: Callback::new(|_: Pick| {}),
-        on_hide: Callback::new(|_: Pick| {}),
-    };
-    drop(page.view(state, &dispatch, l10n, palette, acts.clone()));
+    let forward = Callback::new(|_: ActivityPageMsg| {});
+    drop(page.view(state, &dispatch, l10n, palette, forward.clone()));
 
     let mut total = Duration::ZERO;
     let mut worst = Duration::ZERO;
     for _ in 0..ITERATIONS {
         let started = Instant::now();
-        let view = page.view(state, &dispatch, l10n, palette, acts.clone());
+        let view = page.view(state, &dispatch, l10n, palette, forward.clone());
         let took = started.elapsed();
         drop(view);
         total += took;

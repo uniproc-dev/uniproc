@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use app_contracts::features::activity::{ActivityRow, Came, Launcher, Pick, Series, Went};
+use app_contracts::features::activity::{ActivityRow, Came, Launcher, Series, Went};
 use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
 use guinea::winui::MarkExt;
@@ -13,7 +13,6 @@ use windows_reactor::{
 use super::super::marks::ActivityMark;
 use super::facts::{facts, went_facts};
 use super::lasted::lasted;
-use super::picks::pick_buttons;
 use crate::format;
 use crate::l10n::L10n;
 use crate::theme::{accent_color, radius, size, space, Palette};
@@ -27,13 +26,6 @@ impl Line {
     const Indent: f64 = 80.0;
 }
 
-#[derive(Clone, PartialEq)]
-pub struct RowActs {
-    pub on_toggle: Callback<ProcessInstance>,
-    pub on_only: Callback<Pick>,
-    pub on_hide: Callback<Pick>,
-}
-
 pub struct Rows {
     pub rows: Rc<[ActivityRow]>,
     pub earlier: usize,
@@ -41,7 +33,7 @@ pub struct Rows {
     pub selected: Option<ProcessInstance>,
     pub l10n: L10n,
     pub palette: Palette,
-    pub acts: RowActs,
+    pub on_press: Callback<ProcessInstance>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -51,7 +43,7 @@ struct Item {
     selected: bool,
     l10n: L10n,
     palette: Palette,
-    acts: RowActs,
+    on_press: Callback<ProcessInstance>,
 }
 
 enum Pointer {
@@ -106,7 +98,7 @@ pub fn rows(list: Rows) -> View {
                 selected: list.selected == Some(row.key()),
                 l10n: list.l10n.clone(),
                 palette: list.palette,
-                acts: list.acts.clone(),
+                on_press: list.on_press.clone(),
             };
             keyed(key(row.key()), View::component::<ItemView>(item))
         })
@@ -171,13 +163,13 @@ fn line(at: String, glyph: View, main: View, trailing: View, palette: Palette) -
         .into()
 }
 
-fn toggled(content: impl Into<View>, key: ProcessInstance, on_toggle: &Callback<ProcessInstance>) -> View {
-    let on_toggle = on_toggle.clone();
+fn pressed(content: impl Into<View>, key: ProcessInstance, on_press: &Callback<ProcessInstance>) -> View {
+    let on_press = on_press.clone();
     Border::new()
         .mark(ActivityMark::Row)
         .background(Color::transparent())
         .padding(Thickness::xy(space::Cell, 0.0))
-        .on_pointer_released(move |_: PointerEventInfo| on_toggle.call(key))
+        .on_pointer_released(move |_: PointerEventInfo| on_press.call(key))
         .content(content)
         .into()
 }
@@ -216,7 +208,7 @@ fn came_main(came: &Came, l10n: &L10n, palette: Palette) -> View {
 }
 
 fn came_view(item: &Item, came: &Came) -> View {
-    let Item { l10n, palette, acts, .. } = item;
+    let Item { l10n, palette, on_press, .. } = item;
     let trailing = match &came.exit {
         Some(exit) => lasted(l10n, exit.lived),
         None => l10n.activity_still_running(),
@@ -229,21 +221,15 @@ fn came_view(item: &Item, came: &Came) -> View {
         *palette,
     );
     let body = if item.open {
-        StackPanel::new()
-            .children((
-                head,
-                facts(came, l10n, *palette, Line::Indent),
-                pick_buttons(&came.picks, l10n, &acts.on_only, &acts.on_hide, Line::Indent),
-            ))
-            .into()
+        StackPanel::new().children((head, facts(came, l10n, *palette, Line::Indent))).into()
     } else {
         head
     };
-    toggled(body, came.key, &acts.on_toggle)
+    pressed(body, came.key, on_press)
 }
 
 fn went_view(item: &Item, went: &Went) -> View {
-    let Item { l10n, palette, acts, .. } = item;
+    let Item { l10n, palette, on_press, .. } = item;
     let parts = match &went.name {
         Some(name) => vec![keyed("name", centered(name.to_string()))],
         None => vec![
@@ -263,7 +249,7 @@ fn went_view(item: &Item, went: &Went) -> View {
     } else {
         head
     };
-    toggled(body, went.key, &acts.on_toggle)
+    pressed(body, went.key, on_press)
 }
 
 fn series_names(series: &Series, l10n: &L10n) -> String {
@@ -293,7 +279,7 @@ fn member_view(came: &Came, l10n: &L10n, palette: Palette) -> View {
 }
 
 fn series_view(item: &Item, series: &Series) -> View {
-    let Item { l10n, palette, acts, open, .. } = item;
+    let Item { l10n, palette, on_press, open, .. } = item;
     let open = *open;
     let chevron = if open {
         icon!(chevron_down_regular).size(size::Icon).build_element()
@@ -320,17 +306,11 @@ fn series_view(item: &Item, series: &Series) -> View {
             .iter()
             .map(|came| keyed(key(came.key), member_view(came, l10n, *palette)))
             .collect();
-        StackPanel::new()
-            .children((
-                head,
-                pick_buttons(&series.picks, l10n, &acts.on_only, &acts.on_hide, Line::Indent),
-                StackPanel::new().keyed_children(members),
-            ))
-            .into()
+        StackPanel::new().children((head, StackPanel::new().keyed_children(members))).into()
     } else {
         head
     };
-    toggled(body, series.key, &acts.on_toggle)
+    pressed(body, series.key, on_press)
 }
 
 fn row_view(item: &Item) -> View {
