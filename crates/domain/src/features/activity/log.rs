@@ -319,27 +319,35 @@ fn went_lived(log: &Log, went: &ProcessWent) -> Lived {
 }
 
 fn scatter(log: &Log, frame: &Frame, filter: &Filter, clock: fn(u64) -> Clock) -> Scatter {
+    let sieve = Sieve::new(log, filter, None);
     let mut dots = Vec::new();
     let span = (frame.start, Kind::Came, ProcessInstance::default())..(frame.end, Kind::Came, ProcessInstance::default());
     for (at, kind, instance) in log.timeline.range(span) {
         match kind {
             Kind::Came => {
-                if let Some(started) = log.started.get(instance).filter(|started| !log.hosted(started)) {
+                let listed = |started: &&Started| {
+                    sieve.admits_came(started) || log.ended.get(instance).is_some_and(|went| sieve.admits_went(went))
+                };
+                if let Some(started) = log.started.get(instance).filter(|started| !log.hosted(started)).filter(listed) {
                     dots.push(Dot {
                         key: *instance,
                         at: *at,
                         lived: came_lived(log, started),
-                        faint: log.routine(started) || !admitted(filter, |pick| started.has(pick)),
+                        faint: log.routine(started),
                     });
                 }
             }
             Kind::Went => {
-                if let Some(went) = log.ended.get(instance).filter(|_| !log.started.contains_key(instance)) {
+                let listed = log
+                    .ended
+                    .get(instance)
+                    .is_some_and(|went| !log.started.contains_key(instance) && sieve.admits_went(went));
+                if listed {
                     dots.push(Dot {
                         key: *instance,
                         at: *at,
                         lived: Lived::Unknown,
-                        faint: !admitted(filter, |pick| log.went_has(went, pick)),
+                        faint: false,
                     });
                 }
             }
@@ -478,16 +486,23 @@ fn series_of(members: &[(u64, ProcessInstance)], log: &Log, clock: fn(u64) -> Cl
     })
 }
 
-struct Walk<'a> {
+struct Sieve<'a> {
     log: &'a Log,
     filter: &'a Filter,
     text: String,
     band: Option<(Lived, Lived)>,
-    rows: Vec<(u64, Light)>,
-    series: HashMap<(ProcessInstance, Arc<str>), usize>,
 }
 
-impl Walk<'_> {
+impl<'a> Sieve<'a> {
+    fn new(log: &'a Log, filter: &'a Filter, area: Option<Area>) -> Self {
+        Self {
+            log,
+            filter,
+            text: filter.text.trim().to_lowercase(),
+            band: area.map(|area| (area.shortest, area.longest)),
+        }
+    }
+
     fn held(&self, lived: Lived) -> bool {
         self.band.is_none_or(|(shortest, longest)| (shortest..=longest).contains(&lived))
     }
@@ -511,15 +526,24 @@ impl Walk<'_> {
             && admitted(self.filter, |pick| self.log.went_has(went, pick))
             && contains(went_name(self.log, went).as_deref().unwrap_or_default(), &self.text)
     }
+}
 
+struct Walk<'a> {
+    sieve: Sieve<'a>,
+    rows: Vec<(u64, Light)>,
+    series: HashMap<(ProcessInstance, Arc<str>), usize>,
+}
+
+impl Walk<'_> {
     fn came(&mut self, at: u64, instance: ProcessInstance) {
-        let Some(started) = self.log.started.get(&instance).filter(|started| self.admits_came(started)) else {
+        let sieve = &self.sieve;
+        let Some(started) = sieve.log.started.get(&instance).filter(|started| sieve.admits_came(started)) else {
             return;
         };
         let launched = started
             .launched
             .as_ref()
-            .filter(|_| self.filter.series && !started.folder.is_empty());
+            .filter(|_| sieve.filter.series && !started.folder.is_empty());
         let Some((launcher, _)) = launched else {
             self.rows.push((at, Light::Came(instance)));
             return;
@@ -539,7 +563,7 @@ impl Walk<'_> {
     }
 
     fn went(&mut self, at: u64, instance: ProcessInstance) {
-        if self.log.ended.get(&instance).is_some_and(|went| self.admits_went(went)) {
+        if self.sieve.log.ended.get(&instance).is_some_and(|went| self.sieve.admits_went(went)) {
             self.rows.push((at, Light::Went(instance)));
         }
     }
@@ -602,10 +626,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     }
 
     let mut walk = Walk {
-        log,
-        filter: ask.filter,
-        text: ask.filter.text.trim().to_lowercase(),
-        band: ask.area.map(|area| (area.shortest, area.longest)),
+        sieve: Sieve::new(log, ask.filter, ask.area),
         rows: Vec::new(),
         series: HashMap::new(),
     };
@@ -1032,7 +1053,6 @@ mod tests {
         let view = look(&log, &only, None);
         assert_eq!(view.rows.len(), 1, "{:#?}", view.rows);
         assert_eq!(&*only_came(&view.rows[0]).name, "a.exe");
-        assert!(dot(&view.scatter, 21).faint && !dot(&view.scatter, 20).faint);
 
         let hidden = Filter {
             hidden: vec![Pick::Folder(r"c:\a".into())],
@@ -1041,7 +1061,78 @@ mod tests {
         let view = look(&log, &hidden, None);
         assert_eq!(view.rows.len(), 1, "{:#?}", view.rows);
         assert_eq!(&*only_came(&view.rows[0]).name, "b.exe");
-        assert!(dot(&view.scatter, 20).faint && !dot(&view.scatter, 21).faint);
+    }
+
+    fn drawn(scatter: &Scatter) -> Vec<u32> {
+        let mut pids: Vec<u32> = scatter.dots.iter().map(|dot| dot.key.pid).collect();
+        pids.sort_unstable();
+        pids
+    }
+
+    #[test]
+    fn what_the_list_leaves_out_the_chart_leaves_out_too() {
+        let mut log = Log::default();
+        log.note_running(&[running(30, "old.exe", at(0, 0))]);
+        log.record(&[
+            came_at(20, 1, r"C:\A\a.exe", at(10, 0)),
+            came_at(21, 1, r"C:\B\b.exe", at(11, 0)),
+            went(30, at(12, 0)),
+        ]);
+        let drawn_with = |filter: Filter| drawn(&look(&log, &filter, None).scatter);
+
+        assert_eq!(drawn_with(Filter::default()), [20, 21, 30]);
+        assert_eq!(
+            drawn_with(Filter {
+                hidden: vec![Pick::Folder(r"c:\a".into())],
+                ..Filter::default()
+            }),
+            [21, 30]
+        );
+        assert_eq!(
+            drawn_with(Filter {
+                only: Some(Pick::Exe(r"c:\a\a.exe".into())),
+                ..Filter::default()
+            }),
+            [20]
+        );
+        assert_eq!(
+            drawn_with(Filter {
+                went: false,
+                ..Filter::default()
+            }),
+            [20, 21]
+        );
+        assert_eq!(
+            drawn_with(Filter {
+                came: false,
+                ..Filter::default()
+            }),
+            [30]
+        );
+        assert_eq!(
+            drawn_with(Filter {
+                text: "b.exe".into(),
+                ..Filter::default()
+            }),
+            [21]
+        );
+    }
+
+    #[test]
+    fn a_selected_area_narrows_the_list_and_leaves_the_chart_whole() {
+        let mut log = Log::default();
+        log.record(&[came(20, 1, "a.exe", at(10, 0)), came(21, 1, "b.exe", at(40, 0))]);
+        let area = Area {
+            from: at(5, 0),
+            to: at(15, 0),
+            shortest: Lived::Unknown,
+            longest: Lived::Running,
+        };
+
+        let view = look(&log, &Filter::default(), Some(area));
+
+        assert_eq!(view.rows.len(), 1, "{:#?}", view.rows);
+        assert_eq!(drawn(&view.scatter), [20, 21]);
     }
 
     #[test]
