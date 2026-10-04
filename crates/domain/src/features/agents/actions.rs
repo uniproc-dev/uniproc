@@ -95,11 +95,11 @@ fn on_transport(this: &mut WindowsActions, transport: WindowsTransport) {
 }
 
 #[handler]
-async fn act(ctx: AsyncContext<WindowsActions>, WindowsActionRequest(action): WindowsActionRequest) -> ActionOutcome {
-    match ctx.apply(|this, _| this.transport.clone()).await.flatten() {
-        Some(transport) => outcome(transport.act(action).await),
-        None => ActionOutcome::NotConnected,
-    }
+fn act(this: &mut WindowsActions, WindowsActionRequest(action): WindowsActionRequest) -> Reply<ActionOutcome> {
+    let Some(transport) = this.transport.clone() else {
+        return Reply::now(ActionOutcome::NotConnected);
+    };
+    Reply::later(async move { outcome(transport.act(action).await) })
 }
 
 struct Pace;

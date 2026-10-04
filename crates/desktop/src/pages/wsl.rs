@@ -27,11 +27,11 @@ impl Page for Wsl {
     }
 
     fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
-        let (state, _) = cx.read::<WslState, _>();
+        let (state, _) = cx.read::<WslState>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: WslMsg| message);
-        let (settings, _) = cx.read::<SettingsState, _>();
+        let (settings, _) = cx.read::<SettingsState>();
         self.0.view(&state, &l10n, palette, forward, settings.units.bytes)
     }
 }

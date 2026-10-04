@@ -26,7 +26,7 @@ impl Page for Services {
     }
 
     fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
-        let (state, dispatch) = cx.read::<ServicesState, _>();
+        let (state, dispatch) = cx.read::<ServicesState>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ServicesMsg| message);

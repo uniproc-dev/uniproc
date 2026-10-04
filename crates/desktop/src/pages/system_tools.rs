@@ -27,7 +27,7 @@ impl Page for SystemTools {
     }
 
     fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
-        let (state, dispatch) = cx.read::<SystemState, _>();
+        let (state, dispatch) = cx.read::<SystemState>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let on_back_hover = cx.on(|hovered: bool| hovered);

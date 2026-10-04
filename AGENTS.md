@@ -59,7 +59,7 @@ polish it.
   or in the area layout above it (`ProcessesArea`, `SystemArea`), never in `ShellLayout`:
   the shell installs only what the shell itself shows (sidebar, metrics, agent link,
   settings). App-lifetime features implement `AppFeature` and go in `main.rs` (`agents`,
-  `activity`); one whose state a page reads claims it with `app.state` and `app.export`.
+  `activity`); one whose state a page reads claims it with `app.state` and lists it in `type Exports`.
 
 Routes are in `desktop/src/routes.rs`. `ShellLayout` is the root and is `restorable`: the
 last route survives a restart, see `route_memory.rs`. `ProcessesArea` is `keep`: leaving it

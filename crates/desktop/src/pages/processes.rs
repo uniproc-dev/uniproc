@@ -50,7 +50,7 @@ impl Page for Processes {
     }
 
     fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
-        let (state, dispatch) = cx.read::<ProcessesState, _>();
+        let (state, dispatch) = cx.read::<ProcessesState>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ProcessesMsg| message);
@@ -70,7 +70,7 @@ impl Page for Processes {
         });
         let nav = cx.navigate::<Route>();
         let open_settings = Callback::new(move |()| nav.to(Route::ProcessesSettings {}));
-        let (settings, _) = cx.read::<SettingsState, _>();
+        let (settings, _) = cx.read::<SettingsState>();
         let units = settings.units;
         self.0.view(&state, &dispatch, &l10n, palette, forward, open_settings, units)
     }

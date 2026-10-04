@@ -105,11 +105,11 @@ impl Layout for ShellLayout {
                 guicons::set_theme(icon_theme(scheme));
             }
             ShellMsg::Resize(width) => {
-                let (_, dispatch) = cx.read::<SidebarState, _>();
+                let (_, dispatch) = cx.read::<SidebarState>();
                 dispatch.emit(SetWidth(width.round() as u64));
             }
             ShellMsg::OpenChanged(open) => {
-                let (sidebar, dispatch) = cx.read::<SidebarState, _>();
+                let (sidebar, dispatch) = cx.read::<SidebarState>();
                 if sidebar.open != open {
                     dispatch.emit(SetOpen(open));
                 }
@@ -120,7 +120,7 @@ impl Layout for ShellLayout {
     fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
         let on_scheme = cx.on(ShellMsg::Scheme);
         cx.on_color_scheme(on_scheme);
-        let (settings, settings_dispatch) = cx.read::<SettingsState, _>();
+        let (settings, settings_dispatch) = cx.read::<SettingsState>();
         cx.window_visuals(
             WindowVisuals::new()
                 .client_size(WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -137,9 +137,9 @@ impl Layout for ShellLayout {
             None
         });
 
-        let (sidebar, _) = cx.read::<SidebarState, _>();
-        let (metrics, _) = cx.read::<MetricsState, _>();
-        let (link, link_dispatch) = cx.read::<AgentLinkState, _>();
+        let (sidebar, _) = cx.read::<SidebarState>();
+        let (metrics, _) = cx.read::<MetricsState>();
+        let (link, link_dispatch) = cx.read::<AgentLinkState>();
         let l10n = ui::l10n::use_tr(cx);
         let nav = cx.use_navigate::<Route>();
 

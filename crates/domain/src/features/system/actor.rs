@@ -52,20 +52,21 @@ pub struct Rescan;
 
 struct Scanned(Vec<SystemTool>);
 
-struct Used(SystemTool);
+enum Opened {
+    Launched(SystemTool),
+    Gone(SystemTool),
+}
 
 actor! {
     SystemActor {
-        handlers { Rescan, Scanned, OpenTool, Used, GetTool, PinTool, ForgetTool }
+        handlers { Rescan, Scanned, OpenTool, Opened, GetTool, PinTool, ForgetTool }
     }
 }
 
 #[handler]
-async fn rescan(ctx: AsyncContext<SystemActor>, _: Rescan) {
-    let Some(locate) = ctx.apply(|this, _| this.deps.locate).await else {
-        return;
-    };
-    ctx.send(Scanned(tools::missing(locate)));
+fn rescan(this: &mut SystemActor, _: Rescan, cx: Cx) {
+    let locate = this.deps.locate;
+    cx.spawn_bg(async move { Scanned(tools::missing(locate)) });
 }
 
 #[handler]
@@ -74,24 +75,30 @@ fn on_scanned(this: &mut SystemActor, Scanned(missing): Scanned) {
 }
 
 #[handler]
-async fn open(ctx: AsyncContext<SystemActor>, OpenTool(tool): OpenTool) {
-    let Some(deps) = ctx.apply(|this, _| this.deps).await else {
-        return;
-    };
-    match tools::resolve(tool, deps.locate) {
-        Some(launch) => {
-            (deps.launch)(launch);
-            ctx.send(Used(tool));
+fn open(this: &mut SystemActor, OpenTool(tool): OpenTool, cx: Cx) {
+    let deps = this.deps;
+    cx.spawn_bg(async move {
+        match tools::resolve(tool, deps.locate) {
+            Some(launch) => {
+                (deps.launch)(launch);
+                Opened::Launched(tool)
+            }
+            None => Opened::Gone(tool),
         }
-        None => {
-            tracing::info!(?tool, "system tool is gone, looking again");
-            ctx.send(Rescan);
-        }
-    }
+    });
 }
 
 #[handler]
-fn on_used(this: &mut SystemActor, Used(tool): Used) {
+fn on_opened(this: &mut SystemActor, opened: Opened, cx: Cx) {
+    let tool = match opened {
+        Opened::Launched(tool) => tool,
+        Opened::Gone(tool) => {
+            tracing::info!(?tool, "system tool is gone, looking again");
+            let locate = this.deps.locate;
+            cx.spawn_bg(async move { Scanned(tools::missing(locate)) });
+            return;
+        }
+    };
     let uses = this.settings.uses();
     let before = uses.get(tool.id()).unwrap_or_default();
     let now = ToolUse {

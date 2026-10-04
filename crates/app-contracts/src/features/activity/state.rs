@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use guinea::feature::AppExport;
 use guinea::prelude::*;
 
 use super::messages::ActivityMsg;
@@ -24,8 +23,6 @@ impl Default for ActivityState {
         }
     }
 }
-
-impl AppExport for ActivityState {}
 
 #[reducer]
 fn activity(this: &mut ActivityState, msg: ActivityMsg) {

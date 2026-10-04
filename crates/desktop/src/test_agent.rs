@@ -213,6 +213,8 @@ impl AgentBackend for FakeAgent {
 pub struct FakeAgentFeature;
 
 impl AppFeature for FakeAgentFeature {
+    type Exports = ();
+
     fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
         let settings = app.settings::<AgentSettings>()?;
         let general = app.settings::<GeneralSettings>()?;

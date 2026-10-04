@@ -33,12 +33,13 @@ impl Pace {
 pub struct ActivityFeature;
 
 impl AppFeature for ActivityFeature {
+    type Exports = (ActivityState,);
+
     fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
         let deps = app.require_or_default::<ActivityDeps>();
         let (_, addr) = app
             .state::<ActivityState>()
             .driven_by(move |push| ActivityActor::new(push, deps));
-        app.export::<ActivityState>()?;
         addr.subscribe_on::<WindowsProcessEvents>(Bus::Global);
         addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
         app.every(Pace::Refresh, &addr, || Refresh).named("activity-refresh");

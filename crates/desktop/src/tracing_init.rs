@@ -33,7 +33,7 @@ pub fn init() -> anyhow::Result<()> {
         .with(targets)
         .with(tracing_subscriber::fmt::layer().with_writer(io::stderr))
         .with(file)
-        .with(guinea::core::devtools::layer())
+        .with(guinea::core::observability::layer())
         .try_init()?;
     Ok(())
 }

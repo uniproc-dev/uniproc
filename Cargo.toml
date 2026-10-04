@@ -20,12 +20,12 @@ members = [
 guinea = "0.22.0"
 guinea-meta-build = "0.22.0"
 
-guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.22.1" }
-guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.22.1" }
-guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.22.1" }
-guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.22.1" }
-guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.22.1" }
-guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.22.1" }
+guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "2ddc8b3" }
+guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "2ddc8b3" }
+guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "2ddc8b3" }
+guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "2ddc8b3" }
+guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "2ddc8b3" }
+guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "2ddc8b3" }
 
 # --- guicons ---
 guicons = "0.11.0"
@@ -79,6 +79,22 @@ anyhow = "1.0.100"
 fluent-templates = "0.14.0"
 fluent-bundle = "0.16.0"
 unic-langid = { version = "0.9.6", features = ["macros"] }
+
+[patch.crates-io]
+guinea = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea-app = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea-codegen = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea-core = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea-macros = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea-mark = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea-meta = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea-meta-build = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea-route-dsl = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea-router = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea-trace = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea-winui = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+windows-reactor-pre = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+windows-canvas-pre = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

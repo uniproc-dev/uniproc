@@ -20,7 +20,7 @@ impl Page for Settings {
     fn update(&mut self, _message: (), _cx: &mut UpdateCx<'_, Self>) {}
 
     fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
-        let (state, dispatch) = cx.read::<SettingsState, _>();
+        let (state, dispatch) = cx.read::<SettingsState>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         ui::pages::settings::settings_view(&state, &dispatch, &l10n, palette)

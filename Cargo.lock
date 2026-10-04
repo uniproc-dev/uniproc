@@ -887,7 +887,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1013,7 +1013,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1317,7 +1317,7 @@ dependencies = [
  "libc",
  "log",
  "rustversion",
- "windows-link 0.2.1",
+ "windows-link 0.1.3",
  "windows-result 0.3.4",
 ]
 
@@ -1452,8 +1452,7 @@ dependencies = [
 [[package]]
 name = "guinea"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96cea847227988717b9ce270b0af9d9215969c6cc7938aba19c0a66969c44646"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "guinea-app",
  "guinea-codegen",
@@ -1467,8 +1466,7 @@ dependencies = [
 [[package]]
 name = "guinea-app"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efdad4816ca1556f282e7f7464b011402a767285dcd522e5a3ad55376b71897f"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "anyhow",
  "guinea-core",
@@ -1480,8 +1478,7 @@ dependencies = [
 [[package]]
 name = "guinea-codegen"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59805924e8224a0e8110c613b19c74b9494a1408c45ea4bbe6b41d6a31d091fc"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "guinea-meta-build",
  "heck",
@@ -1496,8 +1493,7 @@ dependencies = [
 [[package]]
 name = "guinea-core"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee2ca234d281a6222744b1cb11fdb81f3c71e839e3b01ee1a9efb4efe6ec8061"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1519,7 +1515,7 @@ dependencies = [
 [[package]]
 name = "guinea-devtools-protocol"
 version = "0.22.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.1#7e8ca6ec452364897784f238b921c89f342cccf2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=2ddc8b3#2ddc8b3e8c0249f677b72f1fc561c016d1c7885c"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -1532,8 +1528,7 @@ dependencies = [
 [[package]]
 name = "guinea-macros"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6e7a75e83fbd1952cd465ae39ce6f447df5a64c36cca6146f4223c6b0b11cc2"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "guinea-codegen",
  "guinea-route-dsl",
@@ -1548,20 +1543,17 @@ dependencies = [
 [[package]]
 name = "guinea-mark"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adc540a90c2652c8704aa9dee648525ad42ec4f8fa67026fa7ea13ac4552b2db"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 
 [[package]]
 name = "guinea-meta"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3d494c940ce968e8faf1bfa558779d7304b0af17fc3e95edf84283a880436ae"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 
 [[package]]
 name = "guinea-meta-build"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61653bc55f939f23019c48d0ce52186eda7723e9b0cba6757ff8610d92daa6db"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "serde",
  "toml 0.9.12+spec-1.1.0",
@@ -1571,7 +1563,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-devtools"
 version = "0.22.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.1#7e8ca6ec452364897784f238b921c89f342cccf2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=2ddc8b3#2ddc8b3e8c0249f677b72f1fc561c016d1c7885c"
 dependencies = [
  "anyhow",
  "capnp",
@@ -1583,12 +1575,13 @@ dependencies = [
  "guinea-plugin-single-instance",
  "ogurpchik",
  "tracing",
+ "windows-link 0.100.0",
 ]
 
 [[package]]
 name = "guinea-plugin-l10n"
 version = "0.22.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.1#7e8ca6ec452364897784f238b921c89f342cccf2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=2ddc8b3#2ddc8b3e8c0249f677b72f1fc561c016d1c7885c"
 dependencies = [
  "anyhow",
  "fluent-bundle",
@@ -1603,7 +1596,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-l10n-build"
 version = "0.22.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.1#7e8ca6ec452364897784f238b921c89f342cccf2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=2ddc8b3#2ddc8b3e8c0249f677b72f1fc561c016d1c7885c"
 dependencies = [
  "fluent-syntax",
  "proc-macro2",
@@ -1615,7 +1608,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-single-instance"
 version = "0.22.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.1#7e8ca6ec452364897784f238b921c89f342cccf2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=2ddc8b3#2ddc8b3e8c0249f677b72f1fc561c016d1c7885c"
 dependencies = [
  "anyhow",
  "guinea",
@@ -1625,7 +1618,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-store"
 version = "0.23.10"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.1#7e8ca6ec452364897784f238b921c89f342cccf2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=2ddc8b3#2ddc8b3e8c0249f677b72f1fc561c016d1c7885c"
 dependencies = [
  "amethystate",
  "anyhow",
@@ -1637,8 +1630,7 @@ dependencies = [
 [[package]]
 name = "guinea-route-dsl"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82c986a7cfa0af1cc8f0e275a841a0d02275c239b542674890062e901a780ad0"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1649,8 +1641,7 @@ dependencies = [
 [[package]]
 name = "guinea-router"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "419091123b7363a841792bf18dd66e4648c56d3316a25b2e24586f210970158f"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "anyhow",
  "guinea-app",
@@ -1663,8 +1654,7 @@ dependencies = [
 [[package]]
 name = "guinea-trace"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a54f7591dbe05e0a38355034ff8322b3341ed455410ac6cb0ce2e4cabef6bdb"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "serde_json",
  "tracing",
@@ -1674,7 +1664,7 @@ dependencies = [
 [[package]]
 name = "guinea-widgets"
 version = "0.22.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.1#7e8ca6ec452364897784f238b921c89f342cccf2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=2ddc8b3#2ddc8b3e8c0249f677b72f1fc561c016d1c7885c"
 dependencies = [
  "guinea-mark",
  "tracing",
@@ -1687,8 +1677,7 @@ dependencies = [
 [[package]]
 name = "guinea-winui"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5ea0d7c7f4e4c8a73c84c84e777cad4e140772b95f05f3e6a11f4fe269080e1"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "anyhow",
  "guinea-app",
@@ -2150,7 +2139,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2248,7 +2237,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2618,7 +2607,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2919,10 +2908,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3526,7 +3515,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3550,8 +3539,7 @@ dependencies = [
 [[package]]
 name = "windows-canvas-pre"
 version = "0.101.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea11582f65d3cc4081dc4058ff7922fa2903167e19abb410f6ccf581eb5be7b4"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "windows-core",
  "windows-numerics",
@@ -3655,8 +3643,7 @@ dependencies = [
 [[package]]
 name = "windows-reactor-pre"
 version = "0.101.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82a7bc8188ec892af75c32ee903be8d57dd2589bc5384cee62656e44f79a0999"
+source = "git+https://github.com/guinea-rs/guinea?rev=15b55ed#15b55edb09ab3adb44eb8ff0e6e2a53ff8200d57"
 dependencies = [
  "windows-collections",
  "windows-core",

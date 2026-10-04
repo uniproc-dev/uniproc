@@ -17,6 +17,8 @@ use tracing::info;
 pub struct AgentsFeature;
 
 impl AppFeature for AgentsFeature {
+    type Exports = ();
+
     fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
         info!("Agents feature installed");
 
