@@ -28,42 +28,12 @@ dependencies = [
 
 [[package]]
 name = "amethystate"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66c1f51eb47d463ee97491ddfceb5d5043d738b8d81f117e726340e0b6f6e5f0"
-dependencies = [
- "amethystate-core 0.22.1",
- "amethystate-macros 0.22.1",
- "arc-swap",
- "dashmap",
- "directories",
- "erased-serde",
- "error-stack",
- "etcetera",
- "futures-core",
- "indexmap",
- "inventory",
- "js-sys",
- "parking_lot",
- "rayon",
- "redb",
- "rmp-serde",
- "serde",
- "serde_json",
- "thiserror",
- "tracing",
- "uuid",
- "xxhash-rust",
-]
-
-[[package]]
-name = "amethystate"
 version = "0.23.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "529734f06cbde40bb6a8ce03fb666038ae76c4b2be2055a06dc5f390c64fe345"
 dependencies = [
- "amethystate-core 0.23.4",
- "amethystate-macros 0.23.4",
+ "amethystate-core",
+ "amethystate-macros",
  "arc-swap",
  "dashmap",
  "directories",
@@ -86,26 +56,6 @@ dependencies = [
  "tracing",
  "uuid",
  "xxhash-rust",
-]
-
-[[package]]
-name = "amethystate-core"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c3040285466d4fb852a77136bee5cd108710f18d67f8f8b2d91b17a66a56019"
-dependencies = [
- "arc-swap",
- "dashmap",
- "error-stack",
- "inventory",
- "parking_lot",
- "rpds",
- "serde",
- "smallvec",
- "smol_str",
- "thiserror",
- "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -134,22 +84,8 @@ version = "0.23.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1db9661b238d41ad7dbab959fc04c69de4eba59b9d996a3f4216a46ca84f3e01"
 dependencies = [
- "amethystate 0.23.4",
+ "amethystate",
  "guinea-app",
-]
-
-[[package]]
-name = "amethystate-macros"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b3b01581f0ac82d068b84ef3c7a7be4a7c63d1bfa4e324c5fa8fae469ac4666"
-dependencies = [
- "amethystate-macros-core 0.22.1",
- "darling 0.23.0",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]
@@ -158,21 +94,9 @@ version = "0.23.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c68fdaeb08a7897239978bde3d75d6180dbf25c46984f69be9eb6ff0a326921d"
 dependencies = [
- "amethystate-macros-core 0.23.4",
+ "amethystate-macros-core",
  "darling 0.23.0",
  "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "amethystate-macros-core"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a231e3615b976a5653ac08b04dff9acf01ffdd9e3869af9138b99fb5e9764603"
-dependencies = [
- "darling 0.23.0",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -890,7 +814,7 @@ dependencies = [
 name = "desktop"
 version = "0.1.0"
 dependencies = [
- "amethystate 0.23.4",
+ "amethystate",
  "anyhow",
  "app-contracts",
  "dhat",
@@ -981,7 +905,7 @@ dependencies = [
 name = "domain"
 version = "0.1.0"
 dependencies = [
- "amethystate 0.23.4",
+ "amethystate",
  "amethystate-guinea",
  "anyhow",
  "app-contracts",
@@ -1703,7 +1627,7 @@ name = "guinea-plugin-store"
 version = "0.23.10"
 source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.22.1#7e8ca6ec452364897784f238b921c89f342cccf2"
 dependencies = [
- "amethystate 0.23.4",
+ "amethystate",
  "anyhow",
  "guinea",
  "guinea-core",
@@ -3263,7 +3187,7 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 name = "ui"
 version = "0.1.0"
 dependencies = [
- "amethystate 0.23.4",
+ "amethystate",
  "app-contracts",
  "context",
  "guicons",
@@ -3351,6 +3275,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "uniproc-etw"
+version = "0.1.0"
+source = "git+https://github.com/uniproc-dev/uniproc-etw?tag=v0.1.0#506a4b36a957159919fa80784979a450136e8ae8"
+dependencies = [
+ "windows-core",
+]
+
+[[package]]
 name = "uniproc-protocol"
 version = "0.18.0"
 source = "git+https://github.com/uniproc-dev/uniproc-protocol?tag=v0.18.0#dc3f820713820e49fbcfda4e3908033136bd80a5"
@@ -3362,8 +3294,8 @@ dependencies = [
 
 [[package]]
 name = "uniproc-windows-agent"
-version = "0.21.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.21.0#7bc63edeaa8bf546c9f565a7bd8628865e163b68"
+version = "0.22.0"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.22.0#96d18d0a88c260abb0f7b84bad526076e5419691"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -3384,10 +3316,10 @@ dependencies = [
 
 [[package]]
 name = "uniproc-windows-core"
-version = "0.21.0"
-source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.21.0#7bc63edeaa8bf546c9f565a7bd8628865e163b68"
+version = "0.22.0"
+source = "git+https://github.com/uniproc-dev/uniproc-windows-agent?tag=v0.22.0#96d18d0a88c260abb0f7b84bad526076e5419691"
 dependencies = [
- "amethystate 0.22.1",
+ "amethystate",
  "anyhow",
  "binrw",
  "crossbeam-channel",
@@ -3400,6 +3332,7 @@ dependencies = [
  "smol_str",
  "tracing",
  "uniproc-agent-kit",
+ "uniproc-etw",
  "windows-core",
 ]
 
