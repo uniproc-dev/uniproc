@@ -1,5 +1,5 @@
 use amethystate::{ReactiveMap, amethystate};
-use app_contracts::features::activity::{Filter, Pick, Span};
+use app_contracts::features::activity::{Filter, Pick, Preset, Span};
 
 #[amethystate(prefix = "activity")]
 pub struct ActivitySettings {
@@ -23,6 +23,71 @@ pub struct ActivitySettings {
 
     #[amestate(default = {})]
     hidden: ReactiveMap<String, u32>,
+
+    #[amestate(default = {})]
+    presets: ReactiveMap<String, StoredPreset>,
+}
+
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct StoredPreset {
+    order: u32,
+    came: bool,
+    went: bool,
+    new_only: bool,
+    series: bool,
+    only: String,
+    hidden: Vec<String>,
+}
+
+impl StoredPreset {
+    fn of(order: usize, filter: &Filter) -> Self {
+        Self {
+            order: order as u32,
+            came: filter.came,
+            went: filter.went,
+            new_only: filter.new_only,
+            series: filter.series,
+            only: filter.only.as_ref().map(Pick::id).unwrap_or_default(),
+            hidden: filter.hidden.iter().map(Pick::id).collect(),
+        }
+    }
+
+    fn filter(&self) -> Filter {
+        Filter {
+            came: self.came,
+            went: self.went,
+            new_only: self.new_only,
+            series: self.series,
+            text: String::new(),
+            only: Pick::from_id(&self.only),
+            hidden: self.hidden.iter().filter_map(|id| Pick::from_id(id)).collect(),
+        }
+    }
+}
+
+pub fn remembered_presets(settings: &ActivitySettings) -> Vec<Preset> {
+    let mut stored: Vec<(String, StoredPreset)> = settings.presets().entries().collect();
+    stored.sort_by_key(|(_, preset)| preset.order);
+    stored
+        .into_iter()
+        .map(|(name, preset)| Preset {
+            filter: preset.filter(),
+            name,
+        })
+        .collect()
+}
+
+pub fn remember_presets(settings: &ActivitySettings, presets: &[Preset]) -> anyhow::Result<()> {
+    let stored = settings.presets();
+    for (name, _) in stored.entries() {
+        if !presets.iter().any(|preset| preset.name == name) {
+            stored.remove(&name)?;
+        }
+    }
+    for (order, preset) in presets.iter().enumerate() {
+        stored.insert(preset.name.clone(), &StoredPreset::of(order, &preset.filter))?;
+    }
+    Ok(())
 }
 
 pub fn remembered(settings: &ActivitySettings) -> (Span, Filter) {
@@ -95,6 +160,40 @@ mod tests {
                 text: String::new(),
                 ..chosen
             }
+        );
+    }
+
+    #[test]
+    fn presets_are_read_back_in_the_order_they_were_kept_and_a_dropped_one_is_gone() {
+        let (store, _) = StoreBuilder::in_memory().migrate().unwrap();
+        let settings = ActivitySettings::new_with(&store).unwrap();
+        let tooling = Preset {
+            name: "tooling".into(),
+            filter: Filter {
+                series: false,
+                hidden: vec![Pick::Launcher("claude.exe".into()), Pick::Exe(r"c:\git\git.exe".into())],
+                ..Filter::default()
+            },
+        };
+        let quiet = Preset {
+            name: "quiet".into(),
+            filter: Filter {
+                went: false,
+                only: Some(Pick::Folder(r"c:\work".into())),
+                ..Filter::default()
+            },
+        };
+        let gone = Preset {
+            name: "gone".into(),
+            filter: Filter::default(),
+        };
+
+        remember_presets(&settings, &[gone, tooling.clone(), quiet.clone()]).unwrap();
+        remember_presets(&settings, &[tooling.clone(), quiet.clone()]).unwrap();
+
+        assert_eq!(
+            remembered_presets(&ActivitySettings::new_with(&store).unwrap()),
+            [tooling, quiet]
         );
     }
 }

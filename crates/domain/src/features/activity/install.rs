@@ -7,7 +7,7 @@ use guinea_plugin_store::StoreAccess;
 
 use super::actor::{ActivityActor, Flush, Refresh};
 use super::clock;
-use super::settings::{remembered, ActivitySettings};
+use super::settings::{remembered, remembered_presets, ActivitySettings};
 
 #[derive(Clone, Copy)]
 pub struct ActivityDeps {
@@ -43,13 +43,14 @@ impl AppFeature for ActivityFeature {
         let (span, filter) = remembered(&settings);
         let seed = ActivityState {
             span,
-            filter: filter.clone(),
+            filter,
+            presets: remembered_presets(&settings),
             ..ActivityState::default()
         };
         let (_, addr) = app
             .state::<ActivityState>()
-            .seed(seed)
-            .driven_by(move |push| ActivityActor::new(push, deps, settings, span, filter));
+            .seed(seed.clone())
+            .driven_by(move |push| ActivityActor::new(push, deps, settings, &seed));
         addr.subscribe_on::<WindowsProcessEvents>(Bus::Global);
         addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
         app.every(Pace::Refresh, &addr, || Refresh).named("activity-refresh");

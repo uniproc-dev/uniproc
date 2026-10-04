@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use serde::Deserialize;
 
-use super::model::{ActivityRow, ActivityView, Area, Filter, Pick, Span};
+use super::model::{ActivityRow, ActivityView, Area, Filter, Pick, Preset, Span};
 use crate::features::agents::ProcessInstance;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -11,6 +11,26 @@ pub enum ActivityMsg {
     Span(Span),
     Filter(Filter),
     Hovered(Option<ActivityRow>),
+    Presets(Vec<Preset>),
+}
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct SavePreset(pub String);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct ApplyPreset(pub String);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct DeletePreset(pub String);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct UnhideInPreset {
+    pub preset: String,
+    pub pick: Pick,
 }
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]

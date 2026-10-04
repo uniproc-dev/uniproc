@@ -5,7 +5,9 @@ use guinea::prelude::GlobalEventBus;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::pages::activity::{ActivityPage, ActivityPageMsg};
 use ui::theme::{scheme_context, Palette};
-use windows_reactor::View;
+use windows_reactor::{Callback, View};
+
+use crate::routes::Route;
 
 #[derive(Default)]
 pub struct Activity(ActivityPage);
@@ -36,7 +38,9 @@ impl Page for Activity {
                 away.call(ActivityPageMsg::MenuDismiss);
             })
         });
-        self.0.view(&state, &dispatch, &l10n, palette, forward)
+        let nav = cx.navigate::<Route>();
+        let manage = Callback::new(move |()| nav.to(Route::ActivityPresets {}));
+        self.0.view(&state, &dispatch, &l10n, palette, forward, manage)
     }
 }
 
@@ -46,7 +50,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use app_contracts::features::activity::{Clock, Filter, Pick, Span};
+    use app_contracts::features::activity::{Clock, Filter, Pick, SavePreset, ShowWent, Span};
     use app_contracts::features::agents::{
         ProcessCame, ProcessEvent, ProcessInstance, ProcessWent, WindowsProcessEvents,
     };
@@ -496,6 +500,27 @@ mod tests {
         page.settle();
         assert_eq!(h.state::<ActivityState>().span, Span::Day);
         assert_eq!(remembered(&stored(h)).0, Span::Day);
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn the_menu_applies_a_saved_preset_and_opens_the_page_that_manages_them(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10)]);
+        h.act::<ActivityState>(ShowWent(false)).settle();
+        h.act::<ActivityState>(SavePreset("quiet".into())).settle();
+        h.act::<ActivityState>(ShowWent(true)).settle();
+        page.settle();
+        assert!(h.state::<ActivityState>().filter.went);
+        assert!(page.find(ActivityMark::Preset).is_some(), "{:#?}", page.tree());
+
+        page.click(ActivityMark::Preset).settle();
+        page.settle();
+        assert!(!h.state::<ActivityState>().filter.went, "{:#?}", h.state::<ActivityState>().presets);
+
+        page.click(ActivityMark::ManagePresets).settle();
+        assert_eq!(page.navigated::<Route>(), [Route::ActivityPresets {}]);
     }
 
     #[guinea::test(iterations = 4)]

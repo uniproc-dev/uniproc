@@ -21,7 +21,11 @@ pub fn open(ctx: &FeatureInitContext) -> Option<RouteSettings> {
 pub fn remember(settings: &RouteSettings, route: &Route) {
     if matches!(
         route,
-        Route::Settings {} | Route::ProcessesSettings {} | Route::System {} | Route::SystemTools {}
+        Route::Settings {}
+            | Route::ProcessesSettings {}
+            | Route::ActivityPresets {}
+            | Route::System {}
+            | Route::SystemTools {}
     ) {
         return;
     }

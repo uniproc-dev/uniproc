@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityRow, ActivityState, ActivityView, ClearArea, Filter, Hide, Hover, NewOnly, Only, Pick, PickArea, Search,
+    ActivityRow, ActivityState, ActivityView, ApplyPreset, ClearArea, Filter, Hide, Hover, NewOnly, Only, Pick, PickArea, Search,
     ShowCame, ShowSeries,
     ShowSpan, ShowWent, Span, Unhide,
 };
@@ -151,7 +151,36 @@ impl ActivityPage {
         }))
     }
 
-    fn menu(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+    fn presets(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, manage: Callback<()>) -> View {
+        let current = state.preset().map(|preset| preset.name.clone());
+        let mut items: Vec<KeyedView> = Vec::new();
+        if !state.presets.is_empty() {
+            items.push(keyed("title", caption(l10n.activity_menu_presets())));
+        }
+        for preset in &state.presets {
+            let (dispatch, name) = (dispatch.clone(), preset.name.clone());
+            items.push(keyed(
+                format!("preset:{}", preset.name),
+                RadioButton::new()
+                    .mark(ActivityMark::Preset)
+                    .group_name("activity-preset")
+                    .is_checked(current.as_deref() == Some(&preset.name))
+                    .on_checked(move |_: Option<bool>| dispatch.emit(ApplyPreset(name.clone())))
+                    .content(text(preset.name.clone())),
+            ));
+        }
+        items.push(keyed(
+            "manage",
+            Button::new()
+                .mark(ActivityMark::ManagePresets)
+                .style(ButtonStyle::Subtle)
+                .on_click(move || manage.call(()))
+                .content(text(l10n.activity_menu_manage_presets())),
+        ));
+        StackPanel::new().keyed_children(items).into()
+    }
+
+    fn menu(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette, manage: Callback<()>) -> View {
         let filter = &state.filter;
         let (came, went, new_only, series) = (dispatch.clone(), dispatch.clone(), dispatch.clone(), dispatch.clone());
         let spans: Vec<KeyedView> = Span::ALL
@@ -180,6 +209,8 @@ impl ActivityPage {
             }),
             separator(palette).margin(Thickness::xy(0.0, space::Control)),
             StackPanel::new().keyed_children(spans),
+            separator(palette).margin(Thickness::xy(0.0, space::Control)),
+            Self::presets(state, dispatch, l10n, manage),
         ));
         Button::new()
             .mark(ActivityMark::Menu)
@@ -188,7 +219,7 @@ impl ActivityPage {
             .flyout_with(Flyout::rich(choices).placement(FlyoutPlacement::BottomEdgeAlignedRight))
     }
 
-    fn header(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+    fn header(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette, manage: Callback<()>) -> View {
         Grid::new()
             .columns([GridLength::Star(1.0), GridLength::Auto])
             .children((
@@ -196,7 +227,7 @@ impl ActivityPage {
                 Border::new()
                     .grid_column(1)
                     .vertical_alignment(VerticalAlignment::Center)
-                    .content(Self::menu(state, dispatch, l10n, palette)),
+                    .content(Self::menu(state, dispatch, l10n, palette, manage)),
             ))
             .into()
     }
@@ -272,8 +303,9 @@ impl ActivityPage {
         l10n: &L10n,
         palette: Palette,
         forward: Callback<ActivityPageMsg>,
+        manage_presets: Callback<()>,
     ) -> View {
-        let header = Self::header(state, dispatch, l10n, palette);
+        let header = Self::header(state, dispatch, l10n, palette, manage_presets);
         let Load::Ready(view) = &state.view else {
             return page_frame(header, loading(), status_text(l10n.activity_loading(), palette), palette);
         };
