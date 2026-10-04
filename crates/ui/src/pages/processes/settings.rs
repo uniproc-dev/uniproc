@@ -152,7 +152,7 @@ impl ProcessesSettingsPage {
                 true => l10n.processes_settings_memory_percents(),
             },
             move |percent| {
-                let _ = forward.call(ProcessesSettingsMsg::MemoryAsPercent(percent));
+                forward.call(ProcessesSettingsMsg::MemoryAsPercent(percent));
             },
         );
         setting_card(
@@ -256,7 +256,7 @@ fn crumbs(
         },
         palette,
         Callback::new(move |hovered| {
-            let _ = forward.call(ProcessesSettingsMsg::BackHovered(hovered));
+            forward.call(ProcessesSettingsMsg::BackHovered(hovered));
         }),
         back,
     )
@@ -324,7 +324,7 @@ fn shown_switch(
         .off_content(text(""))
         .min_width(0.0)
         .on_toggled(move |on: bool| {
-            let _ = shown.call(ProcessesSettingsMsg::ShowColumn(column, on));
+            shown.call(ProcessesSettingsMsg::ShowColumn(column, on));
         });
     StackPanel::new()
         .orientation(Orientation::Horizontal)
@@ -343,7 +343,7 @@ fn reset_row(
 ) -> View {
     let forward = forward.clone();
     let button = action_button(mark, l10n.processes_settings_reset(), None, enabled, move || {
-        let _ = forward.call(message);
+        forward.call(message);
     });
     Grid::new()
         .columns([GridLength::Star(1.0), GridLength::Auto])
@@ -372,7 +372,7 @@ fn move_buttons(
             .style(ButtonStyle::Subtle)
             .is_enabled(can(step))
             .on_click(move || {
-                let _ = forward.call(message(step));
+                forward.call(message(step));
             })
             .content(icon)
     };

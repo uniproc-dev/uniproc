@@ -41,7 +41,7 @@ impl WslPage {
             )
             .widths(&self.widths)
             .on_resize(move |drag: Resized| {
-                let _ = forward.call(WslMsg::Resized(drag));
+                forward.call(WslMsg::Resized(drag));
             })
             .build(),
             Load::Failed(err) => text(l10n.wsl_failed(err.to_string())).into(),

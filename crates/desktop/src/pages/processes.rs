@@ -57,14 +57,14 @@ impl Page for Processes {
         let away = forward.clone();
         cx.use_effect_guard("uniproc::processes::menu_closes_on_press_away", (), move || {
             GlobalEventBus::subscribe_fn(move |_: PressedAway| {
-                let _ = away.call(ProcessesMsg::MenuDismiss);
+                away.call(ProcessesMsg::MenuDismiss);
             })
         });
         let dismiss = forward.clone();
         let selected = state.selected;
         cx.use_effect("uniproc::processes::menu_needs_a_selection", selected, move || {
             if selected.is_none() {
-                let _ = dismiss.call(ProcessesMsg::MenuDismiss);
+                dismiss.call(ProcessesMsg::MenuDismiss);
             }
             None
         });

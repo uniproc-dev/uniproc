@@ -277,7 +277,7 @@ fn with_column_menu(menu: &Callback<()>, header: impl Into<View>) -> View {
         .background(Color::transparent())
         .on_pointer_pressed(Callback::new(move |pointer: PointerEventInfo| {
             if pointer.is_right_button_pressed {
-                let _ = menu.call(());
+                menu.call(());
             }
         }))
         .content(header.into())
@@ -495,7 +495,7 @@ fn section_grip(gesture: &Callback<SectionGesture>, section: SectionId) -> Borde
         .capture_pointer_on_press(true)
         .on_pointer_pressed(move |pointer: PointerEventInfo| {
             if pointer.is_left_button_pressed {
-                let _ = pressed.call(SectionGesture::Grab {
+                pressed.call(SectionGesture::Grab {
                     section,
                     at: pointer.window_y,
                     offset: pointer.y,
@@ -504,14 +504,14 @@ fn section_grip(gesture: &Callback<SectionGesture>, section: SectionId) -> Borde
         })
         .on_pointer_moved(move |pointer: PointerEventInfo| {
             if pointer.is_left_button_pressed {
-                let _ = moved.call(SectionGesture::Move { at: pointer.window_y });
+                moved.call(SectionGesture::Move { at: pointer.window_y });
             }
         })
         .on_pointer_released(move |_: PointerEventInfo| {
-            let _ = released.call(SectionGesture::Release);
+            released.call(SectionGesture::Release);
         })
         .on_pointer_capture_lost(move || {
-            let _ = lost.call(SectionGesture::Lost);
+            lost.call(SectionGesture::Lost);
         })
 }
 

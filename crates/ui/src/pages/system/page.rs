@@ -57,7 +57,7 @@ pub fn system_view(
         },
         palette,
         move || {
-            let _ = open_tools.call(());
+            open_tools.call(());
         },
     );
     settings_column((

@@ -89,7 +89,7 @@ impl ServicesPage {
                 table(rows, build_columns(l10n, palette))
                 .widths(&self.widths)
                 .on_resize(move |drag: Resized| {
-                    let _ = forward.call(ServicesMsg::Resized(drag));
+                    forward.call(ServicesMsg::Resized(drag));
                 })
                 .sort(
                     SortState {

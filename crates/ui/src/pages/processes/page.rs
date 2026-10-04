@@ -445,7 +445,7 @@ impl ProcessesPage {
                     ProcessesMark::OpenSettings,
                     icon!(more_horizontal).size(Header::CommandIcon).build_element(),
                     move || {
-                        let _ = open_settings.call(());
+                        open_settings.call(());
                     },
                 )),
             ));
@@ -576,19 +576,19 @@ impl ProcessesPage {
         let group_by_type = GroupByType {
             on: self.by_type,
             toggle: Callback::new(move |()| {
-                let _ = by_type_forward.call(ProcessesMsg::ToggleGroupByType);
+                by_type_forward.call(ProcessesMsg::ToggleGroupByType);
             }),
         };
         let actions = NameCellActions {
             icons: self.icons.clone(),
             toggle_group: Callback::new(move |name: String| {
-                let _ = toggle_forward.call(ProcessesMsg::ToggleGroup(name));
+                toggle_forward.call(ProcessesMsg::ToggleGroup(name));
             }),
             toggle_process: Callback::new(move |pid: u32| {
-                let _ = process_forward.call(ProcessesMsg::ToggleProcess(pid));
+                process_forward.call(ProcessesMsg::ToggleProcess(pid));
             }),
             section_gesture: Callback::new(move |gesture: SectionGesture| {
-                let _ = gesture_forward.call(ProcessesMsg::Section(gesture));
+                gesture_forward.call(ProcessesMsg::Section(gesture));
             }),
         };
 
@@ -599,22 +599,22 @@ impl ProcessesPage {
         let press_forward = forward.clone();
         let on_press = Callback::new(move |at: Option<usize>| {
             if at.is_none() {
-                let _ = press_forward.call(ProcessesMsg::SelectGroup(None));
+                press_forward.call(ProcessesMsg::SelectGroup(None));
                 select.emit(Deselect);
             }
             match at.and_then(|at| presses.get(at)) {
                 Some(Press::Toggle(category)) => {
-                    let _ = press_forward.call(ProcessesMsg::ToggleSection(*category));
+                    press_forward.call(ProcessesMsg::ToggleSection(*category));
                 }
                 Some(Press::Expand(key)) => {
-                    let _ = press_forward.call(ProcessesMsg::ToggleGroup(key.clone()));
+                    press_forward.call(ProcessesMsg::ToggleGroup(key.clone()));
                 }
                 Some(Press::Select(selection)) => {
                     let group = match *selection {
                         Selection::Group(pid) => Some(pid),
                         Selection::Process(_) | Selection::Linux(_) => None,
                     };
-                    let _ = press_forward.call(ProcessesMsg::SelectGroup(group));
+                    press_forward.call(ProcessesMsg::SelectGroup(group));
                     match *selection {
                         Selection::Group(pid) | Selection::Process(pid) => select.emit(Select(pid)),
                         Selection::Linux(global_pid) => select.emit(SelectLinux(global_pid)),
@@ -623,7 +623,7 @@ impl ProcessesPage {
                 Some(Press::Nothing) | None => {}
             }
             let target = at.and_then(|at| targets.get(at)).cloned().flatten();
-            let _ = press_forward.call(ProcessesMsg::MenuFor(target));
+            press_forward.call(ProcessesMsg::MenuFor(target));
         });
 
         let pointer_forward = forward.clone();
@@ -636,7 +636,7 @@ impl ProcessesPage {
             } else {
                 ProcessesMsg::MenuDismiss
             };
-            let _ = pointer_forward.call(message);
+            pointer_forward.call(message);
         });
 
         let menu = self.menu.as_ref().map(|menu| {
@@ -660,7 +660,7 @@ impl ProcessesPage {
                     match command {
                         MenuCommand::TogglePin => {
                             if let Some((name, pin)) = pin.clone() {
-                                let _ = command_forward.call(ProcessesMsg::TogglePin(name, pin));
+                                command_forward.call(ProcessesMsg::TogglePin(name, pin));
                             }
                         }
                         MenuCommand::EndTask => command_dispatch.emit(Terminate),
@@ -669,7 +669,7 @@ impl ProcessesPage {
                             command,
                         }),
                         MenuCommand::ShowPriority => {
-                            let _ = command_forward.call(ProcessesMsg::MenuPriority);
+                            command_forward.call(ProcessesMsg::MenuPriority);
                             return;
                         }
                         MenuCommand::Process(command) => match image.clone() {
@@ -680,16 +680,16 @@ impl ProcessesPage {
                             command_dispatch.emit(RunWindowCommand { handle, command })
                         }
                         MenuCommand::ToggleColumn(column) => {
-                            let _ = command_forward.call(ProcessesMsg::ToggleColumn(column));
+                            command_forward.call(ProcessesMsg::ToggleColumn(column));
                         }
                         MenuCommand::OpenSettings => {
-                            let _ = open_settings.call(());
+                            open_settings.call(());
                         }
                     }
-                    let _ = command_forward.call(ProcessesMsg::MenuDismiss);
+                    command_forward.call(ProcessesMsg::MenuDismiss);
                 }),
                 on_dismiss: Callback::new(move |()| {
-                    let _ = dismiss_forward.call(ProcessesMsg::MenuDismiss);
+                    dismiss_forward.call(ProcessesMsg::MenuDismiss);
                 }),
             })
         });
@@ -708,7 +708,7 @@ impl ProcessesPage {
             palette,
             l10n,
             header_menu: Callback::new(move |()| {
-                let _ = header_forward.call(ProcessesMsg::ColumnMenu);
+                header_forward.call(ProcessesMsg::ColumnMenu);
             }),
         });
 
@@ -736,11 +736,11 @@ impl ProcessesPage {
         let table = table
             .widths(self.layout.widths())
             .on_resize(move |drag: Resized| {
-                let _ = resize_forward.call(ProcessesMsg::Resized(drag));
+                resize_forward.call(ProcessesMsg::Resized(drag));
             })
             .order(self.layout.order())
             .on_reorder(move |moved: Reordered| {
-                let _ = reorder_forward.call(ProcessesMsg::Reordered(moved));
+                reorder_forward.call(ProcessesMsg::Reordered(moved));
             })
             .sort(
                 SortState {

@@ -45,13 +45,13 @@ pub fn breadcrumb(
         .background(Color::transparent())
         .vertical_alignment(VerticalAlignment::Center)
         .on_pointer_entered(move |_: PointerEventInfo| {
-            let _ = entered.call(true);
+            entered.call(true);
         })
         .on_pointer_exited(move |_: PointerEventInfo| {
-            let _ = exited.call(false);
+            exited.call(false);
         })
         .on_pointer_released(move |_: PointerEventInfo| {
-            let _ = back.call(());
+            back.call(());
         })
         .content(parent_text);
     let chevron = Grid::new()

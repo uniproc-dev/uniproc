@@ -379,7 +379,7 @@ fn line_view(line: Line, on_command: &Callback<MenuCommand>, palette: Palette) -
                 .horizontal_alignment(HorizontalAlignment::Stretch)
                 .horizontal_content_alignment(HorizontalAlignment::Left)
                 .on_click(move || {
-                    let _ = on_command.call(command);
+                    on_command.call(command);
                 })
                 .content(
                     StackPanel::new()
@@ -466,7 +466,7 @@ pub(crate) fn context_menu(menu: &OpenMenu, inputs: MenuInputs<'_>) -> View {
         .mark(ProcessesMark::MenuBackdrop)
         .background(Color::transparent())
         .on_pointer_released(Callback::new(move |_: PointerEventInfo| {
-            let _ = on_dismiss.call(());
+            on_dismiss.call(());
         }));
 
     Grid::new().children((backdrop, placed)).into()

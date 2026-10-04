@@ -135,7 +135,7 @@ impl Component for Pointed {
                 let on_select = on_select.clone();
                 let index = line.index;
                 row.on_pointer_released(Callback::new(move |_: PointerEventInfo| {
-                    let _ = on_select.call(Some(index));
+                    on_select.call(Some(index));
                 }))
                 .content(layered)
                 .into()

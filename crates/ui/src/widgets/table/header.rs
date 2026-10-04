@@ -219,7 +219,7 @@ impl<C: Mark + Clone + PartialEq + 'static> Component for PointedHeading<C> {
 pub(super) fn handle<T, C: Mark>(column: &ColumnSpec<T, C>, width: f64, rail: Color, on_resize: Callback<Resized>) -> View {
     let id = column.id.name();
     resize_handle(width, move |width| {
-        let _ = on_resize.call(Resized { column: id, width });
+        on_resize.call(Resized { column: id, width });
     })
     .min(column.min_width)
     .rail(rail)
