@@ -22,8 +22,12 @@ struct Pace;
 
 #[expect(non_upper_case_globals)]
 impl Pace {
+    const HalfMinute: u64 = 30 * Ticks::Second;
+    const FiveMinutes: u64 = 5 * Ticks::Minute;
     const Quarter: u64 = 15 * Ticks::Minute;
+    const HalfHour: u64 = 30 * Ticks::Minute;
     const Hour: u64 = 60 * Ticks::Minute;
+    const Day: u64 = 24 * Self::Hour;
     const SeriesLeast: usize = 3;
     const Routine: usize = 20;
     const ChainDepth: usize = 16;
@@ -289,8 +293,12 @@ struct Frame {
 impl Frame {
     fn of(log: &Log, now: u64, span: Span) -> Self {
         let length = match span {
+            Span::HalfMinute => Pace::HalfMinute,
+            Span::FiveMinutes => Pace::FiveMinutes,
             Span::Quarter => Pace::Quarter,
+            Span::HalfHour => Pace::HalfHour,
             Span::Hour => Pace::Hour,
+            Span::Day => Pace::Day,
             Span::Connected => log
                 .began()
                 .map_or(Pace::Hour, |began| now.saturating_sub(began).max(Ticks::Second)),
@@ -749,6 +757,47 @@ mod tests {
             ActivityRow::Came(came) => came,
             other => panic!("a came row, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn each_span_lists_what_came_within_it() {
+        let now = BASE + 30 * HOUR;
+        let mut log = Log::default();
+        log.record(&[
+            came(7, 0, "g.exe", now - 25 * HOUR),
+            came(6, 0, "f.exe", now - 23 * HOUR),
+            came(5, 0, "e.exe", now - 59 * Ticks::Minute),
+            came(4, 0, "d.exe", now - 29 * Ticks::Minute),
+            came(3, 0, "c.exe", now - 14 * Ticks::Minute),
+            came(2, 0, "b.exe", now - 4 * Ticks::Minute),
+            came(1, 0, "a.exe", now - 20 * Ticks::Second),
+        ]);
+        let filter = Filter::default();
+        let listed = |span| {
+            view(
+                &log,
+                &Ask {
+                    now,
+                    span,
+                    filter: &filter,
+                    area: None,
+                    clock: utc,
+                },
+            )
+            .rows
+            .len()
+        };
+
+        let spans = [
+            Span::HalfMinute,
+            Span::FiveMinutes,
+            Span::Quarter,
+            Span::HalfHour,
+            Span::Hour,
+            Span::Day,
+            Span::Connected,
+        ];
+        assert_eq!(spans.map(listed), [1, 2, 3, 4, 5, 6, 7]);
     }
 
     #[test]

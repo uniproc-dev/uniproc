@@ -474,6 +474,31 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4)]
+    fn every_span_is_offered_and_a_picked_one_is_shown_and_remembered(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10)]);
+
+        let spans = [
+            Span::HalfMinute,
+            Span::FiveMinutes,
+            Span::Quarter,
+            Span::HalfHour,
+            Span::Hour,
+            Span::Day,
+            Span::Connected,
+        ];
+        let offered: Vec<Span> = spans.into_iter().filter(|&span| page.find(span).is_some()).collect();
+        assert_eq!(offered, spans, "{:#?}", page.tree());
+
+        page.click(Span::Day).settle();
+        page.settle();
+        assert_eq!(h.state::<ActivityState>().span, Span::Day);
+        assert_eq!(remembered(&stored(h)).0, Span::Day);
+    }
+
+    #[guinea::test(iterations = 4)]
     fn hiding_exits_from_the_menu_leaves_nothing_when_only_exits_happened(h: &mut Harness) {
         start(h);
         let h = &*h;

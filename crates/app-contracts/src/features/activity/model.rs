@@ -14,9 +14,13 @@ pub struct Clock {
 ids! {
     #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug, Default, Hash, serde::Deserialize)]
     pub enum Span {
-        Quarter => "quarter",
+        HalfMinute => "30s",
+        FiveMinutes => "5m",
+        Quarter => "15m",
+        HalfHour => "30m",
         #[default]
-        Hour => "hour",
+        Hour => "1h",
+        Day => "24h",
         Connected => "connected",
     }
 }

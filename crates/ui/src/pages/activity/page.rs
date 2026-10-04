@@ -86,8 +86,12 @@ fn shown(mark: impl Mark, label: String, checked: bool, on_change: impl Fn(bool)
 
 fn span_label(span: Span, l10n: &L10n) -> String {
     match span {
+        Span::HalfMinute => l10n.activity_span_half_minute(),
+        Span::FiveMinutes => l10n.activity_span_five_minutes(),
         Span::Quarter => l10n.activity_span_quarter(),
+        Span::HalfHour => l10n.activity_span_half_hour(),
         Span::Hour => l10n.activity_span_hour(),
+        Span::Day => l10n.activity_span_day(),
         Span::Connected => l10n.activity_span_connected(),
     }
 }
@@ -150,7 +154,7 @@ impl ActivityPage {
     fn menu(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
         let filter = &state.filter;
         let (came, went, new_only, series) = (dispatch.clone(), dispatch.clone(), dispatch.clone(), dispatch.clone());
-        let spans: Vec<KeyedView> = [Span::Quarter, Span::Hour, Span::Connected]
+        let spans: Vec<KeyedView> = Span::ALL
             .into_iter()
             .map(|span| {
                 let dispatch = dispatch.clone();
