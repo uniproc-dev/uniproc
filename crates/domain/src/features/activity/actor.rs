@@ -9,10 +9,12 @@ use guinea::prelude::*;
 
 use super::install::ActivityDeps;
 use super::log::{row, view, Ask, Log};
+use super::settings::{remember, ActivitySettings};
 
 pub struct ActivityActor {
     push: Push<ActivityState>,
     deps: ActivityDeps,
+    settings: ActivitySettings,
     log: Log,
     span: Span,
     filter: Filter,
@@ -31,15 +33,22 @@ impl std::fmt::Debug for ActivityActor {
 }
 
 impl ActivityActor {
-    pub fn new(push: Push<ActivityState>, deps: ActivityDeps) -> Self {
+    pub fn new(push: Push<ActivityState>, deps: ActivityDeps, settings: ActivitySettings, span: Span, filter: Filter) -> Self {
         Self {
             push,
             deps,
+            settings,
             log: Log::default(),
-            span: Span::default(),
-            filter: Filter::default(),
+            span,
+            filter,
             area: None,
             stale: false,
+        }
+    }
+
+    fn remember(&self) {
+        if let Err(err) = remember(&self.settings, self.span, &self.filter) {
+            tracing::warn!(?err, "could not remember the activity choices");
         }
     }
 
@@ -60,6 +69,7 @@ impl ActivityActor {
 
     fn refilter(&mut self, change: impl FnOnce(&mut Filter)) {
         change(&mut self.filter);
+        self.remember();
         self.push.send(ActivityMsg::Filter(self.filter.clone()));
         self.publish();
     }
@@ -107,6 +117,7 @@ fn refresh(this: &mut ActivityActor, _msg: Refresh) {
 fn show_span(this: &mut ActivityActor, ShowSpan(span): ShowSpan) {
     this.span = span;
     this.area = None;
+    this.remember();
     this.push.send(ActivityMsg::Span(span));
     this.publish();
 }

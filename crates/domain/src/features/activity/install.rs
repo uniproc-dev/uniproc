@@ -3,9 +3,11 @@ use std::time::Duration;
 use app_contracts::features::activity::{ActivityState, Clock};
 use app_contracts::features::agents::{WindowsProcessEvents, WindowsReportMessage};
 use guinea::prelude::*;
+use guinea_plugin_store::StoreAccess;
 
 use super::actor::{ActivityActor, Flush, Refresh};
 use super::clock;
+use super::settings::{remembered, ActivitySettings};
 
 #[derive(Clone, Copy)]
 pub struct ActivityDeps {
@@ -37,9 +39,17 @@ impl AppFeature for ActivityFeature {
 
     fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
         let deps = app.require_or_default::<ActivityDeps>();
+        let settings = app.settings::<ActivitySettings>()?;
+        let (span, filter) = remembered(&settings);
+        let seed = ActivityState {
+            span,
+            filter: filter.clone(),
+            ..ActivityState::default()
+        };
         let (_, addr) = app
             .state::<ActivityState>()
-            .driven_by(move |push| ActivityActor::new(push, deps));
+            .seed(seed)
+            .driven_by(move |push| ActivityActor::new(push, deps, settings, span, filter));
         addr.subscribe_on::<WindowsProcessEvents>(Bus::Global);
         addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
         app.every(Pace::Refresh, &addr, || Refresh).named("activity-refresh");

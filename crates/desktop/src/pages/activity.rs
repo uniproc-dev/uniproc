@@ -42,15 +42,16 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use app_contracts::features::activity::Clock;
+    use app_contracts::features::activity::{Clock, Filter, Pick, Span};
     use app_contracts::features::agents::{
         ProcessCame, ProcessEvent, ProcessInstance, ProcessWent, WindowsProcessEvents,
     };
+    use domain::features::activity::settings::{remember, remembered, ActivitySettings};
     use domain::features::activity::{ActivityDeps, ActivityFeature};
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node};
     use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::StorePlugin;
+    use guinea_plugin_store::{StoreAccess, StorePlugin};
     use ui::pages::activity::ActivityMark;
 
     use super::*;
@@ -322,6 +323,50 @@ mod tests {
         assert_eq!(rows(&page.tree()), 1, "{:#?}", page.tree());
         assert!(!says(&page.tree(), "tool.exe"), "{:#?}", page.tree());
         assert!(page.find(ActivityMark::Picked).is_some(), "{:#?}", page.tree());
+    }
+
+    fn stored(h: &Harness) -> ActivitySettings {
+        ActivitySettings::new_with(&h.segment().store().unwrap()).unwrap()
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn what_is_hidden_on_the_page_is_remembered_for_the_next_run(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10), came_from(21, 1, r"C:\Other\other.exe", 20)]);
+        page.click(ActivityMark::Row).settle();
+        page.settle();
+        page.click(ActivityMark::HideExe).settle();
+        page.click(ActivityMark::Went).settle();
+        page.settle();
+
+        let shown = h.state::<ActivityState>().filter.clone();
+        assert!(!shown.went && shown.hidden.len() == 1, "{shown:#?}");
+        assert_eq!(remembered(&stored(h)), (Span::default(), shown));
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn the_page_starts_with_what_was_chosen_last_run(h: &mut Harness) {
+        h.plugin(StorePlugin::in_memory())
+            .unwrap()
+            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
+            .unwrap()
+            .provide(ActivityDeps {
+                now: || BASE + HOUR - SECOND,
+                clock: utc,
+            });
+        let chosen = Filter {
+            went: false,
+            hidden: vec![Pick::Folder(r"c:\other".into())],
+            ..Filter::default()
+        };
+        remember(&stored(h), Span::Quarter, &chosen).unwrap();
+
+        h.feature(ActivityFeature).unwrap();
+
+        let state = h.state::<ActivityState>();
+        assert_eq!((state.span, &state.filter), (Span::Quarter, &chosen));
     }
 
     #[guinea::test(iterations = 4)]

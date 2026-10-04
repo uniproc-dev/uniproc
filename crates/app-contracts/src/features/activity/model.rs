@@ -2,6 +2,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::features::agents::{ProcessInstance, ScheduledTask};
+use crate::ids::ids;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Clock {
@@ -10,12 +11,14 @@ pub struct Clock {
     pub second: u8,
 }
 
-#[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug, Default, Hash, serde::Deserialize)]
-pub enum Span {
-    Quarter,
-    #[default]
-    Hour,
-    Connected,
+ids! {
+    #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug, Default, Hash, serde::Deserialize)]
+    pub enum Span {
+        Quarter => "quarter",
+        #[default]
+        Hour => "hour",
+        Connected => "connected",
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, serde::Deserialize)]
@@ -23,6 +26,26 @@ pub enum Pick {
     Exe(Arc<str>),
     Folder(Arc<str>),
     Launcher(Arc<str>),
+}
+
+impl Pick {
+    pub fn id(&self) -> String {
+        match self {
+            Self::Exe(path) => format!("exe:{path}"),
+            Self::Folder(path) => format!("folder:{path}"),
+            Self::Launcher(name) => format!("launcher:{name}"),
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        let (kind, value) = id.split_once(':')?;
+        match kind {
+            "exe" => Some(Self::Exe(value.into())),
+            "folder" => Some(Self::Folder(value.into())),
+            "launcher" => Some(Self::Launcher(value.into())),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
