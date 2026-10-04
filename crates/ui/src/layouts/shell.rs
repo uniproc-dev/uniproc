@@ -9,7 +9,6 @@ use windows_reactor::{
 };
 
 use crate::l10n::L10n;
-use crate::theme::size;
 
 struct Title;
 
@@ -68,11 +67,11 @@ impl ShellNav {
 
     fn icon(self) -> Icon {
         match self {
-            Self::Processes => icon!(apps_list).size(size::NavIcon).build(),
-            Self::Services => icon!(puzzle).size(size::NavIcon).build(),
-            Self::Wsl => icon!(linux).size(size::NavIcon).build(),
-            Self::System => icon!(system).size(size::NavIcon).build(),
-            Self::Settings => icon!(settings).size(size::NavIcon).build(),
+            Self::Processes => icon!(apps_list).build(),
+            Self::Services => icon!(puzzle).build(),
+            Self::Wsl => icon!(linux).build(),
+            Self::System => icon!(system).build(),
+            Self::Settings => icon!(settings).build(),
         }
     }
 }
