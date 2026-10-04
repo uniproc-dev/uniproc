@@ -34,8 +34,8 @@ guicons-build = "0.11.0"
 # --- amethystate ---
 # Same minor as guinea-plugin-store's own amethystate dep: the store is a thin
 # lid on it and re-exports it, so a minor apart means two incompatible Stores.
-amethystate = "0.23.3"
-amethystate-guinea = "0.23.3"
+amethystate = "0.23.4"
+amethystate-guinea = "0.23.4"
 
 # --- windows-rs ---
 windows-reactor = { package = "windows-reactor-pre", version = "0.101" }
@@ -103,7 +103,3 @@ codegen-units = 256
 
 [profile.dev.package."*"]
 debug = 0
-
-[patch.crates-io]
-amethystate = { path = "../amethystate/crates/main/amethystate" }
-amethystate-guinea = { path = "../amethystate/crates/adapters/amethystate-guinea" }
