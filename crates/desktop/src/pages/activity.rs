@@ -1,7 +1,7 @@
 use app_contracts::features::activity::ActivityState;
 use guinea::feature::FeatureInitContext;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
-use ui::pages::activity::{ActivityPage, ActivityPageMsg};
+use ui::pages::activity::{ActivityPage, ActivityPageMsg, RowActs};
 use ui::theme::{scheme_context, Palette};
 use windows_reactor::View;
 
@@ -18,16 +18,21 @@ impl Page for Activity {
         Ok(())
     }
 
-    fn update(&mut self, message: ActivityPageMsg, _cx: &mut UpdateCx<'_, Self>) {
-        self.0.update(message);
+    fn update(&mut self, message: ActivityPageMsg, cx: &mut UpdateCx<'_, Self>) {
+        let (_, dispatch) = cx.read::<ActivityState, _>();
+        self.0.update(message, &dispatch);
     }
 
     fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {
         let (state, dispatch) = cx.read::<ActivityState, _>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
-        let forward = cx.on(|message: ActivityPageMsg| message);
-        self.0.view(&state, &dispatch, &l10n, palette, forward)
+        let acts = RowActs {
+            on_toggle: cx.on(ActivityPageMsg::Toggle),
+            on_only: cx.on(ActivityPageMsg::Only),
+            on_hide: cx.on(ActivityPageMsg::Hide),
+        };
+        self.0.view(&state, &dispatch, &l10n, palette, acts)
     }
 }
 

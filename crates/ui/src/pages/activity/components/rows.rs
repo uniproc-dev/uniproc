@@ -6,8 +6,8 @@ use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    keyed, Border, Callback, Color, Grid, GridLength, KeyedView, Orientation, PointerEventInfo, StackPanel,
-    TextTrimming, TextWrapping, Thickness, VerticalAlignment, View,
+    keyed, Border, Callback, Color, Component, ComponentContext, Grid, GridLength, KeyedView, Orientation,
+    PointerEventInfo, StackPanel, TextTrimming, TextWrapping, Thickness, VerticalAlignment, View, ViewContext,
 };
 
 use super::super::marks::ActivityMark;
@@ -27,15 +27,44 @@ impl Line {
     const Indent: f64 = 80.0;
 }
 
+#[derive(Clone, PartialEq)]
+pub struct RowActs {
+    pub on_toggle: Callback<ProcessInstance>,
+    pub on_only: Callback<Pick>,
+    pub on_hide: Callback<Pick>,
+}
+
 pub struct Rows {
     pub rows: Rc<[ActivityRow]>,
     pub earlier: usize,
     pub expanded: Rc<HashSet<ProcessInstance>>,
     pub l10n: L10n,
     pub palette: Palette,
-    pub on_toggle: Callback<ProcessInstance>,
-    pub on_only: Callback<Pick>,
-    pub on_hide: Callback<Pick>,
+    pub acts: RowActs,
+}
+
+#[derive(Clone, PartialEq)]
+struct Item {
+    row: ActivityRow,
+    open: bool,
+    l10n: L10n,
+    palette: Palette,
+    acts: RowActs,
+}
+
+struct ItemView;
+
+impl Component for ItemView {
+    type Input = Item;
+    type Message = ();
+
+    fn create(_item: &Item, _cx: &ComponentContext<Self>) -> Self {
+        Self
+    }
+
+    fn view(&self, item: &Item, _cx: &mut ViewContext<Self>) -> View {
+        row_view(item)
+    }
 }
 
 fn key(instance: ProcessInstance) -> String {
@@ -46,7 +75,16 @@ pub fn rows(list: Rows) -> View {
     let mut children: Vec<KeyedView> = list
         .rows
         .iter()
-        .map(|row| keyed(key(row.key()), row_view(&list, row)))
+        .map(|row| {
+            let item = Item {
+                row: row.clone(),
+                open: list.expanded.contains(&row.key()),
+                l10n: list.l10n.clone(),
+                palette: list.palette,
+                acts: list.acts.clone(),
+            };
+            keyed(key(row.key()), View::component::<ItemView>(item))
+        })
         .collect();
     if list.earlier > 0 {
         children.push(keyed(
@@ -152,8 +190,8 @@ fn came_main(came: &Came, l10n: &L10n, palette: Palette) -> View {
     spaced(parts)
 }
 
-fn came_view(list: &Rows, came: &Came) -> View {
-    let Rows { l10n, palette, .. } = list;
+fn came_view(item: &Item, came: &Came) -> View {
+    let Item { l10n, palette, acts, .. } = item;
     let trailing = match &came.exit {
         Some(exit) => lasted(l10n, exit.lived),
         None => l10n.activity_still_running(),
@@ -165,22 +203,22 @@ fn came_view(list: &Rows, came: &Came) -> View {
         secondary(trailing, *palette),
         *palette,
     );
-    let body = if list.expanded.contains(&came.key) {
+    let body = if item.open {
         StackPanel::new()
             .children((
                 head,
                 facts(came, l10n, *palette, Line::Indent),
-                pick_buttons(&came.picks, l10n, &list.on_only, &list.on_hide, Line::Indent),
+                pick_buttons(&came.picks, l10n, &acts.on_only, &acts.on_hide, Line::Indent),
             ))
             .into()
     } else {
         head
     };
-    toggled(body, came.key, &list.on_toggle)
+    toggled(body, came.key, &acts.on_toggle)
 }
 
-fn went_view(list: &Rows, went: &Went) -> View {
-    let Rows { l10n, palette, .. } = list;
+fn went_view(item: &Item, went: &Went) -> View {
+    let Item { l10n, palette, acts, .. } = item;
     let parts = match &went.name {
         Some(name) => vec![keyed("name", centered(name.to_string()))],
         None => vec![
@@ -195,12 +233,12 @@ fn went_view(list: &Rows, went: &Went) -> View {
         secondary(went.lived.map(|lived| lasted(l10n, lived)).unwrap_or_default(), *palette),
         *palette,
     );
-    let body = if list.expanded.contains(&went.key) {
+    let body = if item.open {
         StackPanel::new().children((head, went_facts(went, l10n, *palette, Line::Indent))).into()
     } else {
         head
     };
-    toggled(body, went.key, &list.on_toggle)
+    toggled(body, went.key, &acts.on_toggle)
 }
 
 fn series_names(series: &Series, l10n: &L10n) -> String {
@@ -229,9 +267,9 @@ fn member_view(came: &Came, l10n: &L10n, palette: Palette) -> View {
         .into()
 }
 
-fn series_view(list: &Rows, series: &Series) -> View {
-    let Rows { l10n, palette, .. } = list;
-    let open = list.expanded.contains(&series.key);
+fn series_view(item: &Item, series: &Series) -> View {
+    let Item { l10n, palette, acts, open, .. } = item;
+    let open = *open;
     let chevron = if open {
         icon!(chevron_down_regular).size(size::Icon).build_element()
     } else {
@@ -260,20 +298,20 @@ fn series_view(list: &Rows, series: &Series) -> View {
         StackPanel::new()
             .children((
                 head,
-                pick_buttons(&series.picks, l10n, &list.on_only, &list.on_hide, Line::Indent),
+                pick_buttons(&series.picks, l10n, &acts.on_only, &acts.on_hide, Line::Indent),
                 StackPanel::new().keyed_children(members),
             ))
             .into()
     } else {
         head
     };
-    toggled(body, series.key, &list.on_toggle)
+    toggled(body, series.key, &acts.on_toggle)
 }
 
-fn row_view(list: &Rows, row: &ActivityRow) -> View {
-    match row {
-        ActivityRow::Came(came) => came_view(list, came),
-        ActivityRow::Went(went) => went_view(list, went),
-        ActivityRow::Series(series) => series_view(list, series),
+fn row_view(item: &Item) -> View {
+    match &item.row {
+        ActivityRow::Came(came) => came_view(item, came),
+        ActivityRow::Went(went) => went_view(item, went),
+        ActivityRow::Series(series) => series_view(item, series),
     }
 }

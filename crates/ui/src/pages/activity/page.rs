@@ -20,7 +20,7 @@ use windows_reactor::{
 use super::components::card::card;
 use super::components::lifetimes::{acts, options, series, Act};
 use super::components::picks::picked;
-use super::components::rows::{rows, Rows};
+use super::components::rows::{rows, RowActs, Rows};
 use super::marks::ActivityMark;
 use crate::format;
 use crate::l10n::L10n;
@@ -48,6 +48,8 @@ impl Plot {
 
 pub enum ActivityPageMsg {
     Toggle(ProcessInstance),
+    Only(Pick),
+    Hide(Pick),
 }
 
 #[derive(Default)]
@@ -74,7 +76,7 @@ fn span_label(span: Span, l10n: &L10n) -> String {
 }
 
 impl ActivityPage {
-    pub fn update(&mut self, message: ActivityPageMsg) {
+    pub fn update(&mut self, message: ActivityPageMsg, dispatch: &Dispatch) {
         match message {
             ActivityPageMsg::Toggle(key) => {
                 let expanded = Rc::make_mut(&mut self.expanded);
@@ -82,6 +84,8 @@ impl ActivityPage {
                     expanded.insert(key);
                 }
             }
+            ActivityPageMsg::Only(pick) => dispatch.emit(Only(Some(pick))),
+            ActivityPageMsg::Hide(pick) => dispatch.emit(Hide(pick)),
         }
     }
 
@@ -212,14 +216,14 @@ impl ActivityPage {
         dispatch: &Dispatch,
         l10n: &L10n,
         palette: Palette,
-        forward: Callback<ActivityPageMsg>,
+        acts: RowActs,
     ) -> View {
         let header = Self::header(state, dispatch, l10n, palette);
         let Load::Ready(view) = &state.view else {
             return page_frame(header, loading(), status_text(l10n.activity_loading(), palette), palette);
         };
 
-        let (only, hide, all, unhide) = (dispatch.clone(), dispatch.clone(), dispatch.clone(), dispatch.clone());
+        let (all, unhide) = (dispatch.clone(), dispatch.clone());
         let chips = picked(
             &state.filter,
             l10n,
@@ -241,9 +245,7 @@ impl ActivityPage {
                     expanded: self.expanded.clone(),
                     l10n: l10n.clone(),
                     palette,
-                    on_toggle: Callback::new(move |key: ProcessInstance| forward.call(ActivityPageMsg::Toggle(key))),
-                    on_only: Callback::new(move |pick: Pick| only.emit(Only(Some(pick)))),
-                    on_hide: Callback::new(move |pick: Pick| hide.emit(Hide(pick))),
+                    acts,
                 }))
                 .into()
         };
