@@ -6,6 +6,6 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
-windows = { workspace = true, features = ["libloaderapi"] }
-windows-bindgen = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45" }
+windows-core = { workspace = true }
+windows-bindgen = "0.100"
 serde_json = { workspace = true }

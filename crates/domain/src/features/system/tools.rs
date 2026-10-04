@@ -2,8 +2,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
 use app_contracts::features::system::SystemTool;
-use windows::core::{HSTRING, PCWSTR};
-use windows::Win32::{
+use windows_core::{HSTRING, PCWSTR};
+
+use crate::bindings::{
     CoInitializeEx, RegGetValueW, ShellExecuteW, COINIT_APARTMENTTHREADED, HKEY, HKEY_CURRENT_USER,
     HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, SW_SHOWNORMAL,
 };

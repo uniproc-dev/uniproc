@@ -1,0 +1,7 @@
+Windows::Win32::FreeLibrary
+Windows::Win32::HINSTANCE
+Windows::Win32::HMODULE
+Windows::Win32::LOAD_LIBRARY_AS_DATAFILE
+Windows::Win32::LOAD_LIBRARY_AS_IMAGE_RESOURCE
+Windows::Win32::LoadLibraryExW
+Windows::Win32::LoadStringW

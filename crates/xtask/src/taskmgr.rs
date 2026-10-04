@@ -2,11 +2,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, bail};
-use windows::Win32::{
+use windows_core::{HSTRING, PWSTR};
+
+use crate::bindings::{
     FreeLibrary, HINSTANCE, HMODULE, LOAD_LIBRARY_AS_DATAFILE, LOAD_LIBRARY_AS_IMAGE_RESOURCE,
     LoadLibraryExW, LoadStringW,
 };
-use windows::core::{HSTRING, PWSTR};
 
 const MUI: &str = "Taskmgr.exe.mui";
 const REFERENCE_LOCALE: &str = "en-US";

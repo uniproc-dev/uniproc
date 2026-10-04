@@ -1,8 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use windows::Win32::{GetPackagesByPackageFamily, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS};
-use windows::core::{HSTRING, PWSTR};
+use windows_core::{HSTRING, PWSTR};
+
+use crate::bindings::{GetPackagesByPackageFamily, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS};
 
 use super::appx::{appx_tile_rgba, TILE_SOURCE_SIZE};
 use super::bitmap::RgbaImage;

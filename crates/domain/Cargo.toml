@@ -22,7 +22,7 @@ compio = { workspace = true }
 flume = { workspace = true }
 futures = { workspace = true }
 uuid = { workspace = true }
-windows = { workspace = true }
+windows-core = { workspace = true }
 uniproc-windows-agent = { workspace = true }
 
 [lints]

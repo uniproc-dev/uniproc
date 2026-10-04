@@ -1,4 +1,4 @@
-use windows::Win32::{
+use crate::bindings::{
     DeleteObject, GetDC, GetDIBits, GetIconInfo, GetObjectW, ReleaseDC, BITMAP, BITMAPINFOHEADER,
     BI_RGB, DIB_RGB_COLORS, HANDLE, HBITMAP, HDC, HGDIOBJ, HICON, HWND, ICONINFO, RGBQUAD,
 };

@@ -1,5 +1,6 @@
-use windows::core::PCWSTR;
-use windows::Win32::{
+use windows_core::PCWSTR;
+
+use crate::bindings::{
     DestroyIcon, PrivateExtractIconsW, SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_SMALLICON,
 };
 

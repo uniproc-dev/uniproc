@@ -1,4 +1,7 @@
+#[allow(dead_code, non_snake_case, non_camel_case_types, non_upper_case_globals, clippy::all)]
+mod bindings;
 mod taskmgr;
+mod win32_bindings;
 mod winui_bindings;
 
 use std::path::{Path, PathBuf};
@@ -10,10 +13,11 @@ fn main() -> anyhow::Result<()> {
         Some("run") => run(),
         Some("agent-check") => agent_check(&args[1..]),
         Some("l10n-taskmgr") => l10n_taskmgr(&args[1..]),
-        Some("winui-bindings") => winui_bindings::run(&workspace_root()?),
+        Some("bindings") => win32_bindings::run(&workspace_root()?),
+        Some("winui-bindings") => winui_bindings::run(&args[1..], &workspace_root()?),
         _ => {
             eprintln!(
-                "Usage: cargo run -p xtask -- <run|agent-check [--wsl]|l10n-taskmgr [<dir with <locale>\\Taskmgr.exe.mui>]|winui-bindings>"
+                "Usage: cargo run -p xtask -- <run|agent-check [--wsl]|l10n-taskmgr [<dir with <locale>\\Taskmgr.exe.mui>]|bindings|winui-bindings <WinUI winmd dir>>"
             );
             std::process::exit(1);
         }

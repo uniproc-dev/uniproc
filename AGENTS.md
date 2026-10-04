@@ -161,8 +161,12 @@ migrations or compatibility shims for old local data.
 - Icon SVGs: fetched by guicons into `.cache/guicons/`, pinned by `icons.lock`. Both are
   committed.
 - App metadata — `desktop/build.rs`, from `app.toml`.
-- `desktop/src/window_press/bindings.rs` — `cargo run -p xtask -- winui-bindings`, from
-  `bindings.txt` next to it.
+- `<crate>/src/bindings.rs` in `context`, `domain`, `ui`, `xtask` — `cargo run -p xtask --
+  bindings`, from `bindings.txt` next to it; an xtask test fails when one is out of date.
+- `desktop/src/window_press/bindings.rs` — `cargo run -p xtask -- winui-bindings <winmd dir>`,
+  from `bindings.txt` next to it. The WinUI metadata is `crates/tools/reactor/winmd` of a
+  windows-rs checkout at the commit `windows-reactor-pre` was published from; without the
+  argument the command names that commit.
 - Anything under `target/`.
 
 ## Tests
@@ -204,8 +208,9 @@ migrations or compatibility shims for old local data.
 - Our crates come from two organisations: `guinea-rs` (guinea, guinea-plugins, guicons,
   amethystate) and `uniproc-dev` (the agents, `uniproc-protocol`, `ogurpchik`). Each repo
   has its own owner; problems found there are reported to it, not patched here.
-- `windows` stays on a git rev of microsoft/windows-rs until 0.100 is published; the
-  reactor crates come from crates.io (`-pre`).
+- No `windows` crate: each crate generates the Win32/WinRT items it calls with
+  windows-bindgen 0.100 over `windows-core` 0.100. The reactor crates come from crates.io
+  (`-pre`).
 - CI: `.github/workflows/deps.yml` calls the shared `guinea-rs/.github` workflows
   (cargo-deny with `deny.toml`, one version of each of our crates, a weekly issue listing
   newer tags). Dependabot ignores our own crates; those are bumped by hand.

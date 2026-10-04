@@ -46,9 +46,9 @@ windows-core = "0.100"
 windows-reference = "0.100"
 
 # --- RPC & protocol ---
-ogurpchik = { git = "https://github.com/uniproc-dev/oguRPChik", tag = "v0.7.1" }
+ogurpchik = { git = "https://github.com/uniproc-dev/oguRPChik", tag = "v0.7.2" }
 uniproc-protocol = { git = "https://github.com/uniproc-dev/uniproc-protocol", tag = "v0.18.0" }
-uniproc-windows-agent = { git = "https://github.com/uniproc-dev/uniproc-windows-agent", tag = "v0.19.0", default-features = false }
+uniproc-windows-agent = { git = "https://github.com/uniproc-dev/uniproc-windows-agent", tag = "v0.21.0", default-features = false }
 
 # --- Internal ---
 app-contracts = { path = "crates/app-contracts" }
@@ -73,13 +73,6 @@ uuid = { version = "1.23.0", features = ["v4"] }
 # --- Logging & Diagnostics ---
 tracing = { version = "0.1.44", features = ["release_max_level_warn"] }
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
-
-# --- System & Platform ---
-windows = { git = "https://github.com/microsoft/windows-rs", rev = "c14074c45", features = [
-    "UI_ViewManagement",
-    "appmodel", "combaseapi", "dwmapi", "knownfolders", "minwindef", "objbase", "shellapi",
-    "shlobj_core", "shobjidl_core", "timezoneapi", "windef", "wingdi", "winerror", "winreg", "winuser",
-] }
 
 # --- Utilities ---
 anyhow = "1.0.100"

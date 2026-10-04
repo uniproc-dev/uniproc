@@ -1,0 +1,3 @@
+Windows::UI::Color
+Windows::UI::ViewManagement::UIColorType
+Windows::UI::ViewManagement::UISettings::{CreateInstance, GetColorValue}

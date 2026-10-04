@@ -1,10 +1,13 @@
-use windows::core::{Interface, HRESULT, HSTRING, PCWSTR, PWSTR};
-use windows::Win32::{
+use windows_core::{Interface, GUID, HRESULT, HSTRING, PCWSTR, PWSTR};
+
+use crate::bindings::{
     ClosePackageInfo, CoInitializeEx, GetPackageApplicationIds, IShellItem, IShellItemImageFactory,
     OpenPackageInfoByFullName, PackageFamilyNameFromFullName, SHCreateItemInKnownFolder,
-    COINIT_APARTMENTTHREADED, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, FOLDERID_AppsFolder,
-    SIIGBF_RESIZETOFIT, SIZE, _PACKAGE_INFO_REFERENCE,
+    COINIT_APARTMENTTHREADED, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, SIIGBF_RESIZETOFIT, SIZE,
+    _PACKAGE_INFO_REFERENCE,
 };
+
+const FOLDERID_APPS_FOLDER: GUID = GUID::from_u128(0x1e87508d_89c2_42f0_8a7e_645a0f50ca58);
 
 use super::bitmap::{hbitmap_to_rgba, GdiObjectGuard, RgbaImage};
 use super::trim::fit_content;
@@ -44,7 +47,7 @@ pub(super) fn appx_tile_rgba(package_full_name: &str, size: i32) -> Option<RgbaI
         }
 
         let shell_item: IShellItem = SHCreateItemInKnownFolder(
-            &FOLDERID_AppsFolder,
+            &FOLDERID_APPS_FOLDER,
             0,
             PCWSTR(h_aumid.as_ptr()),
         )

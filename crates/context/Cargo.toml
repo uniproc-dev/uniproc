@@ -5,7 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-windows = { workspace = true }
+windows-core = { workspace = true }
 tracing = { workspace = true }
 png = "0.18.1"
 

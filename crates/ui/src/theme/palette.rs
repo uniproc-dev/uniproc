@@ -1,6 +1,8 @@
-use windows::UI::ViewManagement::{UIColorType, UISettings};
 use windows_canvas::ColorF;
+use windows_core::Interface;
 use windows_reactor::{Color, ColorScheme};
+
+use crate::bindings::{IUISettings3, UIColorType, UISettings};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Palette {
@@ -107,12 +109,13 @@ pub fn color_f(color: Color) -> ColorF {
 
 pub fn accent_color() -> Color {
     UISettings::new()
-        .and_then(|s| s.GetColorValue(UIColorType::Accent))
+        .and_then(|settings| settings.cast::<IUISettings3>())
+        .and_then(|settings| settings.GetColorValue(UIColorType::Accent))
         .map(|c| Color {
-            a: c.A,
-            r: c.R,
-            g: c.G,
-            b: c.B,
+            a: c.a,
+            r: c.r,
+            g: c.g,
+            b: c.b,
         })
         .unwrap_or(Accent::Fallback)
 }

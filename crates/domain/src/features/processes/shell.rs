@@ -4,8 +4,9 @@ use std::sync::Arc;
 
 use anyhow::{bail, Result};
 use app_contracts::features::processes::WindowCommand;
-use windows::core::{HSTRING, PCWSTR};
-use windows::Win32::{
+use windows_core::{HSTRING, PCWSTR};
+
+use crate::bindings::{
     CoInitializeEx, IsIconic, PostMessageW, SHObjectProperties, SetForegroundWindow, ShellExecuteW,
     ShowWindow, COINIT_APARTMENTTHREADED, HWND, LPARAM, SHOP_FILEPATH, SW_MAXIMIZE, SW_MINIMIZE,
     SW_RESTORE, SW_SHOWNORMAL, WM_CLOSE, WPARAM,

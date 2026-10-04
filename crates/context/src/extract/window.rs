@@ -1,4 +1,4 @@
-use windows::Win32::{
+use crate::bindings::{
     GCLP_HICON, GCLP_HICONSM, GetClassLongPtrW, HICON, HWND, ICON_BIG, ICON_SMALL, ICON_SMALL2,
     LPARAM, SMTO_ABORTIFHUNG, SMTO_BLOCK, SendMessageTimeoutW, WM_GETICON, WPARAM,
 };

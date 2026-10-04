@@ -6,12 +6,13 @@ use app_contracts::features::processes::ProcessWindow;
 mod taskbar {
     use std::ffi::c_void;
 
-    use windows::Win32::{
+    use windows_core::{BOOL, PWSTR};
+
+    use crate::bindings::{
         DWMWA_CLOAKED, DwmGetWindowAttribute, EnumChildWindows, EnumWindows, GW_OWNER, GWL_EXSTYLE,
         GetClassNameW, GetWindow, GetWindowLongW, GetWindowThreadProcessId, HWND,
         InternalGetWindowText, IsWindowVisible, LPARAM, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
     };
-    use windows::core::{BOOL, PWSTR};
 
     const UWP_FRAME: &str = "ApplicationFrameWindow";
     const UWP_CORE: &str = "Windows.UI.Core.CoreWindow";
@@ -195,8 +196,8 @@ mod tests {
     fn a_window_whose_thread_does_not_pump_does_not_hold_up_the_scan() {
         use std::sync::mpsc;
         use std::time::Duration;
-        use windows::Win32::{CreateWindowExW, DestroyWindow, WS_EX_APPWINDOW, WS_POPUP, WS_VISIBLE};
-        use windows::core::w;
+        use crate::bindings::{CreateWindowExW, DestroyWindow, WS_EX_APPWINDOW, WS_POPUP, WS_VISIBLE};
+        use windows_core::w;
 
         const TITLE: &str = "uniproc scan probe";
         let hwnd = unsafe {

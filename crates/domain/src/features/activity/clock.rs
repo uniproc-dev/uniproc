@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use app_contracts::features::activity::Clock;
-use windows::Win32::{FileTimeToSystemTime, SystemTimeToTzSpecificLocalTime, FILETIME, SYSTEMTIME};
+use crate::bindings::{FileTimeToSystemTime, SystemTimeToTzSpecificLocalTime, FILETIME, SYSTEMTIME};
 
 use super::log::Ticks;
 
