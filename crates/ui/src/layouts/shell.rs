@@ -52,7 +52,6 @@ pub struct ShellProps<'a> {
 fn nav_items(l10n: &L10n) -> Vec<(&'static str, String, Icon)> {
     vec![
         ("processes", l10n.shell_nav_processes(), icon!(apps_list).size(size::NavIcon).build()),
-        ("activity", l10n.shell_nav_activity(), icon!(activity).size(size::NavIcon).build()),
         ("services", l10n.shell_nav_services(), icon!(puzzle).size(size::NavIcon).build()),
         ("wsl", l10n.shell_nav_wsl(), icon!(linux).size(size::NavIcon).build()),
         ("system", l10n.shell_nav_system(), icon!(system).size(size::NavIcon).build()),

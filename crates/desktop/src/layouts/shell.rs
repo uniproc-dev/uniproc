@@ -17,7 +17,7 @@ use guinea_widgets::chart::Chart;
 use windows_reactor::{Callback, ColorScheme, View, WindowBackdrop, WindowTheme, WindowVisuals};
 
 use crate::layouts::{ProcessesArea, SystemArea};
-use crate::pages::{Activity, Services, Settings, Wsl};
+use crate::pages::{Services, Settings, Wsl};
 use crate::route_memory;
 use crate::routes::Route;
 
@@ -143,9 +143,7 @@ impl Layout for ShellLayout {
         let l10n = ui::l10n::use_tr(cx);
         let nav = cx.use_navigate::<Route>();
 
-        let selected_tag = if cx.child_is::<Activity>() {
-            "activity"
-        } else if cx.child_is::<Services>() {
+        let selected_tag = if cx.child_is::<Services>() {
             "services"
         } else if cx.child_is::<Wsl>() {
             "wsl"
@@ -161,7 +159,6 @@ impl Layout for ShellLayout {
 
         let on_select = Callback::new(move |tag: Option<String>| match tag.as_deref() {
             Some("processes") => nav.to(Route::Processes {}),
-            Some("activity") => nav.to(Route::Activity {}),
             Some("services") => nav.to(Route::Services {}),
             Some("wsl") => nav.to(Route::Wsl {}),
             Some("system") => nav.to(Route::System {}),
@@ -342,19 +339,6 @@ mod tests {
         page.settle();
 
         assert_eq!(page.navigated::<Route>(), [Route::Settings {}]);
-    }
-
-    #[guinea::test(iterations = 4, exclusive = "agent")]
-    fn the_activity_item_opens_the_activity_page(h: &mut Harness) {
-        start(h, true);
-        let h = &*h;
-        let mut page = mount(h);
-        assert!(page.find_text("Activity").is_some(), "the sidebar lists Activity");
-
-        page.click_text("Activity").settle();
-        page.settle();
-
-        assert_eq!(page.navigated::<Route>(), [Route::Activity {}]);
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]

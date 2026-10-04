@@ -47,9 +47,7 @@ fn main() -> anyhow::Result<()> {
         app.plugin(guinea_plugin_devtools::DevToolsPlugin::new().launch(true))
     };
 
-    let app = app
-        .feature(domain::features::agents::AgentsFeature)
-        .feature(domain::features::activity::ActivityFeature);
+    let app = app.feature(domain::features::agents::AgentsFeature);
 
     run(
         app,
