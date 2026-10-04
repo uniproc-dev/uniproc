@@ -1,26 +1,29 @@
 use guinea::prelude::*;
 
+use crate::app::App;
 use crate::layouts::{MainWindow, Overlay, PaneFooter, ProcessesArea, Shell, SystemArea};
 use crate::pages::{Processes, ProcessesSettings, Services, Settings, System, SystemTools, Wsl};
 use crate::parts::{Connecting, SidebarCharts};
 
 routes! {
     Route {
-        layout(MainWindow) restorable {
-            layout(Shell) {
-                part(SidebarCharts) => PaneFooter
-                part(Connecting) => Overlay
-                layout(ProcessesArea) keep {
-                    page(Processes)
-                    page(ProcessesSettings)
+        app(App) {
+            layout(MainWindow) restorable {
+                layout(Shell) {
+                    part(SidebarCharts) => PaneFooter
+                    part(Connecting) => Overlay
+                    layout(ProcessesArea) keep {
+                        page(Processes)
+                        page(ProcessesSettings)
+                    }
+                    page(Services)
+                    page(Wsl)
+                    layout(SystemArea) {
+                        page(System)
+                        page(SystemTools)
+                    }
+                    page(Settings)
                 }
-                page(Services)
-                page(Wsl)
-                layout(SystemArea) {
-                    page(System)
-                    page(SystemTools)
-                }
-                page(Settings)
             }
         }
     }
@@ -39,8 +42,6 @@ mod tests {
     use domain::features::processes::ProcessesDeps;
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node};
-    use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::StorePlugin;
 
     use super::*;
     use crate::test_agent;
@@ -62,11 +63,7 @@ mod tests {
 
     fn start(h: &mut Harness) {
         test_agent::reset(true);
-        h.plugin(StorePlugin::in_memory())
-            .unwrap()
-            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
-            .unwrap()
-            .feature(test_agent::FakeAgentFeature)
+        h.install_application_with(crate::app::with_fakes)
             .unwrap()
             .provide(AgentLinkDeps {
                 start_in_process: test_agent::start_in_process,

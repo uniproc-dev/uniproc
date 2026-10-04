@@ -59,8 +59,11 @@ polish it.
   or in the area layout above it (`ProcessesArea`, `SystemArea`), never in `Shell`: the
   shell installs only what the shell itself shows (the sidebar). What fills one of the
   shell's slots is a part with its own feature (`SidebarCharts` → metrics, `Connecting` →
-  agent link); window-wide state (settings) is in `MainWindow`. App-lifetime features implement `AppFeature` and go in `main.rs` (`agents`,
-  `activity`); one whose state a page reads claims it with `app.state` and lists it in `type Exports`.
+  agent link); window-wide state (settings) is in `MainWindow`. 
+  App-lifetime features implement `AppFeature` and are installed by `#[installs] fn app`
+  in `desktop/src/app.rs` (`agents`), with the plugins. One whose state a page reads
+  claims it with `app.state`, lists it in `type Exports`, and goes in `installs` of `app!`.
+  The route tree hangs from `app(App)`.
 
 Routes are in `desktop/src/routes.rs`. `MainWindow` is the root and is `restorable`: the
 last route survives a restart, see `route_memory.rs`. It owns the window (size, backdrop,
@@ -181,9 +184,10 @@ migrations or compatibility shims for old local data.
 - UI behaviour: guinea harness tests in `desktop` (`#[guinea::test(iterations = ..)]`). They run in
   parallel; a test that touches a fake's statics takes its key: `exclusive = "agent"` for
   `test_agent`, `exclusive = "system"` for `test_system`.
-  A page: `h.install::<F>(..)` + `Mounted::mount_at(h.child(), ..)`. A layout:
-  `Mounted::mount_at(h.segment(), ..)`; its outlet is `Outlet`, navigation is read with
-  `navigated()`. No probe pages.
+  A page: `h.install::<F>(..)` + `Mounted::mount_at(h.child(), ..)`. The real tree:
+  `h.install_application_with(crate::app::with_fakes)` (in-memory store, fake agent) and
+  `Mounted::routed(h, Route::..)`; read and drive it with `state`, `dispatch`, `route`,
+  `is_mounted`. No probe pages.
 - Fakes: `<F>Deps` through `h.provide(..)`; `test_agent.rs` is a fake Windows agent
   (`FakeAgentFeature`, switches for up, outdated, dropping); `test_system.rs` for the
   System page.

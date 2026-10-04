@@ -95,12 +95,11 @@ mod tests {
     use guinea::core::actor::event_bus::{RpcRequest, RpcResponse};
     use guinea::prelude::GlobalEventBus;
     use guinea::winui::harness::Mounted;
-    use guinea_plugin_l10n::L10nPlugin;
     use domain::features::agent_link::AgentLinkDeps;
     use domain::features::agents::providers::windows::SERVICE_DISPLAY_NAME;
     use domain::features::agents::settings::AgentSettings;
     use domain::features::system::SystemDeps;
-    use guinea_plugin_store::{StoreAccess, StorePlugin};
+    use guinea_plugin_store::StoreAccess;
     use uuid::Uuid;
 
     use std::sync::Arc;
@@ -138,11 +137,7 @@ mod tests {
 
     fn start(h: &mut Harness, agent_up: bool) {
         test_agent::reset(agent_up);
-        h.plugin(StorePlugin::in_memory())
-            .unwrap()
-            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
-            .unwrap()
-            .feature(test_agent::FakeAgentFeature)
+        h.install_application_with(crate::app::with_fakes)
             .unwrap()
             .provide(AgentLinkDeps {
                 start_in_process: test_agent::start_in_process,
