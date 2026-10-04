@@ -94,9 +94,11 @@ pub fn shell_view(props: ShellProps<'_>) -> View {
         .preferred_height(WindowTitleBarHeight::Tall)
         .is_pane_toggle_button_visible(false)
         .grid_row(0)
+        .icon(icon!(uniproc_logo).build())
         .title(props.l10n.shell_window_title())
         .content(
             AutoSuggestBox::new()
+                .query_icon(icon!(search).build())
                 .placeholder_text(props.l10n.shell_search())
                 .width(Title::SearchWidth)
                 .vertical_alignment(VerticalAlignment::Center),
