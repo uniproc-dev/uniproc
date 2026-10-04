@@ -63,7 +63,8 @@ impl Layout for MainWindow {
     }
 
     fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
-        let on_scheme = cx.on(|scheme: ColorScheme| scheme);
+        let drawn = self.scheme;
+        let on_scheme = cx.on_some(move |scheme: ColorScheme| (scheme != drawn).then_some(scheme));
         cx.on_color_scheme(on_scheme);
         let (settings, _) = cx.read::<SettingsState>();
         cx.window_visuals(
