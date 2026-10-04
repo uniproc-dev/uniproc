@@ -214,10 +214,8 @@ migrations or compatibility shims for old local data.
   amethystate) and `uniproc-dev` (the agents, `uniproc-protocol`, `ogurpchik`). Each repo
   has its own owner; problems found there are reported to it, not patched here.
 - No `windows` crate: each crate generates the Win32/WinRT items it calls with
-  windows-bindgen 0.100 over `windows-core` 0.100.
-- Until guinea 0.23 is tagged, guinea, its crates and the reactor crates it carries
-  (`windows-reactor-pre`, `windows-canvas-pre`) come from one git rev of guinea through
-  `[patch.crates-io]`, and guinea-plugins from a git rev. Bump them together.
+  windows-bindgen 0.100 over `windows-core` 0.100. The reactor crates come from crates.io
+  (`-pre`).
 - CI: `.github/workflows/deps.yml` calls the shared `guinea-rs/.github` workflows
   (cargo-deny with `deny.toml`, one version of each of our crates, a weekly issue listing
   newer tags). Dependabot ignores our own crates; those are bumped by hand.
