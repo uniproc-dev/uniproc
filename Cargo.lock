@@ -1518,8 +1518,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-devtools-protocol"
-version = "0.24.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.1#c6fc0cdd76b5b39ee57e73b67ba43a2d28ae5317"
+version = "0.24.2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.2#d037b8e6870cfefd74359c6374955988ada90b56"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -1570,8 +1570,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-devtools"
-version = "0.24.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.1#c6fc0cdd76b5b39ee57e73b67ba43a2d28ae5317"
+version = "0.24.2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.2#d037b8e6870cfefd74359c6374955988ada90b56"
 dependencies = [
  "anyhow",
  "capnp",
@@ -1588,8 +1588,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-l10n"
-version = "0.24.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.1#c6fc0cdd76b5b39ee57e73b67ba43a2d28ae5317"
+version = "0.24.2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.2#d037b8e6870cfefd74359c6374955988ada90b56"
 dependencies = [
  "anyhow",
  "fluent-bundle",
@@ -1603,8 +1603,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-l10n-build"
-version = "0.24.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.1#c6fc0cdd76b5b39ee57e73b67ba43a2d28ae5317"
+version = "0.24.2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.2#d037b8e6870cfefd74359c6374955988ada90b56"
 dependencies = [
  "fluent-syntax",
  "proc-macro2",
@@ -1615,8 +1615,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-plugin-single-instance"
-version = "0.24.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.1#c6fc0cdd76b5b39ee57e73b67ba43a2d28ae5317"
+version = "0.24.2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.2#d037b8e6870cfefd74359c6374955988ada90b56"
 dependencies = [
  "anyhow",
  "guinea",
@@ -1626,7 +1626,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-store"
 version = "0.23.10"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.1#c6fc0cdd76b5b39ee57e73b67ba43a2d28ae5317"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.2#d037b8e6870cfefd74359c6374955988ada90b56"
 dependencies = [
  "amethystate",
  "anyhow",
@@ -1674,8 +1674,8 @@ dependencies = [
 
 [[package]]
 name = "guinea-widgets"
-version = "0.24.1"
-source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.1#c6fc0cdd76b5b39ee57e73b67ba43a2d28ae5317"
+version = "0.24.2"
+source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.24.2#d037b8e6870cfefd74359c6374955988ada90b56"
 dependencies = [
  "guinea-mark",
  "tracing",
