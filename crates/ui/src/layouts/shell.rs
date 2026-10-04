@@ -1,7 +1,4 @@
-use app_contracts::features::metrics::MetricsState;
-use app_contracts::features::settings::{SidebarChart, SidebarCharts, Units};
 use guicons::icon;
-use guinea_widgets::chart::Chart;
 use guinea_widgets::resize::{resize_handle, RESIZE_HANDLE_WIDTH};
 use std::rc::Rc;
 
@@ -11,9 +8,8 @@ use windows_reactor::{
     VerticalAlignment, View, WindowTitleBarHeight,
 };
 
-use super::metrics_pane::metrics_pane;
 use crate::l10n::L10n;
-use crate::theme::{size, Palette};
+use crate::theme::size;
 
 struct Title;
 
@@ -30,66 +26,88 @@ impl Sidebar {
     const MaxWidth: f64 = 500.0;
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ShellNav {
+    Processes,
+    Services,
+    Wsl,
+    System,
+    Settings,
+}
+
+impl ShellNav {
+    const ALL: [Self; 5] = [Self::Processes, Self::Services, Self::Wsl, Self::System, Self::Settings];
+
+    fn tag(self) -> &'static str {
+        match self {
+            Self::Processes => "processes",
+            Self::Services => "services",
+            Self::Wsl => "wsl",
+            Self::System => "system",
+            Self::Settings => "settings",
+        }
+    }
+
+    fn from_tag(tag: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|nav| nav.tag() == tag)
+    }
+
+    fn in_footer(self) -> bool {
+        matches!(self, Self::Settings)
+    }
+
+    fn label(self, l10n: &L10n) -> String {
+        match self {
+            Self::Processes => l10n.shell_nav_processes(),
+            Self::Services => l10n.shell_nav_services(),
+            Self::Wsl => l10n.shell_nav_wsl(),
+            Self::System => l10n.shell_nav_system(),
+            Self::Settings => l10n.shell_nav_settings(),
+        }
+    }
+
+    fn icon(self) -> Icon {
+        match self {
+            Self::Processes => icon!(apps_list).size(size::NavIcon).build(),
+            Self::Services => icon!(puzzle).size(size::NavIcon).build(),
+            Self::Wsl => icon!(linux).size(size::NavIcon).build(),
+            Self::System => icon!(system).size(size::NavIcon).build(),
+            Self::Settings => icon!(settings).size(size::NavIcon).build(),
+        }
+    }
+}
+
 pub struct ShellProps<'a> {
     pub l10n: &'a L10n,
-    pub palette: Palette,
     pub open: bool,
     pub width: f64,
-    pub selected_tag: &'a str,
+    pub menu: Vec<(ShellNav, bool)>,
     pub content: View,
-    pub splash: Option<View>,
-    pub metrics: &'a MetricsState,
-    pub units: Units,
-    pub cadence_ms: u64,
-    pub charts: &'a [Chart; 5],
-    pub shown: SidebarCharts,
-    pub on_show_chart: Callback<(SidebarChart, bool)>,
-    pub on_select: Callback<Option<String>>,
+    pub pane_footer: View,
+    pub overlay: View,
+    pub on_select: Callback<ShellNav>,
     pub on_resize: Callback<f64>,
     pub on_open_changed: Callback<bool>,
 }
 
-fn nav_items(l10n: &L10n) -> Vec<(&'static str, String, Icon)> {
-    vec![
-        ("processes", l10n.shell_nav_processes(), icon!(apps_list).size(size::NavIcon).build()),
-        ("services", l10n.shell_nav_services(), icon!(puzzle).size(size::NavIcon).build()),
-        ("wsl", l10n.shell_nav_wsl(), icon!(linux).size(size::NavIcon).build()),
-        ("system", l10n.shell_nav_system(), icon!(system).size(size::NavIcon).build()),
-    ]
-}
-
-fn footer_nav_items(l10n: &L10n) -> Vec<(&'static str, String, Icon)> {
-    vec![("settings", l10n.shell_nav_settings(), icon!(settings).size(size::NavIcon).build())]
-}
-
-pub fn shell_view(mut props: ShellProps<'_>) -> View {
+pub fn shell_view(props: ShellProps<'_>) -> View {
     let title_bar = TitleBar::new()
         .preferred_height(WindowTitleBarHeight::Tall)
         .is_pane_toggle_button_visible(false)
-        .grid_row(0);
+        .grid_row(0)
+        .title(props.l10n.shell_window_title())
+        .content(
+            AutoSuggestBox::new()
+                .placeholder_text(props.l10n.shell_search())
+                .width(Title::SearchWidth)
+                .vertical_alignment(VerticalAlignment::Center),
+        );
+    let handle = sidebar_resize_handle(&props);
+    let overlay = Border::new().grid_row(0).grid_row_span(2).content(props.overlay.clone());
 
-    let layers: Vec<View> = match props.splash.take() {
-        Some(splash) => vec![
-            Border::new()
-                .grid_row(0)
-                .grid_row_span(2)
-                .content(splash)
-                .into(),
-            title_bar.into(),
-        ],
-        None => {
-            let title_bar = title_bar.title(props.l10n.shell_window_title()).content(
-                AutoSuggestBox::new()
-                    .placeholder_text(props.l10n.shell_search())
-                    .width(Title::SearchWidth)
-                    .vertical_alignment(VerticalAlignment::Center),
-            );
-            let handle = sidebar_resize_handle(&props);
-            let mut layers = vec![title_bar.into(), navigation(props)];
-            layers.extend(handle);
-            layers
-        }
-    };
+    let mut layers: Vec<View> = vec![title_bar.into(), navigation(&props)];
+    layers.extend(handle);
+    layers.push(overlay.into());
 
     Grid::new()
         .rows([GridLength::Auto, GridLength::Star(1.0)])
@@ -98,28 +116,31 @@ pub fn shell_view(mut props: ShellProps<'_>) -> View {
         .into()
 }
 
-fn navigation(props: ShellProps<'_>) -> View {
+fn navigation(props: &ShellProps<'_>) -> View {
     let l10n = props.l10n;
-    let selected_tag = props.selected_tag;
-    let to_nav_item = |(tag, label, icon): (&'static str, String, Icon)| {
+    let to_nav_item = |&(nav, current): &(ShellNav, bool)| {
         keyed(
-            tag,
+            nav.tag(),
             NavigationViewItem::new()
-                .tag(tag)
-                .content(label)
-                .icon(icon)
-                .is_selected(tag == selected_tag),
+                .tag(nav.tag())
+                .content(nav.label(l10n))
+                .icon(nav.icon())
+                .is_selected(current),
         )
     };
-    let nav_items: Vec<_> = nav_items(l10n).into_iter().map(to_nav_item).collect();
-    let footer_nav_items: Vec<_> = footer_nav_items(l10n).into_iter().map(to_nav_item).collect();
+    let nav_items: Vec<_> = props.menu.iter().filter(|(nav, _)| !nav.in_footer()).map(to_nav_item).collect();
+    let footer_nav_items: Vec<_> = props.menu.iter().filter(|(nav, _)| nav.in_footer()).map(to_nav_item).collect();
     let on_select = props.on_select.clone();
 
     NavigationView::new()
         .keyed_menu_items(nav_items)
         .keyed_footer_menu_items(footer_nav_items)
-        .pane_footer(metrics_pane(&props))
-        .on_selected_tag_changed(move |tag: Option<Rc<str>>| on_select.call(tag.map(|tag| tag.to_string())))
+        .pane_footer(props.pane_footer.clone())
+        .on_selected_tag_changed(move |tag: Option<Rc<str>>| {
+            if let Some(nav) = tag.as_deref().and_then(ShellNav::from_tag) {
+                on_select.call(nav);
+            }
+        })
         .is_pane_open(props.open)
         .pane_display_mode(NavigationViewPaneDisplayMode::Left)
         .is_pane_toggle_button_visible(true)
@@ -128,7 +149,7 @@ fn navigation(props: ShellProps<'_>) -> View {
         .is_settings_visible(false)
         .open_pane_length(props.width)
         .grid_row(1)
-        .content(props.content)
+        .content(props.content.clone())
         .into()
 }
 

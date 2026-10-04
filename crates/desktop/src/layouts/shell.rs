@@ -1,109 +1,48 @@
-use app_contracts::features::agent_link::{AgentLinkState, StartInProcess};
-use app_contracts::features::agents::AgentConnectionState;
-use app_contracts::features::metrics::MetricsState;
-use app_contracts::features::settings::{AppTheme, SettingsState, ShowSidebarChart};
 use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarState};
-use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
-use domain::features::agents::providers::windows::SERVICE_DISPLAY_NAME;
-use domain::features::metrics::MetricsFeature;
-use domain::features::settings::SettingsFeature;
 use domain::features::sidebar::SidebarFeature;
 use guinea::feature::FeatureInitContext;
-use guinea::prelude::Dispatch;
-use ui::l10n::L10n;
-use ui::theme::Palette;
-use guinea::winui::{layout, Layout, LayoutCx, UpdateCx, UseNavigate, UseRoute};
-use guinea_widgets::chart::Chart;
-use windows_reactor::{Callback, ColorScheme, View, WindowBackdrop, WindowTheme, WindowVisuals};
+use guinea::winui::{layout, Layout, LayoutCx, UpdateCx, UseNavigate};
+use ui::ShellNav;
+use windows_reactor::{Callback, View};
 
-use crate::layouts::{ProcessesArea, SystemArea};
-use crate::pages::{Services, Settings, Wsl};
-use crate::route_memory;
 use crate::routes::Route;
 
-const WINDOW_WIDTH: f64 = 1000.0;
-const WINDOW_HEIGHT: f64 = 700.0;
+#[guinea::slot]
+pub struct PaneFooter;
 
-pub(crate) fn splash(
-    link: &AgentLinkState,
-    dispatch: &Dispatch,
-    l10n: &L10n,
-    palette: Palette,
-) -> Option<View> {
-    if !link.awaiting_first_connection() {
-        return None;
-    }
-    let dispatch = dispatch.clone();
-    Some(ui::splash_view(ui::SplashProps {
-        l10n,
-        palette,
-        in_process_offered: link.in_process_offered,
-        in_process: link.in_process,
-        service_trouble: match link.windows {
-            AgentConnectionState::GaveUp => Some(ui::ServiceTrouble::Unreachable(SERVICE_DISPLAY_NAME)),
-            AgentConnectionState::Outdated => Some(ui::ServiceTrouble::Outdated(SERVICE_DISPLAY_NAME)),
-            _ => None,
-        },
-        on_start_in_process: Callback::new(move |()| dispatch.emit(StartInProcess)),
-    }))
-}
+#[guinea::slot]
+pub struct Overlay;
 
 #[derive(Default)]
-pub struct ShellLayout {
-    scheme: ColorScheme,
-    charts: [Chart; 5],
-    routes: Option<route_memory::RouteSettings>,
-}
-
-fn window_theme(theme: AppTheme) -> WindowTheme {
-    match theme {
-        AppTheme::System => WindowTheme::System,
-        AppTheme::Light => WindowTheme::Light,
-        AppTheme::Dark => WindowTheme::Dark,
-    }
-}
-
-fn icon_theme(scheme: ColorScheme) -> guicons::Theme {
-    match scheme {
-        ColorScheme::Dark => guicons::Theme::Dark,
-        ColorScheme::Light => guicons::Theme::Light,
-    }
-}
+pub struct Shell;
 
 pub enum ShellMsg {
-    Scheme(ColorScheme),
     Resize(f64),
     OpenChanged(bool),
 }
 
+fn nav(route: &Route) -> ShellNav {
+    match route {
+        Route::Processes {} | Route::ProcessesSettings {} => ShellNav::Processes,
+        Route::Services {} => ShellNav::Services,
+        Route::Wsl {} => ShellNav::Wsl,
+        Route::System {} | Route::SystemTools {} => ShellNav::System,
+        Route::Settings {} => ShellNav::Settings,
+    }
+}
+
 #[layout]
-impl Layout for ShellLayout {
-    type Params = crate::routes::ShellLayoutParams;
-    type Installs = (SidebarFeature, MetricsFeature, AgentLinkFeature, SettingsFeature);
+impl Layout for Shell {
+    type Params = crate::routes::ShellParams;
+    type Installs = SidebarFeature;
     type Message = ShellMsg;
 
     fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        let link = ctx.require_or_default::<AgentLinkDeps>();
-        Ok((ctx.install(&())?, ctx.install(&())?, ctx.install(&link)?, ctx.install(&())?))
-    }
-
-    fn init(ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
-        crate::xaml_resources::override_navigation_view_resources();
-        crate::window_press::install();
-        let shell = Self {
-            routes: route_memory::open(ctx),
-            ..Self::default()
-        };
-        guicons::set_theme(icon_theme(shell.scheme));
-        shell
+        ctx.install(&())
     }
 
     fn update(&mut self, message: ShellMsg, cx: &mut UpdateCx<'_, Self>) {
         match message {
-            ShellMsg::Scheme(scheme) => {
-                self.scheme = scheme;
-                guicons::set_theme(icon_theme(scheme));
-            }
             ShellMsg::Resize(width) => {
                 let (_, dispatch) = cx.read::<SidebarState>();
                 dispatch.emit(SetWidth(width.round() as u64));
@@ -118,75 +57,30 @@ impl Layout for ShellLayout {
     }
 
     fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
-        let on_scheme = cx.on(ShellMsg::Scheme);
-        cx.on_color_scheme(on_scheme);
-        let (settings, settings_dispatch) = cx.read::<SettingsState>();
-        cx.window_visuals(
-            WindowVisuals::new()
-                .client_size(WINDOW_WIDTH, WINDOW_HEIGHT)
-                .backdrop(WindowBackdrop::Mica)
-                .theme(window_theme(settings.theme)),
-        );
-
-        let current = cx.use_route::<Route>();
-        let routes = self.routes.clone();
-        cx.use_effect("uniproc::remember_route", current.clone(), move || {
-            if let Some(routes) = &routes {
-                route_memory::remember(routes, &current);
-            }
-            None
-        });
-
         let (sidebar, _) = cx.read::<SidebarState>();
-        let (metrics, _) = cx.read::<MetricsState>();
-        let (link, link_dispatch) = cx.read::<AgentLinkState>();
         let l10n = ui::l10n::use_tr(cx);
-        let nav = cx.use_navigate::<Route>();
+        let navigate = cx.use_navigate::<Route>();
 
-        let selected_tag = if cx.child_is::<Services>() {
-            "services"
-        } else if cx.child_is::<Wsl>() {
-            "wsl"
-        } else if cx.child_is::<ProcessesArea>() {
-            "processes"
-        } else if cx.child_is::<SystemArea>() {
-            "system"
-        } else if cx.child_is::<Settings>() {
-            "settings"
-        } else {
-            ""
-        };
-
-        let on_select = Callback::new(move |tag: Option<String>| match tag.as_deref() {
-            Some("processes") => nav.to(Route::Processes {}),
-            Some("services") => nav.to(Route::Services {}),
-            Some("wsl") => nav.to(Route::Wsl {}),
-            Some("system") => nav.to(Route::System {}),
-            Some("settings") => nav.to(Route::Settings {}),
-            _ => {}
+        let children = cx.child_routes::<Route>();
+        let menu = children.iter().map(|child| (nav(&child.route), child.current)).collect();
+        let targets: Vec<(ShellNav, Route)> = children.into_iter().map(|child| (nav(&child.route), child.route)).collect();
+        let on_select = Callback::new(move |picked: ShellNav| {
+            if let Some((_, route)) = targets.iter().find(|(nav, _)| *nav == picked) {
+                navigate.to(route.clone());
+            }
         });
-        let on_resize = cx.on(ShellMsg::Resize);
-        let on_open_changed = cx.on(ShellMsg::OpenChanged);
-        let content = windows_reactor::provide(ui::theme::scheme_context(), self.scheme, cx.outlet());
 
-        let palette = ui::theme::Palette::of(self.scheme);
         ui::shell_view(ui::ShellProps {
             l10n: &l10n,
-            palette,
             open: sidebar.open,
             width: sidebar.width as f64,
-            selected_tag,
-            content,
-            splash: splash(&link, &link_dispatch, &l10n, palette),
-            metrics: &metrics,
-            units: settings.units,
-            cadence_ms: settings.update_interval_ms,
-            charts: &self.charts,
-            shown: settings.sidebar_charts,
-            on_show_chart: Callback::new(move |(chart, shown)| settings_dispatch.emit(ShowSidebarChart(chart, shown))),
+            menu,
+            content: cx.outlet(),
+            pane_footer: cx.slot::<PaneFooter>(),
+            overlay: cx.slot::<Overlay>(),
             on_select,
-            on_resize,
-            on_open_changed,
+            on_resize: cx.on(ShellMsg::Resize),
+            on_open_changed: cx.on(ShellMsg::OpenChanged),
         })
     }
 }
@@ -200,43 +94,46 @@ mod tests {
     use guinea::app::Harness;
     use guinea::core::actor::event_bus::{RpcRequest, RpcResponse};
     use guinea::prelude::GlobalEventBus;
-    use guinea::winui::harness::{Mounted, Outlet};
+    use guinea::winui::harness::Mounted;
     use guinea_plugin_l10n::L10nPlugin;
+    use domain::features::agent_link::AgentLinkDeps;
+    use domain::features::agents::providers::windows::SERVICE_DISPLAY_NAME;
     use domain::features::agents::settings::AgentSettings;
+    use domain::features::system::SystemDeps;
     use guinea_plugin_store::{StoreAccess, StorePlugin};
     use uuid::Uuid;
 
     use std::sync::Arc;
 
     use app_contracts::features::activity::{ActivityState, Clock};
-    use app_contracts::features::agent_link::InProcess;
+    use app_contracts::features::agent_link::{AgentLinkState, InProcess};
     use app_contracts::features::agents::{ProcessCame, ProcessEvent, ProcessInstance, WindowsProcessEvents};
     use domain::features::activity::{ActivityDeps, ActivityFeature};
     use guinea::prelude::Load;
-    use app_contracts::features::settings::SidebarChart;
+    use app_contracts::features::settings::{SettingsState, SidebarChart};
     use app_contracts::features::agents::{
         ActionOutcome, AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsMachineSample,
         WindowsMachineStats, WindowsReport, WindowsReportMessage,
     };
 
     use super::*;
+    use crate::pages::Services;
     use crate::test_agent;
 
-    fn mount(h: &Harness) -> Mounted<'_, ShellLayout> {
-        Mounted::<ShellLayout>::mount_at(h.segment(), crate::routes::ShellLayoutParams::default(), Route::Processes {})
-            .unwrap()
+    fn mount(h: &Harness) -> Mounted<'_, Route> {
+        Mounted::routed(h, Route::Services {}).unwrap()
     }
 
-    fn splash_shown(page: &Mounted<'_, ShellLayout>) -> bool {
+    fn splash_shown(page: &Mounted<'_, Route>) -> bool {
         page.find(ui::SplashMark::Splash).is_some()
     }
 
-    fn content_shown(page: &Mounted<'_, ShellLayout>) -> bool {
-        page.find(Outlet).is_some()
+    fn content_shown(page: &Mounted<'_, Route>) -> bool {
+        !splash_shown(page) && page.is_mounted::<Services>()
     }
 
-    fn agent(h: &Harness) -> AgentConnectionState {
-        h.state::<AgentLinkState>().windows
+    fn agent(page: &Mounted<'_, Route>) -> AgentConnectionState {
+        page.state::<AgentLinkState>().windows
     }
 
     fn start(h: &mut Harness, agent_up: bool) {
@@ -249,10 +146,14 @@ mod tests {
             .unwrap()
             .provide(AgentLinkDeps {
                 start_in_process: test_agent::start_in_process,
+            })
+            .provide(SystemDeps {
+                locate: |_| None,
+                launch: |_| {},
             });
     }
 
-    fn answers_to_a_kill(h: &Harness, page: &mut Mounted<'_, ShellLayout>) -> Vec<ActionOutcome> {
+    fn answers_to_a_kill(h: &Harness, page: &mut Mounted<'_, Route>) -> Vec<ActionOutcome> {
         let answered = Rc::new(RefCell::new(Vec::new()));
         let heard = answered.clone();
         let _watch = GlobalEventBus::subscribe_fn(move |RpcResponse { payload, .. }: RpcResponse<ActionOutcome>| {
@@ -278,7 +179,7 @@ mod tests {
         assert!(test_agent::in_process_actions().is_empty());
     }
 
-    fn after(h: &Harness, page: &mut Mounted<'_, ShellLayout>, seconds: u64) {
+    fn after(h: &Harness, page: &mut Mounted<'_, Route>, seconds: u64) {
         h.advance(Duration::from_secs(seconds));
         page.settle();
     }
@@ -293,19 +194,19 @@ mod tests {
 
         after(h, &mut page, 9);
         assert_eq!(test_agent::connects(), 4);
-        assert_ne!(agent(h), AgentConnectionState::GaveUp);
+        assert_ne!(agent(&page), AgentConnectionState::GaveUp);
         assert!(splash_shown(&page), "{:#?}", page.tree());
         assert!(page.find(ui::SplashMark::Unreachable).is_none(), "not given up yet");
 
         after(h, &mut page, 3);
         assert_eq!(test_agent::connects(), 5, "one attempt per three-second window");
-        assert_eq!(agent(h), AgentConnectionState::GaveUp);
+        assert_eq!(agent(&page), AgentConnectionState::GaveUp);
         assert!(splash_shown(&page), "{:#?}", page.tree());
         assert!(page.find(ui::SplashMark::Unreachable).is_some(), "{:#?}", page.tree());
 
         after(h, &mut page, 3);
         assert_eq!(test_agent::connects(), 6, "giving up does not stop the attempts");
-        assert_eq!(agent(h), AgentConnectionState::GaveUp);
+        assert_eq!(agent(&page), AgentConnectionState::GaveUp);
 
         test_agent::set_up(true);
         after(h, &mut page, 3);
@@ -338,7 +239,7 @@ mod tests {
         page.click_text("Settings").settle();
         page.settle();
 
-        assert_eq!(page.navigated::<Route>(), [Route::Settings {}]);
+        assert_eq!(page.route(), Route::Settings {});
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]
@@ -350,10 +251,10 @@ mod tests {
         page.click_text("System").settle();
         page.settle();
 
-        assert_eq!(page.navigated::<Route>(), [Route::System {}]);
+        assert_eq!(page.route(), Route::System {});
     }
 
-    fn unreachable_line(page: &Mounted<'_, ShellLayout>) -> Option<String> {
+    fn unreachable_line(page: &Mounted<'_, Route>) -> Option<String> {
         page.tree()
             .find(ui::SplashMark::Unreachable)
             .and_then(|node| node.text.clone())
@@ -366,11 +267,11 @@ mod tests {
         let mut page = mount(h);
 
         after(h, &mut page, 9);
-        assert_ne!(agent(h), AgentConnectionState::GaveUp);
+        assert_ne!(agent(&page), AgentConnectionState::GaveUp);
         assert_eq!(unreachable_line(&page), None, "slow is not unreachable yet");
 
         after(h, &mut page, 3);
-        assert_eq!(agent(h), AgentConnectionState::GaveUp);
+        assert_eq!(agent(&page), AgentConnectionState::GaveUp);
         let line = unreachable_line(&page).unwrap_or_else(|| panic!("{:#?}", page.tree()));
         assert_eq!(
             line,
@@ -393,7 +294,7 @@ mod tests {
         let mut page = mount(h);
 
         after(h, &mut page, 6);
-        assert_eq!(agent(h), AgentConnectionState::Outdated);
+        assert_eq!(agent(&page), AgentConnectionState::Outdated);
         let line = page
             .tree()
             .find(ui::SplashMark::Outdated)
@@ -438,17 +339,17 @@ mod tests {
         assert_eq!(test_agent::connects(), 1);
     }
 
-    fn in_process(h: &Harness) -> InProcess {
-        h.state::<AgentLinkState>().in_process
+    fn in_process(page: &Mounted<'_, Route>) -> InProcess {
+        page.state::<AgentLinkState>().in_process
     }
 
-    fn in_process_error(page: &Mounted<'_, ShellLayout>) -> Option<String> {
+    fn in_process_error(page: &Mounted<'_, Route>) -> Option<String> {
         page.tree()
             .find(ui::SplashMark::InProcessError)
             .and_then(|node| node.text.clone())
     }
 
-    fn start_in_process(page: &mut Mounted<'_, ShellLayout>) {
+    fn start_in_process(page: &mut Mounted<'_, Route>) {
         page.click(ui::SplashMark::OpenInProcess).settle();
         page.settle();
     }
@@ -467,7 +368,7 @@ mod tests {
         assert!(page.find_text("Starting is taking longer than usual").is_some(), "{:#?}", page.tree());
         assert!(page.find_text("Open monitor in process").is_some(), "{:#?}", page.tree());
         assert_eq!(test_agent::in_process_starts(), 0, "offered, not started");
-        assert_eq!(in_process(h), InProcess::Off);
+        assert_eq!(in_process(&page), InProcess::Off);
     }
 
     #[guinea::test(iterations = 8, exclusive = "agent")]
@@ -481,15 +382,15 @@ mod tests {
         start_in_process(&mut page);
 
         assert_eq!(test_agent::in_process_starts(), 1);
-        assert_eq!(in_process(h), InProcess::Running);
-        assert_eq!(agent(h), AgentConnectionState::Connected);
+        assert_eq!(in_process(&page), InProcess::Running);
+        assert_eq!(agent(&page), AgentConnectionState::Connected);
         assert!(!splash_shown(&page), "{:#?}", page.tree());
         assert!(content_shown(&page), "{:#?}", page.tree());
 
         let connects = test_agent::connects();
         after(h, &mut page, 15);
         assert_eq!(test_agent::connects(), connects, "the service is left alone");
-        assert_eq!(agent(h), AgentConnectionState::Connected, "no give-up from the dormant service");
+        assert_eq!(agent(&page), AgentConnectionState::Connected, "no give-up from the dormant service");
 
         test_agent::set_up(true);
         after(h, &mut page, 5);
@@ -518,7 +419,7 @@ mod tests {
         start_in_process(&mut page);
 
         assert_eq!(test_agent::in_process_starts(), 1);
-        assert_eq!(in_process(h), InProcess::NotElevated);
+        assert_eq!(in_process(&page), InProcess::NotElevated);
         assert!(splash_shown(&page), "{:#?}", page.tree());
         assert_eq!(
             in_process_error(&page).as_deref(),
@@ -534,7 +435,7 @@ mod tests {
         test_agent::set_elevated(true);
         start_in_process(&mut page);
         assert_eq!(test_agent::in_process_starts(), 2, "the button stays usable after a refusal");
-        assert_eq!(in_process(h), InProcess::Running);
+        assert_eq!(in_process(&page), InProcess::Running);
         assert!(!splash_shown(&page), "{:#?}", page.tree());
     }
 
@@ -546,20 +447,20 @@ mod tests {
 
         after(h, &mut page, 5);
         start_in_process(&mut page);
-        assert_eq!(in_process(h), InProcess::NotElevated);
+        assert_eq!(in_process(&page), InProcess::NotElevated);
 
         test_agent::set_up(true);
         after(h, &mut page, 3);
-        assert_eq!(agent(h), AgentConnectionState::Connected);
+        assert_eq!(agent(&page), AgentConnectionState::Connected);
         assert!(!splash_shown(&page), "{:#?}", page.tree());
     }
 
-    fn open_pane(h: &Harness, page: &mut Mounted<'_, ShellLayout>) {
-        h.dispatch::<SidebarState>().emit(SetOpen(true));
+    fn open_pane(page: &mut Mounted<'_, Route>) {
+        page.dispatch::<SidebarState>().emit(SetOpen(true));
         page.settle();
     }
 
-    fn tile_shown(page: &Mounted<'_, ShellLayout>, chart: SidebarChart) -> bool {
+    fn tile_shown(page: &Mounted<'_, Route>, chart: SidebarChart) -> bool {
         page.find(ui::SidebarMark::tile(chart)).is_some()
     }
 
@@ -568,7 +469,7 @@ mod tests {
         start(h, true);
         let h = &*h;
         let mut page = mount(h);
-        open_pane(h, &mut page);
+        open_pane(&mut page);
         for chart in SidebarChart::ALL {
             assert!(tile_shown(&page, chart), "{chart:?}: {:#?}", page.tree());
         }
@@ -578,12 +479,12 @@ mod tests {
         page.settle();
         assert!(!tile_shown(&page, SidebarChart::Disk), "{:#?}", page.tree());
         assert!(tile_shown(&page, SidebarChart::Network));
-        assert!(!h.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Disk));
+        assert!(!page.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Disk));
 
         page.click(ui::SidebarMark::show(SidebarChart::Disk)).settle();
         page.settle();
         assert!(tile_shown(&page, SidebarChart::Disk), "{:#?}", page.tree());
-        assert!(h.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Disk));
+        assert!(page.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Disk));
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]
@@ -591,7 +492,7 @@ mod tests {
         start(h, true);
         let h = &*h;
         let mut page = mount(h);
-        open_pane(h, &mut page);
+        open_pane(&mut page);
         after(h, &mut page, 1);
 
         let tree = page.tree();
@@ -611,7 +512,7 @@ mod tests {
         start(h, true);
         let h = &*h;
         let mut page = mount(h);
-        open_pane(h, &mut page);
+        open_pane(&mut page);
         after(h, &mut page, 1);
         h.publish(WindowsReportMessage::Report(std::sync::Arc::new(WindowsReport {
             machine: WindowsMachineStats {
@@ -645,7 +546,7 @@ mod tests {
         start(h, true);
         let h = &*h;
         let mut page = mount(h);
-        open_pane(h, &mut page);
+        open_pane(&mut page);
 
         let sample = |clock_100ns, bytes| WindowsMachineSample {
             machine: std::sync::Arc::new(WindowsMachineStats {

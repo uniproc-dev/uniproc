@@ -1,22 +1,27 @@
 use guinea::prelude::*;
 
-use crate::layouts::{ProcessesArea, ShellLayout, SystemArea};
+use crate::layouts::{MainWindow, Overlay, PaneFooter, ProcessesArea, Shell, SystemArea};
 use crate::pages::{Processes, ProcessesSettings, Services, Settings, System, SystemTools, Wsl};
+use crate::parts::{Connecting, SidebarCharts};
 
 routes! {
     Route {
-        layout(ShellLayout) restorable {
-            layout(ProcessesArea) keep {
-                page(Processes)
-                page(ProcessesSettings)
+        layout(MainWindow) restorable {
+            layout(Shell) {
+                part(SidebarCharts) => PaneFooter
+                part(Connecting) => Overlay
+                layout(ProcessesArea) keep {
+                    page(Processes)
+                    page(ProcessesSettings)
+                }
+                page(Services)
+                page(Wsl)
+                layout(SystemArea) {
+                    page(System)
+                    page(SystemTools)
+                }
+                page(Settings)
             }
-            page(Services)
-            page(Wsl)
-            layout(SystemArea) {
-                page(System)
-                page(SystemTools)
-            }
-            page(Settings)
         }
     }
 }
@@ -25,7 +30,10 @@ routes! {
 mod tests {
     use std::time::Duration;
 
-    use app_contracts::features::agents::{AgentStateRequest, WindowsProcessStats, WindowsReport};
+    use app_contracts::features::agents::{
+        AgentStateRequest, WindowsMachineSample, WindowsMachineStats, WindowsProcessStats, WindowsReport,
+    };
+    use guinea::core::trace::Point;
     use domain::features::agent_link::AgentLinkDeps;
     use domain::features::processes::windows_scan::AppWindows;
     use domain::features::processes::ProcessesDeps;
@@ -67,6 +75,42 @@ mod tests {
                 windows: AppWindows::default,
                 shell: |_| {},
             });
+    }
+
+    fn sample(clock_100ns: u64) -> WindowsMachineSample {
+        WindowsMachineSample {
+            machine: std::sync::Arc::new(WindowsMachineStats::default()),
+            clock_100ns,
+        }
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "agent")]
+    fn a_machine_sample_redraws_the_sidebar_charts_and_not_the_shell_or_the_page(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        serve("notepad.exe");
+        let mut app = Mounted::routed(h, Route::Services {}).unwrap();
+        h.advance(Duration::from_secs(1));
+        app.settle();
+
+        h.publish(sample(0)).settle();
+        app.settle();
+        let act = h.publish(sample(10_000_000));
+        act.settle();
+        app.settle();
+        let drawn: Vec<&str> = act
+            .chain()
+            .points()
+            .into_iter()
+            .filter_map(|point| match point {
+                Point::Render { segment, .. } => Some(*segment),
+                _ => None,
+            })
+            .collect();
+
+        assert!(drawn.iter().any(|segment| segment.ends_with("SidebarCharts")), "{drawn:?}");
+        assert!(!drawn.iter().any(|segment| segment.ends_with("Shell")), "{drawn:?}");
+        assert!(!drawn.iter().any(|segment| segment.ends_with("Services")), "{drawn:?}");
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]

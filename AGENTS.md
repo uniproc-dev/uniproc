@@ -56,13 +56,18 @@ polish it.
   installer calls into the platform with. `Default` is the real thing; tests swap fakes.
   The segment takes it with `ctx.require_or_default::<FDeps>()`. It is not route params.
 - **Where it is installed decides how long it lives.** A page's own state goes in the page
-  or in the area layout above it (`ProcessesArea`, `SystemArea`), never in `ShellLayout`:
-  the shell installs only what the shell itself shows (sidebar, metrics, agent link,
-  settings). App-lifetime features implement `AppFeature` and go in `main.rs` (`agents`,
+  or in the area layout above it (`ProcessesArea`, `SystemArea`), never in `Shell`: the
+  shell installs only what the shell itself shows (the sidebar). What fills one of the
+  shell's slots is a part with its own feature (`SidebarCharts` → metrics, `Connecting` →
+  agent link); window-wide state (settings) is in `MainWindow`. App-lifetime features implement `AppFeature` and go in `main.rs` (`agents`,
   `activity`); one whose state a page reads claims it with `app.state` and lists it in `type Exports`.
 
-Routes are in `desktop/src/routes.rs`. `ShellLayout` is the root and is `restorable`: the
-last route survives a restart, see `route_memory.rs`. `ProcessesArea` is `keep`: leaving it
+Routes are in `desktop/src/routes.rs`. `MainWindow` is the root and is `restorable`: the
+last route survives a restart, see `route_memory.rs`. It owns the window (size, backdrop,
+theme, colour scheme) and holds `Shell`, which draws the title bar and navigation and
+declares two slots, `PaneFooter` and `Overlay`. Parts (`desktop/src/parts/`) fill them
+(`part(X) => Slot`) and redraw on their own: a machine sample redraws `SidebarCharts`, not
+the shell or the page. `ProcessesArea` is `keep`: leaving it
 puts its scope to sleep instead of tearing it down, so coming back shows the rows at once.
 Asleep, its timers and bus subscriptions are paused; `cx.on_wake` is where a feature
 catches up (Processes resets its rates and asks for the service state).
@@ -209,8 +214,10 @@ migrations or compatibility shims for old local data.
   amethystate) and `uniproc-dev` (the agents, `uniproc-protocol`, `ogurpchik`). Each repo
   has its own owner; problems found there are reported to it, not patched here.
 - No `windows` crate: each crate generates the Win32/WinRT items it calls with
-  windows-bindgen 0.100 over `windows-core` 0.100. The reactor crates come from crates.io
-  (`-pre`).
+  windows-bindgen 0.100 over `windows-core` 0.100.
+- Until guinea 0.23 is tagged, guinea, its crates and the reactor crates it carries
+  (`windows-reactor-pre`, `windows-canvas-pre`) come from one git rev of guinea through
+  `[patch.crates-io]`, and guinea-plugins from a git rev. Bump them together.
 - CI: `.github/workflows/deps.yml` calls the shared `guinea-rs/.github` workflows
   (cargo-deny with `deny.toml`, one version of each of our crates, a weekly issue listing
   newer tags). Dependabot ignores our own crates; those are bumped by hand.

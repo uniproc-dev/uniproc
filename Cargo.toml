@@ -81,20 +81,20 @@ fluent-bundle = "0.16.0"
 unic-langid = { version = "0.9.6", features = ["macros"] }
 
 [patch.crates-io]
-guinea = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-guinea-app = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-guinea-codegen = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-guinea-core = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-guinea-macros = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-guinea-mark = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-guinea-meta = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-guinea-meta-build = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-guinea-route-dsl = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-guinea-router = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-guinea-trace = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-guinea-winui = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-windows-reactor-pre = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
-windows-canvas-pre = { git = "https://github.com/guinea-rs/guinea", rev = "15b55ed" }
+guinea = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+guinea-app = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+guinea-codegen = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+guinea-core = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+guinea-macros = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+guinea-mark = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+guinea-meta = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+guinea-meta-build = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+guinea-route-dsl = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+guinea-router = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+guinea-trace = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+guinea-winui = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+windows-reactor-pre = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
+windows-canvas-pre = { git = "https://github.com/guinea-rs/guinea", rev = "01ce7f7" }
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

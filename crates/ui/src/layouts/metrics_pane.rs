@@ -1,18 +1,18 @@
 use app_contracts::features::metrics::{History, MetricsState};
 use app_contracts::features::processes::MachineSummary;
-use app_contracts::features::settings::{SidebarChart, Units};
+use app_contracts::features::settings::{SidebarChart, SidebarCharts, Units};
 use guicons::icon;
 use guinea::prelude::Load;
 use guinea::winui::MarkExt;
+use guinea_widgets::chart::Chart;
 use windows_reactor::{
-    keyed, Border, Button, ButtonStyle, CheckBox, Flyout, FlyoutExt, FlyoutPlacement, HorizontalAlignment,
-    StackPanel, Thickness, View,
+    keyed, Border, Button, ButtonStyle, Callback, CheckBox, Flyout, FlyoutExt, FlyoutPlacement,
+    HorizontalAlignment, StackPanel, Thickness, View,
 };
 
-use super::shell::ShellProps;
 use crate::format::{self, Rate};
 use crate::l10n::L10n;
-use crate::theme::{size, space};
+use crate::theme::{size, space, Palette};
 use crate::widgets::metric_chart::{chart_level, metric_chart, metric_mini_bar, MetricChart, Scale};
 use crate::widgets::{nothing, separator};
 use crate::widgets::text::text;
@@ -23,6 +23,18 @@ struct Pane;
 impl Pane {
     const MetricHeight: f64 = 48.0;
     const MenuIcon: f64 = 16.0;
+}
+
+pub struct SidebarChartsProps<'a> {
+    pub l10n: &'a L10n,
+    pub palette: Palette,
+    pub open: bool,
+    pub metrics: &'a MetricsState,
+    pub units: Units,
+    pub cadence_ms: u64,
+    pub charts: &'a [Chart; 5],
+    pub shown: SidebarCharts,
+    pub on_show_chart: Callback<(SidebarChart, bool)>,
 }
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
@@ -107,7 +119,7 @@ fn chart_toggle_label(l10n: &L10n, chart: SidebarChart) -> String {
     }
 }
 
-fn charts_menu(props: &ShellProps<'_>) -> View {
+fn charts_menu(props: &SidebarChartsProps<'_>) -> View {
     let toggles: [View; 5] = SidebarChart::ALL.map(|chart| {
         let on_show = props.on_show_chart.clone();
         CheckBox::new()
@@ -130,7 +142,7 @@ fn charts_menu(props: &ShellProps<'_>) -> View {
         )
 }
 
-pub(super) fn metrics_pane(props: &ShellProps<'_>) -> View {
+pub fn sidebar_charts(props: &SidebarChartsProps<'_>) -> View {
     let metrics = props.metrics;
     let palette = props.palette;
     let shown: Vec<SidebarChart> = props.shown.shown().collect();

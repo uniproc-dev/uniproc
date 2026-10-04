@@ -2,6 +2,7 @@
 
 mod layouts;
 mod pages;
+mod parts;
 mod route_memory;
 mod routes;
 #[cfg(test)]

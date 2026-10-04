@@ -7,4 +7,7 @@ pub mod pages;
 pub mod theme;
 pub mod widgets;
 
-pub use layouts::{shell_view, splash_view, ServiceTrouble, ShellProps, SidebarMark, SplashMark, SplashProps};
+pub use layouts::{
+    shell_view, sidebar_charts, splash_view, ServiceTrouble, ShellNav, ShellProps, SidebarChartsProps, SidebarMark,
+    SplashMark, SplashProps,
+};
