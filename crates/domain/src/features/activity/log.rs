@@ -7,11 +7,14 @@ use app_contracts::features::activity::{
     ActivityRow, ActivityView, Area, Came, Clock, Dot, Exit, Filter, Group, Hue, Launcher, Legend, Lived, Pick,
     Scatter, Series, Span, Went,
 };
+use std::num::NonZeroU32;
+
 use app_contracts::features::agents::{
-    ProcessCame, ProcessEvent, ProcessInstance, ProcessWent, WindowsProcessEvents, WindowsProcessStats,
+    ProcessEvent, ProcessInstance, ScheduledTask, WindowsProcessEvents, WindowsProcessStats,
 };
 
-use super::names::{Folder, Names, Placed, Spell, Word};
+use super::names::{id, index, Folder, Names, Spell, Text, Texts, Word};
+use super::packed::Numbers;
 
 pub struct Ticks;
 
@@ -45,28 +48,130 @@ enum Kind {
     Went,
 }
 
+struct Flag;
+
+#[expect(non_upper_case_globals)]
+impl Flag {
+    const FirstSeen: u8 = 1;
+    const ElevationKnown: u8 = 2;
+    const Elevated: u8 = 4;
+}
+
 struct Started {
-    came: ProcessCame,
+    at: u64,
+    sequence: u64,
+    parent_sequence: u64,
+    launcher_sequence: u64,
+    went: u64,
+    pid: u32,
+    parent_pid: u32,
+    launcher_pid: u32,
     name: Spell,
     folder: Option<Folder>,
-    first_seen: bool,
-    launched: Option<(ProcessInstance, Spell)>,
-    went_at: Option<u64>,
+    launcher: Option<Spell>,
+    path: Option<Text>,
+    command: Option<Text>,
+    dir: Option<Text>,
+    user: Option<Text>,
+    task: Option<NonZeroU32>,
+    services: Option<NonZeroU32>,
+    session: u32,
+    flags: u8,
     graded: Cell<Graded>,
 }
 
+impl Started {
+    fn instance(&self) -> ProcessInstance {
+        ProcessInstance {
+            pid: self.pid,
+            sequence: self.sequence,
+        }
+    }
+
+    fn parent(&self) -> ProcessInstance {
+        ProcessInstance {
+            pid: self.parent_pid,
+            sequence: self.parent_sequence,
+        }
+    }
+
+    fn launched(&self) -> Option<(ProcessInstance, Spell)> {
+        let launcher = ProcessInstance {
+            pid: self.launcher_pid,
+            sequence: self.launcher_sequence,
+        };
+        self.launcher.map(|name| (launcher, name))
+    }
+
+    fn went_at(&self) -> Option<u64> {
+        (self.went != Never).then_some(self.went)
+    }
+
+    fn first_seen(&self) -> bool {
+        self.flags & Flag::FirstSeen != 0
+    }
+
+    fn elevated(&self) -> Option<bool> {
+        (self.flags & Flag::ElevationKnown != 0).then_some(self.flags & Flag::Elevated != 0)
+    }
+}
+
+#[expect(non_upper_case_globals)]
+const Never: u64 = u64::MAX;
+
 struct Ended {
-    went: ProcessWent,
-    placed: Placed,
-    came_at: Option<u64>,
+    at: u64,
+    sequence: u64,
+    started_at: u64,
+    came: u64,
+    pid: u32,
+    file: Option<Spell>,
+    folder: Option<Folder>,
+    image_name: Option<Spell>,
+    numbers: u32,
     graded: Cell<Graded>,
+}
+
+impl Ended {
+    fn instance(&self) -> ProcessInstance {
+        ProcessInstance {
+            pid: self.pid,
+            sequence: self.sequence,
+        }
+    }
+
+    fn came_at(&self) -> Option<u64> {
+        (self.came != Never).then_some(self.came)
+    }
+
+    fn started_at(&self) -> Option<u64> {
+        (self.started_at != Never).then_some(self.started_at)
+    }
 }
 
 #[derive(Clone, Copy, Default)]
 struct Graded {
     asked: u32,
-    named: usize,
-    verdict: Option<Option<usize>>,
+    named: u32,
+    verdict: u16,
+}
+
+impl Graded {
+    fn verdict(self) -> Option<Option<usize>> {
+        match self.verdict {
+            0 => None,
+            1 => Some(None),
+            group => Some(Some(usize::from(group) - 2)),
+        }
+    }
+
+    fn of(verdict: Option<Option<usize>>) -> u16 {
+        match verdict {
+            None => 0,
+            Some(None) => 1,
+            Some(Some(group)) => u16::try_from(group + 2).unwrap_or(u16::MAX),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -107,8 +212,8 @@ enum Event<'a> {
 impl Event<'_> {
     fn at(&self) -> u64 {
         match self {
-            Event::Came(started) => started.came.at,
-            Event::Went(ended) => ended.went.at,
+            Event::Came(started) => started.at,
+            Event::Went(ended) => ended.at,
         }
     }
 }
@@ -123,8 +228,8 @@ fn event_of<'a>(starts: &'a [Started], ends: &'a [Ended], slot: Slot) -> Event<'
 
 fn key_of(starts: &[Started], ends: &[Ended], slot: Slot) -> (u64, Kind, ProcessInstance) {
     match event_of(starts, ends, slot) {
-        Event::Came(started) => (slot.at, Kind::Came, started.came.instance),
-        Event::Went(ended) => (slot.at, Kind::Went, ended.went.instance),
+        Event::Came(started) => (slot.at, Kind::Came, started.instance()),
+        Event::Went(ended) => (slot.at, Kind::Went, ended.instance()),
     }
 }
 
@@ -150,6 +255,12 @@ pub struct Log {
     names: Names,
     shells: [Word; Pace::Shells.len()],
     console_host: Word,
+    texts: Texts,
+    numbers: Numbers,
+    tasks: Vec<ScheduledTask>,
+    task_ids: HashMap<(Arc<str>, Arc<str>), NonZeroU32>,
+    service_lists: Vec<Arc<[Arc<str>]>>,
+    service_ids: HashMap<Arc<[Arc<str>]>, NonZeroU32>,
     timeline: VecDeque<Slot>,
     starts: Vec<Started>,
     ends: Vec<Ended>,
@@ -176,6 +287,12 @@ impl Default for Log {
             names,
             shells,
             console_host,
+            texts: Texts::default(),
+            numbers: Numbers::default(),
+            tasks: Vec::new(),
+            task_ids: HashMap::new(),
+            service_lists: Vec::new(),
+            service_ids: HashMap::new(),
             timeline: VecDeque::new(),
             starts: Vec::new(),
             ends: Vec::new(),
@@ -269,8 +386,8 @@ impl Log {
         self.naming.push(from);
     }
 
-    fn named_since(&self, named: usize, at: u64) -> bool {
-        self.naming.get(named).is_none_or(|&from| from > at)
+    fn named_since(&self, named: u32, at: u64) -> bool {
+        self.naming.get(named as usize).is_none_or(|&from| from > at)
     }
 
     fn add(&mut self, event: &ProcessEvent, place: fn(&mut Self, Slot)) {
@@ -287,23 +404,47 @@ impl Log {
                         .names
                         .spell(came.command_line.split_whitespace().next().map(file_name).unwrap_or_default()),
                 };
-                let went_at = self.ended_mut(came.instance).map(|ended| {
-                    ended.came_at = Some(came.at);
+                let went = self.ended_mut(came.instance).map_or(Never, |ended| {
+                    ended.came = came.at;
                     ended.graded.take();
-                    ended.went.at
+                    ended.at
                 });
-                let index = self.starts.len();
-                self.starts.push(Started {
+                let mut flags = 0;
+                if first_seen {
+                    flags |= Flag::FirstSeen;
+                }
+                if let Some(elevated) = came.elevated {
+                    flags |= Flag::ElevationKnown;
+                    if elevated {
+                        flags |= Flag::Elevated;
+                    }
+                }
+                let started = Started {
+                    at: came.at,
+                    sequence: came.instance.sequence,
+                    parent_sequence: came.parent.sequence,
+                    launcher_sequence: 0,
+                    went,
+                    pid: came.instance.pid,
+                    parent_pid: came.parent.pid,
+                    launcher_pid: 0,
                     name,
-                    came: came.clone(),
                     folder: placed.folder,
-                    first_seen,
-                    launched: None,
-                    went_at,
+                    launcher: None,
+                    path: self.keep(&came.image_path),
+                    command: self.keep(&came.command_line),
+                    dir: self.keep(&came.working_dir),
+                    user: self.keep(&came.user),
+                    task: came.scheduled_task.as_ref().map(|task| self.task(task)),
+                    services: (!came.parent_services.is_empty()).then(|| self.services(&came.parent_services)),
+                    session: came.session_id,
+                    flags,
                     graded: Cell::default(),
-                });
-                self.index.entry(came.instance).or_default().came = Some(index as u32);
-                place(self, Slot::came(came.at, index));
+                };
+                let at = self.starts.len();
+                self.starts.push(started);
+                self.index.entry(came.instance).or_default().came = Some(at as u32);
+                place(self, Slot::came(came.at, at));
                 if !self.settle_launcher(came.instance) {
                     self.unplaced.push(came.instance);
                 }
@@ -313,20 +454,76 @@ impl Log {
                     return;
                 }
                 let placed = self.names.path(&went.image_path);
-                let came_at = self.started_mut(went.instance).map(|started| {
-                    started.went_at = Some(went.at);
-                    started.came.at
+                let came = self.started_mut(went.instance).map_or(Never, |started| {
+                    started.went = went.at;
+                    started.at
                 });
-                let index = self.ends.len();
+                let image_name = (!went.image_name.is_empty()).then(|| self.names.spell(&went.image_name));
+                let numbers = self.numbers.put([
+                    u64::from(went.exit_code),
+                    went.cpu_cycles,
+                    went.io_read_bytes,
+                    went.io_write_bytes,
+                    went.peak_commit_bytes,
+                ]);
+                let at = self.ends.len();
                 self.ends.push(Ended {
-                    went: went.clone(),
-                    placed,
-                    came_at,
+                    at: went.at,
+                    sequence: went.instance.sequence,
+                    started_at: went.started_at.unwrap_or(Never),
+                    came,
+                    pid: went.instance.pid,
+                    file: placed.file,
+                    folder: placed.folder,
+                    image_name,
+                    numbers,
                     graded: Cell::default(),
                 });
-                self.index.entry(went.instance).or_default().went = Some(index as u32);
-                place(self, Slot::went(went.at, index));
+                self.index.entry(went.instance).or_default().went = Some(at as u32);
+                place(self, Slot::went(went.at, at));
             }
+        }
+    }
+
+    fn keep(&mut self, text: &str) -> Option<Text> {
+        (!text.is_empty()).then(|| self.texts.put(text))
+    }
+
+    fn task(&mut self, task: &ScheduledTask) -> NonZeroU32 {
+        let key = (task.name.clone(), task.path.clone());
+        if let Some(&known) = self.task_ids.get(&key) {
+            return known;
+        }
+        let new = id(self.tasks.len());
+        self.tasks.push(task.clone());
+        self.task_ids.insert(key, new);
+        new
+    }
+
+    fn services(&mut self, services: &Arc<[Arc<str>]>) -> NonZeroU32 {
+        if let Some(&known) = self.service_ids.get(services) {
+            return known;
+        }
+        let new = id(self.service_lists.len());
+        self.service_lists.push(services.clone());
+        self.service_ids.insert(services.clone(), new);
+        new
+    }
+
+    fn kept(&self, text: Option<Text>) -> &str {
+        text.map_or("", |text| self.texts.get(text))
+    }
+
+    fn exit(&self, ended: &Ended, since: Option<u64>, clock: fn(u64) -> Clock) -> Exit {
+        let [code, cpu_cycles, read_bytes, write_bytes, peak_commit_bytes] = self.numbers.get(ended.numbers);
+        Exit {
+            at: clock(ended.at),
+            code: code as u32,
+            lived: since.map_or(0, |since| ended.at.saturating_sub(since)),
+            cpu_cycles,
+            read_bytes,
+            write_bytes,
+            peak_commit_bytes,
         }
     }
 
@@ -408,7 +605,10 @@ impl Log {
         };
         *self.habits.entry((self.names.word_of(launcher.1), folder)).or_default() += 1;
         if let Some(started) = self.started_mut(instance) {
-            started.launched = Some(launcher);
+            let (by, name) = launcher;
+            started.launcher_pid = by.pid;
+            started.launcher_sequence = by.sequence;
+            started.launcher = Some(name);
         }
         true
     }
@@ -446,7 +646,7 @@ impl Log {
         if let Some(folder) = started.folder {
             picks.push(Pick::Folder(self.names.folder_text(folder)));
         }
-        if let Some((_, launcher)) = started.launched {
+        if let Some(launcher) = started.launcher {
             picks.push(Pick::Under(self.names.folded(self.names.word_of(launcher)).clone()));
         }
         picks
@@ -461,7 +661,7 @@ impl Log {
     }
 
     fn routine(&self, started: &Started) -> bool {
-        started.launched.is_some_and(|(_, launcher)| {
+        started.launcher.is_some_and(|launcher| {
             self.habits
                 .get(&(self.names.word_of(launcher), started.folder))
                 .is_some_and(|&count| count >= Pace::Routine)
@@ -470,7 +670,7 @@ impl Log {
 
     fn hosted(&self, started: &Started) -> bool {
         self.names.word_of(started.name) == self.console_host
-            && self.named(started.came.parent, started.came.at).is_some()
+            && self.named(started.parent(), started.at).is_some()
     }
 
     fn has(&self, started: &Started, rule: Rule) -> bool {
@@ -482,7 +682,7 @@ impl Log {
     }
 
     fn under(&self, started: &Started, wanted: Word) -> bool {
-        let mut next = Some((started.came.parent, started.came.at));
+        let mut next = Some((started.parent(), started.at));
         for _ in 0..Pace::ChainDepth {
             let Some((at, before)) = next else {
                 return false;
@@ -490,18 +690,18 @@ impl Log {
             if self.named(at, before).is_some_and(|name| self.names.word_of(name) == wanted) {
                 return true;
             }
-            next = self.started(at).map(|started| (started.came.parent, started.came.at));
+            next = self.started(at).map(|started| (started.parent(), started.at));
         }
         false
     }
 
     fn went_has(&self, ended: &Ended, rule: Rule) -> bool {
-        if let Some(started) = self.started(ended.went.instance) {
+        if let Some(started) = self.started(ended.instance()) {
             return self.has(started, rule);
         }
         match rule {
-            Rule::Exe(file) => file.is_some() && file == ended.placed.file.map(|file| self.names.word_of(file)),
-            Rule::Folder(folder) => folder.is_some() && folder == ended.placed.folder,
+            Rule::Exe(file) => file.is_some() && file == ended.file.map(|file| self.names.word_of(file)),
+            Rule::Folder(folder) => folder.is_some() && folder == ended.folder,
             Rule::Under(_) => false,
         }
     }
@@ -529,12 +729,12 @@ impl Log {
     }
 
     fn ancestors<'a>(&'a self, started: &Started) -> impl Iterator<Item = (ProcessInstance, Spell)> + 'a {
-        let mut next = Some((started.came.parent, started.came.at));
+        let mut next = Some((started.parent(), started.at));
         std::iter::from_fn(move || {
             let (at, before) = next.take()?;
             let name = self.named(at, before)?;
             if self.is_shell(name) {
-                next = self.started(at).map(|parent| (parent.came.parent, parent.came.at));
+                next = self.started(at).map(|parent| (parent.parent(), parent.at));
             }
             Some((at, name))
         })
@@ -599,14 +799,14 @@ impl Frame {
 
 fn came_lived(started: &Started) -> Lived {
     started
-        .went_at
-        .map_or(Lived::Running, |at| Lived::For(at.saturating_sub(started.came.at)))
+        .went_at()
+        .map_or(Lived::Running, |at| Lived::For(at.saturating_sub(started.at)))
 }
 
 fn went_lived(ended: &Ended) -> Lived {
     ended
-        .came_at
-        .map_or(Lived::Unknown, |at| Lived::For(ended.went.at.saturating_sub(at)))
+        .came_at()
+        .map_or(Lived::Unknown, |at| Lived::For(ended.at.saturating_sub(at)))
 }
 
 fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatter, Legend) {
@@ -622,17 +822,17 @@ fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatte
                 if log.hosted(started) {
                     continue;
                 }
-                let instance = started.came.instance;
+                let instance = started.instance();
                 let graded = sieve
                     .grade_came(started)
                     .or_else(|| log.ended(instance).and_then(|ended| sieve.grade_went(ended)));
                 (instance, graded, came_lived(started), log.routine(started))
             }
             Event::Went(ended) => {
-                if ended.came_at.is_some() {
+                if ended.came_at().is_some() {
                     continue;
                 }
-                (ended.went.instance, sieve.grade_went(ended), Lived::Unknown, false)
+                (ended.instance(), sieve.grade_went(ended), Lived::Unknown, false)
             }
         };
         let Some(group) = graded else {
@@ -663,71 +863,59 @@ fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatte
     (scatter, legend)
 }
 
-fn exit_of(went: &ProcessWent, since: Option<u64>, clock: fn(u64) -> Clock) -> Exit {
-    Exit {
-        at: clock(went.at),
-        code: went.exit_code,
-        lived: since.map_or(0, |since| went.at.saturating_sub(since)),
-        cpu_cycles: went.cpu_cycles,
-        read_bytes: went.io_read_bytes,
-        write_bytes: went.io_write_bytes,
-        peak_commit_bytes: went.peak_commit_bytes,
-    }
-}
-
 fn came_of(log: &Log, groups: &Groups<'_>, started: &Started, clock: fn(u64) -> Clock) -> Came {
-    let came = &started.came;
     let (chain, launched_by) = log.lineage(started);
-    let by_parent = launched_by.is_some_and(|(at, _)| at == came.parent) && !came.parent_services.is_empty();
-    let launcher = match (&came.scheduled_task, launched_by) {
-        (Some(task), _) => Launcher::Task(task.clone()),
-        (None, Some(_)) if by_parent => Launcher::Services(came.parent_services.clone()),
+    let services: Arc<[Arc<str>]> = started
+        .services
+        .map_or_else(|| Arc::from([]), |services| log.service_lists[index(services)].clone());
+    let by_parent = launched_by.is_some_and(|(at, _)| at == started.parent()) && !services.is_empty();
+    let launcher = match (started.task, launched_by) {
+        (Some(task), _) => Launcher::Task(log.tasks[index(task)].clone()),
+        (None, Some(_)) if by_parent => Launcher::Services(services.clone()),
         (None, Some((_, name))) => Launcher::Process(log.text(name)),
         (None, None) => Launcher::Unknown,
     };
     Came {
-        key: came.instance,
-        at: clock(came.at),
+        key: started.instance(),
+        at: clock(started.at),
         name: log.text(started.name),
-        image_path: came.image_path.clone(),
-        command_line: came.command_line.clone(),
-        working_dir: came.working_dir.clone(),
-        user: came.user.clone(),
-        session_id: came.session_id,
-        elevated: came.elevated,
+        image_path: log.kept(started.path).into(),
+        command_line: log.kept(started.command).into(),
+        working_dir: log.kept(started.dir).into(),
+        user: log.kept(started.user).into(),
+        session_id: started.session,
+        elevated: started.elevated(),
         launcher,
         chain,
-        parent_services: came.parent_services.clone(),
-        first_seen: started.first_seen,
+        parent_services: services,
+        first_seen: started.first_seen(),
         exit: log
-            .ended(came.instance)
-            .map(|ended| exit_of(&ended.went, Some(came.at), clock)),
+            .ended(started.instance())
+            .map(|ended| log.exit(ended, Some(started.at), clock)),
         picks: log.picks(started),
         hue: groups.hue(log.came_group(groups, started)),
     }
 }
 
 fn went_name(log: &Log, ended: &Ended) -> Option<Arc<str>> {
-    let went = &ended.went;
-    log.started(went.instance)
+    log.started(ended.instance())
         .map(|started| log.text(started.name))
-        .or_else(|| ended.placed.file.map(|file| log.text(file)))
-        .or_else(|| (!went.image_name.is_empty()).then(|| went.image_name.clone()))
-        .or_else(|| log.named(went.instance, went.at).map(|name| log.text(name)))
+        .or_else(|| ended.file.map(|file| log.text(file)))
+        .or_else(|| ended.image_name.map(|name| log.text(name)))
+        .or_else(|| log.named(ended.instance(), ended.at).map(|name| log.text(name)))
 }
 
 fn went_of(log: &Log, groups: &Groups<'_>, ended: &Ended, clock: fn(u64) -> Clock) -> Went {
-    let went = &ended.went;
-    let started = ended.came_at.or(went.started_at).or_else(|| {
-        log.known(went.instance.pid, went.at)
+    let started = ended.came_at().or(ended.started_at()).or_else(|| {
+        log.known(ended.pid, ended.at)
             .map(|known| known.start_time)
             .filter(|&start| start > 0)
     });
     Went {
-        key: went.instance,
+        key: ended.instance(),
         name: went_name(log, ended),
-        lived: started.map(|start| went.at - start),
-        exit: exit_of(went, started, clock),
+        lived: started.map(|start| ended.at - start),
+        exit: log.exit(ended, started, clock),
         hue: groups.hue(log.went_group(groups, ended)),
     }
 }
@@ -748,7 +936,7 @@ impl<'a> Gathered<'a> {
             members: vec![started],
             oldest: started,
             count: 1,
-            went: usize::from(started.went_at.is_some()),
+            went: usize::from(started.went_at().is_some()),
             names: HashMap::from([(started.name, 1)]),
             file: log.names.word_of(started.name),
             one_file: true,
@@ -761,7 +949,7 @@ impl<'a> Gathered<'a> {
         }
         self.oldest = started;
         self.count += 1;
-        self.went += usize::from(started.went_at.is_some());
+        self.went += usize::from(started.went_at().is_some());
         *self.names.entry(started.name).or_default() += 1;
         self.one_file &= log.names.word_of(started.name) == self.file;
     }
@@ -777,14 +965,14 @@ impl Light<'_> {
     fn key(&self) -> ProcessInstance {
         match self {
             Light::Came(instance) | Light::Went(instance) => *instance,
-            Light::Series(gathered) => gathered.oldest.came.instance,
+            Light::Series(gathered) => gathered.oldest.instance(),
         }
     }
 }
 
 struct Shown {
     asked: u32,
-    named: usize,
+    named: u32,
     went_at: Option<u64>,
     launched: Option<(ProcessInstance, Spell)>,
     row: Rc<Came>,
@@ -812,21 +1000,21 @@ impl<'a> Rows<'a> {
     }
 
     fn came(&mut self, started: &Started) -> Rc<Came> {
-        let instance = started.came.instance;
+        let instance = started.instance();
         if let Some(shown) = self.shown.get(&instance) {
             return shown.row.clone();
         }
         let kept = self.kept.remove(&instance).filter(|kept| {
             kept.asked == self.asked
-                && kept.went_at == started.went_at
-                && kept.launched == started.launched
-                && self.log.named_since(kept.named, started.came.at)
+                && kept.went_at == started.went_at()
+                && kept.launched == started.launched()
+                && self.log.named_since(kept.named, started.at)
         });
         let shown = kept.unwrap_or_else(|| Shown {
             asked: self.asked,
-            named: self.log.naming.len(),
-            went_at: started.went_at,
-            launched: started.launched,
+            named: self.log.naming.len() as u32,
+            went_at: started.went_at(),
+            launched: started.launched(),
             row: Rc::new(came_of(self.log, self.groups, started, self.clock)),
         });
         let row = shown.row.clone();
@@ -837,7 +1025,7 @@ impl<'a> Rows<'a> {
     fn series(&mut self, gathered: &Gathered<'_>) -> Option<Series> {
         let log = self.log;
         let newest = *gathered.members.first()?;
-        let (_, launcher) = newest.launched?;
+        let launcher = newest.launcher?;
         let folder = log.names.folder_text(newest.folder?);
         let mut names: Vec<_> = gathered.names.iter().map(|(&name, &count)| (log.text(name), count)).collect();
         names.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
@@ -848,8 +1036,8 @@ impl<'a> Rows<'a> {
         picks.push(Pick::Folder(folder.clone()));
         picks.push(Pick::Under(log.names.folded(log.names.word_of(launcher)).clone()));
         Some(Series {
-            key: gathered.oldest.came.instance,
-            at: (self.clock)(newest.came.at),
+            key: gathered.oldest.instance(),
+            at: (self.clock)(newest.at),
             launcher: log.text(launcher),
             folder,
             names,
@@ -907,13 +1095,13 @@ impl<'a> Sieve<'a> {
     ) -> Option<Option<usize>> {
         let known = graded.get();
         if known.asked == self.asked && self.log.named_since(known.named, at) {
-            return known.verdict;
+            return known.verdict();
         }
         let verdict = judge();
         graded.set(Graded {
             asked: self.asked,
-            named: self.log.naming.len(),
-            verdict,
+            named: self.log.naming.len() as u32,
+            verdict: Graded::of(verdict),
         });
         verdict
     }
@@ -927,24 +1115,24 @@ impl<'a> Sieve<'a> {
     }
 
     fn grade_came(&self, started: &Started) -> Option<Option<usize>> {
-        self.cached(&started.graded, started.came.at, || self.judge_came(started))
+        self.cached(&started.graded, started.at, || self.judge_came(started))
             .filter(|_| self.held(came_lived(started)))
     }
 
     fn grade_went(&self, ended: &Ended) -> Option<Option<usize>> {
-        self.cached(&ended.graded, ended.went.at, || self.judge_went(ended))
+        self.cached(&ended.graded, ended.at, || self.judge_went(ended))
             .filter(|_| self.held(went_lived(ended)))
     }
 
     fn judge_came(&self, started: &Started) -> Option<Option<usize>> {
         let passes = self.filter.came
-            && (!self.filter.new_only || started.first_seen)
+            && (!self.filter.new_only || started.first_seen())
             && !self.log.hosted(started)
             && admitted(self.only, &self.hidden, |rule| self.log.has(started, rule))
             && [
                 &**self.log.names.text(started.name),
-                &*started.came.command_line,
-                &*started.came.image_path,
+                self.log.kept(started.command),
+                self.log.kept(started.path),
             ]
             .iter()
             .any(|field| contains(field, &self.text));
@@ -954,9 +1142,9 @@ impl<'a> Sieve<'a> {
     fn judge_went(&self, ended: &Ended) -> Option<Option<usize>> {
         let passes = self.filter.went
             && !self.filter.new_only
-            && !ended.came_at.is_some_and(|_| {
+            && !ended.came_at().is_some_and(|_| {
                 self.log
-                    .started(ended.went.instance)
+                    .started(ended.instance())
                     .is_some_and(|started| self.log.hosted(started))
             })
             && admitted(self.only, &self.hidden, |rule| self.log.went_has(ended, rule))
@@ -989,8 +1177,8 @@ impl<'a> Walk<'a> {
         if !sieve.admits_came(started) {
             return;
         }
-        let (at, instance) = (started.came.at, started.came.instance);
-        let launched = started.launched.zip(started.folder).filter(|_| sieve.filter.series);
+        let (at, instance) = (started.at, started.instance());
+        let launched = started.launched().zip(started.folder).filter(|_| sieve.filter.series);
         let Some(((launcher, _), folder)) = launched else {
             self.rows.push((at, Light::Came(instance)));
             return;
@@ -1012,7 +1200,7 @@ impl<'a> Walk<'a> {
 
     fn went(&mut self, ended: &Ended) {
         if self.sieve.admits_went(ended) {
-            self.rows.push((ended.went.at, Light::Went(ended.went.instance)));
+            self.rows.push((ended.at, Light::Went(ended.instance())));
         }
     }
 
@@ -1025,7 +1213,7 @@ impl<'a> Walk<'a> {
                         gathered
                             .members
                             .into_iter()
-                            .map(|member| (member.came.at, Light::Came(member.came.instance))),
+                            .map(|member| (member.at, Light::Came(member.instance()))),
                     );
                 }
                 light => rows.push((at, light)),
@@ -1079,7 +1267,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
             }
             Event::Went(ended) => {
                 went_count += 1;
-                if !(ask.filter.came && ended.came_at.is_some_and(window)) {
+                if !(ask.filter.came && ended.came_at().is_some_and(window)) {
                     walk.went(ended);
                 }
             }
@@ -1683,6 +1871,57 @@ mod tests {
         let row = came_row(&rows(&log), 20);
         assert_eq!(row.launcher, Launcher::Process("Code.exe".into()));
         assert_eq!(row.chain, [Arc::from("Code.exe"), Arc::from("a.exe")]);
+    }
+
+    #[test]
+    fn what_a_start_and_its_exit_said_is_read_back_whole() {
+        let mut log = Log::default();
+        log.record(&[
+            ProcessEvent::Came(ProcessCame {
+                instance: id(20),
+                parent: id(1),
+                at: at(10, 0),
+                image_path: r"C:\Tools\Tool.exe".into(),
+                command_line: r#""C:\Tools\Tool.exe" --go"#.into(),
+                working_dir: r"D:\work".into(),
+                user: r"HOST\someone".into(),
+                session_id: 3,
+                elevated: Some(true),
+                ..Default::default()
+            }),
+            ProcessEvent::Came(ProcessCame {
+                instance: id(21),
+                parent: id(1),
+                at: at(11, 0),
+                image_path: r"C:\Tools\other.exe".into(),
+                elevated: None,
+                ..Default::default()
+            }),
+            ProcessEvent::Went(ProcessWent {
+                instance: id(20),
+                at: at(10, 2),
+                exit_code: 0xC000_0005,
+                cpu_cycles: 1 << 40,
+                io_read_bytes: 4096,
+                io_write_bytes: 0,
+                peak_commit_bytes: 300_000_000,
+                ..Default::default()
+            }),
+        ]);
+
+        let rows = rows(&log);
+        let tool = came_row(&rows, 20);
+        assert_eq!(
+            (&*tool.image_path, &*tool.command_line, &*tool.working_dir, &*tool.user),
+            (r"C:\Tools\Tool.exe", r#""C:\Tools\Tool.exe" --go"#, r"D:\work", r"HOST\someone")
+        );
+        assert_eq!((tool.session_id, tool.elevated), (3, Some(true)));
+        let exit = tool.exit.as_ref().expect("it went");
+        assert_eq!(
+            (exit.code, exit.cpu_cycles, exit.read_bytes, exit.write_bytes, exit.peak_commit_bytes),
+            (0xC000_0005, 1 << 40, 4096, 0, 300_000_000)
+        );
+        assert_eq!(came_row(&rows, 21).elevated, None);
     }
 
     #[test]

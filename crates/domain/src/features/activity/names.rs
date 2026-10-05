@@ -1,14 +1,63 @@
 use std::collections::HashMap;
+use std::hash::BuildHasher;
+use std::num::NonZeroU32;
 use std::sync::{Arc, OnceLock};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct Word(u32);
+use hashbrown::{DefaultHashBuilder, HashTable};
+
+pub fn id(index: usize) -> NonZeroU32 {
+    NonZeroU32::MIN.saturating_add(index as u32)
+}
+
+pub fn index(id: NonZeroU32) -> usize {
+    (id.get() - 1) as usize
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct Spell(u32);
+pub struct Word(NonZeroU32);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct Folder(u32);
+pub struct Spell(NonZeroU32);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct Folder(NonZeroU32);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct Text(NonZeroU32);
+
+#[derive(Default)]
+pub struct Texts {
+    bytes: String,
+    spans: Vec<(u32, u32)>,
+    table: HashTable<NonZeroU32>,
+    hasher: DefaultHashBuilder,
+}
+
+fn spanned<'a>(bytes: &'a str, spans: &[(u32, u32)], text: NonZeroU32) -> &'a str {
+    let (start, length) = spans[index(text)];
+    &bytes[start as usize..(start + length) as usize]
+}
+
+impl Texts {
+    pub fn put(&mut self, text: &str) -> Text {
+        let hash = self.hasher.hash_one(text);
+        let (bytes, spans) = (&self.bytes, &self.spans);
+        if let Some(&known) = self.table.find(hash, |&known| spanned(bytes, spans, known) == text) {
+            return Text(known);
+        }
+        let new = id(self.spans.len());
+        self.spans.push((self.bytes.len() as u32, text.len() as u32));
+        self.bytes.push_str(text);
+        let (bytes, spans, hasher) = (&self.bytes, &self.spans, &self.hasher);
+        self.table
+            .insert_unique(hash, new, |&known| hasher.hash_one(spanned(bytes, spans, known)));
+        Text(new)
+    }
+
+    pub fn get(&self, text: Text) -> &str {
+        spanned(&self.bytes, &self.spans, text.0)
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Placed {
@@ -41,7 +90,7 @@ impl Names {
             return spell;
         }
         let word = self.fold(text);
-        let spell = Spell(self.spelled.len() as u32);
+        let spell = Spell(id(self.spelled.len()));
         let text: Arc<str> = Arc::from(text);
         self.spelled.push((text.clone(), word));
         self.spellings.insert(text, spell);
@@ -53,7 +102,7 @@ impl Names {
         if let Some(&word) = self.words.get(folded.as_str()) {
             return word;
         }
-        let word = Word(self.folded.len() as u32);
+        let word = Word(id(self.folded.len()));
         let folded: Arc<str> = Arc::from(folded);
         self.folded.push(folded.clone());
         self.words.insert(folded, word);
@@ -66,15 +115,15 @@ impl Names {
     }
 
     pub fn word_of(&self, spell: Spell) -> Word {
-        self.spelled[spell.0 as usize].1
+        self.spelled[index(spell.0)].1
     }
 
     pub fn text(&self, spell: Spell) -> &Arc<str> {
-        &self.spelled[spell.0 as usize].0
+        &self.spelled[index(spell.0)].0
     }
 
     pub fn folded(&self, word: Word) -> &Arc<str> {
-        &self.folded[word.0 as usize]
+        &self.folded[index(word.0)]
     }
 
     pub fn find_word(&self, text: &str) -> Option<Word> {
@@ -97,7 +146,7 @@ impl Names {
     }
 
     pub fn folder_text(&self, folder: Folder) -> Arc<str> {
-        let node = &self.folders[folder.0 as usize];
+        let node = &self.folders[index(folder.0)];
         node.text
             .get_or_init(|| match node.parent {
                 Some(parent) => format!(r"{}\{}", self.folder_text(parent), self.folded(node.word)).into(),
@@ -113,7 +162,7 @@ impl Names {
         let mut parent = None;
         for segment in path.split(SEPARATORS) {
             let word = self.word(segment);
-            let next = Folder(self.folders.len() as u32);
+            let next = Folder(id(self.folders.len()));
             let folder = *self.nodes.entry((parent, word)).or_insert(next);
             if folder == next {
                 self.folders.push(Node {
@@ -144,6 +193,26 @@ impl Names {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_text_is_kept_once_and_read_back_as_it_was() {
+        let mut texts = Texts::default();
+        let first = texts.put(r#""C:\Windows\system32\taskhostw.exe" {222A245B}"#);
+        let other = texts.put("C:\\Users\\someone");
+        let again = texts.put(r#""C:\Windows\system32\taskhostw.exe" {222A245B}"#);
+
+        assert_eq!(first, again);
+        assert_ne!(first, other);
+        assert_eq!(texts.get(first), r#""C:\Windows\system32\taskhostw.exe" {222A245B}"#);
+        assert_eq!(texts.get(other), "C:\\Users\\someone");
+    }
+
+    #[test]
+    fn an_absent_id_costs_nothing() {
+        assert_eq!(size_of::<Option<Text>>(), size_of::<u32>());
+        assert_eq!(size_of::<Option<Spell>>(), size_of::<u32>());
+        assert_eq!(size_of::<Option<Folder>>(), size_of::<u32>());
+    }
 
     #[test]
     fn a_path_spelled_in_another_case_is_the_same_place() {
