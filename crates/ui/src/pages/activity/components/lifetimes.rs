@@ -66,18 +66,18 @@ fn marker(lived: Lived) -> Marker {
 
 pub fn series(scatter: &Scatter, palette: Palette) -> Vec<ScatterSeries<ProcessInstance>> {
     let mut series: Vec<ScatterSeries<ProcessInstance>> = Vec::new();
-    for dot in &scatter.dots {
-        let marker = marker(dot.lived);
-        let base = match dot.hue {
+    for dot in scatter.dots() {
+        let marker = marker(dot.lived());
+        let base = match dot.hue() {
             Some(hue) => palette.hue(hue),
             None if marker == Marker::Tick => palette.critical,
             None => palette.success,
         };
-        let color = color_f(if dot.faint { Color { a: Look::Faint, ..base } } else { base });
+        let color = color_f(if dot.faint() { Color { a: Look::Faint, ..base } } else { base });
         let point = ScatterPoint {
-            key: dot.key,
-            at: dot.at,
-            value: level(dot.lived),
+            key: dot.key(),
+            at: dot.at(),
+            value: level(dot.lived()),
         };
         match series.iter_mut().find(|series| series.marker == marker && series.color == color) {
             Some(series) => series.points.push(point),
@@ -151,18 +151,12 @@ mod tests {
     }
 
     fn dot(pid: u32, lived: Lived, faint: bool) -> Dot {
-        Dot {
-            key: id(pid),
-            at: NOW - HOUR / 2,
-            lived,
-            faint,
-            hue: None,
-        }
+        Dot::new(id(pid), NOW - HOUR / 2, lived, faint, None)
     }
 
     fn scatter(dots: Vec<Dot>) -> Scatter {
         Scatter {
-            dots,
+            pieces: vec![dots.into()],
             now: NOW,
             now_clock: Clock { hour: 12, minute: 0, second: 0 },
             length: HOUR,
@@ -222,10 +216,7 @@ mod tests {
 
     #[test]
     fn a_process_in_a_group_is_drawn_in_its_hue_whether_its_lifetime_is_known_or_not() {
-        let hued = |pid: u32, lived: Lived, hue: Hue| Dot {
-            hue: Some(hue),
-            ..dot(pid, lived, false)
-        };
+        let hued = |pid: u32, lived: Lived, hue: Hue| Dot::new(id(pid), NOW - HOUR / 2, lived, false, Some(hue));
         let scatter = scatter(vec![
             hued(20, Lived::For(Ticks::Second), Hue::Purple),
             hued(21, Lived::Unknown, Hue::Purple),

@@ -137,20 +137,103 @@ pub struct Area {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Dot {
-    pub key: ProcessInstance,
-    pub at: u64,
-    pub lived: Lived,
-    pub faint: bool,
-    pub hue: Option<Hue>,
+    pid: u32,
+    hue: Option<Hue>,
+    faint: bool,
+    sequence: u64,
+    at: u64,
+    lived: u64,
+}
+
+struct Kept;
+
+#[expect(non_upper_case_globals)]
+impl Kept {
+    const Unknown: u64 = u64::MAX;
+    const Running: u64 = u64::MAX - 1;
+    const Longest: u64 = u64::MAX - 2;
+}
+
+impl Dot {
+    pub fn new(key: ProcessInstance, at: u64, lived: Lived, faint: bool, hue: Option<Hue>) -> Self {
+        Self {
+            pid: key.pid,
+            hue,
+            faint,
+            sequence: key.sequence,
+            at,
+            lived: match lived {
+                Lived::Unknown => Kept::Unknown,
+                Lived::Running => Kept::Running,
+                Lived::For(lived) => lived.min(Kept::Longest),
+            },
+        }
+    }
+
+    pub fn key(&self) -> ProcessInstance {
+        ProcessInstance {
+            pid: self.pid,
+            sequence: self.sequence,
+        }
+    }
+
+    pub fn at(&self) -> u64 {
+        self.at
+    }
+
+    pub fn lived(&self) -> Lived {
+        match self.lived {
+            Kept::Unknown => Lived::Unknown,
+            Kept::Running => Lived::Running,
+            lived => Lived::For(lived),
+        }
+    }
+
+    pub fn faint(&self) -> bool {
+        self.faint
+    }
+
+    pub fn hue(&self) -> Option<Hue> {
+        self.hue
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+pub struct Piece {
+    pub dots: Rc<Vec<Dot>>,
+    pub from: usize,
+    pub to: usize,
+}
+
+impl Piece {
+    pub fn dots(&self) -> &[Dot] {
+        &self.dots[self.from..self.to]
+    }
+}
+
+impl From<Vec<Dot>> for Piece {
+    fn from(dots: Vec<Dot>) -> Self {
+        Self {
+            to: dots.len(),
+            dots: Rc::new(dots),
+            from: 0,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Scatter {
-    pub dots: Vec<Dot>,
+    pub pieces: Vec<Piece>,
     pub now: u64,
     pub now_clock: Clock,
     pub length: u64,
     pub area: Option<Area>,
+}
+
+impl Scatter {
+    pub fn dots(&self) -> impl Iterator<Item = &Dot> {
+        self.pieces.iter().flat_map(Piece::dots)
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -267,4 +350,32 @@ pub struct ActivityView {
     pub history_since: Option<Clock>,
     pub lost: u64,
     pub legend: Legend,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_dot_costs_four_words() {
+        assert_eq!(size_of::<Dot>(), 32);
+    }
+
+    #[test]
+    fn a_dot_reads_back_what_it_was_made_of() {
+        let key = ProcessInstance {
+            pid: 4_000_000_000,
+            sequence: u64::MAX - 7,
+        };
+        for lived in [Lived::Unknown, Lived::Running, Lived::For(0), Lived::For(36_000_000_000)] {
+            for (faint, hue) in [(false, None), (true, Some(Hue::Amber))] {
+                let dot = Dot::new(key, 1_234_567, lived, faint, hue);
+
+                assert_eq!(
+                    (dot.key(), dot.at(), dot.lived(), dot.faint(), dot.hue()),
+                    (key, 1_234_567, lived, faint, hue)
+                );
+            }
+        }
+    }
 }

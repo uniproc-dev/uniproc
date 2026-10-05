@@ -99,19 +99,22 @@ fn row(index: usize) -> ActivityRow {
 fn state(dots: usize, rows: usize) -> ActivityState {
     let now = 3_600_000;
     let scatter = Scatter {
-        dots: (0..dots)
-            .map(|index| Dot {
-                key: instance(index),
-                at: now - (index as u64 * 1_237) % now,
-                lived: match index % 5 {
-                    0 => Lived::Running,
-                    1 => Lived::Unknown,
-                    _ => Lived::For(1 + (index as u64 * 7_919) % 36_000),
-                },
-                faint: index % 4 == 0,
-                hue: [None, Some(Hue::Teal), Some(Hue::Purple)][index % 3],
+        pieces: vec![(0..dots)
+            .map(|index| {
+                Dot::new(
+                    instance(index),
+                    now - (index as u64 * 1_237) % now,
+                    match index % 5 {
+                        0 => Lived::Running,
+                        1 => Lived::Unknown,
+                        _ => Lived::For(1 + (index as u64 * 7_919) % 36_000),
+                    },
+                    index % 4 == 0,
+                    [None, Some(Hue::Teal), Some(Hue::Purple)][index % 3],
+                )
             })
-            .collect(),
+            .collect::<Vec<_>>()
+            .into()],
         now,
         now_clock: clock(0),
         length: now,

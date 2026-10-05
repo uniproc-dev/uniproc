@@ -155,7 +155,7 @@ fn measure(label: &str, log: &Log, ask: &Ask<'_>) {
         let took = started.elapsed();
         allocations = ALLOCATIONS.load(Ordering::Relaxed) - counted;
         bytes = BYTES.load(Ordering::Relaxed) - weighed;
-        dots = built.scatter.dots.len();
+        dots = built.scatter.dots().count();
         total += took;
         worst = worst.max(took);
     }

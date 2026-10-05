@@ -884,18 +884,12 @@ fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatte
             None => legend.other += 1,
         }
         if sieve.shown(group) {
-            dots.push(Dot {
-                key: instance,
-                at: event.at(),
-                lived,
-                faint,
-                hue: sieve.hue(group),
-            });
+            dots.push(Dot::new(instance, event.at(), lived, faint, sieve.hue(group)));
         }
     }
     log.drawn.set(dots.len());
     let scatter = Scatter {
-        dots,
+        pieces: vec![dots.into()],
         now: frame.end - 1,
         now_clock: clock(frame.end - 1),
         length: frame.length(),
@@ -1443,7 +1437,7 @@ mod tests {
     }
 
     fn dot_hues(view: &ActivityView) -> Vec<(u32, Option<Hue>)> {
-        let mut hues: Vec<(u32, Option<Hue>)> = view.scatter.dots.iter().map(|dot| (dot.key.pid, dot.hue)).collect();
+        let mut hues: Vec<(u32, Option<Hue>)> = view.scatter.dots().map(|dot| (dot.key().pid, dot.hue())).collect();
         hues.sort();
         hues
     }
@@ -2104,7 +2098,7 @@ mod tests {
         let view = look(&log, &Filter::default(), None);
         assert_eq!(view.rows.len(), 1, "{:#?}", view.rows);
         assert_eq!(&*only_came(&view.rows[0]).name, "git.exe");
-        assert_eq!(view.scatter.dots.len(), 1, "{:#?}", view.scatter);
+        assert_eq!(view.scatter.dots().count(), 1, "{:#?}", view.scatter);
     }
 
     #[test]
@@ -2130,8 +2124,8 @@ mod tests {
         log.record(&[came_at(20, 4, r"C:\Tools\rg.exe", at(30, 0))]);
 
         let view = look(&log, &Filter::default(), None);
-        assert!(dot(&view.scatter, 100).faint && dot(&view.scatter, 119).faint, "{:#?}", view.scatter);
-        assert!(!dot(&view.scatter, 20).faint);
+        assert!(dot(&view.scatter, 100).faint() && dot(&view.scatter, 119).faint(), "{:#?}", view.scatter);
+        assert!(!dot(&view.scatter, 20).faint());
         let series = view.rows.iter().find_map(|row| match row {
             ActivityRow::Series(series) => Some(series.clone()),
             _ => None,
@@ -2167,7 +2161,7 @@ mod tests {
     }
 
     fn drawn(scatter: &Scatter) -> Vec<u32> {
-        let mut pids: Vec<u32> = scatter.dots.iter().map(|dot| dot.key.pid).collect();
+        let mut pids: Vec<u32> = scatter.dots().map(|dot| dot.key().pid).collect();
         pids.sort_unstable();
         pids
     }
@@ -2318,7 +2312,7 @@ mod tests {
     }
 
     fn dot(scatter: &Scatter, pid: u32) -> Dot {
-        let found = scatter.dots.iter().find(|dot| dot.key == id(pid));
+        let found = scatter.dots().find(|dot| dot.key() == id(pid));
         assert!(found.is_some(), "no dot for {pid}: {scatter:#?}");
         *found.unwrap()
     }
@@ -2336,16 +2330,16 @@ mod tests {
         ]);
 
         let scatter = look(&log, &Filter::default(), None).scatter;
-        assert_eq!(scatter.dots.len(), 4, "{scatter:#?}");
+        assert_eq!(scatter.dots().count(), 4, "{scatter:#?}");
         assert_eq!((scatter.now, scatter.length), (at(59, 59), HOUR));
         assert_eq!(scatter.now_clock, utc(at(59, 59)));
         let (short, long, alive) = (dot(&scatter, 20), dot(&scatter, 21), dot(&scatter, 22));
-        assert_eq!((short.at, long.at, alive.at), (at(15, 0), at(30, 0), at(45, 0)));
-        assert_eq!(short.lived, Lived::For(Ticks::Second));
-        assert_eq!(long.lived, Lived::For(10 * Ticks::Minute));
-        assert_eq!(alive.lived, Lived::Running);
+        assert_eq!((short.at(), long.at(), alive.at()), (at(15, 0), at(30, 0), at(45, 0)));
+        assert_eq!(short.lived(), Lived::For(Ticks::Second));
+        assert_eq!(long.lived(), Lived::For(10 * Ticks::Minute));
+        assert_eq!(alive.lived(), Lived::Running);
         let orphan = dot(&scatter, 30);
-        assert_eq!((orphan.at, orphan.lived), (at(50, 0), Lived::Unknown));
+        assert_eq!((orphan.at(), orphan.lived()), (at(50, 0), Lived::Unknown));
     }
 
     #[test]
@@ -2468,7 +2462,7 @@ mod tests {
         let view = look(&log, &Filter::default(), None);
         assert_eq!(view.rows.len(), 1, "{:#?}", view.rows);
         assert_eq!(only_came(&view.rows[0]).exit.as_ref().map(|exit| exit.lived), Some(2 * Ticks::Second));
-        assert_eq!(dot(&view.scatter, 20).lived, Lived::For(2 * Ticks::Second));
+        assert_eq!(dot(&view.scatter, 20).lived(), Lived::For(2 * Ticks::Second));
     }
 
     #[test]
