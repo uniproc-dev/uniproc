@@ -1,5 +1,33 @@
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+struct Counting;
+
+static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
+static BYTES: AtomicUsize = AtomicUsize::new(0);
+
+unsafe impl GlobalAlloc for Counting {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+        BYTES.fetch_add(layout.size(), Ordering::Relaxed);
+        unsafe { System.alloc(layout) }
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        unsafe { System.dealloc(ptr, layout) }
+    }
+
+    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+        BYTES.fetch_add(new_size, Ordering::Relaxed);
+        unsafe { System.realloc(ptr, layout, new_size) }
+    }
+}
+
+#[global_allocator]
+static GLOBAL: Counting = Counting;
 
 use app_contracts::features::activity::{Clock, Filter, Group, Hue, Pick, Span};
 use app_contracts::features::agents::{ProcessCame, ProcessEvent, ProcessInstance, ProcessWent};
@@ -114,15 +142,24 @@ fn measure(label: &str, log: &Log, ask: &Ask<'_>) {
     let mut total = Duration::ZERO;
     let mut worst = Duration::ZERO;
     let mut dots = 0;
+    let (mut allocations, mut bytes) = (0, 0);
     for _ in 0..ITERATIONS {
+        let (counted, weighed) = (ALLOCATIONS.load(Ordering::Relaxed), BYTES.load(Ordering::Relaxed));
         let started = Instant::now();
         let built = view(log, ask);
         let took = started.elapsed();
+        allocations = ALLOCATIONS.load(Ordering::Relaxed) - counted;
+        bytes = BYTES.load(Ordering::Relaxed) - weighed;
         dots = built.scatter.dots.len();
         total += took;
         worst = worst.max(took);
     }
-    println!("{label:<34} mean {:>9.2?}  worst {:>9.2?}  ({dots} dots)", total / ITERATIONS, worst);
+    println!(
+        "{label:<22} mean {:>9.2?}  worst {:>9.2?}  {allocations:>6} allocs {:>8.1} KiB  ({dots} dots)",
+        total / ITERATIONS,
+        worst,
+        bytes as f64 / 1024.0
+    );
 }
 
 fn main() {

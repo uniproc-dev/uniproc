@@ -123,6 +123,7 @@ pub struct Log {
     asked: RefCell<(Filter, Vec<Group>)>,
     asking: Cell<u32>,
     naming: Vec<u64>,
+    shown: RefCell<HashMap<ProcessInstance, Shown>>,
 }
 
 impl Default for Log {
@@ -145,6 +146,7 @@ impl Default for Log {
             asked: RefCell::new((Filter::default(), Vec::new())),
             asking: Cell::new(1),
             naming: Vec::new(),
+            shown: RefCell::default(),
         }
     }
 }
@@ -718,40 +720,101 @@ impl Light<'_> {
     }
 }
 
-fn series_of(started: &[&Started], log: &Log, groups: &Groups<'_>, clock: fn(u64) -> Clock) -> Option<Series> {
-    let newest = *started.first()?;
-    let (_, launcher) = newest.launched?;
-    let folder = log.names.folder_text(newest.folder?);
-    let mut counted: HashMap<Spell, usize> = HashMap::new();
-    for member in started {
-        *counted.entry(member.name).or_default() += 1;
+struct Shown {
+    asked: u32,
+    named: usize,
+    went_at: Option<u64>,
+    launched: Option<(ProcessInstance, Spell)>,
+    row: Rc<Came>,
+}
+
+struct Rows<'a> {
+    log: &'a Log,
+    groups: &'a Groups<'a>,
+    clock: fn(u64) -> Clock,
+    asked: u32,
+    kept: HashMap<ProcessInstance, Shown>,
+    shown: HashMap<ProcessInstance, Shown>,
+}
+
+impl<'a> Rows<'a> {
+    fn new(log: &'a Log, groups: &'a Groups<'a>, clock: fn(u64) -> Clock, asked: u32) -> Self {
+        Self {
+            log,
+            groups,
+            clock,
+            asked,
+            kept: HashMap::new(),
+            shown: HashMap::new(),
+        }
     }
-    let mut names: Vec<_> = counted.into_iter().map(|(name, count)| (log.text(name), count)).collect();
-    names.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-    let file = log.names.word_of(newest.name);
-    let mut picks = Vec::new();
-    if started.iter().all(|member| log.names.word_of(member.name) == file) {
-        picks.push(Pick::Exe(log.names.folded(file).clone()));
+
+    fn came(&mut self, started: &Started) -> Rc<Came> {
+        let instance = started.came.instance;
+        if let Some(shown) = self.shown.get(&instance) {
+            return shown.row.clone();
+        }
+        let kept = self.kept.remove(&instance).filter(|kept| {
+            kept.asked == self.asked
+                && kept.went_at == started.went_at
+                && kept.launched == started.launched
+                && self.log.named_since(kept.named, started.came.at)
+        });
+        let shown = kept.unwrap_or_else(|| Shown {
+            asked: self.asked,
+            named: self.log.naming.len(),
+            went_at: started.went_at,
+            launched: started.launched,
+            row: Rc::new(came_of(self.log, self.groups, started, self.clock)),
+        });
+        let row = shown.row.clone();
+        self.shown.insert(instance, shown);
+        row
     }
-    picks.push(Pick::Folder(folder.clone()));
-    picks.push(Pick::Under(log.names.folded(log.names.word_of(launcher)).clone()));
-    Some(Series {
-        key: started.last()?.came.instance,
-        at: clock(newest.came.at),
-        launcher: log.text(launcher),
-        folder,
-        names,
-        count: started.len(),
-        went: started.iter().filter(|member| member.went_at.is_some()).count(),
-        routine: log.routine(newest),
-        members: started
-            .iter()
-            .take(Pace::Shown)
-            .map(|member| Rc::new(came_of(log, groups, member, clock)))
-            .collect(),
-        picks,
-        hue: groups.hue(log.came_group(groups, newest)),
-    })
+
+    fn series(&mut self, started: &[&Started]) -> Option<Series> {
+        let log = self.log;
+        let newest = *started.first()?;
+        let (_, launcher) = newest.launched?;
+        let folder = log.names.folder_text(newest.folder?);
+        let mut counted: HashMap<Spell, usize> = HashMap::new();
+        for member in started {
+            *counted.entry(member.name).or_default() += 1;
+        }
+        let mut names: Vec<_> = counted.into_iter().map(|(name, count)| (log.text(name), count)).collect();
+        names.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        let file = log.names.word_of(newest.name);
+        let mut picks = Vec::new();
+        if started.iter().all(|member| log.names.word_of(member.name) == file) {
+            picks.push(Pick::Exe(log.names.folded(file).clone()));
+        }
+        picks.push(Pick::Folder(folder.clone()));
+        picks.push(Pick::Under(log.names.folded(log.names.word_of(launcher)).clone()));
+        Some(Series {
+            key: started.last()?.came.instance,
+            at: (self.clock)(newest.came.at),
+            launcher: log.text(launcher),
+            folder,
+            names,
+            count: started.len(),
+            went: started.iter().filter(|member| member.went_at.is_some()).count(),
+            routine: log.routine(newest),
+            members: started.iter().take(Pace::Shown).map(|member| self.came(member)).collect(),
+            picks,
+            hue: self.groups.hue(log.came_group(self.groups, newest)),
+        })
+    }
+
+    fn row(&mut self, row: Light<'_>) -> Option<ActivityRow> {
+        let log = self.log;
+        Some(match row {
+            Light::Came(instance) => ActivityRow::Came(self.came(log.started(instance)?)),
+            Light::Went(instance) => {
+                ActivityRow::Went(Rc::new(went_of(log, self.groups, log.ended(instance)?, self.clock)))
+            }
+            Light::Series(members) => ActivityRow::Series(Rc::new(self.series(&members)?)),
+        })
+    }
 }
 
 struct Sieve<'a> {
@@ -917,23 +980,14 @@ fn contains(field: &str, text: &str) -> bool {
     text.is_empty() || field.to_lowercase().contains(text)
 }
 
-fn row_of(log: &Log, groups: &Groups<'_>, row: Light<'_>, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
-    Some(match row {
-        Light::Came(instance) => {
-            ActivityRow::Came(Rc::new(came_of(log, groups, log.started(instance)?, clock)))
-        }
-        Light::Went(instance) => ActivityRow::Went(Rc::new(went_of(log, groups, log.ended(instance)?, clock))),
-        Light::Series(members) => ActivityRow::Series(Rc::new(series_of(&members, log, groups, clock)?)),
-    })
-}
-
 pub fn row(log: &Log, groups: &[Group], key: ProcessInstance, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
     let light = if log.started(key).is_some() {
         Light::Came(key)
     } else {
         Light::Went(key)
     };
-    row_of(log, &Groups::new(log, groups), light, clock)
+    let groups = Groups::new(log, groups);
+    Rows::new(log, &groups, clock, 0).row(light)
 }
 
 pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
@@ -976,13 +1030,16 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.key().cmp(&a.1.key())));
     let earlier = rows.len().saturating_sub(Pace::Shown);
     rows.truncate(Pace::Shown);
+    let mut built = Rows {
+        kept: log.shown.take(),
+        ..Rows::new(log, &groups, clock, asked)
+    };
+    let rows = rows.into_iter().filter_map(|(_, row)| built.row(row)).collect();
+    log.shown.replace(built.shown);
 
     ActivityView {
         scatter: Rc::new(scatter),
-        rows: rows
-            .into_iter()
-            .filter_map(|(_, row)| row_of(log, &groups, row, clock))
-            .collect(),
+        rows,
         earlier,
         came: came_count,
         went: went_count,
@@ -1506,6 +1563,67 @@ mod tests {
         log.record(&[came(20, 1, "cmd.exe", at(10, 0))]);
 
         assert_eq!(listed(&log, &filter), [Arc::from("cmd.exe")]);
+    }
+
+    fn came_row(rows: &[ActivityRow], pid: u32) -> Rc<app_contracts::features::activity::Came> {
+        let found = rows.iter().find_map(|row| match row {
+            ActivityRow::Came(came) if came.key == id(pid) => Some(came.clone()),
+            _ => None,
+        });
+        assert!(found.is_some(), "no row for {pid}: {rows:#?}");
+        found.unwrap()
+    }
+
+    #[test]
+    fn a_row_that_did_not_change_is_handed_over_as_it_was() {
+        let mut log = Log::default();
+        git_burst(&mut log, 3);
+        log.record(&[came(20, 1, "a.exe", at(30, 0))]);
+
+        let (first, second) = (rows(&log), rows(&log));
+
+        assert!(Rc::ptr_eq(&came_row(&first, 20), &came_row(&second, 20)));
+        let (first, second) = (only_series(&first[1..]), only_series(&second[1..]));
+        assert!(
+            first.members.iter().zip(&second.members).all(|(a, b)| Rc::ptr_eq(a, b)),
+            "{first:#?}"
+        );
+    }
+
+    #[test]
+    fn a_row_is_built_again_once_its_process_went() {
+        let mut log = Log::default();
+        log.record(&[came(20, 1, "a.exe", at(10, 0))]);
+        assert_eq!(came_row(&rows(&log), 20).exit, None);
+
+        log.record(&[went(20, at(10, 5))]);
+
+        assert!(came_row(&rows(&log), 20).exit.is_some());
+    }
+
+    #[test]
+    fn a_row_is_built_again_once_the_groups_change() {
+        let mut log = Log::default();
+        log.record(&[came(20, 1, "a.exe", at(10, 0))]);
+        assert_eq!(came_row(&rows(&log), 20).hue, None);
+
+        let groups = [group("mine", Hue::Purple, vec![Pick::Exe("a.exe".into())])];
+        let view = seen(&log, &Filter::default(), &groups, None);
+
+        assert_eq!(came_row(&view.rows, 20).hue, Some(Hue::Purple));
+    }
+
+    #[test]
+    fn a_row_is_built_again_once_its_launcher_is_named() {
+        let mut log = Log::default();
+        log.record(&[came(20, 4, "a.exe", at(10, 0))]);
+        assert_eq!(came_row(&rows(&log), 20).launcher, Launcher::Unknown);
+
+        log.note_running(&[running(4, "Code.exe", at(0, 0))]);
+
+        let row = came_row(&rows(&log), 20);
+        assert_eq!(row.launcher, Launcher::Process("Code.exe".into()));
+        assert_eq!(row.chain, [Arc::from("Code.exe"), Arc::from("a.exe")]);
     }
 
     #[test]
