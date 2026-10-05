@@ -143,28 +143,97 @@ fn groups() -> Vec<Group> {
     ]
 }
 
-fn measure(label: &str, log: &Log, ask: &Ask<'_>) {
-    let mut total = Duration::ZERO;
-    let mut worst = Duration::ZERO;
-    let mut dots = 0;
-    let (mut allocations, mut bytes) = (0, 0);
-    for _ in 0..ITERATIONS {
+struct Took {
+    first: Duration,
+    total: Duration,
+    worst: Duration,
+    views: u32,
+    allocations: usize,
+    bytes: usize,
+    dots: usize,
+}
+
+impl Took {
+    fn new() -> Self {
+        Self {
+            first: Duration::ZERO,
+            total: Duration::ZERO,
+            worst: Duration::ZERO,
+            views: 0,
+            allocations: 0,
+            bytes: 0,
+            dots: 0,
+        }
+    }
+
+    fn view(&mut self, log: &Log, ask: &Ask<'_>) {
         let (counted, weighed) = (ALLOCATIONS.load(Ordering::Relaxed), BYTES.load(Ordering::Relaxed));
         let started = Instant::now();
         let built = view(log, ask);
         let took = started.elapsed();
-        allocations = ALLOCATIONS.load(Ordering::Relaxed) - counted;
-        bytes = BYTES.load(Ordering::Relaxed) - weighed;
-        dots = built.scatter.dots().count();
-        total += took;
-        worst = worst.max(took);
+        self.dots = built.scatter.dots().count();
+        drop(built);
+        if self.views == 0 {
+            self.first = took;
+        } else {
+            self.allocations += ALLOCATIONS.load(Ordering::Relaxed) - counted;
+            self.bytes += BYTES.load(Ordering::Relaxed) - weighed;
+            self.total += took;
+            self.worst = self.worst.max(took);
+        }
+        self.views += 1;
     }
-    println!(
-        "{label:<22} mean {:>9.2?}  worst {:>9.2?}  {allocations:>6} allocs {:>8.1} KiB  ({dots} dots)",
-        total / ITERATIONS,
-        worst,
-        bytes as f64 / 1024.0
-    );
+
+    fn print(&self, label: &str) {
+        let then = (self.views - 1).max(1);
+        println!(
+            "{label:<22} first {:>9.2?}  then mean {:>9.2?} worst {:>9.2?}  {:>6} allocs {:>8.1} KiB a view  ({} dots)",
+            self.first,
+            self.total / then,
+            self.worst,
+            self.allocations / then as usize,
+            self.bytes as f64 / 1024.0 / f64::from(then),
+            self.dots
+        );
+    }
+}
+
+fn measure(label: &str, log: &Log, ask: &Ask<'_>) {
+    let mut took = Took::new();
+    for _ in 0..ITERATIONS {
+        took.view(log, ask);
+    }
+    took.print(label);
+}
+
+fn live(events: &[ProcessEvent], groups: &[Group]) {
+    let ms = Ticks::Second / 1_000;
+    let from = BASE + 59 * 60 * Ticks::Second;
+    let (before, after) = events.split_at(events.partition_point(|event| event.at() < from));
+    let mut log = Log::default();
+    for batch in before.chunks(64) {
+        log.record(batch);
+    }
+    let filter = Filter::default();
+    let mut took = Took::new();
+    let mut fed = 0;
+    let mut now = from;
+    while fed < after.len() {
+        now += 250 * ms;
+        let due = after[fed..].partition_point(|event| event.at() < now);
+        log.record(&after[fed..fed + due]);
+        fed += due;
+        let ask = Ask {
+            now,
+            span: Span::Hour,
+            filter: &filter,
+            groups,
+            area: None,
+            clock: utc,
+        };
+        took.view(&log, &ask);
+    }
+    took.print("live, Hour");
 }
 
 fn main() {
@@ -186,10 +255,11 @@ fn main() {
         kept as f64 / 1024.0 / 1024.0,
         kept / comes
     );
-    drop(events);
 
     let now = BASE + 3_600 * Ticks::Second;
     let groups = groups();
+    live(&events, &groups);
+    drop(events);
     let plain = Filter::default();
     let hiding = Filter {
         hidden: vec![Pick::Exe("git.exe".into()), Pick::Under("claude.exe".into())],

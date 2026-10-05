@@ -1,3 +1,40 @@
+use std::rc::Rc;
+
+pub struct Pool<T> {
+    spare: Vec<Rc<Vec<T>>>,
+}
+
+impl<T> Default for Pool<T> {
+    fn default() -> Self {
+        Self { spare: Vec::new() }
+    }
+}
+
+struct Spare;
+
+#[expect(non_upper_case_globals)]
+impl Spare {
+    const Kept: usize = 64;
+}
+
+impl<T> Pool<T> {
+    pub fn retire(&mut self, items: Rc<Vec<T>>) {
+        if self.spare.len() < Spare::Kept {
+            self.spare.push(items);
+        }
+    }
+
+    pub fn take(&mut self) -> Rc<Vec<T>> {
+        for at in 0..self.spare.len() {
+            if let Some(items) = Rc::get_mut(&mut self.spare[at]) {
+                items.clear();
+                return self.spare.swap_remove(at);
+            }
+        }
+        Rc::default()
+    }
+}
+
 #[derive(Default)]
 pub struct Numbers {
     bytes: Vec<u8>,
@@ -46,5 +83,32 @@ mod tests {
         assert_eq!(numbers.get::<3>(small), [0, 3, 127]);
         assert_eq!(numbers.get::<4>(large), [128, 4_123_456_789, u64::MAX, 1 << 35]);
         assert_eq!(large, 3);
+    }
+
+    #[test]
+    fn a_buffer_nobody_holds_any_more_is_handed_out_again_empty() {
+        let mut pool = Pool::default();
+        let buffer = Rc::new(vec![7u64; 50]);
+        let kept = buffer.as_ptr();
+        pool.retire(buffer);
+
+        let taken = pool.take();
+
+        assert_eq!((taken.as_ptr(), taken.len(), taken.capacity() >= 50), (kept, 0, true));
+    }
+
+    #[test]
+    fn a_buffer_still_held_elsewhere_waits_until_it_is_let_go() {
+        let mut pool = Pool::default();
+        let buffer = Rc::new(vec![7u64; 50]);
+        let held = buffer.clone();
+        pool.retire(buffer);
+
+        let meanwhile = pool.take();
+        assert_ne!(meanwhile.as_ptr(), held.as_ptr());
+
+        let kept = held.as_ptr();
+        drop(held);
+        assert_eq!(pool.take().as_ptr(), kept);
     }
 }

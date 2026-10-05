@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use app_contracts::features::activity::{
     ActivityRow, ActivityView, Area, Came, Clock, Dot, Exit, Filter, Group, Hue, Launcher, Legend, Lived, Pick,
-    Scatter, Series, Span, Went,
+    Piece, Scatter, Series, Span, Went,
 };
 use std::hash::BuildHasher;
 use std::num::NonZeroU32;
@@ -18,7 +18,7 @@ use app_contracts::features::agents::{
 };
 
 use super::names::{id, index, Folder, Names, Spell, Text, Texts, Word};
-use super::packed::Numbers;
+use super::packed::{Numbers, Pool};
 
 pub struct Ticks;
 
@@ -288,7 +288,9 @@ pub struct Log {
     asking: Cell<u32>,
     naming: Vec<u64>,
     shown: RefCell<HashMap<ProcessInstance, Shown>>,
-    drawn: Cell<usize>,
+    touched: HashMap<u64, u32>,
+    drawn: RefCell<HashMap<u64, Drawn>>,
+    spare: RefCell<Pool<Dot>>,
 }
 
 impl Default for Log {
@@ -321,7 +323,9 @@ impl Default for Log {
             asking: Cell::new(1),
             naming: Vec::new(),
             shown: RefCell::default(),
-            drawn: Cell::new(0),
+            touched: HashMap::new(),
+            drawn: RefCell::default(),
+            spare: RefCell::default(),
         }
     }
 }
@@ -404,6 +408,15 @@ impl Log {
         self.naming.get(named as usize).is_none_or(|&from| from > at)
     }
 
+    fn touch(&mut self, at: u64) {
+        let touched = self.touched.entry(at / Ticks::Minute).or_default();
+        *touched = touched.wrapping_add(1);
+    }
+
+    fn touched(&self, minute: u64) -> u32 {
+        self.touched.get(&minute).copied().unwrap_or_default()
+    }
+
     fn add(&mut self, event: &ProcessEvent, place: fn(&mut Self, Slot)) {
         match event {
             ProcessEvent::Came(came) => {
@@ -423,6 +436,10 @@ impl Log {
                     ended.graded.take();
                     ended.at
                 });
+                self.touch(came.at);
+                if went != Never {
+                    self.touch(went);
+                }
                 let mut flags = 0;
                 if first_seen {
                     flags |= Flag::FirstSeen;
@@ -472,6 +489,10 @@ impl Log {
                     started.went = went.at;
                     started.at
                 });
+                self.touch(went.at);
+                if came != Never {
+                    self.touch(came);
+                }
                 let image_name = (!went.image_name.is_empty()).then(|| self.names.spell(&went.image_name));
                 let numbers = self.numbers.put([
                     u64::from(went.exit_code),
@@ -640,17 +661,22 @@ impl Log {
         let Some(started) = self.started(instance) else {
             return true;
         };
-        let folder = started.folder;
+        let (folder, at) = (started.folder, started.at);
         let Some(launcher) = self.launched_by(started) else {
             return false;
         };
-        *self.habits.entry((self.names.word_of(launcher.1), folder)).or_default() += 1;
+        let habit = self.habits.entry((self.names.word_of(launcher.1), folder)).or_default();
+        *habit += 1;
+        if *habit == Pace::Routine {
+            self.regrade();
+        }
         if let Some(started) = self.started_mut(instance) {
             let (by, name) = launcher;
             started.launcher_pid = by.pid;
             started.launcher_sequence = by.sequence;
             started.launcher = Some(name);
         }
+        self.touch(at);
         true
     }
 
@@ -850,46 +876,127 @@ fn went_lived(ended: &Ended) -> Lived {
         .map_or(Lived::Unknown, |at| Lived::For(ended.at.saturating_sub(at)))
 }
 
+struct Drawn {
+    asked: u32,
+    named: u32,
+    touched: u32,
+    dots: Rc<Vec<Dot>>,
+    legend: Legend,
+}
+
+impl Drawn {
+    fn holds(&self, sieve: &Sieve<'_>, minute: u64) -> bool {
+        let log = sieve.log;
+        self.asked == sieve.asked
+            && log.named_since(self.named, (minute + 1) * Ticks::Minute - 1)
+            && self.touched == log.touched(minute)
+    }
+}
+
+fn plotted(sieve: &Sieve<'_>, event: &Event<'_>) -> Option<(Option<usize>, Dot)> {
+    let log = sieve.log;
+    let (instance, graded, lived, faint) = match *event {
+        Event::Came(started) => {
+            if log.hosted(started) {
+                return None;
+            }
+            let instance = started.instance();
+            let graded = sieve
+                .grade_came(started)
+                .or_else(|| log.ended(instance).and_then(|ended| sieve.grade_went(ended)));
+            (instance, graded, came_lived(started), log.routine(started))
+        }
+        Event::Went(ended) => {
+            if ended.came_at().is_some() {
+                return None;
+            }
+            (ended.instance(), sieve.grade_went(ended), Lived::Unknown, false)
+        }
+    };
+    let group = graded?;
+    Some((group, Dot::new(instance, event.at(), lived, faint, sieve.hue(group))))
+}
+
+fn counted(legend: &mut Legend, group: Option<usize>) {
+    match group {
+        Some(group) => legend.groups[group] += 1,
+        None => legend.other += 1,
+    }
+}
+
+fn draw(sieve: &Sieve<'_>, minute: u64, mut dots: Rc<Vec<Dot>>) -> Drawn {
+    let log = sieve.log;
+    let mut legend = Legend {
+        groups: vec![0; sieve.groups.all.len()],
+        other: 0,
+    };
+    let kept = Rc::make_mut(&mut dots);
+    for event in log.span(minute * Ticks::Minute, (minute + 1) * Ticks::Minute) {
+        if let Some((group, dot)) = plotted(sieve, &event) {
+            counted(&mut legend, group);
+            if sieve.shown(group) {
+                kept.push(dot);
+            }
+        }
+    }
+    Drawn {
+        asked: sieve.asked,
+        named: log.naming.len() as u32,
+        touched: log.touched(minute),
+        dots,
+        legend,
+    }
+}
+
 fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatter, Legend) {
     let log = sieve.log;
     let mut legend = Legend {
         groups: vec![0; sieve.groups.all.len()],
         other: 0,
     };
-    let mut dots = Vec::with_capacity(log.drawn.get());
-    for event in log.span(frame.start, frame.end) {
-        let (instance, graded, lived, faint) = match event {
-            Event::Came(started) => {
-                if log.hosted(started) {
-                    continue;
-                }
-                let instance = started.instance();
-                let graded = sieve
-                    .grade_came(started)
-                    .or_else(|| log.ended(instance).and_then(|ended| sieve.grade_went(ended)));
-                (instance, graded, came_lived(started), log.routine(started))
-            }
-            Event::Went(ended) => {
-                if ended.came_at().is_some() {
-                    continue;
-                }
-                (ended.instance(), sieve.grade_went(ended), Lived::Unknown, false)
-            }
-        };
-        let Some(group) = graded else {
-            continue;
-        };
-        match group {
-            Some(group) => legend.groups[group] += 1,
-            None => legend.other += 1,
-        }
-        if sieve.shown(group) {
-            dots.push(Dot::new(instance, event.at(), lived, faint, sieve.hue(group)));
-        }
+    let (first, last) = (frame.start / Ticks::Minute, (frame.end - 1) / Ticks::Minute);
+    let mut drawn = log.drawn.borrow_mut();
+    let mut spare = log.spare.borrow_mut();
+    for (_, gone) in drawn.extract_if(|&minute, _| !(first..=last).contains(&minute)) {
+        spare.retire(gone.dots);
     }
-    log.drawn.set(dots.len());
+    let mut pieces = Vec::with_capacity((last - first + 1) as usize);
+    for minute in first..=last {
+        let kept = match drawn.remove(&minute) {
+            Some(kept) if kept.holds(sieve, minute) => kept,
+            stale => {
+                if let Some(stale) = stale {
+                    spare.retire(stale.dots);
+                }
+                draw(sieve, minute, spare.take())
+            }
+        };
+        let (start, end) = (minute * Ticks::Minute, (minute + 1) * Ticks::Minute);
+        if frame.start <= start && end <= frame.end {
+            for (total, count) in legend.groups.iter_mut().zip(&kept.legend.groups) {
+                *total += count;
+            }
+            legend.other += kept.legend.other;
+        } else {
+            for event in log.span(start.max(frame.start), end.min(frame.end)) {
+                if let Some((group, _)) = plotted(sieve, &event) {
+                    counted(&mut legend, group);
+                }
+            }
+        }
+        let from = kept.dots.partition_point(|dot| dot.at() < frame.start);
+        let to = kept.dots.partition_point(|dot| dot.at() < frame.end);
+        if from < to {
+            pieces.push(Piece {
+                dots: kept.dots.clone(),
+                from,
+                to,
+            });
+        }
+        drawn.insert(minute, kept);
+    }
     let scatter = Scatter {
-        pieces: vec![dots.into()],
+        pieces,
         now: frame.end - 1,
         now_clock: clock(frame.end - 1),
         length: frame.length(),
@@ -2494,5 +2601,160 @@ mod tests {
 
         assert_eq!(rows(&log).len(), 1);
         assert_eq!(look(&log, &Filter::default(), None).history_since, Some(utc(at(5, 0))));
+    }
+
+    fn seen_at(log: &Log, now: u64, filter: &Filter, groups: &[Group]) -> ActivityView {
+        view(
+            log,
+            &Ask {
+                now,
+                span: Span::Hour,
+                filter,
+                groups,
+                area: None,
+                clock: utc,
+            },
+        )
+    }
+
+    fn piece_of(view: &ActivityView, pid: u32) -> Rc<Vec<Dot>> {
+        let piece = view
+            .scatter
+            .pieces
+            .iter()
+            .find(|piece| piece.dots().iter().any(|dot| dot.key() == id(pid)));
+        assert!(piece.is_some(), "no piece holds {pid}: {:#?}", view.scatter);
+        piece.unwrap().dots.clone()
+    }
+
+    #[test]
+    fn a_minute_nothing_touched_is_handed_over_as_it_was() {
+        let mut log = Log::default();
+        log.record(&[came(20, 1, "a.exe", at(10, 0)), went(20, at(10, 1)), came(21, 1, "b.exe", at(20, 0))]);
+        let before = seen_at(&log, at(30, 0), &Filter::default(), &[]);
+
+        log.record(&[came(22, 1, "c.exe", at(30, 1))]);
+        let after = seen_at(&log, at(30, 2), &Filter::default(), &[]);
+
+        assert!(Rc::ptr_eq(&piece_of(&before, 20), &piece_of(&after, 20)));
+        assert!(Rc::ptr_eq(&piece_of(&before, 21), &piece_of(&after, 21)));
+        assert_eq!(drawn(&after.scatter), [20, 21, 22]);
+    }
+
+    #[test]
+    fn a_minute_whose_process_exits_later_is_drawn_again() {
+        let mut log = Log::default();
+        log.record(&[came(20, 1, "a.exe", at(10, 0)), came(21, 1, "b.exe", at(20, 0))]);
+        let before = seen_at(&log, at(30, 0), &Filter::default(), &[]);
+
+        log.record(&[went(21, at(30, 1))]);
+        let after = seen_at(&log, at(30, 2), &Filter::default(), &[]);
+
+        assert!(Rc::ptr_eq(&piece_of(&before, 20), &piece_of(&after, 20)));
+        assert_eq!(dot(&after.scatter, 21).lived(), Lived::For(10 * Ticks::Minute + Ticks::Second));
+    }
+
+    struct Dice(u64);
+
+    impl Dice {
+        fn roll(&mut self, sides: u64) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0 % sides
+        }
+    }
+
+    enum Step {
+        Record(Vec<ProcessEvent>),
+        History(u64, Vec<ProcessEvent>),
+        Running(Vec<WindowsProcessStats>),
+    }
+
+    fn replayed(steps: &[Step]) -> Log {
+        let mut log = Log::default();
+        for step in steps {
+            match step {
+                Step::Record(events) => log.record(events),
+                Step::History(since, events) => log.history(*since, events),
+                Step::Running(processes) => log.note_running(processes),
+            }
+        }
+        log
+    }
+
+    #[test]
+    fn a_view_built_on_earlier_views_draws_what_a_fresh_log_draws() {
+        let images = ["taskhostw.exe", "git.exe", "conhost.exe", "cmd.exe", "rg.exe"];
+        let filters = [
+            Filter::default(),
+            singles(),
+            Filter {
+                hidden: vec![Pick::Exe("git.exe".into())],
+                ..Filter::default()
+            },
+            Filter {
+                came: false,
+                ..Filter::default()
+            },
+        ];
+        let groups = [group("tools", Hue::Purple, vec![Pick::Under("claude.exe".into())])];
+        let mut dice = Dice(0x9e37_79b9_7f4a_7c15);
+        let mut log = Log::default();
+        let mut steps = Vec::new();
+        let mut alive: Vec<(u32, u64, &str)> = Vec::new();
+        let mut now = at(0, 0);
+        let mut filter = 0;
+
+        let claude = vec![running(4, "claude.exe", at(0, 0) - HOUR)];
+        log.note_running(&claude);
+        steps.push(Step::Running(claude));
+        let earlier = vec![came(10, 4, "git.exe", at(0, 0) - Ticks::Minute), went(10, at(0, 0) - Ticks::Second)];
+        log.history(at(0, 0) - HOUR, &earlier);
+        steps.push(Step::History(at(0, 0) - HOUR, earlier));
+
+        for round in 0..240u32 {
+            now += (1 + dice.roll(40)) * Ticks::Second;
+            let mut events = Vec::new();
+            for start in 0..dice.roll(4) {
+                let pid = 100 + round * 8 + start as u32;
+                let parent = match dice.roll(3) {
+                    0 if !alive.is_empty() => alive[dice.roll(alive.len() as u64) as usize].0,
+                    1 => 1,
+                    _ => 4,
+                };
+                let image = images[dice.roll(images.len() as u64) as usize];
+                let when = now - dice.roll(3) * Ticks::Second;
+                events.push(came(pid, parent, image, when));
+                alive.push((pid, when, image));
+            }
+            for _ in 0..dice.roll(3) {
+                if alive.is_empty() {
+                    break;
+                }
+                let (pid, started, _) = alive.swap_remove(dice.roll(alive.len() as u64) as usize);
+                events.push(went(pid, (now - dice.roll(2) * Ticks::Second).max(started + 1)));
+            }
+            if dice.roll(6) == 0 {
+                events.push(went(5000 + round, now));
+            }
+            log.record(&events);
+            steps.push(Step::Record(events));
+            if dice.roll(5) == 0 {
+                let mut processes = vec![running(4, "claude.exe", at(0, 0) - HOUR)];
+                processes.extend(alive.iter().map(|&(pid, started, image)| running(pid, image, started)));
+                log.note_running(&processes);
+                steps.push(Step::Running(processes));
+            }
+            if dice.roll(12) == 0 {
+                filter = dice.roll(filters.len() as u64) as usize;
+            }
+
+            let built = seen_at(&log, now, &filters[filter], &groups);
+            let expected = seen_at(&replayed(&steps), now, &filters[filter], &groups);
+            let dots = |view: &ActivityView| view.scatter.dots().copied().collect::<Vec<_>>();
+            assert_eq!(dots(&built), dots(&expected), "round {round}");
+            assert_eq!(built.legend, expected.legend, "round {round}");
+        }
     }
 }
