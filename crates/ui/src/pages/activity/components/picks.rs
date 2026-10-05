@@ -10,9 +10,8 @@ use crate::widgets::popup_menu::MenuLine;
 
 fn named(pick: &Pick) -> String {
     match pick {
-        Pick::Exe(path) => path.rsplit(['\\', '/']).next().unwrap_or(path).to_string(),
+        Pick::Exe(name) | Pick::Under(name) => name.to_string(),
         Pick::Folder(folder) => folder.to_string(),
-        Pick::Launcher(name) => name.to_string(),
     }
 }
 
@@ -52,7 +51,7 @@ pub fn pick_lines(picks: &[Pick], l10n: &L10n) -> Vec<MenuLine<ActivityMark, Pic
                 l10n.activity_pick_hide_folder(),
                 hidden,
             )),
-            Pick::Launcher(name) => lines.push(MenuLine::entry(
+            Pick::Under(name) => lines.push(MenuLine::entry(
                 ActivityMark::HideLauncher,
                 hide(),
                 l10n.activity_pick_hide_launcher(name.to_string()),

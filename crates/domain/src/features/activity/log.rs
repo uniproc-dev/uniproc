@@ -3,8 +3,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use app_contracts::features::activity::{
-    ActivityRow, ActivityView, Area, Came, Clock, Dot, Exit, Filter, Launcher, Lived, Pick, Scatter, Series, Span,
-    Went,
+    ActivityRow, ActivityView, Area, Came, Clock, Dot, Exit, Filter, Group, Hue, Launcher, Legend, Lived, Pick,
+    Scatter, Series, Span, Went,
 };
 use app_contracts::features::agents::{
     ProcessCame, ProcessEvent, ProcessInstance, ProcessWent, WindowsProcessEvents, WindowsProcessStats,
@@ -45,31 +45,23 @@ enum Kind {
 struct Started {
     came: ProcessCame,
     name: Arc<str>,
-    exe: Arc<str>,
+    file: Arc<str>,
     folder: Arc<str>,
     first_seen: bool,
     launched: Option<(ProcessInstance, Arc<str>)>,
 }
 
 impl Started {
-    fn has(&self, pick: &Pick) -> bool {
-        match pick {
-            Pick::Exe(exe) => *exe == self.exe,
-            Pick::Folder(folder) => *folder == self.folder,
-            Pick::Launcher(name) => self.launched.as_ref().is_some_and(|(_, launcher)| launcher == name),
-        }
-    }
-
     fn picks(&self) -> Vec<Pick> {
         let mut picks = Vec::new();
-        if !self.exe.is_empty() {
-            picks.push(Pick::Exe(self.exe.clone()));
+        if !self.file.is_empty() {
+            picks.push(Pick::Exe(self.file.clone()));
         }
         if !self.folder.is_empty() {
             picks.push(Pick::Folder(self.folder.clone()));
         }
         if let Some((_, launcher)) = &self.launched {
-            picks.push(Pick::Launcher(launcher.clone()));
+            picks.push(Pick::Under(launcher.clone()));
         }
         picks
     }
@@ -107,6 +99,10 @@ fn admitted(filter: &Filter, has: impl Fn(&Pick) -> bool) -> bool {
     filter.only.as_ref().is_none_or(&has) && !filter.hidden.iter().any(has)
 }
 
+fn group_of(groups: &[Group], has: impl Fn(&Pick) -> bool) -> Option<usize> {
+    groups.iter().position(|group| group.rules.iter().any(&has))
+}
+
 fn name_of(came: &ProcessCame) -> Arc<str> {
     if came.image_path.is_empty() {
         came.command_line.split_whitespace().next().map(file_name).unwrap_or_default().into()
@@ -130,12 +126,13 @@ impl Log {
                     let (exe, folder) = place(&came.image_path);
                     let first_seen = exe.is_empty() || self.seen.insert(folder.clone());
                     self.timeline.insert((came.at, Kind::Came, came.instance));
+                    let name = name_of(came);
                     self.started.insert(
                         came.instance,
                         Started {
-                            name: name_of(came),
+                            file: Arc::from(name.to_lowercase()),
+                            name,
                             came: came.clone(),
-                            exe,
                             folder,
                             first_seen,
                             launched: None,
@@ -216,16 +213,46 @@ impl Log {
         started.name.eq_ignore_ascii_case(Pace::ConsoleHost) && self.named(started.came.parent).is_some()
     }
 
+    fn has(&self, started: &Started, pick: &Pick) -> bool {
+        match pick {
+            Pick::Exe(file) => *file == started.file,
+            Pick::Folder(folder) => *folder == started.folder,
+            Pick::Under(name) => self.under(started.came.parent, name),
+        }
+    }
+
+    fn under(&self, parent: ProcessInstance, wanted: &str) -> bool {
+        let mut next = Some(parent);
+        for _ in 0..Pace::ChainDepth {
+            let Some(at) = next else {
+                return false;
+            };
+            if self.named(at).is_some_and(|name| name.eq_ignore_ascii_case(wanted)) {
+                return true;
+            }
+            next = self.started.get(&at).map(|started| started.came.parent);
+        }
+        false
+    }
+
     fn went_has(&self, went: &ProcessWent, pick: &Pick) -> bool {
         if let Some(started) = self.started.get(&went.instance) {
-            return started.has(pick);
+            return self.has(started, pick);
         }
         let (exe, folder) = place(&went.image_path);
         match pick {
-            Pick::Exe(wanted) => !exe.is_empty() && *wanted == exe,
+            Pick::Exe(wanted) => !exe.is_empty() && **wanted == *file_name(&exe),
             Pick::Folder(wanted) => !folder.is_empty() && *wanted == folder,
-            Pick::Launcher(_) => false,
+            Pick::Under(_) => false,
         }
+    }
+
+    fn came_group(&self, groups: &[Group], started: &Started) -> Option<usize> {
+        group_of(groups, |pick| self.has(started, pick))
+    }
+
+    fn went_group(&self, groups: &[Group], went: &ProcessWent) -> Option<usize> {
+        group_of(groups, |pick| self.went_has(went, pick))
     }
 
     fn began(&self) -> Option<u64> {
@@ -281,6 +308,7 @@ pub struct Ask<'a> {
     pub now: u64,
     pub span: Span,
     pub filter: &'a Filter,
+    pub groups: &'a [Group],
     pub area: Option<Area>,
     pub clock: fn(u64) -> Clock,
 }
@@ -326,48 +354,58 @@ fn went_lived(log: &Log, went: &ProcessWent) -> Lived {
         .map_or(Lived::Unknown, |started| Lived::For(went.at.saturating_sub(started.came.at)))
 }
 
-fn scatter(log: &Log, frame: &Frame, filter: &Filter, clock: fn(u64) -> Clock) -> Scatter {
-    let sieve = Sieve::new(log, filter, None);
+fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatter, Legend) {
+    let log = sieve.log;
+    let mut legend = Legend {
+        groups: vec![0; sieve.groups.len()],
+        other: 0,
+    };
     let mut dots = Vec::new();
     let span = (frame.start, Kind::Came, ProcessInstance::default())..(frame.end, Kind::Came, ProcessInstance::default());
     for (at, kind, instance) in log.timeline.range(span) {
-        match kind {
+        let (graded, lived, faint) = match kind {
             Kind::Came => {
-                let listed = |started: &&Started| {
-                    sieve.admits_came(started) || log.ended.get(instance).is_some_and(|went| sieve.admits_went(went))
+                let Some(started) = log.started.get(instance).filter(|started| !log.hosted(started)) else {
+                    continue;
                 };
-                if let Some(started) = log.started.get(instance).filter(|started| !log.hosted(started)).filter(listed) {
-                    dots.push(Dot {
-                        key: *instance,
-                        at: *at,
-                        lived: came_lived(log, started),
-                        faint: log.routine(started),
-                    });
-                }
+                let graded = sieve
+                    .grade_came(started)
+                    .or_else(|| log.ended.get(instance).and_then(|went| sieve.grade_went(went)));
+                (graded, came_lived(log, started), log.routine(started))
             }
             Kind::Went => {
-                let listed = log
-                    .ended
-                    .get(instance)
-                    .is_some_and(|went| !log.started.contains_key(instance) && sieve.admits_went(went));
-                if listed {
-                    dots.push(Dot {
-                        key: *instance,
-                        at: *at,
-                        lived: Lived::Unknown,
-                        faint: false,
-                    });
+                if log.started.contains_key(instance) {
+                    continue;
                 }
+                let graded = log.ended.get(instance).and_then(|went| sieve.grade_went(went));
+                (graded, Lived::Unknown, false)
             }
+        };
+        let Some(group) = graded else {
+            continue;
+        };
+        match group {
+            Some(group) => legend.groups[group] += 1,
+            None => legend.other += 1,
+        }
+        if sieve.shown(group) {
+            dots.push(Dot {
+                key: *instance,
+                at: *at,
+                lived,
+                faint,
+                hue: sieve.hue(group),
+            });
         }
     }
-    Scatter {
+    let scatter = Scatter {
         dots,
         now: frame.end - 1,
         now_clock: clock(frame.end - 1),
         length: frame.length(),
         area: None,
-    }
+    };
+    (scatter, legend)
 }
 
 fn exit_of(went: &ProcessWent, since: Option<u64>, clock: fn(u64) -> Clock) -> Exit {
@@ -382,7 +420,11 @@ fn exit_of(went: &ProcessWent, since: Option<u64>, clock: fn(u64) -> Clock) -> E
     }
 }
 
-fn came_of(log: &Log, started: &Started, clock: fn(u64) -> Clock) -> (Came, Option<ProcessInstance>) {
+fn hue_of(groups: &[Group], group: Option<usize>) -> Option<Hue> {
+    group.map(|group| groups[group].hue)
+}
+
+fn came_of(log: &Log, groups: &[Group], started: &Started, clock: fn(u64) -> Clock) -> (Came, Option<ProcessInstance>) {
     let came = &started.came;
     let (chain, launched_by) = log.lineage(started);
     let by_parent = launched_by == Some(came.parent) && !came.parent_services.is_empty();
@@ -411,6 +453,7 @@ fn came_of(log: &Log, started: &Started, clock: fn(u64) -> Clock) -> (Came, Opti
             .get(&came.instance)
             .map(|went| exit_of(went, Some(came.at), clock)),
         picks: started.picks(),
+        hue: hue_of(groups, log.came_group(groups, started)),
     };
     (row, launched_by)
 }
@@ -424,7 +467,7 @@ fn went_name(log: &Log, went: &ProcessWent) -> Option<Arc<str>> {
         .or_else(|| log.named(went.instance))
 }
 
-fn went_of(log: &Log, went: &ProcessWent, clock: fn(u64) -> Clock) -> Went {
+fn went_of(log: &Log, groups: &[Group], went: &ProcessWent, clock: fn(u64) -> Clock) -> Went {
     let started = log
         .started
         .get(&went.instance)
@@ -441,6 +484,7 @@ fn went_of(log: &Log, went: &ProcessWent, clock: fn(u64) -> Clock) -> Went {
         name: went_name(log, went),
         lived: started.map(|start| went.at - start),
         exit: exit_of(went, started, clock),
+        hue: hue_of(groups, log.went_group(groups, went)),
     }
 }
 
@@ -459,7 +503,12 @@ impl Light {
     }
 }
 
-fn series_of(members: &[(u64, ProcessInstance)], log: &Log, clock: fn(u64) -> Clock) -> Option<Series> {
+fn series_of(
+    members: &[(u64, ProcessInstance)],
+    log: &Log,
+    groups: &[Group],
+    clock: fn(u64) -> Clock,
+) -> Option<Series> {
     let (at, newest) = members.first()?;
     let newest = log.started.get(newest)?;
     let (launcher, launcher_key) = newest.launched.clone()?;
@@ -471,11 +520,11 @@ fn series_of(members: &[(u64, ProcessInstance)], log: &Log, clock: fn(u64) -> Cl
     let mut names: Vec<_> = names.into_iter().collect();
     names.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     let mut picks = Vec::new();
-    if started.iter().all(|member| member.exe == newest.exe) {
-        picks.push(Pick::Exe(newest.exe.clone()));
+    if started.iter().all(|member| member.file == newest.file) {
+        picks.push(Pick::Exe(newest.file.clone()));
     }
     picks.push(Pick::Folder(newest.folder.clone()));
-    picks.push(Pick::Launcher(launcher_key));
+    picks.push(Pick::Under(launcher_key));
     Some(Series {
         key: members.last()?.1,
         at: clock(*at),
@@ -488,24 +537,27 @@ fn series_of(members: &[(u64, ProcessInstance)], log: &Log, clock: fn(u64) -> Cl
         members: started
             .iter()
             .take(Pace::Shown)
-            .map(|member| Rc::new(came_of(log, member, clock).0))
+            .map(|member| Rc::new(came_of(log, groups, member, clock).0))
             .collect(),
         picks,
+        hue: hue_of(groups, log.came_group(groups, newest)),
     })
 }
 
 struct Sieve<'a> {
     log: &'a Log,
     filter: &'a Filter,
+    groups: &'a [Group],
     text: String,
     band: Option<(Lived, Lived)>,
 }
 
 impl<'a> Sieve<'a> {
-    fn new(log: &'a Log, filter: &'a Filter, area: Option<Area>) -> Self {
+    fn new(log: &'a Log, filter: &'a Filter, groups: &'a [Group], area: Option<Area>) -> Self {
         Self {
             log,
             filter,
+            groups,
             text: filter.text.trim().to_lowercase(),
             band: area.map(|area| (area.shortest, area.longest)),
         }
@@ -515,24 +567,42 @@ impl<'a> Sieve<'a> {
         self.band.is_none_or(|(shortest, longest)| (shortest..=longest).contains(&lived))
     }
 
-    fn admits_came(&self, started: &Started) -> bool {
-        self.filter.came
+    fn shown(&self, group: Option<usize>) -> bool {
+        group.map_or(self.filter.other, |group| self.groups[group].shown)
+    }
+
+    fn grade_came(&self, started: &Started) -> Option<Option<usize>> {
+        let passes = self.filter.came
             && (!self.filter.new_only || started.first_seen)
             && !self.log.hosted(started)
             && self.held(came_lived(self.log, started))
-            && admitted(self.filter, |pick| started.has(pick))
+            && admitted(self.filter, |pick| self.log.has(started, pick))
             && [&*started.name, &*started.came.command_line, &*started.came.image_path]
                 .iter()
-                .any(|field| contains(field, &self.text))
+                .any(|field| contains(field, &self.text));
+        passes.then(|| self.log.came_group(self.groups, started))
     }
 
-    fn admits_went(&self, went: &ProcessWent) -> bool {
-        self.filter.went
+    fn grade_went(&self, went: &ProcessWent) -> Option<Option<usize>> {
+        let passes = self.filter.went
             && !self.filter.new_only
             && !self.log.started.get(&went.instance).is_some_and(|started| self.log.hosted(started))
             && self.held(went_lived(self.log, went))
             && admitted(self.filter, |pick| self.log.went_has(went, pick))
-            && contains(went_name(self.log, went).as_deref().unwrap_or_default(), &self.text)
+            && contains(went_name(self.log, went).as_deref().unwrap_or_default(), &self.text);
+        passes.then(|| self.log.went_group(self.groups, went))
+    }
+
+    fn admits_came(&self, started: &Started) -> bool {
+        self.grade_came(started).is_some_and(|group| self.shown(group))
+    }
+
+    fn admits_went(&self, went: &ProcessWent) -> bool {
+        self.grade_went(went).is_some_and(|group| self.shown(group))
+    }
+
+    fn hue(&self, group: Option<usize>) -> Option<Hue> {
+        hue_of(self.groups, group)
     }
 }
 
@@ -594,29 +664,32 @@ fn contains(field: &str, text: &str) -> bool {
     text.is_empty() || field.to_lowercase().contains(text)
 }
 
-fn row_of(log: &Log, row: Light, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
+fn row_of(log: &Log, groups: &[Group], row: Light, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
     Some(match row {
-        Light::Came(instance) => ActivityRow::Came(Rc::new(came_of(log, log.started.get(&instance)?, clock).0)),
-        Light::Went(instance) => ActivityRow::Went(Rc::new(went_of(log, log.ended.get(&instance)?, clock))),
-        Light::Series(members) => ActivityRow::Series(Rc::new(series_of(&members, log, clock)?)),
+        Light::Came(instance) => {
+            ActivityRow::Came(Rc::new(came_of(log, groups, log.started.get(&instance)?, clock).0))
+        }
+        Light::Went(instance) => ActivityRow::Went(Rc::new(went_of(log, groups, log.ended.get(&instance)?, clock))),
+        Light::Series(members) => ActivityRow::Series(Rc::new(series_of(&members, log, groups, clock)?)),
     })
 }
 
-pub fn row(log: &Log, key: ProcessInstance, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
+pub fn row(log: &Log, groups: &[Group], key: ProcessInstance, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
     let light = if log.started.contains_key(&key) {
         Light::Came(key)
     } else {
         Light::Went(key)
     };
-    row_of(log, light, clock)
+    row_of(log, groups, light, clock)
 }
 
 pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     let clock = ask.clock;
     let frame = Frame::of(log, ask.now, ask.span);
+    let (scatter, legend) = scatter(&Sieve::new(log, ask.filter, ask.groups, None), &frame, clock);
     let scatter = Scatter {
         area: ask.area,
-        ..scatter(log, &frame, ask.filter, clock)
+        ..scatter
     };
 
     let (from, to) = ask
@@ -634,7 +707,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     }
 
     let mut walk = Walk {
-        sieve: Sieve::new(log, ask.filter, ask.area),
+        sieve: Sieve::new(log, ask.filter, ask.groups, ask.area),
         rows: Vec::new(),
         series: HashMap::new(),
     };
@@ -657,7 +730,10 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
 
     ActivityView {
         scatter: Rc::new(scatter),
-        rows: rows.into_iter().filter_map(|(_, row)| row_of(log, row, clock)).collect(),
+        rows: rows
+            .into_iter()
+            .filter_map(|(_, row)| row_of(log, ask.groups, row, clock))
+            .collect(),
         earlier,
         came: came_count,
         went: went_count,
@@ -665,6 +741,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
         to: clock(to),
         history_since: log.since.map(clock),
         lost: log.lost,
+        legend,
     }
 }
 
@@ -672,7 +749,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
 mod tests {
     use std::sync::Arc;
 
-    use app_contracts::features::activity::{ActivityRow, Launcher};
+    use app_contracts::features::activity::{ActivityRow, Hue, Launcher};
     use app_contracts::features::agents::{ProcessCame, ProcessInstance, ProcessWent, ScheduledTask};
 
     use super::*;
@@ -731,16 +808,176 @@ mod tests {
     }
 
     fn look(log: &Log, filter: &Filter, area: Option<Area>) -> ActivityView {
+        seen(log, filter, &[], area)
+    }
+
+    fn seen(log: &Log, filter: &Filter, groups: &[Group], area: Option<Area>) -> ActivityView {
         view(
             log,
             &Ask {
                 now: at(59, 59),
                 span: Span::Hour,
                 filter,
+                groups,
                 area,
                 clock: utc,
             },
         )
+    }
+
+    fn group(id: &str, hue: Hue, rules: Vec<Pick>) -> Group {
+        Group {
+            id: id.into(),
+            name: id.into(),
+            hue,
+            rules,
+            shown: true,
+        }
+    }
+
+    fn hues(view: &ActivityView) -> Vec<(String, Option<Hue>)> {
+        let mut hues: Vec<(String, Option<Hue>)> = view
+            .rows
+            .iter()
+            .map(|row| match row {
+                ActivityRow::Came(came) => (came.name.to_string(), came.hue),
+                other => panic!("a came row, got {other:?}"),
+            })
+            .collect();
+        hues.sort();
+        hues
+    }
+
+    fn dot_hues(view: &ActivityView) -> Vec<(u32, Option<Hue>)> {
+        let mut hues: Vec<(u32, Option<Hue>)> = view.scatter.dots.iter().map(|dot| (dot.key.pid, dot.hue)).collect();
+        hues.sort();
+        hues
+    }
+
+    fn singles() -> Filter {
+        Filter {
+            series: false,
+            ..Filter::default()
+        }
+    }
+
+    #[test]
+    fn a_process_takes_the_hue_of_the_first_group_it_falls_in_on_the_list_and_the_chart() {
+        let mut log = Log::default();
+        log.record(&[
+            came_at(20, 1, r"C:\Bin\git.exe", at(10, 0)),
+            came_at(21, 1, r"C:\Bin\other.exe", at(11, 0)),
+            came_at(22, 1, r"D:\Tools\Git.exe", at(12, 0)),
+            came_at(23, 1, r"C:\Else\else.exe", at(13, 0)),
+        ]);
+        let groups = [
+            group("tooling", Hue::Purple, vec![Pick::Exe("git.exe".into())]),
+            group("bin", Hue::Teal, vec![Pick::Folder(r"c:\bin".into())]),
+        ];
+
+        let view = seen(&log, &singles(), &groups, None);
+
+        assert_eq!(
+            hues(&view),
+            [
+                ("Git.exe".into(), Some(Hue::Purple)),
+                ("else.exe".into(), None),
+                ("git.exe".into(), Some(Hue::Purple)),
+                ("other.exe".into(), Some(Hue::Teal)),
+            ]
+        );
+        assert_eq!(
+            dot_hues(&view),
+            [(20, Some(Hue::Purple)), (21, Some(Hue::Teal)), (22, Some(Hue::Purple)), (23, None)]
+        );
+    }
+
+    #[test]
+    fn everything_under_a_program_is_in_its_group_however_deep_but_not_the_program() {
+        let mut log = Log::default();
+        log.record(&[
+            came_at(4, 1, r"C:\Tools\claude.exe", at(5, 0)),
+            came_at(20, 4, r"C:\Git\bin\bash.exe", at(10, 0)),
+            came_at(21, 20, r"C:\Rust\cargo.exe", at(11, 0)),
+            came_at(22, 21, r"C:\Rust\rustc.exe", at(12, 0)),
+            came_at(30, 1, r"C:\Rust\rustc.exe", at(13, 0)),
+        ]);
+        let groups = [group("tooling", Hue::Purple, vec![Pick::Under("claude.exe".into())])];
+
+        let view = seen(&log, &singles(), &groups, None);
+
+        assert_eq!(
+            dot_hues(&view),
+            [
+                (4, None),
+                (20, Some(Hue::Purple)),
+                (21, Some(Hue::Purple)),
+                (22, Some(Hue::Purple)),
+                (30, None),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_hidden_group_leaves_the_list_and_the_chart_and_the_legend_still_counts_it() {
+        let mut log = Log::default();
+        log.record(&[
+            came_at(20, 1, r"C:\Windows\System32\taskhostw.exe", at(10, 0)),
+            came_at(21, 1, r"C:\Windows\System32\taskhostw.exe", at(11, 0)),
+            came_at(22, 1, r"C:\Apps\app.exe", at(12, 0)),
+        ]);
+        let groups = [Group {
+            shown: false,
+            ..Group::windows_background()
+        }];
+
+        let view = seen(&log, &singles(), &groups, None);
+
+        assert_eq!(hues(&view), [("app.exe".into(), None)]);
+        assert_eq!(dot_hues(&view), [(22, None)]);
+        assert_eq!(
+            view.legend,
+            Legend {
+                groups: vec![2],
+                other: 1
+            }
+        );
+    }
+
+    #[test]
+    fn with_the_rest_hidden_only_grouped_processes_are_left() {
+        let mut log = Log::default();
+        log.record(&[
+            came_at(20, 1, r"C:\Windows\System32\taskhostw.exe", at(10, 0)),
+            came_at(22, 1, r"C:\Apps\app.exe", at(12, 0)),
+        ]);
+        let filter = Filter {
+            other: false,
+            ..singles()
+        };
+
+        let view = seen(&log, &filter, &[Group::windows_background()], None);
+
+        assert_eq!(hues(&view), [("taskhostw.exe".into(), Some(Hue::Teal))]);
+        assert_eq!(dot_hues(&view), [(20, Some(Hue::Teal))]);
+    }
+
+    #[test]
+    fn a_program_is_hidden_by_its_name_wherever_it_lives_and_what_runs_under_it_too() {
+        let mut log = Log::default();
+        log.record(&[
+            came_at(20, 1, r"C:\Rust\1.80\rustc.exe", at(10, 0)),
+            came_at(21, 1, r"C:\Rust\1.81\rustc.exe", at(11, 0)),
+            came_at(4, 1, r"C:\Tools\claude.exe", at(12, 0)),
+            came_at(30, 4, r"C:\Git\bin\bash.exe", at(13, 0)),
+            came_at(31, 30, r"C:\Git\bin\git.exe", at(14, 0)),
+        ]);
+        let filter = Filter {
+            hidden: vec![Pick::Exe("rustc.exe".into()), Pick::Under("claude.exe".into())],
+            ..singles()
+        };
+
+        assert_eq!(hues(&look(&log, &filter, None)), [("claude.exe".into(), None)]);
     }
 
     fn rows(log: &Log) -> Vec<ActivityRow> {
@@ -780,6 +1017,7 @@ mod tests {
                     now,
                     span,
                     filter: &filter,
+                    groups: &[],
                     area: None,
                     clock: utc,
                 },
@@ -1089,7 +1327,7 @@ mod tests {
     fn only_one_exe_or_hiding_a_folder_narrows_the_list_and_fades_the_rest() {
         let mut log = Log::default();
         log.record(&[came_at(20, 1, r"C:\A\a.exe", at(10, 0)), came_at(21, 1, r"C:\B\b.exe", at(11, 0))]);
-        let a = Pick::Exe(r"c:\a\a.exe".into());
+        let a = Pick::Exe("a.exe".into());
 
         let rows = rows(&log);
         let picks = &only_came(&rows[1]).picks;
@@ -1139,7 +1377,7 @@ mod tests {
         );
         assert_eq!(
             drawn_with(Filter {
-                only: Some(Pick::Exe(r"c:\a\a.exe".into())),
+                only: Some(Pick::Exe("a.exe".into())),
                 ..Filter::default()
             }),
             [20]
@@ -1299,15 +1537,15 @@ mod tests {
         let mut log = Log::default();
         log.record(&[came(20, 1, "tool.exe", at(10, 0)), went(20, at(10, 2)), went(30, at(20, 0))]);
 
-        match row(&log, id(20), utc) {
+        match row(&log, &[], id(20), utc) {
             Some(ActivityRow::Came(came)) => {
                 assert_eq!(&*came.name, "tool.exe");
                 assert!(came.exit.is_some(), "{came:#?}");
             }
             other => panic!("a came row: {other:#?}"),
         }
-        assert!(matches!(row(&log, id(30), utc), Some(ActivityRow::Went(_))));
-        assert_eq!(row(&log, id(99), utc), None);
+        assert!(matches!(row(&log, &[], id(30), utc), Some(ActivityRow::Went(_))));
+        assert_eq!(row(&log, &[], id(99), utc), None);
     }
 
     #[test]

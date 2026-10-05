@@ -152,6 +152,7 @@ mod tests {
             at: NOW - HOUR / 2,
             lived,
             faint,
+            hue: None,
         }
     }
 

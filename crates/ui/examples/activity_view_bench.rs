@@ -3,7 +3,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use app_contracts::features::activity::{
-    ActivityRow, ActivityState, ActivityView, Came, Clock, Dot, Exit, Launcher, Lived, Pick, Scatter, Series, Went,
+    ActivityRow, ActivityState, ActivityView, Came, Clock, Dot, Exit, Hue, Launcher, Legend, Lived, Pick, Scatter,
+    Series, Went,
 };
 use app_contracts::features::agents::ProcessInstance;
 use guinea::prelude::{Dispatch, Load};
@@ -65,6 +66,7 @@ fn came(index: usize) -> Came {
         first_seen: index.is_multiple_of(9),
         exit: index.is_multiple_of(2).then(|| exit(index)),
         picks: vec![Pick::Exe(name), Pick::Folder(r"c:\program files\tool".into())],
+        hue: index.is_multiple_of(4).then_some(Hue::Purple),
     }
 }
 
@@ -80,13 +82,15 @@ fn row(index: usize) -> ActivityRow {
             went: 5,
             routine: false,
             members: (0..6).map(|member| Rc::new(came(index * 10 + member))).collect(),
-            picks: vec![Pick::Launcher("cargo.exe".into())],
+            picks: vec![Pick::Under("cargo.exe".into())],
+            hue: Some(Hue::Purple),
         })),
         1 | 2 => ActivityRow::Went(Rc::new(Went {
             key: instance(index),
             name: Some(format!("gone-{index}.exe").into()),
             lived: Some(5_000),
             exit: exit(index),
+            hue: None,
         })),
         _ => ActivityRow::Came(Rc::new(came(index))),
     }
@@ -105,6 +109,7 @@ fn state(dots: usize, rows: usize) -> ActivityState {
                     _ => Lived::For(1 + (index as u64 * 7_919) % 36_000),
                 },
                 faint: index % 4 == 0,
+                hue: [None, Some(Hue::Teal), Some(Hue::Purple)][index % 3],
             })
             .collect(),
         now,
@@ -123,6 +128,7 @@ fn state(dots: usize, rows: usize) -> ActivityState {
             to: clock(3_599),
             history_since: None,
             lost: 0,
+            legend: Legend::default(),
         })),
         ..ActivityState::default()
     }

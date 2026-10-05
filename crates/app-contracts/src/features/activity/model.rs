@@ -29,15 +29,15 @@ ids! {
 pub enum Pick {
     Exe(Arc<str>),
     Folder(Arc<str>),
-    Launcher(Arc<str>),
+    Under(Arc<str>),
 }
 
 impl Pick {
     pub fn id(&self) -> String {
         match self {
-            Self::Exe(path) => format!("exe:{path}"),
+            Self::Exe(name) => format!("exe:{name}"),
             Self::Folder(path) => format!("folder:{path}"),
-            Self::Launcher(name) => format!("launcher:{name}"),
+            Self::Under(name) => format!("under:{name}"),
         }
     }
 
@@ -46,9 +46,49 @@ impl Pick {
         match kind {
             "exe" => Some(Self::Exe(value.into())),
             "folder" => Some(Self::Folder(value.into())),
-            "launcher" => Some(Self::Launcher(value.into())),
+            "under" => Some(Self::Under(value.into())),
             _ => None,
         }
+    }
+}
+
+ids! {
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default, Hash, serde::Deserialize)]
+    pub enum Hue {
+        #[default]
+        Teal => "teal",
+        Purple => "purple",
+        Coral => "coral",
+        Pink => "pink",
+        Blue => "blue",
+        Amber => "amber",
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Group {
+    pub id: String,
+    pub name: String,
+    pub hue: Hue,
+    pub rules: Vec<Pick>,
+    pub shown: bool,
+}
+
+impl Group {
+    pub const WINDOWS_BACKGROUND: &str = "windows-background";
+
+    pub fn windows_background() -> Self {
+        Self {
+            id: Self::WINDOWS_BACKGROUND.into(),
+            name: String::new(),
+            hue: Hue::Teal,
+            rules: vec![Pick::Exe("taskhostw.exe".into())],
+            shown: true,
+        }
+    }
+
+    pub fn is_built_in(&self) -> bool {
+        self.id == Self::WINDOWS_BACKGROUND
     }
 }
 
@@ -61,6 +101,7 @@ pub struct Filter {
     pub text: String,
     pub only: Option<Pick>,
     pub hidden: Vec<Pick>,
+    pub other: bool,
 }
 
 impl Default for Filter {
@@ -73,6 +114,7 @@ impl Default for Filter {
             text: String::new(),
             only: None,
             hidden: Vec::new(),
+            other: true,
         }
     }
 }
@@ -99,6 +141,7 @@ pub struct Dot {
     pub at: u64,
     pub lived: Lived,
     pub faint: bool,
+    pub hue: Option<Hue>,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -146,6 +189,7 @@ pub struct Came {
     pub first_seen: bool,
     pub exit: Option<Exit>,
     pub picks: Vec<Pick>,
+    pub hue: Option<Hue>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -154,6 +198,7 @@ pub struct Went {
     pub name: Option<Arc<str>>,
     pub lived: Option<u64>,
     pub exit: Exit,
+    pub hue: Option<Hue>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -168,6 +213,7 @@ pub struct Series {
     pub routine: bool,
     pub members: Vec<Rc<Came>>,
     pub picks: Vec<Pick>,
+    pub hue: Option<Hue>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -193,6 +239,20 @@ impl ActivityRow {
             Self::Series(series) => &series.picks,
         }
     }
+
+    pub fn hue(&self) -> Option<Hue> {
+        match self {
+            Self::Came(came) => came.hue,
+            Self::Went(went) => went.hue,
+            Self::Series(series) => series.hue,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+pub struct Legend {
+    pub groups: Vec<usize>,
+    pub other: usize,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -206,4 +266,5 @@ pub struct ActivityView {
     pub to: Clock,
     pub history_since: Option<Clock>,
     pub lost: u64,
+    pub legend: Legend,
 }

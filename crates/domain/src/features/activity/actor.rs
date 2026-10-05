@@ -60,6 +60,7 @@ impl ActivityActor {
                 now: (self.deps.now)(),
                 span: self.span,
                 filter: &self.filter,
+                groups: &[],
                 area: self.area,
                 clock: self.deps.clock,
             },
@@ -188,6 +189,6 @@ fn clear_area(this: &mut ActivityActor, _msg: ClearArea) {
 
 #[handler]
 fn hover(this: &mut ActivityActor, Hover(key): Hover) {
-    let hovered = key.and_then(|key| row(&this.log, key, this.deps.clock));
+    let hovered = key.and_then(|key| row(&this.log, &[], key, this.deps.clock));
     this.push.send(ActivityMsg::Hovered(hovered));
 }
