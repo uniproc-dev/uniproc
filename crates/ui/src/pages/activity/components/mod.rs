@@ -1,6 +1,8 @@
 pub mod card;
 pub mod facts;
+pub mod groups;
 pub mod lasted;
+pub mod legend;
 pub mod lifetimes;
 pub mod picks;
 pub mod rows;

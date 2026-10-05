@@ -3,9 +3,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityRow, ActivityState, ActivityView, ClearArea, Filter, Hide, Hover, NewOnly, Only, Pick, PickArea, Search,
-    ShowCame, ShowSeries,
-    ShowSpan, ShowWent, Span, Unhide,
+    ActivityRow, ActivityState, ActivityView, ClearArea, Filter, Group, Hide, Hover, NewGroup, NewOnly, Only, Pick,
+    PickArea, PutInGroup, Search, ShowCame, ShowSeries, ShowSpan, ShowWent, Span, Unhide,
 };
 use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
@@ -20,6 +19,7 @@ use windows_reactor::{
 };
 
 use super::components::card::card;
+use super::components::legend::legend;
 use super::components::lifetimes::{acts, options, series, Act};
 use super::components::picks::{pick_lines, picked, PickCommand};
 use super::components::rows::{rows, Rows};
@@ -115,6 +115,8 @@ impl ActivityPage {
                 match command {
                     PickCommand::Only(pick) => dispatch.emit(Only(Some(pick))),
                     PickCommand::Hide(pick) => dispatch.emit(Hide(pick)),
+                    PickCommand::Put { group, rule } => dispatch.emit(PutInGroup { group, rule }),
+                    PickCommand::New(rule) => dispatch.emit(NewGroup(rule)),
                 }
             }
             ActivityPageMsg::MenuAnchor { x, y } => self.anchor = Some((x, y)),
@@ -128,13 +130,14 @@ impl ActivityPage {
     fn row_menu(
         &self,
         rows: &[ActivityRow],
+        groups: &[Group],
         l10n: &L10n,
         palette: Palette,
         forward: &Callback<ActivityPageMsg>,
     ) -> Option<View> {
         let menu = self.menu.as_ref()?;
         let row = rows.iter().find(|row| row.key() == menu.row)?;
-        let lines = pick_lines(row.picks(), l10n);
+        let lines = pick_lines(row.picks(), groups, l10n, palette);
         if lines.is_empty() {
             return None;
         }
@@ -298,7 +301,7 @@ impl ActivityPage {
                 .margin(Thickness::uniform(space::Section))
                 .into()
         } else {
-            let menu = self.row_menu(&placed, l10n, palette, &forward);
+            let menu = self.row_menu(&placed, &state.groups, l10n, palette, &forward);
             let (pressed, anchored) = (forward.clone(), forward);
             let scroller = ScrollViewer::new()
                 .horizontal_scroll_bar_visibility(ScrollBarVisibility::Disabled)
@@ -328,25 +331,35 @@ impl ActivityPage {
             Grid::new().children(layers).into()
         };
 
-        let plot_margin = Thickness::new(space::Cell, space::Card, space::Cell, 0.0);
+        let plot_margin = Thickness::new(space::Cell, space::Compact, space::Cell, 0.0);
         let mut layers: Vec<View> = vec![
             Border::new()
                 .grid_row(0)
+                .content(legend(&state.groups, &state.filter, &view.legend, dispatch, l10n, palette))
+                .into(),
+            Border::new()
+                .grid_row(1)
                 .margin(plot_margin)
                 .content(self.chart(view, dispatch, l10n, palette))
                 .into(),
             Border::new()
-                .grid_row(1)
+                .grid_row(2)
                 .content(Self::range_bar(view, state, dispatch, l10n, palette))
                 .into(),
-            Border::new().grid_row(2).content(chips.unwrap_or_else(nothing)).into(),
-            Border::new().grid_row(3).content(list).into(),
+            Border::new().grid_row(3).content(chips.unwrap_or_else(nothing)).into(),
+            Border::new().grid_row(4).content(list).into(),
         ];
         if let Some(card) = self.hover_card(state, l10n, palette) {
-            layers.push(Border::new().grid_row(0).margin(plot_margin).content(card).into());
+            layers.push(Border::new().grid_row(1).margin(plot_margin).content(card).into());
         }
         let body = Grid::new()
-            .rows([GridLength::Auto, GridLength::Auto, GridLength::Auto, GridLength::Star(1.0)])
+            .rows([
+                GridLength::Auto,
+                GridLength::Auto,
+                GridLength::Auto,
+                GridLength::Auto,
+                GridLength::Star(1.0),
+            ])
             .children(layers);
 
         let (from, to) = (format::clock(view.from), format::clock(view.to));

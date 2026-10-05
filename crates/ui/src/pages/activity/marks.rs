@@ -19,6 +19,11 @@ pub enum ActivityMark {
     Menu,
     RowMenu,
     RowMenuBackdrop,
+    LegendGroup,
+    LegendOther,
+    Stripe,
+    PutIn,
+    NewGroup,
     Facts,
     Empty,
 }

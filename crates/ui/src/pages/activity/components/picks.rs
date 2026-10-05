@@ -1,10 +1,11 @@
-use app_contracts::features::activity::{Filter, Pick};
+use app_contracts::features::activity::{Filter, Group, Pick};
 use guicons::icon;
 use windows_reactor::{keyed, Callback, KeyedView, Orientation, StackPanel, Thickness, View};
 
 use super::super::marks::ActivityMark;
+use super::groups::{group_label, swatch};
 use crate::l10n::L10n;
-use crate::theme::{size, space};
+use crate::theme::{size, space, Palette};
 use crate::widgets::button::command_button;
 use crate::widgets::popup_menu::MenuLine;
 
@@ -28,9 +29,64 @@ fn row(children: Vec<KeyedView>, margin: Thickness) -> View {
 pub enum PickCommand {
     Only(Pick),
     Hide(Pick),
+    Put { group: String, rule: Pick },
+    New(Pick),
 }
 
-pub fn pick_lines(picks: &[Pick], l10n: &L10n) -> Vec<MenuLine<ActivityMark, PickCommand>> {
+fn group_lines(
+    heading: String,
+    rule: &Pick,
+    groups: &[Group],
+    l10n: &L10n,
+    palette: Palette,
+) -> Vec<MenuLine<ActivityMark, PickCommand>> {
+    let mut lines = vec![MenuLine::Separator, MenuLine::Caption(heading)];
+    for group in groups {
+        lines.push(MenuLine::entry(
+            ActivityMark::PutIn,
+            swatch(palette.hue(group.hue), true),
+            group_label(group, l10n),
+            PickCommand::Put {
+                group: group.id.clone(),
+                rule: rule.clone(),
+            },
+        ));
+    }
+    lines.push(MenuLine::entry(
+        ActivityMark::NewGroup,
+        icon!(plus).size(size::Icon).build_element(),
+        l10n.activity_pick_new_group(),
+        PickCommand::New(rule.clone()),
+    ));
+    lines
+}
+
+pub fn pick_lines(
+    picks: &[Pick],
+    groups: &[Group],
+    l10n: &L10n,
+    palette: Palette,
+) -> Vec<MenuLine<ActivityMark, PickCommand>> {
+    let mut lines = hide_lines(picks, l10n);
+    for pick in picks {
+        match pick {
+            Pick::Exe(name) => {
+                lines.extend(group_lines(l10n.activity_pick_put_exe(name.to_string()), pick, groups, l10n, palette))
+            }
+            Pick::Under(name) => lines.extend(group_lines(
+                l10n.activity_pick_put_under(name.to_string()),
+                pick,
+                groups,
+                l10n,
+                palette,
+            )),
+            Pick::Folder(_) => {}
+        }
+    }
+    lines
+}
+
+fn hide_lines(picks: &[Pick], l10n: &L10n) -> Vec<MenuLine<ActivityMark, PickCommand>> {
     let hide = || icon!(eye_off).size(size::Icon).build_element();
     let mut lines = Vec::new();
     for pick in picks {

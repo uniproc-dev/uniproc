@@ -657,6 +657,69 @@ mod tests {
         assert_eq!(remembered_groups(&stored(h)), [Group::windows_background()]);
     }
 
+    fn marked(node: &Node, mark: &str) -> usize {
+        usize::from(node.id.as_deref() == Some(mark)) + node.children.iter().map(|child| marked(child, mark)).sum::<usize>()
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn the_legend_switches_a_group_and_the_rest_off_and_on(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = tool_and_taskhost(h);
+        page.settle();
+        assert!(page.find(ActivityMark::LegendGroup).is_some(), "{:#?}", page.tree());
+        assert!(page.find(ActivityMark::LegendOther).is_some(), "{:#?}", page.tree());
+
+        page.click(ActivityMark::LegendGroup).settle();
+        page.settle();
+        assert!(!h.state::<ActivityState>().groups[0].shown);
+        page.click(ActivityMark::LegendGroup).settle();
+        page.settle();
+        assert!(h.state::<ActivityState>().groups[0].shown);
+
+        page.click(ActivityMark::LegendOther).settle();
+        page.settle();
+        assert!(!h.state::<ActivityState>().filter.other);
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_row_in_a_group_has_a_stripe_and_one_in_none_has_not(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = tool_and_taskhost(h);
+        page.settle();
+
+        let tree = page.tree();
+        assert_eq!(rows(&tree), 2, "{tree:#?}");
+        assert_eq!(marked(&tree, "Stripe"), 1, "{tree:#?}");
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn the_row_menu_puts_a_program_in_a_new_group_and_back_in_one_there_is(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = tool_and_taskhost(h);
+        page.settle();
+        let taskhost = Pick::Exe("taskhostw.exe".into());
+
+        right_click(&mut page);
+        assert!(page.find(ActivityMark::NewGroup).is_some(), "{:#?}", page.tree());
+        page.click(ActivityMark::NewGroup).settle();
+        page.settle();
+        let groups = h.state::<ActivityState>().groups.clone();
+        assert_eq!(groups.len(), 2, "{groups:#?}");
+        assert_eq!(groups[1].rules, std::slice::from_ref(&taskhost), "{groups:#?}");
+        assert!(!menu_open(&page), "a command closes the menu");
+
+        right_click(&mut page);
+        assert!(page.find(ActivityMark::PutIn).is_some(), "{:#?}", page.tree());
+        page.click(ActivityMark::PutIn).settle();
+        page.settle();
+        let groups = h.state::<ActivityState>().groups.clone();
+        assert_eq!(groups[0].rules, std::slice::from_ref(&taskhost), "{groups:#?}");
+        assert!(groups[1].rules.is_empty(), "{groups:#?}");
+    }
+
     #[guinea::test(iterations = 4)]
     fn hiding_exits_from_the_menu_leaves_nothing_when_only_exits_happened(h: &mut Harness) {
         start(h);

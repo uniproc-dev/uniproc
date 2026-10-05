@@ -1,3 +1,4 @@
+use app_contracts::features::activity::Hue;
 use windows_canvas::ColorF;
 use windows_core::Interface;
 use windows_reactor::{Color, ColorScheme};
@@ -30,6 +31,7 @@ pub struct Palette {
     pub share_services: Color,
     pub share_kernel: Color,
     pub share_wsl: Color,
+    pub hues: [Color; 6],
 }
 
 impl Palette {
@@ -60,6 +62,14 @@ impl Palette {
                 share_services: Color::argb(255, 0xB4, 0xA0, 0xFF),
                 share_kernel: Color::argb(255, 0x9E, 0x9E, 0x9E),
                 share_wsl: Color::argb(255, 0xFF, 0x9A, 0x5C),
+                hues: [
+                    Color::argb(255, 0x40, 0xC8, 0xBE),
+                    Color::argb(255, 0xB4, 0xA0, 0xFF),
+                    Color::argb(255, 0xFF, 0x9A, 0x7A),
+                    Color::argb(255, 0xF4, 0x8F, 0xC0),
+                    Color::argb(255, 0x4C, 0xC2, 0xFF),
+                    Color::argb(255, 0xF2, 0xC1, 0x4E),
+                ],
             },
             ColorScheme::Light => Self {
                 heat_muted: Color::argb(255, 110, 110, 110),
@@ -86,8 +96,22 @@ impl Palette {
                 share_services: Color::argb(255, 0x6B, 0x4F, 0xBB),
                 share_kernel: Color::argb(255, 0x6E, 0x6E, 0x6E),
                 share_wsl: Color::argb(255, 0xC2, 0x4E, 0x00),
+                hues: [
+                    Color::argb(255, 0x00, 0x7C, 0x77),
+                    Color::argb(255, 0x6B, 0x4F, 0xBB),
+                    Color::argb(255, 0xC2, 0x4E, 0x2A),
+                    Color::argb(255, 0xB0, 0x2E, 0x7A),
+                    Color::argb(255, 0x00, 0x5F, 0xB8),
+                    Color::argb(255, 0x9D, 0x5D, 0x00),
+                ],
             },
         }
+    }
+}
+
+impl Palette {
+    pub fn hue(self, hue: Hue) -> Color {
+        self.hues[Hue::ALL.iter().position(|known| *known == hue).unwrap_or_default()]
     }
 }
 

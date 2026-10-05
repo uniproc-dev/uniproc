@@ -6,8 +6,9 @@ use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    keyed, Border, Callback, Color, Component, ComponentContext, Grid, GridLength, KeyedView, Orientation,
-    PointerEventInfo, StackPanel, TextTrimming, TextWrapping, Thickness, VerticalAlignment, View, ViewContext,
+    keyed, Border, Callback, Color, Component, ComponentContext, CornerRadius, Grid, GridLength, HorizontalAlignment,
+    KeyedView, Orientation, PointerEventInfo, StackPanel, TextTrimming, TextWrapping, Thickness, VerticalAlignment, View,
+    ViewContext,
 };
 
 use super::super::marks::ActivityMark;
@@ -24,6 +25,7 @@ struct Line;
 impl Line {
     const Icon: f64 = 20.0;
     const Indent: f64 = 80.0;
+    const Stripe: f64 = 3.0;
 }
 
 pub struct Rows {
@@ -74,11 +76,25 @@ impl Component for ItemView {
             (false, true) => plate.background(item.palette.row_hovered),
             (false, false) => plate,
         };
+        let mut layers: Vec<View> = vec![plate.into()];
+        if let Some(hue) = item.row.hue() {
+            layers.push(
+                Border::new()
+                    .mark(ActivityMark::Stripe)
+                    .width(Line::Stripe)
+                    .horizontal_alignment(HorizontalAlignment::Left)
+                    .margin(Thickness::xy(space::Compact, space::Control))
+                    .corner_radius(CornerRadius::uniform(Line::Stripe / 2.0))
+                    .background(item.palette.hue(hue))
+                    .into(),
+            );
+        }
+        layers.push(row_view(item));
         Border::new()
             .background(Color::transparent())
             .on_pointer_entered(cx.callback(|_: PointerEventInfo| Pointer::Entered))
             .on_pointer_exited(cx.callback(|_: PointerEventInfo| Pointer::Exited))
-            .content(Grid::new().children((plate, row_view(item))))
+            .content(Grid::new().children(layers))
             .into()
     }
 }

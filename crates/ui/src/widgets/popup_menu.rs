@@ -7,7 +7,7 @@ use windows_reactor::{
 
 use crate::theme::{radius, space, Palette};
 use crate::widgets::separator;
-use crate::widgets::text::text;
+use crate::widgets::text::{caption, text};
 
 struct Menu;
 
@@ -27,6 +27,7 @@ pub struct MenuEntry<M, C> {
 
 pub enum MenuLine<M, C> {
     Entry(MenuEntry<M, C>),
+    Caption(String),
     Separator,
 }
 
@@ -44,7 +45,7 @@ impl<M, C> MenuLine<M, C> {
     pub fn enabled_if(self, enabled: bool) -> Self {
         match self {
             Self::Entry(entry) => Self::Entry(MenuEntry { enabled, ..entry }),
-            Self::Separator => Self::Separator,
+            line => line,
         }
     }
 }
@@ -63,6 +64,10 @@ pub struct PopupMenu<M, C> {
 fn line_view<M: Mark, C: Clone + 'static>(line: MenuLine<M, C>, on_command: &Callback<C>, palette: Palette) -> View {
     match line {
         MenuLine::Separator => separator(palette).margin(Thickness::xy(0.0, space::Compact)).into(),
+        MenuLine::Caption(words) => caption(words)
+            .foreground(palette.secondary_text)
+            .margin(Thickness::new(space::Cell, space::Compact, space::Cell, space::Hairline))
+            .into(),
         MenuLine::Entry(entry) => {
             let on_command = on_command.clone();
             let command = entry.command;

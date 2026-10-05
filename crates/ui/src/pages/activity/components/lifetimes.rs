@@ -68,7 +68,11 @@ pub fn series(scatter: &Scatter, palette: Palette) -> Vec<ScatterSeries<ProcessI
     let mut series: Vec<ScatterSeries<ProcessInstance>> = Vec::new();
     for dot in &scatter.dots {
         let marker = marker(dot.lived);
-        let base = if marker == Marker::Tick { palette.critical } else { palette.success };
+        let base = match dot.hue {
+            Some(hue) => palette.hue(hue),
+            None if marker == Marker::Tick => palette.critical,
+            None => palette.success,
+        };
         let color = color_f(if dot.faint { Color { a: Look::Faint, ..base } } else { base });
         let point = ScatterPoint {
             key: dot.key,
@@ -133,7 +137,7 @@ pub fn acts(event: &ScatterEvent<ProcessInstance>, scatter: &Scatter) -> Vec<Act
 
 #[cfg(test)]
 mod tests {
-    use app_contracts::features::activity::{Clock, Dot};
+    use app_contracts::features::activity::{Clock, Dot, Hue};
     use guinea_widgets::chart::scatter::{Area as Brushed, Hit, Level, Marker, Scale};
 
     use super::*;
@@ -214,6 +218,34 @@ mod tests {
                 .map(|series| series.color.a)
         };
         assert!(matches!((alpha(20), alpha(21)), (Some(bold), Some(pale)) if pale < bold), "{series:#?}");
+    }
+
+    #[test]
+    fn a_process_in_a_group_is_drawn_in_its_hue_whether_its_lifetime_is_known_or_not() {
+        let hued = |pid: u32, lived: Lived, hue: Hue| Dot {
+            hue: Some(hue),
+            ..dot(pid, lived, false)
+        };
+        let scatter = scatter(vec![
+            hued(20, Lived::For(Ticks::Second), Hue::Purple),
+            hued(21, Lived::Unknown, Hue::Purple),
+            hued(22, Lived::For(Ticks::Second), Hue::Coral),
+            dot(23, Lived::For(Ticks::Second), false),
+        ]);
+
+        let series = series(&scatter, palette());
+
+        let color = |pid: u32| {
+            series
+                .iter()
+                .find(|series| series.points.iter().any(|point| point.key == id(pid)))
+                .map(|series| series.color)
+        };
+        let purple = Some(color_f(palette().hue(Hue::Purple)));
+        assert_eq!((color(20), color(21)), (purple, purple), "{series:#?}");
+        assert_eq!(color(22), Some(color_f(palette().hue(Hue::Coral))), "{series:#?}");
+        assert_ne!(color(20), color(22), "{series:#?}");
+        assert_ne!(color(20), color(23), "{series:#?}");
     }
 
     #[test]
