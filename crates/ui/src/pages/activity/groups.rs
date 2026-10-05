@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityState, DeleteGroup, DropRule, Group, Hue, MoveGroup, Pick, RecolorGroup, RenameGroup, ShowGroup, Unhide,
+    ActivityState, AddGroup, DeleteGroup, DropRule, Group, Hue, MoveGroup, Pick, RecolorGroup, RenameGroup, ShowGroup, Unhide,
 };
 use guicons::icon;
 use guinea::prelude::Dispatch;
@@ -18,6 +18,7 @@ use super::marks::ActivityGroupsMark;
 use crate::l10n::L10n;
 use crate::theme::{setting, size, space, Palette};
 use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
+use crate::widgets::button::action_button;
 use crate::widgets::setting_card::{card_rows, expander_rows, setting_expander, setting_switch};
 use crate::widgets::settings_column::{settings_column, settings_section};
 use crate::widgets::text::{caption, text};
@@ -36,12 +37,15 @@ impl Layout {
 pub enum ActivityGroupsMsg {
     BackHovered(bool),
     Expand(String, bool),
+    Naming(String),
+    Added,
 }
 
 #[derive(Default)]
 pub struct ActivityGroupsPage {
     back_hovered: bool,
     expanded: HashSet<String>,
+    naming: String,
 }
 
 fn rule_label(rule: &Pick, l10n: &L10n) -> View {
@@ -298,7 +302,40 @@ impl ActivityGroupsPage {
             ActivityGroupsMsg::Expand(group, false) => {
                 self.expanded.remove(&group);
             }
+            ActivityGroupsMsg::Naming(name) => self.naming = name,
+            ActivityGroupsMsg::Added => self.naming.clear(),
         }
+    }
+
+    fn new_group(&self, dispatch: &Dispatch, l10n: &L10n, forward: &Callback<ActivityGroupsMsg>) -> View {
+        let (named, added, dispatch) = (forward.clone(), forward.clone(), dispatch.clone());
+        let name = self.naming.clone();
+        let named_enough = !name.trim().is_empty();
+        let label = StackPanel::new()
+            .orientation(Orientation::Horizontal)
+            .spacing(space::Header)
+            .children((
+                Border::new()
+                    .vertical_alignment(VerticalAlignment::Center)
+                    .content(icon!(plus).size(size::Icon).build_element()),
+                text(l10n.activity_groups_new()).vertical_alignment(VerticalAlignment::Center),
+            ));
+        let add = StackPanel::new()
+            .orientation(Orientation::Horizontal)
+            .spacing(space::Control)
+            .children((
+                TextBox::new(&self.naming)
+                    .mark(ActivityGroupsMark::NewName)
+                    .width(Layout::NameWidth)
+                    .placeholder_text(l10n.activity_groups_new_name())
+                    .vertical_alignment(VerticalAlignment::Center)
+                    .on_text_changed(move |name: Rc<str>| named.call(ActivityGroupsMsg::Naming(name.to_string()))),
+                action_button(ActivityGroupsMark::Add, l10n.activity_groups_add(), None, named_enough, move || {
+                    dispatch.emit(AddGroup(name.trim().to_string()));
+                    added.call(ActivityGroupsMsg::Added);
+                }),
+            ));
+        card_rows(vec![("new".to_string(), line(label.into(), add.into()))])
     }
 
     fn group(
@@ -362,6 +399,9 @@ impl ActivityGroupsPage {
                 .foreground(palette.secondary_text)
                 .margin(Thickness::new(setting::CaptionInset, space::Section, 0.0, space::Control)),
             StackPanel::new().spacing(setting::CardSpacing).keyed_children(cards),
+            Border::new()
+                .margin(Thickness::new(0.0, setting::CardSpacing, 0.0, 0.0))
+                .content(self.new_group(dispatch, l10n, &forward)),
             hidden_section(state, dispatch, l10n, palette),
         ))
     }

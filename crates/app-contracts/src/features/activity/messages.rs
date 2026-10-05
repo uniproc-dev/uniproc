@@ -38,6 +38,10 @@ pub struct NewGroup(pub Pick);
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
+pub struct AddGroup(pub String);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
 pub struct DropRule {
     pub group: String,
     pub rule: Pick,

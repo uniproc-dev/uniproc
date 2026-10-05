@@ -145,6 +145,50 @@ mod tests {
         );
     }
 
+    fn name_new(page: &mut Mounted<'_, ActivityGroups>, name: &str) {
+        page.send(ActivityGroupsMsg::Naming(name.to_string()));
+        page.settle();
+    }
+
+    fn can_add(page: &Mounted<'_, ActivityGroups>) -> bool {
+        let add = page.find(ActivityGroupsMark::Add).expect("an add button");
+        page.property(add, PropertyId::IsEnabled) != Some(&PropertyValue::Bool(false))
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_group_named_here_is_added_last_empty_and_kept(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        name_new(&mut page, "  Build  ");
+        click(&mut page, ActivityGroupsMark::Add);
+
+        let added = groups(h).last().cloned().expect("a group");
+        assert_eq!((added.name.as_str(), added.rules.len(), added.shown), ("Build", 0, true));
+        assert_ne!(added.hue, groups(h)[0].hue);
+        assert_eq!(remembered_groups(&stored(h)).last().map(|group| group.name.clone()), Some("Build".to_string()));
+        assert_eq!(
+            page.property(page.find(ActivityGroupsMark::NewName).unwrap(), PropertyId::Text).cloned(),
+            Some(PropertyValue::String("".into())),
+            "the box is emptied for the next one"
+        );
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_group_needs_a_name_to_be_added(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        assert!(!can_add(&page), "{:#?}", page.tree());
+
+        name_new(&mut page, "   ");
+        assert!(!can_add(&page), "{:#?}", page.tree());
+
+        name_new(&mut page, "Build");
+        assert!(can_add(&page), "{:#?}", page.tree());
+    }
+
     #[guinea::test(iterations = 4)]
     fn a_group_switched_off_here_is_off_on_the_page_and_next_run(h: &mut Harness) {
         start(h);

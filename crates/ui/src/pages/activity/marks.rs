@@ -45,4 +45,6 @@ pub enum ActivityGroupsMark {
     Hidden,
     ShowAgain,
     NothingHidden,
+    NewName,
+    Add,
 }

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityMsg, ActivityState, Area, ClearArea, DeleteGroup, DropRule, Filter, Group, Hide, Hover, Hue, MoveGroup,
+    ActivityMsg, ActivityState, AddGroup, Area, ClearArea, DeleteGroup, DropRule, Filter, Group, Hide, Hover, Hue, MoveGroup,
     NewGroup, NewOnly, Only, Pick, PickArea, PutInGroup, RecolorGroup, RenameGroup, Search, ShowCame, ShowGroup, ShowOther,
     ShowSeries, ShowSpan, ShowWent, Span, Unhide,
 };
@@ -94,7 +94,7 @@ actor! {
         handlers {
             WindowsProcessEvents, WindowsReportMessage, Refresh, Flush, ShowSpan, ShowCame, ShowWent, NewOnly,
             ShowSeries, Only, Hide, Unhide, Search, PickArea, ClearArea, Hover, ShowGroup, ShowOther, PutInGroup,
-            NewGroup, DropRule, RenameGroup, RecolorGroup, MoveGroup, DeleteGroup
+            NewGroup, AddGroup, DropRule, RenameGroup, RecolorGroup, MoveGroup, DeleteGroup
         }
     }
 }
@@ -158,6 +158,24 @@ fn new_group(this: &mut ActivityActor, NewGroup(rule): NewGroup) {
             name: rule_name(&rule),
             hue: fresh_hue(groups),
             rules: vec![rule],
+            shown: true,
+        };
+        groups.push(group);
+    });
+}
+
+#[handler]
+fn add_group(this: &mut ActivityActor, AddGroup(name): AddGroup) {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return;
+    }
+    this.regroup(|groups| {
+        let group = Group {
+            id: fresh_id(groups),
+            name,
+            hue: fresh_hue(groups),
+            rules: Vec::new(),
             shown: true,
         };
         groups.push(group);
