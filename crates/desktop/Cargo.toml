@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 publish = false
 
+[[bin]]
+name = "uniproc"
+path = "src/main.rs"
+
 [dependencies]
 app-contracts = { workspace = true }
 domain = { workspace = true }
