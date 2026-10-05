@@ -84,9 +84,9 @@ activity-groups-hidden = Hidden entirely
 activity-groups-nothing-hidden = Nothing is hidden. A row's menu on the Activity page hides a program, a folder or what a program starts.
 activity-groups-show-again = Show again
 activity-groups-colour = Colour
-activity-groups-rule-exe = { $program }
-activity-groups-rule-folder = Folder { $folder }
-activity-groups-rule-under = Everything under { $launcher }
+activity-groups-kind-exe = Program
+activity-groups-kind-folder = Folder
+activity-groups-kind-under = Everything this program starts
 
 activity-milliseconds = { $count } ms
 activity-seconds = { $count } s

@@ -45,12 +45,22 @@ pub struct ActivityGroupsPage {
     expanded: HashSet<String>,
 }
 
-fn rule_label(rule: &Pick, l10n: &L10n) -> String {
-    match rule {
-        Pick::Exe(_) => l10n.activity_groups_rule_exe(named(rule)),
-        Pick::Folder(_) => l10n.activity_groups_rule_folder(named(rule)),
-        Pick::Under(_) => l10n.activity_groups_rule_under(named(rule)),
-    }
+fn rule_label(rule: &Pick, l10n: &L10n) -> View {
+    let (glyph, kind) = match rule {
+        Pick::Exe(_) => (icon!(app_generic), l10n.activity_groups_kind_exe()),
+        Pick::Folder(_) => (icon!(folder), l10n.activity_groups_kind_folder()),
+        Pick::Under(_) => (icon!(tree), l10n.activity_groups_kind_under()),
+    };
+    StackPanel::new()
+        .orientation(Orientation::Horizontal)
+        .spacing(space::Control)
+        .children((
+            Border::new()
+                .vertical_alignment(VerticalAlignment::Center)
+                .content(glyph.size(size::Icon).build_element()),
+            text(named(rule)).vertical_alignment(VerticalAlignment::Center),
+        ))
+        .tooltip(kind)
 }
 
 fn tool(mark: ActivityGroupsMark, glyph: View, hint: String, on_click: impl Fn() + 'static) -> View {
@@ -155,7 +165,7 @@ fn rules(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> V
                     })
                 },
             );
-            (rule.id(), line(text(rule_label(rule, l10n)).into(), drop))
+            (rule.id(), line(rule_label(rule, l10n), drop))
         })
         .collect()
 }
@@ -288,7 +298,7 @@ fn hidden_section(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palet
                     Border::new()
                         .mark(ActivityGroupsMark::Hidden)
                         .padding(Thickness::xy(space::Card, 0.0))
-                        .content(line(text(rule_label(pick, l10n)).into(), again)),
+                        .content(line(rule_label(pick, l10n), again)),
                 )
             })
             .collect();

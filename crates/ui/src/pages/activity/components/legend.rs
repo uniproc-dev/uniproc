@@ -2,14 +2,15 @@ use app_contracts::features::activity::{Filter, Group, Legend, ShowGroup, ShowOt
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    keyed, Button, ButtonStyle, Color, KeyedView, Orientation, StackPanel, Thickness, VerticalAlignment, View,
+    keyed, Button, ButtonStyle, Color, KeyedView, Orientation, StackPanel, Thickness, TooltipExt, VerticalAlignment,
+    View,
 };
 
 use super::super::marks::ActivityMark;
 use super::groups::{group_label, swatch};
 use crate::l10n::L10n;
 use crate::theme::{opacity, space, Palette};
-use crate::widgets::text::{caption, text};
+use crate::widgets::text::caption;
 
 fn chip(
     mark: ActivityMark,
@@ -20,7 +21,7 @@ fn chip(
     l10n: &L10n,
     palette: Palette,
     on_click: impl Fn() + 'static,
-) -> Button {
+) -> View {
     Button::new()
         .mark(mark)
         .style(ButtonStyle::Subtle)
@@ -32,12 +33,12 @@ fn chip(
                 .opacity(if shown { 1.0 } else { opacity::Disabled })
                 .children((
                     swatch(color, shown),
-                    text(label).vertical_alignment(VerticalAlignment::Center),
                     caption(l10n.activity_legend_count(count as i64))
                         .foreground(palette.secondary_text)
                         .vertical_alignment(VerticalAlignment::Center),
                 )),
         )
+        .tooltip(label)
 }
 
 pub fn legend(groups: &[Group], filter: &Filter, counts: &Legend, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
