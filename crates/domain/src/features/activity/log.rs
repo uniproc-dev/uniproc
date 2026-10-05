@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::collections::{vec_deque, HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -69,31 +69,69 @@ struct Graded {
     verdict: Option<Option<usize>>,
 }
 
-enum Event {
-    Came(Started),
-    Went(Ended),
+#[derive(Clone, Copy)]
+struct Slot {
+    at: u64,
+    event: u32,
 }
 
-impl Event {
+#[expect(non_upper_case_globals)]
+impl Slot {
+    const Went: u32 = 1 << 31;
+
+    fn came(at: u64, index: usize) -> Self {
+        Self { at, event: index as u32 }
+    }
+
+    fn went(at: u64, index: usize) -> Self {
+        Self {
+            at,
+            event: index as u32 | Self::Went,
+        }
+    }
+
+    fn index(self) -> usize {
+        (self.event & !Self::Went) as usize
+    }
+
+    fn is_went(self) -> bool {
+        self.event & Self::Went != 0
+    }
+}
+
+enum Event<'a> {
+    Came(&'a Started),
+    Went(&'a Ended),
+}
+
+impl Event<'_> {
     fn at(&self) -> u64 {
         match self {
             Event::Came(started) => started.came.at,
             Event::Went(ended) => ended.went.at,
         }
     }
+}
 
-    fn key(&self) -> (u64, Kind, ProcessInstance) {
-        match self {
-            Event::Came(started) => (started.came.at, Kind::Came, started.came.instance),
-            Event::Went(ended) => (ended.went.at, Kind::Went, ended.went.instance),
-        }
+fn event_of<'a>(starts: &'a [Started], ends: &'a [Ended], slot: Slot) -> Event<'a> {
+    if slot.is_went() {
+        Event::Went(&ends[slot.index()])
+    } else {
+        Event::Came(&starts[slot.index()])
+    }
+}
+
+fn key_of(starts: &[Started], ends: &[Ended], slot: Slot) -> (u64, Kind, ProcessInstance) {
+    match event_of(starts, ends, slot) {
+        Event::Came(started) => (slot.at, Kind::Came, started.came.instance),
+        Event::Went(ended) => (slot.at, Kind::Went, ended.went.instance),
     }
 }
 
 #[derive(Clone, Copy, Default)]
 struct Slots {
-    came: Option<usize>,
-    went: Option<usize>,
+    came: Option<u32>,
+    went: Option<u32>,
 }
 
 struct Known {
@@ -112,7 +150,9 @@ pub struct Log {
     names: Names,
     shells: [Word; Pace::Shells.len()],
     console_host: Word,
-    events: VecDeque<Event>,
+    timeline: VecDeque<Slot>,
+    starts: Vec<Started>,
+    ends: Vec<Ended>,
     index: HashMap<ProcessInstance, Slots>,
     seen: HashSet<Option<Folder>>,
     habits: HashMap<(Word, Option<Folder>), usize>,
@@ -136,7 +176,9 @@ impl Default for Log {
             names,
             shells,
             console_host,
-            events: VecDeque::new(),
+            timeline: VecDeque::new(),
+            starts: Vec::new(),
+            ends: Vec::new(),
             index: HashMap::new(),
             seen: HashSet::new(),
             habits: HashMap::new(),
@@ -206,8 +248,10 @@ impl Log {
         for event in events {
             self.add(event, Self::append);
         }
-        self.events.make_contiguous().sort_by_key(Event::key);
-        self.reindex(0);
+        let (starts, ends) = (&self.starts, &self.ends);
+        self.timeline
+            .make_contiguous()
+            .sort_by_key(|&slot| key_of(starts, ends, slot));
         self.regrade();
     }
 
@@ -229,7 +273,7 @@ impl Log {
         self.naming.get(named).is_none_or(|&from| from > at)
     }
 
-    fn add(&mut self, event: &ProcessEvent, place: fn(&mut Self, Event)) {
+    fn add(&mut self, event: &ProcessEvent, place: fn(&mut Self, Slot)) {
         match event {
             ProcessEvent::Came(came) => {
                 if self.index.get(&came.instance).is_some_and(|slots| slots.came.is_some()) {
@@ -248,18 +292,18 @@ impl Log {
                     ended.graded.take();
                     ended.went.at
                 });
-                place(
-                    self,
-                    Event::Came(Started {
-                        name,
-                        came: came.clone(),
-                        folder: placed.folder,
-                        first_seen,
-                        launched: None,
-                        went_at,
-                        graded: Cell::default(),
-                    }),
-                );
+                let index = self.starts.len();
+                self.starts.push(Started {
+                    name,
+                    came: came.clone(),
+                    folder: placed.folder,
+                    first_seen,
+                    launched: None,
+                    went_at,
+                    graded: Cell::default(),
+                });
+                self.index.entry(came.instance).or_default().came = Some(index as u32);
+                place(self, Slot::came(came.at, index));
                 if !self.settle_launcher(came.instance) {
                     self.unplaced.push(came.instance);
                 }
@@ -273,80 +317,60 @@ impl Log {
                     started.went_at = Some(went.at);
                     started.came.at
                 });
-                place(
-                    self,
-                    Event::Went(Ended {
-                        went: went.clone(),
-                        placed,
-                        came_at,
-                        graded: Cell::default(),
-                    }),
-                );
+                let index = self.ends.len();
+                self.ends.push(Ended {
+                    went: went.clone(),
+                    placed,
+                    came_at,
+                    graded: Cell::default(),
+                });
+                self.index.entry(went.instance).or_default().went = Some(index as u32);
+                place(self, Slot::went(went.at, index));
             }
         }
     }
 
-    fn insert(&mut self, event: Event) {
-        let key = event.key();
-        let position = if self.events.back().is_none_or(|last| last.key() <= key) {
-            self.events.len()
-        } else {
-            if let Event::Came(_) = event {
-                self.regrade();
-            }
-            self.events.partition_point(|known| known.key() < key)
-        };
-        self.events.insert(position, event);
-        self.reindex(position);
-    }
-
-    fn append(&mut self, event: Event) {
-        self.events.push_back(event);
-        self.reindex(self.events.len() - 1);
-    }
-
-    fn reindex(&mut self, from: usize) {
-        for (position, event) in self.events.range(from..).enumerate() {
-            let position = from + position;
-            match event {
-                Event::Came(started) => self.index.entry(started.came.instance).or_default().came = Some(position),
-                Event::Went(ended) => self.index.entry(ended.went.instance).or_default().went = Some(position),
-            }
+    fn insert(&mut self, slot: Slot) {
+        let (starts, ends) = (&self.starts, &self.ends);
+        let key = key_of(starts, ends, slot);
+        let last = self.timeline.back().map(|&last| key_of(starts, ends, last));
+        if last.is_none_or(|last| last <= key) {
+            self.timeline.push_back(slot);
+            return;
         }
+        let position = self.timeline.partition_point(|&known| key_of(starts, ends, known) < key);
+        self.timeline.insert(position, slot);
+        if !slot.is_went() {
+            self.regrade();
+        }
+    }
+
+    fn append(&mut self, slot: Slot) {
+        self.timeline.push_back(slot);
     }
 
     fn started(&self, instance: ProcessInstance) -> Option<&Started> {
-        match self.events.get(self.index.get(&instance)?.came?)? {
-            Event::Came(started) => Some(started),
-            Event::Went(_) => None,
-        }
+        self.starts.get(self.index.get(&instance)?.came? as usize)
     }
 
     fn ended(&self, instance: ProcessInstance) -> Option<&Ended> {
-        match self.events.get(self.index.get(&instance)?.went?)? {
-            Event::Went(ended) => Some(ended),
-            Event::Came(_) => None,
-        }
+        self.ends.get(self.index.get(&instance)?.went? as usize)
     }
 
     fn started_mut(&mut self, instance: ProcessInstance) -> Option<&mut Started> {
-        match self.events.get_mut(self.index.get(&instance)?.came?)? {
-            Event::Came(started) => Some(started),
-            Event::Went(_) => None,
-        }
+        self.starts.get_mut(self.index.get(&instance)?.came? as usize)
     }
 
     fn ended_mut(&mut self, instance: ProcessInstance) -> Option<&mut Ended> {
-        match self.events.get_mut(self.index.get(&instance)?.went?)? {
-            Event::Went(ended) => Some(ended),
-            Event::Came(_) => None,
-        }
+        self.ends.get_mut(self.index.get(&instance)?.went? as usize)
     }
 
-    fn span(&self, from: u64, to: u64) -> vec_deque::Iter<'_, Event> {
-        let start = self.events.partition_point(|event| event.at() < from);
-        let end = self.events.partition_point(|event| event.at() < to);
-        self.events.range(start..end.max(start))
+    fn span(&self, from: u64, to: u64) -> impl DoubleEndedIterator<Item = Event<'_>> {
+        let start = self.timeline.partition_point(|slot| slot.at < from);
+        let end = self.timeline.partition_point(|slot| slot.at < to);
+        self.timeline
+            .range(start..end.max(start))
+            .map(|&slot| event_of(&self.starts, &self.ends, slot))
     }
 
     pub fn note_running(&mut self, processes: &[WindowsProcessStats]) {
@@ -491,7 +515,7 @@ impl Log {
     }
 
     fn began(&self) -> Option<u64> {
-        let first = self.events.front().map(Event::at);
+        let first = self.timeline.front().map(|slot| slot.at);
         match (self.since, first) {
             (Some(since), Some(first)) => Some(since.min(first)),
             (since, first) => since.or(first),
