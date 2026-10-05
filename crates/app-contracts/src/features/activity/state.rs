@@ -3,7 +3,7 @@ use std::rc::Rc;
 use guinea::prelude::*;
 
 use super::messages::ActivityMsg;
-use super::model::{ActivityRow, ActivityView, Filter, Span};
+use super::model::{ActivityRow, ActivityView, Filter, Group, Span};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ActivityState {
@@ -11,6 +11,7 @@ pub struct ActivityState {
     pub span: Span,
     pub filter: Filter,
     pub hovered: Option<ActivityRow>,
+    pub groups: Vec<Group>,
 }
 
 impl Default for ActivityState {
@@ -20,6 +21,7 @@ impl Default for ActivityState {
             span: Span::default(),
             filter: Filter::default(),
             hovered: None,
+            groups: Vec::new(),
         }
     }
 }
@@ -31,5 +33,6 @@ fn activity(this: &mut ActivityState, msg: ActivityMsg) {
         ActivityMsg::Span(span) => this.span = span,
         ActivityMsg::Filter(filter) => this.filter = filter,
         ActivityMsg::Hovered(row) => this.hovered = row,
+        ActivityMsg::Groups(groups) => this.groups = groups,
     }
 }

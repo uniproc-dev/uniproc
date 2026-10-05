@@ -46,11 +46,15 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use app_contracts::features::activity::{Clock, Filter, Pick, Span};
+    use app_contracts::features::activity::{
+        ActivityRow, Clock, DeleteGroup, DropRule, Filter, Group, Hue, MoveGroup, NewGroup, Pick, PutInGroup,
+        RecolorGroup, RenameGroup, ShowGroup, ShowOther, ShowSeries, Span,
+    };
     use app_contracts::features::agents::{
         ProcessCame, ProcessEvent, ProcessInstance, ProcessWent, WindowsProcessEvents,
     };
-    use domain::features::activity::settings::{remember, remembered, ActivitySettings};
+    use domain::features::activity::settings::{remember, remembered, remembered_groups, ActivitySettings};
+    use guinea::prelude::Load;
     use domain::features::activity::{ActivityDeps, ActivityFeature};
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node};
@@ -496,6 +500,161 @@ mod tests {
         page.settle();
         assert_eq!(h.state::<ActivityState>().span, Span::Day);
         assert_eq!(remembered(&stored(h)).0, Span::Day);
+    }
+
+    const TASKHOST: &str = r"C:\Windows\System32\taskhostw.exe";
+
+    fn painted(h: &Harness) -> Vec<(String, Option<Hue>)> {
+        let state = h.state::<ActivityState>();
+        let Load::Ready(view) = &state.view else {
+            return Vec::new();
+        };
+        let mut rows: Vec<(String, Option<Hue>)> = view
+            .rows
+            .iter()
+            .map(|row| match row {
+                ActivityRow::Came(came) => (came.name.to_string(), came.hue),
+                other => (format!("{other:?}"), other.hue()),
+            })
+            .collect();
+        rows.sort();
+        rows
+    }
+
+    fn act(h: &Harness, action: impl Sized + 'static) {
+        h.act::<ActivityState>(action).settle();
+        h.advance(Duration::from_secs(1));
+    }
+
+    fn tool_and_taskhost(h: &Harness) -> Mounted<'_, Activity> {
+        let mut page = mount(h);
+        act(h, ShowSeries(false));
+        live(h, &mut page, vec![came(20, 10), came_from(21, 1, TASKHOST, 20)]);
+        page
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn the_windows_background_group_is_there_from_the_start_and_paints_taskhostw(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let _page = tool_and_taskhost(h);
+
+        assert_eq!(h.state::<ActivityState>().groups, [Group::windows_background()]);
+        assert_eq!(
+            painted(h),
+            [("taskhostw.exe".into(), Some(Hue::Teal)), ("tool.exe".into(), None)]
+        );
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_group_switched_off_leaves_the_page_and_stays_off_for_the_next_run(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let _page = tool_and_taskhost(h);
+
+        act(
+            h,
+            ShowGroup {
+                group: Group::WINDOWS_BACKGROUND.into(),
+                shown: false,
+            },
+        );
+
+        assert_eq!(painted(h), [("tool.exe".into(), None)]);
+        assert!(!remembered_groups(&stored(h))[0].shown);
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn the_rest_switched_off_leaves_only_grouped_processes_and_is_remembered(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let _page = tool_and_taskhost(h);
+
+        act(h, ShowOther(false));
+
+        assert_eq!(painted(h), [("taskhostw.exe".into(), Some(Hue::Teal))]);
+        assert!(!remembered(&stored(h)).1.other);
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_program_put_in_a_new_group_leaves_the_group_it_was_in(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let _page = tool_and_taskhost(h);
+        let tool = Pick::Exe("tool.exe".into());
+
+        act(
+            h,
+            PutInGroup {
+                group: Group::WINDOWS_BACKGROUND.into(),
+                rule: tool.clone(),
+            },
+        );
+        assert_eq!(painted(h)[1], ("tool.exe".into(), Some(Hue::Teal)));
+
+        act(h, NewGroup(tool.clone()));
+
+        let groups = h.state::<ActivityState>().groups.clone();
+        assert_eq!(groups.len(), 2, "{groups:#?}");
+        let new = &groups[1];
+        assert_eq!((new.name.as_str(), &new.rules[..]), ("tool.exe", std::slice::from_ref(&tool)));
+        assert_ne!(new.hue, Hue::Teal);
+        assert!(!groups[0].rules.contains(&tool), "{groups:#?}");
+        assert_eq!(painted(h)[1], ("tool.exe".into(), Some(new.hue)));
+        assert_eq!(remembered_groups(&stored(h)), groups);
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_group_is_renamed_recoloured_moved_emptied_and_deleted_but_the_built_in_one_stays(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let _page = tool_and_taskhost(h);
+        let tool = Pick::Exe("tool.exe".into());
+        act(h, NewGroup(tool.clone()));
+        let groups = h.state::<ActivityState>().groups.clone();
+        assert_eq!(groups.len(), 2, "{groups:#?}");
+        let id = groups[1].id.clone();
+
+        act(
+            h,
+            RenameGroup {
+                group: id.clone(),
+                name: "Dev tooling".into(),
+            },
+        );
+        act(
+            h,
+            RecolorGroup {
+                group: id.clone(),
+                hue: Hue::Coral,
+            },
+        );
+        act(
+            h,
+            MoveGroup {
+                group: id.clone(),
+                up: true,
+            },
+        );
+        let groups = h.state::<ActivityState>().groups.clone();
+        assert_eq!(
+            (groups[0].id.as_str(), groups[0].name.as_str(), groups[0].hue),
+            (id.as_str(), "Dev tooling", Hue::Coral)
+        );
+
+        act(
+            h,
+            DropRule {
+                group: id.clone(),
+                rule: tool,
+            },
+        );
+        assert!(h.state::<ActivityState>().groups[0].rules.is_empty());
+
+        act(h, DeleteGroup(Group::WINDOWS_BACKGROUND.into()));
+        act(h, DeleteGroup(id));
+        assert_eq!(h.state::<ActivityState>().groups, [Group::windows_background()]);
+        assert_eq!(remembered_groups(&stored(h)), [Group::windows_background()]);
     }
 
     #[guinea::test(iterations = 4)]

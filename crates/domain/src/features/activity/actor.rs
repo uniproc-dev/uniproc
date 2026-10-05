@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityMsg, ActivityState, Area, ClearArea, Filter, Hide, Hover, NewOnly, Only, PickArea, Search, ShowCame,
+    ActivityMsg, ActivityState, Area, ClearArea, DeleteGroup, DropRule, Filter, Group, Hide, Hover, Hue, MoveGroup,
+    NewGroup, NewOnly, Only, Pick, PickArea, PutInGroup, RecolorGroup, RenameGroup, Search, ShowCame, ShowGroup, ShowOther,
     ShowSeries, ShowSpan, ShowWent, Span, Unhide,
 };
 use app_contracts::features::agents::{WindowsProcessEvents, WindowsReportMessage};
@@ -9,7 +10,7 @@ use guinea::prelude::*;
 
 use super::install::ActivityDeps;
 use super::log::{row, view, Ask, Log};
-use super::settings::{remember, ActivitySettings};
+use super::settings::{remember, remember_groups, ActivitySettings};
 
 pub struct ActivityActor {
     push: Push<ActivityState>,
@@ -18,6 +19,7 @@ pub struct ActivityActor {
     log: Log,
     span: Span,
     filter: Filter,
+    groups: Vec<Group>,
     area: Option<Area>,
     stale: bool,
 }
@@ -33,14 +35,15 @@ impl std::fmt::Debug for ActivityActor {
 }
 
 impl ActivityActor {
-    pub fn new(push: Push<ActivityState>, deps: ActivityDeps, settings: ActivitySettings, span: Span, filter: Filter) -> Self {
+    pub fn new(push: Push<ActivityState>, deps: ActivityDeps, settings: ActivitySettings, seed: &ActivityState) -> Self {
         Self {
             push,
             deps,
             settings,
             log: Log::default(),
-            span,
-            filter,
+            span: seed.span,
+            filter: seed.filter.clone(),
+            groups: seed.groups.clone(),
             area: None,
             stale: false,
         }
@@ -60,12 +63,21 @@ impl ActivityActor {
                 now: (self.deps.now)(),
                 span: self.span,
                 filter: &self.filter,
-                groups: &[],
+                groups: &self.groups,
                 area: self.area,
                 clock: self.deps.clock,
             },
         );
         self.push.send(ActivityMsg::View(Rc::new(view)));
+    }
+
+    fn regroup(&mut self, change: impl FnOnce(&mut Vec<Group>)) {
+        change(&mut self.groups);
+        if let Err(err) = remember_groups(&self.settings, &self.groups) {
+            tracing::warn!(?err, "could not keep the activity groups");
+        }
+        self.push.send(ActivityMsg::Groups(self.groups.clone()));
+        self.publish();
     }
 
     fn refilter(&mut self, change: impl FnOnce(&mut Filter)) {
@@ -84,9 +96,114 @@ actor! {
     ActivityActor {
         handlers {
             WindowsProcessEvents, WindowsReportMessage, Refresh, Flush, ShowSpan, ShowCame, ShowWent, NewOnly,
-            ShowSeries, Only, Hide, Unhide, Search, PickArea, ClearArea, Hover
+            ShowSeries, Only, Hide, Unhide, Search, PickArea, ClearArea, Hover, ShowGroup, ShowOther, PutInGroup,
+            NewGroup, DropRule, RenameGroup, RecolorGroup, MoveGroup, DeleteGroup
         }
     }
+}
+
+fn with_group(groups: &mut [Group], id: &str, change: impl FnOnce(&mut Group)) {
+    if let Some(group) = groups.iter_mut().find(|group| group.id == id) {
+        change(group);
+    }
+}
+
+fn take_rule(groups: &mut [Group], rule: &Pick) {
+    for group in groups {
+        group.rules.retain(|kept| kept != rule);
+    }
+}
+
+fn rule_name(rule: &Pick) -> String {
+    match rule {
+        Pick::Exe(name) | Pick::Under(name) | Pick::Folder(name) => name.to_string(),
+    }
+}
+
+fn fresh_id(groups: &[Group]) -> String {
+    (1..)
+        .map(|n| format!("g{n}"))
+        .find(|id| groups.iter().all(|group| group.id != *id))
+        .unwrap_or_default()
+}
+
+fn fresh_hue(groups: &[Group]) -> Hue {
+    Hue::ALL
+        .into_iter()
+        .find(|hue| groups.iter().all(|group| group.hue != *hue))
+        .unwrap_or(Hue::ALL[groups.len() % Hue::ALL.len()])
+}
+
+#[handler]
+fn show_group(this: &mut ActivityActor, ShowGroup { group, shown }: ShowGroup) {
+    this.regroup(|groups| with_group(groups, &group, |group| group.shown = shown));
+}
+
+#[handler]
+fn show_other(this: &mut ActivityActor, ShowOther(shown): ShowOther) {
+    this.refilter(|filter| filter.other = shown);
+}
+
+#[handler]
+fn put_in_group(this: &mut ActivityActor, PutInGroup { group, rule }: PutInGroup) {
+    this.regroup(|groups| {
+        take_rule(groups, &rule);
+        with_group(groups, &group, |group| group.rules.push(rule));
+    });
+}
+
+#[handler]
+fn new_group(this: &mut ActivityActor, NewGroup(rule): NewGroup) {
+    this.regroup(|groups| {
+        take_rule(groups, &rule);
+        let group = Group {
+            id: fresh_id(groups),
+            name: rule_name(&rule),
+            hue: fresh_hue(groups),
+            rules: vec![rule],
+            shown: true,
+        };
+        groups.push(group);
+    });
+}
+
+#[handler]
+fn drop_rule(this: &mut ActivityActor, DropRule { group, rule }: DropRule) {
+    this.regroup(|groups| with_group(groups, &group, |group| group.rules.retain(|kept| *kept != rule)));
+}
+
+#[handler]
+fn rename_group(this: &mut ActivityActor, RenameGroup { group, name }: RenameGroup) {
+    this.regroup(|groups| {
+        with_group(groups, &group, |group| {
+            if !group.is_built_in() {
+                group.name = name;
+            }
+        })
+    });
+}
+
+#[handler]
+fn recolor_group(this: &mut ActivityActor, RecolorGroup { group, hue }: RecolorGroup) {
+    this.regroup(|groups| with_group(groups, &group, |group| group.hue = hue));
+}
+
+#[handler]
+fn move_group(this: &mut ActivityActor, MoveGroup { group, up }: MoveGroup) {
+    this.regroup(|groups| {
+        let Some(at) = groups.iter().position(|kept| kept.id == group) else {
+            return;
+        };
+        let to = if up { at.checked_sub(1) } else { Some(at + 1).filter(|to| *to < groups.len()) };
+        if let Some(to) = to {
+            groups.swap(at, to);
+        }
+    });
+}
+
+#[handler]
+fn delete_group(this: &mut ActivityActor, DeleteGroup(group): DeleteGroup) {
+    this.regroup(|groups| groups.retain(|kept| kept.id != group || kept.is_built_in()));
 }
 
 #[handler]
@@ -189,6 +306,6 @@ fn clear_area(this: &mut ActivityActor, _msg: ClearArea) {
 
 #[handler]
 fn hover(this: &mut ActivityActor, Hover(key): Hover) {
-    let hovered = key.and_then(|key| row(&this.log, &[], key, this.deps.clock));
+    let hovered = key.and_then(|key| row(&this.log, &this.groups, key, this.deps.clock));
     this.push.send(ActivityMsg::Hovered(hovered));
 }

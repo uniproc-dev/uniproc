@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use serde::Deserialize;
 
-use super::model::{ActivityRow, ActivityView, Area, Filter, Pick, Span};
+use super::model::{ActivityRow, ActivityView, Area, Filter, Group, Hue, Pick, Span};
 use crate::features::agents::ProcessInstance;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -11,7 +11,62 @@ pub enum ActivityMsg {
     Span(Span),
     Filter(Filter),
     Hovered(Option<ActivityRow>),
+    Groups(Vec<Group>),
 }
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct ShowGroup {
+    pub group: String,
+    pub shown: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct ShowOther(pub bool);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct PutInGroup {
+    pub group: String,
+    pub rule: Pick,
+}
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct NewGroup(pub Pick);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct DropRule {
+    pub group: String,
+    pub rule: Pick,
+}
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct RenameGroup {
+    pub group: String,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct RecolorGroup {
+    pub group: String,
+    pub hue: Hue,
+}
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct MoveGroup {
+    pub group: String,
+    pub up: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct DeleteGroup(pub String);
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
