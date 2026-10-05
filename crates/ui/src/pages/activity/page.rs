@@ -3,8 +3,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityRow, ActivityState, ActivityView, ClearArea, Filter, Group, Hide, Hover, NewGroup, NewOnly, Only, Pick,
-    PickArea, PutInGroup, Search, ShowCame, ShowSeries, ShowSpan, ShowWent, Span, Unhide,
+    ActivityRow, ActivityState, ActivityView, ClearArea, Filter, Group, Hide, Hover, NewGroup, NewOnly, Only,
+    PickArea, PutInGroup, Search, ShowCame, ShowSeries, ShowSpan, ShowWent, Span,
 };
 use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
@@ -288,13 +288,8 @@ impl ActivityPage {
             return page_frame(header, loading(), status_text(l10n.activity_loading(), palette), palette);
         };
 
-        let (all, unhide) = (dispatch.clone(), dispatch.clone());
-        let chips = picked(
-            &state.filter,
-            l10n,
-            Callback::new(move |()| all.emit(Only(None))),
-            Callback::new(move |pick: Pick| unhide.emit(Unhide(pick))),
-        );
+        let all = dispatch.clone();
+        let chips = picked(&state.filter, l10n, Callback::new(move |()| all.emit(Only(None))));
         let asked = Some((state.span, state.filter.clone()));
         if *self.asked.borrow() != asked {
             self.selected.set(None);

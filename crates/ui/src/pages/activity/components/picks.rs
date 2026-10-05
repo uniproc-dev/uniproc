@@ -118,32 +118,14 @@ fn hide_lines(picks: &[Pick], l10n: &L10n) -> Vec<MenuLine<ActivityMark, PickCom
     lines
 }
 
-pub fn picked(filter: &Filter, l10n: &L10n, on_all: Callback<()>, on_unhide: Callback<Pick>) -> Option<View> {
-    let mut chips: Vec<KeyedView> = Vec::new();
-    if let Some(only) = &filter.only {
-        chips.push(keyed(
-            "only",
-            command_button(
-                ActivityMark::Picked,
-                l10n.activity_picked_only(named(only)),
-                Some(icon!(dismiss).size(size::Icon).build_element()),
-                true,
-                move || on_all.call(()),
-            ),
-        ));
-    }
-    for pick in &filter.hidden {
-        let (on_unhide, shown) = (on_unhide.clone(), pick.clone());
-        chips.push(keyed(
-            format!("{pick:?}"),
-            command_button(
-                ActivityMark::Picked,
-                l10n.activity_picked_hidden(named(pick)),
-                Some(icon!(dismiss).size(size::Icon).build_element()),
-                true,
-                move || on_unhide.call(shown.clone()),
-            ),
-        ));
-    }
-    (!chips.is_empty()).then(|| row(chips, Thickness::xy(space::Cell, 0.0)))
+pub fn picked(filter: &Filter, l10n: &L10n, on_all: Callback<()>) -> Option<View> {
+    let only = filter.only.as_ref()?;
+    let chip = command_button(
+        ActivityMark::Picked,
+        l10n.activity_picked_only(named(only)),
+        Some(icon!(dismiss).size(size::Icon).build_element()),
+        true,
+        move || on_all.call(()),
+    );
+    Some(row(vec![keyed("only", chip)], Thickness::xy(space::Cell, 0.0)))
 }

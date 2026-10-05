@@ -46,7 +46,6 @@ activity-pick-hide-exe = Hide this program
 activity-pick-hide-folder = Hide this folder
 activity-pick-hide-launcher = Hide what { $launcher } starts
 activity-picked-only = Only { $what }
-activity-picked-hidden = Hidden: { $what }
 activity-chain-separator = {" › "}
 
 activity-fact-command-line = Command line
@@ -64,14 +63,27 @@ activity-fact-exit-code = { $at } · code { $code }
 activity-fact-unknown = Not known
 
 activity-groups-title = Groups
-activity-groups-built-in = built in
+activity-groups-rules = { $count ->
+    [one] { $count } rule
+   *[other] { $count } rules
+}
+activity-groups-built-in-rules = Built in · { $count ->
+    [one] { $count } rule
+   *[other] { $count } rules
+}
+activity-groups-shown-on = Shown
+activity-groups-shown-off = Hidden
 activity-groups-name = Group name
-activity-groups-recolor = Change colour
+activity-groups-colour = Colour
 activity-groups-up = Move up
 activity-groups-down = Move down
 activity-groups-delete = Delete group
+activity-groups-drop-rule = Take out of this group
 activity-groups-empty = Nothing in this group yet. Right-click a row on the Activity page to put a program here.
 activity-groups-order = A process in two groups goes to the upper one.
+activity-groups-hidden = Hidden entirely
+activity-groups-nothing-hidden = Nothing is hidden. A row's menu on the Activity page hides a program, a folder or what a program starts.
+activity-groups-show-again = Show
 activity-groups-rule-exe = { $program }
 activity-groups-rule-folder = Folder { $folder }
 activity-groups-rule-under = Everything under { $launcher }

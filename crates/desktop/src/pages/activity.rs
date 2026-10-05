@@ -395,7 +395,7 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4)]
-    fn a_program_hidden_from_its_menu_leaves_the_list_until_its_chip_is_clicked(h: &mut Harness) {
+    fn a_program_hidden_from_its_menu_leaves_the_list_and_no_chip_says_so(h: &mut Harness) {
         start(h);
         let h = &*h;
         let mut page = mount(h);
@@ -410,12 +410,6 @@ mod tests {
         page.settle();
         assert_eq!(rows(&page.tree()), 1, "{:#?}", page.tree());
         assert!(!says(&page.tree(), "other.exe"), "{:#?}", page.tree());
-        assert!(page.find(ActivityMark::Picked).is_some(), "{:#?}", page.tree());
-
-        page.click(ActivityMark::Picked).settle();
-        h.advance(Duration::from_secs(1));
-        page.settle();
-        assert_eq!(rows(&page.tree()), 2, "{:#?}", page.tree());
         assert!(page.find(ActivityMark::Picked).is_none(), "{:#?}", page.tree());
     }
 

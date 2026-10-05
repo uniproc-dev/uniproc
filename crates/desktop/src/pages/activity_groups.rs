@@ -37,7 +37,7 @@ impl Page for ActivityGroups {
 
 #[cfg(test)]
 mod tests {
-    use app_contracts::features::activity::{Clock, Group, Hue, NewGroup, Pick};
+    use app_contracts::features::activity::{Clock, Group, Hide, Hue, NewGroup, Pick};
     use domain::features::activity::settings::{remembered_groups, ActivitySettings};
     use domain::features::activity::{ActivityDeps, ActivityFeature};
     use guinea::app::Harness;
@@ -85,19 +85,39 @@ mod tests {
         page.settle();
     }
 
+    fn expand(page: &mut Mounted<'_, ActivityGroups>, group: &str) {
+        page.send(ActivityGroupsMsg::Expand(group.to_string(), true));
+        page.settle();
+    }
+
     #[guinea::test(iterations = 4)]
     fn the_built_in_group_is_shown_as_built_in_and_cannot_be_renamed_or_deleted(h: &mut Harness) {
         start(h);
         let h = &*h;
-        let page = mount(h);
+        let mut page = mount(h);
+        expand(&mut page, Group::WINDOWS_BACKGROUND);
 
         assert!(page.find(ActivityGroupsMark::Group).is_some(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::BuiltIn).is_some(), "{:#?}", page.tree());
+        assert!(page.find(ActivityGroupsMark::Shown).is_some(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::Rule).is_some(), "{:#?}", page.tree());
+        assert!(page.find(ActivityGroupsMark::Colour).is_some(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::Name).is_none(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::Delete).is_none(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::Up).is_none(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::Down).is_none(), "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_group_switched_off_here_is_off_on_the_page_and_next_run(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+
+        click(&mut page, ActivityGroupsMark::Shown);
+
+        assert!(!groups(h)[0].shown, "{:#?}", groups(h));
+        assert!(!remembered_groups(&stored(h))[0].shown);
     }
 
     #[guinea::test(iterations = 4)]
@@ -108,15 +128,15 @@ mod tests {
         h.act::<ActivityState>(NewGroup(tool)).settle();
         let mut page = mount(h);
         let id = groups(h)[1].id.clone();
-        let hue = groups(h)[1].hue;
+        assert_ne!(groups(h)[1].hue, Hue::Teal);
+        expand(&mut page, &id);
         assert!(page.find(ActivityGroupsMark::Name).is_some(), "{:#?}", page.tree());
 
         click(&mut page, ActivityGroupsMark::Up);
         assert_eq!(groups(h)[0].id, id);
 
-        click(&mut page, ActivityGroupsMark::Recolor);
-        assert_ne!(groups(h)[0].hue, hue);
-        assert_eq!(groups(h)[1].hue, Hue::Teal);
+        click(&mut page, ActivityGroupsMark::Colour);
+        assert_eq!(groups(h)[0].hue, Hue::Teal);
 
         click(&mut page, ActivityGroupsMark::Rule);
         assert!(groups(h)[0].rules.is_empty(), "{:#?}", groups(h));
@@ -128,6 +148,22 @@ mod tests {
         click(&mut page, ActivityGroupsMark::Delete);
         assert_eq!(groups(h), [Group::windows_background()]);
         assert_eq!(remembered_groups(&stored(h)), [Group::windows_background()]);
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn what_is_hidden_is_listed_here_and_shown_again_from_here(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        h.act::<ActivityState>(Hide(Pick::Exe("conhost.exe".into()))).settle();
+        let mut page = mount(h);
+        assert!(page.find(ActivityGroupsMark::Hidden).is_some(), "{:#?}", page.tree());
+        assert!(page.find(ActivityGroupsMark::NothingHidden).is_none(), "{:#?}", page.tree());
+
+        click(&mut page, ActivityGroupsMark::ShowAgain);
+
+        assert!(h.state::<ActivityState>().filter.hidden.is_empty());
+        assert!(page.find(ActivityGroupsMark::Hidden).is_none(), "{:#?}", page.tree());
+        assert!(page.find(ActivityGroupsMark::NothingHidden).is_some(), "{:#?}", page.tree());
     }
 
     #[guinea::test(iterations = 4)]

@@ -1,7 +1,9 @@
 use app_contracts::features::activity::{Filter, Group, Legend, ShowGroup, ShowOther};
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
-use windows_reactor::{keyed, Button, ButtonStyle, Color, KeyedView, Orientation, StackPanel, Thickness, View};
+use windows_reactor::{
+    keyed, Button, ButtonStyle, Color, KeyedView, Orientation, StackPanel, Thickness, VerticalAlignment, View,
+};
 
 use super::super::marks::ActivityMark;
 use super::groups::{group_label, swatch};
@@ -30,8 +32,10 @@ fn chip(
                 .opacity(if shown { 1.0 } else { opacity::Disabled })
                 .children((
                     swatch(color, shown),
-                    text(label),
-                    caption(l10n.activity_legend_count(count as i64)).foreground(palette.secondary_text),
+                    text(label).vertical_alignment(VerticalAlignment::Center),
+                    caption(l10n.activity_legend_count(count as i64))
+                        .foreground(palette.secondary_text)
+                        .vertical_alignment(VerticalAlignment::Center),
                 )),
         )
 }
