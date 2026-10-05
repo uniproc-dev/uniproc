@@ -7,7 +7,11 @@ use app_contracts::features::activity::{
     ActivityRow, ActivityView, Area, Came, Clock, Dot, Exit, Filter, Group, Hue, Launcher, Legend, Lived, Pick,
     Scatter, Series, Span, Went,
 };
+use std::hash::BuildHasher;
 use std::num::NonZeroU32;
+
+use hashbrown::hash_table::Entry;
+use hashbrown::{DefaultHashBuilder, HashTable};
 
 use app_contracts::features::agents::{
     ProcessEvent, ProcessInstance, ScheduledTask, WindowsProcessEvents, WindowsProcessStats,
@@ -235,8 +239,16 @@ fn key_of(starts: &[Started], ends: &[Ended], slot: Slot) -> (u64, Kind, Process
 
 #[derive(Clone, Copy, Default)]
 struct Slots {
-    came: Option<u32>,
-    went: Option<u32>,
+    came: Option<NonZeroU32>,
+    went: Option<NonZeroU32>,
+}
+
+fn instance_in(starts: &[Started], ends: &[Ended], slots: Slots) -> ProcessInstance {
+    match (slots.came, slots.went) {
+        (Some(came), _) => starts[index(came)].instance(),
+        (None, Some(went)) => ends[index(went)].instance(),
+        (None, None) => ProcessInstance::default(),
+    }
 }
 
 struct Known {
@@ -264,7 +276,8 @@ pub struct Log {
     timeline: VecDeque<Slot>,
     starts: Vec<Started>,
     ends: Vec<Ended>,
-    index: HashMap<ProcessInstance, Slots>,
+    index: HashTable<Slots>,
+    hasher: DefaultHashBuilder,
     seen: HashSet<Option<Folder>>,
     habits: HashMap<(Word, Option<Folder>), usize>,
     unplaced: Vec<ProcessInstance>,
@@ -296,7 +309,8 @@ impl Default for Log {
             timeline: VecDeque::new(),
             starts: Vec::new(),
             ends: Vec::new(),
-            index: HashMap::new(),
+            index: HashTable::new(),
+            hasher: DefaultHashBuilder::default(),
             seen: HashSet::new(),
             habits: HashMap::new(),
             unplaced: Vec::new(),
@@ -393,7 +407,7 @@ impl Log {
     fn add(&mut self, event: &ProcessEvent, place: fn(&mut Self, Slot)) {
         match event {
             ProcessEvent::Came(came) => {
-                if self.index.get(&came.instance).is_some_and(|slots| slots.came.is_some()) {
+                if self.slots(came.instance).came.is_some() {
                     return;
                 }
                 let placed = self.names.path(&came.image_path);
@@ -443,14 +457,14 @@ impl Log {
                 };
                 let at = self.starts.len();
                 self.starts.push(started);
-                self.index.entry(came.instance).or_default().came = Some(at as u32);
+                self.link(came.instance, |slots| slots.came = Some(id(at)));
                 place(self, Slot::came(came.at, at));
                 if !self.settle_launcher(came.instance) {
                     self.unplaced.push(came.instance);
                 }
             }
             ProcessEvent::Went(went) => {
-                if self.index.get(&went.instance).is_some_and(|slots| slots.went.is_some()) {
+                if self.slots(went.instance).went.is_some() {
                     return;
                 }
                 let placed = self.names.path(&went.image_path);
@@ -479,7 +493,7 @@ impl Log {
                     numbers,
                     graded: Cell::default(),
                 });
-                self.index.entry(went.instance).or_default().went = Some(at as u32);
+                self.link(went.instance, |slots| slots.went = Some(id(at)));
                 place(self, Slot::went(went.at, at));
             }
         }
@@ -546,20 +560,47 @@ impl Log {
         self.timeline.push_back(slot);
     }
 
+    fn slots(&self, instance: ProcessInstance) -> Slots {
+        let (starts, ends) = (&self.starts, &self.ends);
+        self.index
+            .find(self.hasher.hash_one(instance), |&slots| instance_in(starts, ends, slots) == instance)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    fn link(&mut self, instance: ProcessInstance, change: impl FnOnce(&mut Slots)) {
+        let (starts, ends, hasher) = (&self.starts, &self.ends, &self.hasher);
+        let entry = self.index.entry(
+            hasher.hash_one(instance),
+            |&slots| instance_in(starts, ends, slots) == instance,
+            |&slots| hasher.hash_one(instance_in(starts, ends, slots)),
+        );
+        match entry {
+            Entry::Occupied(mut occupied) => change(occupied.get_mut()),
+            Entry::Vacant(vacant) => {
+                let mut slots = Slots::default();
+                change(&mut slots);
+                vacant.insert(slots);
+            }
+        }
+    }
+
     fn started(&self, instance: ProcessInstance) -> Option<&Started> {
-        self.starts.get(self.index.get(&instance)?.came? as usize)
+        self.starts.get(index(self.slots(instance).came?))
     }
 
     fn ended(&self, instance: ProcessInstance) -> Option<&Ended> {
-        self.ends.get(self.index.get(&instance)?.went? as usize)
+        self.ends.get(index(self.slots(instance).went?))
     }
 
     fn started_mut(&mut self, instance: ProcessInstance) -> Option<&mut Started> {
-        self.starts.get_mut(self.index.get(&instance)?.came? as usize)
+        let came = self.slots(instance).came?;
+        self.starts.get_mut(index(came))
     }
 
     fn ended_mut(&mut self, instance: ProcessInstance) -> Option<&mut Ended> {
-        self.ends.get_mut(self.index.get(&instance)?.went? as usize)
+        let went = self.slots(instance).went?;
+        self.ends.get_mut(index(went))
     }
 
     fn span(&self, from: u64, to: u64) -> impl DoubleEndedIterator<Item = Event<'_>> {
