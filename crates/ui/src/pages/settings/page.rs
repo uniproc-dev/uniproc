@@ -1,24 +1,22 @@
 use std::time::Duration;
 
 use app_contracts::features::settings::{
-    AppTheme, ByteUnits, NetworkUnits, SetByteUnits, SetNetworkUnits, SetStartPage, SetTheme,
-    SetUpdateInterval, SettingsState, ShowSidebarChart, SidebarChart, StartPage, UpdateInterval,
+    AppTheme, ByteUnits, NetworkUnits, SetByteUnits, SetNetworkUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsState, ShowSidebarChart,
+    SidebarChart, StartPage, UpdateInterval,
 };
 use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, CheckBox, NumberBox, Orientation, Slider, StackPanel, Thickness, VerticalAlignment,
-    View,
+    Border, CheckBox, NumberBox, Orientation, Slider, StackPanel, Thickness,
+    VerticalAlignment, View,
 };
 
 use super::marks::SettingsMark;
 use crate::l10n::L10n;
-use crate::theme::{Palette, setting, space};
-use crate::widgets::setting_card::{
-    SettingCard, card_words, choice, expander_rows, setting_card, setting_expander,
-};
+use crate::theme::{setting, space, Palette};
 use crate::widgets::settings_column::{settings_column, settings_section};
+use crate::widgets::setting_card::{card_words, choice, expander_rows, setting_card, setting_expander, SettingCard};
 use crate::widgets::text::{subtitle, text};
 
 struct Control;
@@ -65,12 +63,7 @@ fn theme_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: 
     )
 }
 
-fn start_page_card(
-    state: &SettingsState,
-    dispatch: &Dispatch,
-    l10n: &L10n,
-    palette: Palette,
-) -> View {
+fn start_page_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let dispatch = dispatch.clone();
     setting_card(
         SettingCard {
@@ -96,12 +89,7 @@ fn byte_units_label(l10n: &L10n, units: ByteUnits) -> String {
     }
 }
 
-fn byte_units_card(
-    state: &SettingsState,
-    dispatch: &Dispatch,
-    l10n: &L10n,
-    palette: Palette,
-) -> View {
+fn byte_units_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let dispatch = dispatch.clone();
     setting_card(
         SettingCard {
@@ -127,12 +115,7 @@ fn network_units_label(l10n: &L10n, units: NetworkUnits) -> String {
     }
 }
 
-fn network_units_card(
-    state: &SettingsState,
-    dispatch: &Dispatch,
-    l10n: &L10n,
-    palette: Palette,
-) -> View {
+fn network_units_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let dispatch = dispatch.clone();
     setting_card(
         SettingCard {
@@ -161,12 +144,7 @@ fn sidebar_chart_label(l10n: &L10n, chart: SidebarChart) -> String {
     }
 }
 
-fn sidebar_charts_card(
-    state: &SettingsState,
-    dispatch: &Dispatch,
-    l10n: &L10n,
-    palette: Palette,
-) -> View {
+fn sidebar_charts_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let toggles: Vec<(String, View)> = SidebarChart::ALL
         .into_iter()
         .map(|chart| {
@@ -202,12 +180,7 @@ fn sidebar_charts_card(
         .into()
 }
 
-fn update_speed_card(
-    state: &SettingsState,
-    dispatch: &Dispatch,
-    l10n: &L10n,
-    palette: Palette,
-) -> View {
+fn update_speed_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let dispatch = dispatch.clone();
     let millis = |interval: Duration| interval.as_millis() as f64;
     let typed = dispatch.clone();
@@ -223,8 +196,7 @@ fn update_speed_card(
                 typed.emit(SetUpdateInterval(value.round() as u64));
             }
         });
-    let unit =
-        text(l10n.settings_update_speed_unit()).vertical_alignment(VerticalAlignment::Center);
+    let unit = text(l10n.settings_update_speed_unit()).vertical_alignment(VerticalAlignment::Center);
     let slider = Slider::new()
         .mark(SettingsMark::UpdateSpeed)
         .width(Control::SliderWidth)
@@ -239,11 +211,7 @@ fn update_speed_card(
     let control = StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(space::Control)
-        .children((
-            slider.margin(Thickness::new(0.0, 0.0, space::Header, 0.0)),
-            value,
-            unit,
-        ));
+        .children((slider.margin(Thickness::new(0.0, 0.0, space::Header, 0.0)), value, unit));
     setting_card(
         SettingCard {
             icon: Some(icon!(top_speed).size(setting::Icon).build_element()),
@@ -255,12 +223,7 @@ fn update_speed_card(
     )
 }
 
-pub fn settings_view(
-    state: &SettingsState,
-    dispatch: &Dispatch,
-    l10n: &L10n,
-    palette: Palette,
-) -> View {
+pub fn settings_view(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let appearance = settings_section(
         l10n.settings_section_appearance(),
         (theme_card(state, dispatch, l10n, palette),),

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use app_contracts::features::agents::ProcessPriority;
 use app_contracts::features::processes::{
-    GroupCommand, PinnedProcess, ProcessColumn, ProcessCommand, ProcessRow, ProcessStatus,
-    ProcessWindow, WindowCommand,
+    GroupCommand, PinnedProcess, ProcessColumn, ProcessCommand, ProcessRow, ProcessStatus, ProcessWindow,
+    WindowCommand,
 };
 use guicons::icon;
 use windows_reactor::{Border, Callback, View};
@@ -11,8 +11,8 @@ use windows_reactor::{Border, Callback, View};
 use super::super::marks::ProcessesMark;
 use super::columns::column_label;
 use crate::l10n::L10n;
-use crate::theme::{Palette, size};
-use crate::widgets::popup_menu::{MenuLine, PopupMenu, popup_menu};
+use crate::theme::{size, Palette};
+use crate::widgets::popup_menu::{popup_menu, MenuLine, PopupMenu};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum MenuTarget {
@@ -26,16 +26,14 @@ pub enum MenuTarget {
 impl MenuTarget {
     pub(crate) fn pin(&self) -> Option<(Arc<str>, PinnedProcess)> {
         match self {
-            Self::Process(row) | Self::Group { leader: row } | Self::Absent { image: row } => {
-                Some((
-                    row.name.clone(),
-                    PinnedProcess {
-                        exe_path: row.exe_path.to_string(),
-                        package_full_name: row.package_full_name.to_string(),
-                        display_name: row.display_name.to_string(),
-                    },
-                ))
-            }
+            Self::Process(row) | Self::Group { leader: row } | Self::Absent { image: row } => Some((
+                row.name.clone(),
+                PinnedProcess {
+                    exe_path: row.exe_path.to_string(),
+                    package_full_name: row.package_full_name.to_string(),
+                    display_name: row.display_name.to_string(),
+                },
+            )),
             Self::Window { .. } | Self::Columns => None,
         }
     }
@@ -74,10 +72,7 @@ pub(crate) enum MenuCommand {
     Group(GroupCommand),
     ShowPriority,
     Process(ProcessCommand),
-    Window {
-        handle: isize,
-        command: WindowCommand,
-    },
+    Window { handle: isize, command: WindowCommand },
     ToggleColumn(ProcessColumn),
     OpenSettings,
 }
@@ -140,12 +135,7 @@ fn is_suspended(row: &ProcessRow) -> bool {
     row.details.status == ProcessStatus::Suspended
 }
 
-fn group_lines(
-    leader: &ProcessRow,
-    members: &[ProcessRow],
-    pinned: bool,
-    l10n: &L10n,
-) -> Vec<Line> {
+fn group_lines(leader: &ProcessRow, members: &[ProcessRow], pinned: bool, l10n: &L10n) -> Vec<Line> {
     let count = members.len() as i64;
     let acting: Vec<&ProcessRow> = members.iter().filter(|row| row.takes_actions()).collect();
     let mut lines = Vec::from(pin_lines(pinned, l10n));
@@ -228,36 +218,20 @@ fn process_lines(row: &ProcessRow, pinned: bool, l10n: &L10n) -> Vec<Line> {
 
 fn priority_lines(current: Option<ProcessPriority>, l10n: &L10n) -> Vec<Line> {
     [
-        (
-            ProcessPriority::Realtime,
-            ProcessesMark::MenuPriorityRealtime,
-            l10n.processes_menu_priority_realtime(),
-        ),
-        (
-            ProcessPriority::High,
-            ProcessesMark::MenuPriorityHigh,
-            l10n.processes_menu_priority_high(),
-        ),
+        (ProcessPriority::Realtime, ProcessesMark::MenuPriorityRealtime, l10n.processes_menu_priority_realtime()),
+        (ProcessPriority::High, ProcessesMark::MenuPriorityHigh, l10n.processes_menu_priority_high()),
         (
             ProcessPriority::AboveNormal,
             ProcessesMark::MenuPriorityAboveNormal,
             l10n.processes_menu_priority_above_normal(),
         ),
-        (
-            ProcessPriority::Normal,
-            ProcessesMark::MenuPriorityNormal,
-            l10n.processes_menu_priority_normal(),
-        ),
+        (ProcessPriority::Normal, ProcessesMark::MenuPriorityNormal, l10n.processes_menu_priority_normal()),
         (
             ProcessPriority::BelowNormal,
             ProcessesMark::MenuPriorityBelowNormal,
             l10n.processes_menu_priority_below_normal(),
         ),
-        (
-            ProcessPriority::Idle,
-            ProcessesMark::MenuPriorityLow,
-            l10n.processes_menu_priority_low(),
-        ),
+        (ProcessPriority::Idle, ProcessesMark::MenuPriorityLow, l10n.processes_menu_priority_low()),
     ]
     .into_iter()
     .map(|(priority, mark, label)| {
@@ -266,12 +240,7 @@ fn priority_lines(current: Option<ProcessPriority>, l10n: &L10n) -> Vec<Line> {
         } else {
             Border::new().width(size::Icon).height(size::Icon).into()
         };
-        Line::entry(
-            mark,
-            icon,
-            label,
-            MenuCommand::Process(ProcessCommand::Priority(priority)),
-        )
+        Line::entry(mark, icon, label, MenuCommand::Process(ProcessCommand::Priority(priority)))
     })
     .collect()
 }
@@ -340,12 +309,7 @@ fn column_lines(columns: &[(ProcessColumn, bool)], l10n: &L10n) -> Vec<Line> {
             } else {
                 Border::new().width(size::Icon).height(size::Icon).into()
             };
-            Some(Line::entry(
-                mark,
-                icon,
-                column_label(l10n, column),
-                MenuCommand::ToggleColumn(column),
-            ))
+            Some(Line::entry(mark, icon, column_label(l10n, column), MenuCommand::ToggleColumn(column)))
         })
         .collect();
     lines.push(Line::Separator);

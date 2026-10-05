@@ -2,11 +2,11 @@ use app_contracts::features::system::{SystemState, SystemTool, ToolGroup};
 use guinea::prelude::Dispatch;
 use windows_reactor::{Callback, Thickness, View};
 
-use super::components::tool_card::{CardPlace, group_title, tool_card};
+use super::components::tool_card::{group_title, tool_card, CardPlace};
 use super::marks::SystemMark;
 use crate::l10n::L10n;
-use crate::theme::{Palette, setting, space};
-use crate::widgets::breadcrumb::{Breadcrumb, breadcrumb};
+use crate::theme::{setting, space, Palette};
+use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
 use crate::widgets::settings_column::{settings_column, settings_section};
 use crate::widgets::text::caption;
 
@@ -33,18 +33,12 @@ fn group_section(props: &ToolsProps<'_>, group: ToolGroup) -> View {
         content.push(
             caption(l10n.system_sysinternals_hint())
                 .foreground(palette.secondary_text)
-                .margin(Thickness::new(
-                    setting::CaptionInset,
-                    0.0,
-                    0.0,
-                    space::Control,
-                ))
+                .margin(Thickness::new(setting::CaptionInset, 0.0, 0.0, space::Control))
                 .into(),
         );
     }
     content.extend(
-        SystemTool::in_group(group)
-            .map(|tool| tool_card(state, dispatch, l10n, palette, tool, CardPlace::Catalog)),
+        SystemTool::in_group(group).map(|tool| tool_card(state, dispatch, l10n, palette, tool, CardPlace::Catalog)),
     );
     settings_section(group_title(l10n, group), content)
 }
@@ -61,7 +55,6 @@ pub fn tools_view(props: ToolsProps<'_>) -> View {
         props.on_back_hover.clone(),
         props.back.clone(),
     );
-    let [windows, settings, sysinternals] =
-        ToolGroup::ALL.map(|group| group_section(&props, group));
+    let [windows, settings, sysinternals] = ToolGroup::ALL.map(|group| group_section(&props, group));
     settings_column((crumbs, windows, settings, sysinternals))
 }

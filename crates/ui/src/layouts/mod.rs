@@ -2,6 +2,6 @@ mod metrics_pane;
 mod shell;
 mod splash;
 
-pub use metrics_pane::{SidebarChartsProps, SidebarMark, sidebar_charts};
-pub use shell::{ShellNav, ShellProps, shell_view};
-pub use splash::{ServiceTrouble, SplashMark, SplashProps, splash_view};
+pub use metrics_pane::{sidebar_charts, SidebarChartsProps, SidebarMark};
+pub use shell::{shell_view, ShellNav, ShellProps};
+pub use splash::{splash_view, ServiceTrouble, SplashMark, SplashProps};

@@ -1,18 +1,15 @@
-use app_contracts::features::system::{
-    ForgetTool, GetTool, OpenTool, PinTool, SystemState, SystemTool, ToolGroup,
-};
+use app_contracts::features::system::{ForgetTool, GetTool, OpenTool, PinTool, SystemState, SystemTool, ToolGroup};
 use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Button, ButtonStyle, Grid, Orientation, ResourceOverrides, StackPanel, Thickness, TooltipExt,
-    View,
+    Button, ButtonStyle, Grid, Orientation, ResourceOverrides, StackPanel, Thickness, TooltipExt, View,
 };
 
 use super::super::marks::{SystemMark, ToolMark};
 use crate::l10n::L10n;
-use crate::theme::{Palette, setting, size, space};
-use crate::widgets::link_card::{LinkCard, Trailing, link_card};
+use crate::theme::{setting, size, space, Palette};
+use crate::widgets::link_card::{link_card, LinkCard, Trailing};
 
 struct CardButton;
 
@@ -56,86 +53,43 @@ fn tool_icon(tool: SystemTool) -> View {
 
 fn tool_words(l10n: &L10n, tool: SystemTool) -> (String, String) {
     match tool {
-        SystemTool::TaskManager => (
-            l10n.system_task_manager(),
-            l10n.system_task_manager_description(),
-        ),
-        SystemTool::ResourceMonitor => (
-            l10n.system_resource_monitor(),
-            l10n.system_resource_monitor_description(),
-        ),
-        SystemTool::PerformanceMonitor => (
-            l10n.system_performance_monitor(),
-            l10n.system_performance_monitor_description(),
-        ),
-        SystemTool::ReliabilityMonitor => (
-            l10n.system_reliability_monitor(),
-            l10n.system_reliability_monitor_description(),
-        ),
-        SystemTool::SystemInformation => (
-            l10n.system_system_information(),
-            l10n.system_system_information_description(),
-        ),
-        SystemTool::DirectXDiagnostic => (
-            l10n.system_directx_diagnostic(),
-            l10n.system_directx_diagnostic_description(),
-        ),
-        SystemTool::EventViewer => (
-            l10n.system_event_viewer(),
-            l10n.system_event_viewer_description(),
-        ),
+        SystemTool::TaskManager => (l10n.system_task_manager(), l10n.system_task_manager_description()),
+        SystemTool::ResourceMonitor => (l10n.system_resource_monitor(), l10n.system_resource_monitor_description()),
+        SystemTool::PerformanceMonitor => {
+            (l10n.system_performance_monitor(), l10n.system_performance_monitor_description())
+        }
+        SystemTool::ReliabilityMonitor => {
+            (l10n.system_reliability_monitor(), l10n.system_reliability_monitor_description())
+        }
+        SystemTool::SystemInformation => {
+            (l10n.system_system_information(), l10n.system_system_information_description())
+        }
+        SystemTool::DirectXDiagnostic => {
+            (l10n.system_directx_diagnostic(), l10n.system_directx_diagnostic_description())
+        }
+        SystemTool::EventViewer => (l10n.system_event_viewer(), l10n.system_event_viewer_description()),
         SystemTool::Services => (l10n.system_services(), l10n.system_services_description()),
-        SystemTool::TaskScheduler => (
-            l10n.system_task_scheduler(),
-            l10n.system_task_scheduler_description(),
-        ),
-        SystemTool::DeviceManager => (
-            l10n.system_device_manager(),
-            l10n.system_device_manager_description(),
-        ),
-        SystemTool::DiskManagement => (
-            l10n.system_disk_management(),
-            l10n.system_disk_management_description(),
-        ),
-        SystemTool::ComputerManagement => (
-            l10n.system_computer_management(),
-            l10n.system_computer_management_description(),
-        ),
-        SystemTool::RegistryEditor => (
-            l10n.system_registry_editor(),
-            l10n.system_registry_editor_description(),
-        ),
-        SystemTool::SystemProperties => (
-            l10n.system_system_properties(),
-            l10n.system_system_properties_description(),
-        ),
-        SystemTool::EnvironmentVariables => (
-            l10n.system_environment_variables(),
-            l10n.system_environment_variables_description(),
-        ),
-        SystemTool::StartupApps => (
-            l10n.system_startup_apps(),
-            l10n.system_startup_apps_description(),
-        ),
-        SystemTool::InstalledApps => (
-            l10n.system_installed_apps(),
-            l10n.system_installed_apps_description(),
-        ),
+        SystemTool::TaskScheduler => (l10n.system_task_scheduler(), l10n.system_task_scheduler_description()),
+        SystemTool::DeviceManager => (l10n.system_device_manager(), l10n.system_device_manager_description()),
+        SystemTool::DiskManagement => (l10n.system_disk_management(), l10n.system_disk_management_description()),
+        SystemTool::ComputerManagement => {
+            (l10n.system_computer_management(), l10n.system_computer_management_description())
+        }
+        SystemTool::RegistryEditor => (l10n.system_registry_editor(), l10n.system_registry_editor_description()),
+        SystemTool::SystemProperties => {
+            (l10n.system_system_properties(), l10n.system_system_properties_description())
+        }
+        SystemTool::EnvironmentVariables => {
+            (l10n.system_environment_variables(), l10n.system_environment_variables_description())
+        }
+        SystemTool::StartupApps => (l10n.system_startup_apps(), l10n.system_startup_apps_description()),
+        SystemTool::InstalledApps => (l10n.system_installed_apps(), l10n.system_installed_apps_description()),
         SystemTool::Storage => (l10n.system_storage(), l10n.system_storage_description()),
         SystemTool::Power => (l10n.system_power(), l10n.system_power_description()),
-        SystemTool::WindowsUpdate => (
-            l10n.system_windows_update(),
-            l10n.system_windows_update_description(),
-        ),
+        SystemTool::WindowsUpdate => (l10n.system_windows_update(), l10n.system_windows_update_description()),
         SystemTool::About => (l10n.system_about(), l10n.system_about_description()),
-        SystemTool::ProcessExplorer => (
-            l10n.system_process_explorer(),
-            l10n.system_process_explorer_description(),
-        ),
-        SystemTool::ProcessMonitor => (
-            l10n.system_process_monitor(),
-            l10n.system_process_monitor_description(),
-        ),
+        SystemTool::ProcessExplorer => (l10n.system_process_explorer(), l10n.system_process_explorer_description()),
+        SystemTool::ProcessMonitor => (l10n.system_process_monitor(), l10n.system_process_monitor_description()),
         SystemTool::Autoruns => (l10n.system_autoruns(), l10n.system_autoruns_description()),
         SystemTool::TcpView => (l10n.system_tcpview(), l10n.system_tcpview_description()),
         SystemTool::RamMap => (l10n.system_rammap(), l10n.system_rammap_description()),
@@ -161,9 +115,7 @@ fn card_button(mark: SystemMark, glyph: View, hint: String, on_click: impl Fn() 
     Button::new()
         .mark(mark)
         .style(ButtonStyle::Subtle)
-        .resource_overrides(
-            ResourceOverrides::new().set("ButtonPadding", Thickness::uniform(CardButton::Padding)),
-        )
+        .resource_overrides(ResourceOverrides::new().set("ButtonPadding", Thickness::uniform(CardButton::Padding)))
         .on_click(on_click)
         .content(glyph)
         .tooltip(hint)
@@ -177,12 +129,9 @@ fn pin_button(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, tool: Syste
     } else {
         (icon!(pin), l10n.system_pin())
     };
-    card_button(
-        SystemMark::Pin,
-        glyph.size(size::Icon).build_element(),
-        hint,
-        move || dispatch.emit(PinTool(tool, !pinned)),
-    )
+    card_button(SystemMark::Pin, glyph.size(size::Icon).build_element(), hint, move || {
+        dispatch.emit(PinTool(tool, !pinned))
+    })
 }
 
 fn forget_button(dispatch: &Dispatch, l10n: &L10n, tool: SystemTool) -> View {
@@ -195,13 +144,7 @@ fn forget_button(dispatch: &Dispatch, l10n: &L10n, tool: SystemTool) -> View {
     )
 }
 
-fn accessory(
-    state: &SystemState,
-    dispatch: &Dispatch,
-    l10n: &L10n,
-    tool: SystemTool,
-    place: CardPlace,
-) -> View {
+fn accessory(state: &SystemState, dispatch: &Dispatch, l10n: &L10n, tool: SystemTool, place: CardPlace) -> View {
     let mut buttons = vec![pin_button(state, dispatch, l10n, tool)];
     if place == CardPlace::Favourites {
         buttons.push(forget_button(dispatch, l10n, tool));
@@ -230,11 +173,7 @@ pub(in crate::pages::system) fn tool_card(
             icon: Some(tool_icon(tool)),
             title,
             description: Some(description),
-            trailing: if missing {
-                Trailing::Download
-            } else {
-                Trailing::External
-            },
+            trailing: if missing { Trailing::Download } else { Trailing::External },
             accessory: (!missing).then(|| accessory(state, dispatch, l10n, tool, place)),
         },
         palette,

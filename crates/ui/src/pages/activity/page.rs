@@ -3,35 +3,34 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityRow, ActivityState, ActivityView, ClearArea, Filter, Group, Hide, Hover, NewGroup,
-    NewOnly, Only, PickArea, PutInGroup, Search, ShowCame, ShowSeries, ShowSpan, ShowWent, Span,
+    ActivityRow, ActivityState, ActivityView, ClearArea, Filter, Group, Hide, Hover, NewGroup, NewOnly, Only,
+    PickArea, PutInGroup, Search, ShowCame, ShowSeries, ShowSpan, ShowWent, Span,
 };
 use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
-use guinea::Mark;
 use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
+use guinea::Mark;
 use guinea_widgets::chart::scatter::{Scatter, ScatterEvent};
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, Canvas, CheckBox, Flyout, FlyoutExt, FlyoutPlacement,
-    Grid, GridLength, HorizontalAlignment, KeyedView, Orientation, PointerEventInfo, RadioButton,
-    ScrollBarVisibility, ScrollViewer, StackPanel, TextBox, Thickness, VerticalAlignment, View,
-    keyed,
+    keyed, Border, Button, ButtonStyle, Callback, Canvas, CheckBox, Flyout, FlyoutExt, FlyoutPlacement, Grid, GridLength,
+    HorizontalAlignment, KeyedView, Orientation, PointerEventInfo, RadioButton, ScrollBarVisibility, ScrollViewer,
+    StackPanel, TextBox, Thickness, VerticalAlignment, View,
 };
 
 use super::components::card::card;
 use super::components::legend::legend;
-use super::components::lifetimes::{Act, acts, options, series};
-use super::components::picks::{PickCommand, pick_lines, picked};
-use super::components::rows::{Rows, rows};
+use super::components::lifetimes::{acts, options, series, Act};
+use super::components::picks::{pick_lines, picked, PickCommand};
+use super::components::rows::{rows, Rows};
 use super::marks::ActivityMark;
 use crate::format;
 use crate::l10n::L10n;
-use crate::theme::{Palette, size, space};
+use crate::theme::{size, space, Palette};
 use crate::widgets::button::command_button;
 use crate::widgets::nothing::nothing;
 use crate::widgets::page::{loading, page_frame, page_title, status_text};
-use crate::widgets::popup_menu::{PopupMenu, popup_menu};
+use crate::widgets::popup_menu::{popup_menu, PopupMenu};
 use crate::widgets::selection::Pinned;
 use crate::widgets::separator;
 use crate::widgets::text::{caption, text};
@@ -76,12 +75,7 @@ pub struct ActivityPage {
     chart: Scatter<ProcessInstance>,
 }
 
-fn shown(
-    mark: impl Mark,
-    label: String,
-    checked: bool,
-    on_change: impl Fn(bool) + 'static,
-) -> View {
+fn shown(mark: impl Mark, label: String, checked: bool, on_change: impl Fn(bool) + 'static) -> View {
     CheckBox::new()
         .mark(mark)
         .is_checked(checked)
@@ -155,27 +149,14 @@ impl ActivityPage {
             card: ActivityMark::RowMenu,
             backdrop: ActivityMark::RowMenuBackdrop,
             palette,
-            on_command: Callback::new(move |command: PickCommand| {
-                picked.call(ActivityPageMsg::Pick(command))
-            }),
+            on_command: Callback::new(move |command: PickCommand| picked.call(ActivityPageMsg::Pick(command))),
             on_dismiss: Callback::new(move |()| dismissed.call(ActivityPageMsg::MenuDismiss)),
         }))
     }
 
-    fn menu(
-        state: &ActivityState,
-        dispatch: &Dispatch,
-        l10n: &L10n,
-        palette: Palette,
-        manage: Callback<()>,
-    ) -> View {
+    fn menu(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette, manage: Callback<()>) -> View {
         let filter = &state.filter;
-        let (came, went, new_only, series) = (
-            dispatch.clone(),
-            dispatch.clone(),
-            dispatch.clone(),
-            dispatch.clone(),
-        );
+        let (came, went, new_only, series) = (dispatch.clone(), dispatch.clone(), dispatch.clone(), dispatch.clone());
         let spans: Vec<KeyedView> = Span::ALL
             .into_iter()
             .map(|span| {
@@ -192,30 +173,14 @@ impl ActivityPage {
             })
             .collect();
         let choices = StackPanel::new().children((
-            shown(
-                ActivityMark::Came,
-                l10n.activity_came(),
-                filter.came,
-                move |on| came.emit(ShowCame(on)),
-            ),
-            shown(
-                ActivityMark::Went,
-                l10n.activity_went(),
-                filter.went,
-                move |on| went.emit(ShowWent(on)),
-            ),
-            shown(
-                ActivityMark::NewOnly,
-                l10n.activity_new_only(),
-                filter.new_only,
-                move |on| new_only.emit(NewOnly(on)),
-            ),
-            shown(
-                ActivityMark::Series,
-                l10n.activity_series(),
-                filter.series,
-                move |on| series.emit(ShowSeries(on)),
-            ),
+            shown(ActivityMark::Came, l10n.activity_came(), filter.came, move |on| came.emit(ShowCame(on))),
+            shown(ActivityMark::Went, l10n.activity_went(), filter.went, move |on| went.emit(ShowWent(on))),
+            shown(ActivityMark::NewOnly, l10n.activity_new_only(), filter.new_only, move |on| {
+                new_only.emit(NewOnly(on))
+            }),
+            shown(ActivityMark::Series, l10n.activity_series(), filter.series, move |on| {
+                series.emit(ShowSeries(on))
+            }),
             separator(palette).margin(Thickness::xy(0.0, space::Control)),
             StackPanel::new().keyed_children(spans),
             separator(palette).margin(Thickness::xy(0.0, space::Control)),
@@ -232,19 +197,11 @@ impl ActivityPage {
             .flyout_with(Flyout::rich(choices).placement(FlyoutPlacement::BottomEdgeAlignedRight))
     }
 
-    fn header(
-        state: &ActivityState,
-        dispatch: &Dispatch,
-        l10n: &L10n,
-        palette: Palette,
-        manage: Callback<()>,
-    ) -> View {
+    fn header(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette, manage: Callback<()>) -> View {
         Grid::new()
             .columns([GridLength::Star(1.0), GridLength::Auto])
             .children((
-                Border::new()
-                    .grid_column(0)
-                    .content(page_title(l10n.activity_title())),
+                Border::new().grid_column(0).content(page_title(l10n.activity_title())),
                 Border::new()
                     .grid_column(1)
                     .vertical_alignment(VerticalAlignment::Center)
@@ -253,13 +210,7 @@ impl ActivityPage {
             .into()
     }
 
-    fn range_bar(
-        view: &ActivityView,
-        state: &ActivityState,
-        dispatch: &Dispatch,
-        l10n: &L10n,
-        palette: Palette,
-    ) -> View {
+    fn range_bar(view: &ActivityView, state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
         let searched = dispatch.clone();
         let cleared = dispatch.clone();
         let where_: View = match view.scatter.area {
@@ -269,13 +220,9 @@ impl ActivityPage {
                 .children((
                     caption(l10n.activity_paused(format::clock(view.from), format::clock(view.to)))
                         .vertical_alignment(VerticalAlignment::Center),
-                    command_button(
-                        ActivityMark::ClearArea,
-                        l10n.activity_live(),
-                        None,
-                        true,
-                        move || cleared.emit(ClearArea),
-                    ),
+                    command_button(ActivityMark::ClearArea, l10n.activity_live(), None, true, move || {
+                        cleared.emit(ClearArea)
+                    }),
                 ))
                 .into(),
             None => caption(
@@ -291,10 +238,7 @@ impl ActivityPage {
             .columns([GridLength::Star(1.0), GridLength::Auto])
             .margin(Thickness::xy(space::Cell, space::Control))
             .children((
-                Border::new()
-                    .grid_column(0)
-                    .vertical_alignment(VerticalAlignment::Center)
-                    .content(where_),
+                Border::new().grid_column(0).vertical_alignment(VerticalAlignment::Center).content(where_),
                 TextBox::new(&state.filter.text)
                     .mark(ActivityMark::Search)
                     .grid_column(1)
@@ -305,33 +249,20 @@ impl ActivityPage {
             .into()
     }
 
-    fn chart(
-        &self,
-        view: &ActivityView,
-        dispatch: &Dispatch,
-        l10n: &L10n,
-        palette: Palette,
-    ) -> View {
+    fn chart(&self, view: &ActivityView, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
         let scatter = view.scatter.clone();
-        self.chart
-            .publish(series(&scatter, palette), options(&scatter, l10n, palette));
+        self.chart.publish(series(&scatter, palette), options(&scatter, l10n, palette));
         let dispatch = dispatch.clone();
-        let plot = self
-            .chart
-            .view(move |event: ScatterEvent<ProcessInstance>| {
-                for act in acts(&event, &scatter) {
-                    match act {
-                        Act::Hover(key) => dispatch.emit(Hover(key)),
-                        Act::Pick(area) => dispatch.emit(PickArea(area)),
-                        Act::Clear => dispatch.emit(ClearArea),
-                    }
+        let plot = self.chart.view(move |event: ScatterEvent<ProcessInstance>| {
+            for act in acts(&event, &scatter) {
+                match act {
+                    Act::Hover(key) => dispatch.emit(Hover(key)),
+                    Act::Pick(area) => dispatch.emit(PickArea(area)),
+                    Act::Clear => dispatch.emit(ClearArea),
                 }
-            });
-        Border::new()
-            .mark(ActivityMark::Scatter)
-            .height(Plot::Height)
-            .content(plot)
-            .into()
+            }
+        });
+        Border::new().mark(ActivityMark::Scatter).height(Plot::Height).content(plot).into()
     }
 
     fn hover_card(&self, state: &ActivityState, l10n: &L10n, palette: Palette) -> Option<View> {
@@ -354,29 +285,17 @@ impl ActivityPage {
     ) -> View {
         let header = Self::header(state, dispatch, l10n, palette, manage_groups);
         let Load::Ready(view) = &state.view else {
-            return page_frame(
-                header,
-                loading(),
-                status_text(l10n.activity_loading(), palette),
-                palette,
-            );
+            return page_frame(header, loading(), status_text(l10n.activity_loading(), palette), palette);
         };
 
         let all = dispatch.clone();
-        let chips = picked(
-            &state.filter,
-            l10n,
-            Callback::new(move |()| all.emit(Only(None))),
-        );
+        let chips = picked(&state.filter, l10n, Callback::new(move |()| all.emit(Only(None))));
         let asked = Some((state.span, state.filter.clone()));
         if *self.asked.borrow() != asked {
             self.selected.set(None);
             self.asked.replace(asked);
         }
-        let placed =
-            self.pinned
-                .borrow_mut()
-                .place(&view.rows, self.selected.get(), ActivityRow::key);
+        let placed = self.pinned.borrow_mut().place(&view.rows, self.selected.get(), ActivityRow::key);
         let list: View = if placed.is_empty() {
             text(l10n.activity_empty())
                 .mark(ActivityMark::Empty)
@@ -395,25 +314,21 @@ impl ActivityPage {
                     selected: self.selected.get(),
                     l10n: l10n.clone(),
                     palette,
-                    on_press: Callback::new(move |row: ProcessInstance| {
-                        pressed.call(ActivityPageMsg::Press(row))
-                    }),
+                    on_press: Callback::new(move |row: ProcessInstance| pressed.call(ActivityPageMsg::Press(row))),
                 }));
-            let mut layers: Vec<View> = vec![
-                Border::new()
-                    .on_pointer_pressed(move |pointer: PointerEventInfo| {
-                        anchored.call(if pointer.is_right_button_pressed {
-                            ActivityPageMsg::MenuAnchor {
-                                x: pointer.x,
-                                y: pointer.y,
-                            }
-                        } else {
-                            ActivityPageMsg::MenuDismiss
-                        })
+            let mut layers: Vec<View> = vec![Border::new()
+                .on_pointer_pressed(move |pointer: PointerEventInfo| {
+                    anchored.call(if pointer.is_right_button_pressed {
+                        ActivityPageMsg::MenuAnchor {
+                            x: pointer.x,
+                            y: pointer.y,
+                        }
+                    } else {
+                        ActivityPageMsg::MenuDismiss
                     })
-                    .content(scroller)
-                    .into(),
-            ];
+                })
+                .content(scroller)
+                .into()];
             layers.extend(menu);
             Grid::new().children(layers).into()
         };
@@ -422,14 +337,7 @@ impl ActivityPage {
         let mut layers: Vec<View> = vec![
             Border::new()
                 .grid_row(0)
-                .content(legend(
-                    &state.groups,
-                    &state.filter,
-                    &view.legend,
-                    dispatch,
-                    l10n,
-                    palette,
-                ))
+                .content(legend(&state.groups, &state.filter, &view.legend, dispatch, l10n, palette))
                 .into(),
             Border::new()
                 .grid_row(1)
@@ -440,20 +348,11 @@ impl ActivityPage {
                 .grid_row(2)
                 .content(Self::range_bar(view, state, dispatch, l10n, palette))
                 .into(),
-            Border::new()
-                .grid_row(3)
-                .content(chips.unwrap_or_else(nothing))
-                .into(),
+            Border::new().grid_row(3).content(chips.unwrap_or_else(nothing)).into(),
             Border::new().grid_row(4).content(list).into(),
         ];
         if let Some(card) = self.hover_card(state, l10n, palette) {
-            layers.push(
-                Border::new()
-                    .grid_row(1)
-                    .margin(plot_margin)
-                    .content(card)
-                    .into(),
-            );
+            layers.push(Border::new().grid_row(1).margin(plot_margin).content(card).into());
         }
         let body = Grid::new()
             .rows([
@@ -467,13 +366,7 @@ impl ActivityPage {
 
         let (from, to) = (format::clock(view.from), format::clock(view.to));
         let status = if view.lost > 0 {
-            l10n.activity_range_lost(
-                from,
-                to,
-                view.came as i64,
-                view.went as i64,
-                view.lost as i64,
-            )
+            l10n.activity_range_lost(from, to, view.came as i64, view.went as i64, view.lost as i64)
         } else {
             l10n.activity_range(from, to, view.came as i64, view.went as i64)
         };

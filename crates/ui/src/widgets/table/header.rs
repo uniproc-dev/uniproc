@@ -4,8 +4,8 @@ use std::rc::Rc;
 use guinea::Mark;
 use guinea_widgets::resize::resize_handle;
 use windows_reactor::{
-    Border, Callback, Color, Component, ComponentContext, CornerRadius, Grid, GridLength,
-    PointerEventInfo, TextBlock, Thickness, View, ViewContext,
+    Border, Callback, Color, Component, ComponentContext, CornerRadius, Grid, GridLength, PointerEventInfo,
+    TextBlock, Thickness, View, ViewContext,
 };
 
 use super::columns::{ColumnSpec, Reordered, Resized, Space};
@@ -23,9 +23,7 @@ pub(super) struct HeaderCell<'a, T, C> {
     pub(super) railed: bool,
 }
 
-pub(super) fn header_cell<T, C: Mark + Clone + PartialEq + 'static>(
-    cell: HeaderCell<'_, T, C>,
-) -> View {
+pub(super) fn header_cell<T, C: Mark + Clone + PartialEq + 'static>(cell: HeaderCell<'_, T, C>) -> View {
     let HeaderCell {
         column,
         sort_state,
@@ -48,13 +46,15 @@ pub(super) fn header_cell<T, C: Mark + Clone + PartialEq + 'static>(
         ),
     });
     let content = match indicator {
-        Some(indicator) => Grid::new()
-            .columns([GridLength::Star(1.0), GridLength::Auto])
-            .children((
-                Border::new().grid_column(0).content(base),
-                Border::new().grid_column(1).content(indicator),
-            ))
-            .into(),
+        Some(indicator) => {
+            Grid::new()
+                .columns([GridLength::Star(1.0), GridLength::Auto])
+                .children((
+                    Border::new().grid_column(0).content(base),
+                    Border::new().grid_column(1).content(indicator),
+                ))
+                .into()
+        }
         None => base,
     };
 
@@ -149,11 +149,7 @@ impl<C: Mark + Clone + PartialEq + 'static> Component for PointedHeading<C> {
     }
 
     fn view(&self, heading: &Heading<C>, cx: &mut ViewContext<Self>) -> View {
-        let plate = if self.hovered {
-            heading.hovered
-        } else {
-            Color::transparent()
-        };
+        let plate = if self.hovered { heading.hovered } else { Color::transparent() };
         let (left, right) = heading.rounded;
         let rail = if heading.railed { 1.0 } else { 0.0 };
 
@@ -199,8 +195,7 @@ impl<C: Mark + Clone + PartialEq + 'static> Component for PointedHeading<C> {
                 pressed.sent_from.set(None);
             }))
             .on_pointer_moved(Callback::new(move |info: PointerEventInfo| {
-                let Some(anchor) = dragged.anchor.get().filter(|_| info.is_left_button_pressed)
-                else {
+                let Some(anchor) = dragged.anchor.get().filter(|_| info.is_left_button_pressed) else {
                     return;
                 };
                 let delta = info.window_x - anchor;
@@ -221,12 +216,7 @@ impl<C: Mark + Clone + PartialEq + 'static> Component for PointedHeading<C> {
     }
 }
 
-pub(super) fn handle<T, C: Mark>(
-    column: &ColumnSpec<T, C>,
-    width: f64,
-    rail: Color,
-    on_resize: Callback<Resized>,
-) -> View {
+pub(super) fn handle<T, C: Mark>(column: &ColumnSpec<T, C>, width: f64, rail: Color, on_resize: Callback<Resized>) -> View {
     let id = column.id.name();
     resize_handle(width, move |width| {
         on_resize.call(Resized { column: id, width });
@@ -254,15 +244,9 @@ mod tests {
     fn a_header_trades_places_past_half_its_neighbour() {
         let middle = moving(2, Some(80.0), Some(60.0));
         assert_eq!(middle.step(29.0), None);
-        assert_eq!(
-            middle.step(31.0),
-            Some((vec!["Name", "Size", "Date", "Kind"], 60.0))
-        );
+        assert_eq!(middle.step(31.0), Some((vec!["Name", "Size", "Date", "Kind"], 60.0)));
         assert_eq!(middle.step(-39.0), None);
-        assert_eq!(
-            middle.step(-41.0),
-            Some((vec!["Name", "Kind", "Size", "Date"], -80.0))
-        );
+        assert_eq!(middle.step(-41.0), Some((vec!["Name", "Kind", "Size", "Date"], -80.0)));
     }
 
     #[test]

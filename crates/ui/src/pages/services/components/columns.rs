@@ -1,10 +1,10 @@
-use crate::widgets::table::ColumnSpec;
 use app_contracts::features::agents::WindowsServiceState;
 use app_contracts::features::services::{ServiceColumn, ServiceRow};
+use crate::widgets::table::ColumnSpec;
 use windows_reactor::{Orientation, StackPanel, View};
 
 use crate::l10n::L10n;
-use crate::theme::{Palette, space};
+use crate::theme::{space, Palette};
 use crate::widgets::table_cell;
 
 fn dimmed(content: impl Into<View>, running: bool) -> View {
@@ -40,21 +40,16 @@ fn text_column(
 pub(crate) fn build_columns(l10n: &L10n, palette: Palette) -> Vec<Column> {
     let status_l10n = l10n.clone();
     vec![
-        ColumnSpec::new(
-            ServiceColumn::Name,
-            l10n.services_col_name(),
-            260.0,
-            |row: &ServiceRow| {
-                let content = StackPanel::new()
-                    .orientation(Orientation::Horizontal)
-                    .spacing(space::Control)
-                    .children((
-                        table_cell::service_icon(),
-                        table_cell::cell_text(&*row.display_name),
-                    ));
-                dimmed(content, row.is_running())
-            },
-        )
+        ColumnSpec::new(ServiceColumn::Name, l10n.services_col_name(), 260.0, |row: &ServiceRow| {
+            let content = StackPanel::new()
+                .orientation(Orientation::Horizontal)
+                .spacing(space::Control)
+                .children((
+                    table_cell::service_icon(),
+                    table_cell::cell_text(&*row.display_name),
+                ));
+            dimmed(content, row.is_running())
+        })
         .sortable(),
         ColumnSpec::new(
             ServiceColumn::Status,
@@ -80,12 +75,9 @@ pub(crate) fn build_columns(l10n: &L10n, palette: Palette) -> Vec<Column> {
             }
         })
         .sortable(),
-        text_column(
-            ServiceColumn::Group,
-            l10n.services_col_group(),
-            120.0,
-            |row| row.group.to_string(),
-        )
+        text_column(ServiceColumn::Group, l10n.services_col_group(), 120.0, |row| {
+            row.group.to_string()
+        })
         .sortable(),
         text_column(
             ServiceColumn::Description,

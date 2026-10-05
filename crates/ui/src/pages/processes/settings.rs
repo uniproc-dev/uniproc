@@ -1,28 +1,28 @@
 use amethystate::{Field, ReactiveMap};
-use app_contracts::OrWarn;
 use app_contracts::features::processes::ProcessColumn;
+use app_contracts::OrWarn;
 use guicons::icon;
-use guinea::Mark;
 use guinea::winui::MarkExt;
+use guinea::Mark;
 use windows_reactor::{
     Border, Button, ButtonStyle, Callback, Grid, GridLength, Orientation, StackPanel, Thickness,
     VerticalAlignment, View,
 };
 
-use super::components::Step;
 use super::components::column_layout::ColumnLayout;
 use super::components::columns::{column_label, section_label};
 use super::components::grouping::{SectionId, SectionOrder};
+use super::components::Step;
 use super::marks::ProcessesSettingsMark;
 use super::page::ProcessesSettingsMaps;
 use crate::l10n::L10n;
-use crate::theme::{Palette, setting, size, space};
-use crate::widgets::breadcrumb::{Breadcrumb, breadcrumb};
+use crate::theme::{setting, size, space, Palette};
+use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
 use crate::widgets::button::action_button;
-use crate::widgets::setting_card::{
-    SettingCard, card_words, choice, expander_rows, setting_card, setting_expander, setting_switch,
-};
 use crate::widgets::settings_column::settings_column;
+use crate::widgets::setting_card::{
+    card_words, choice, expander_rows, setting_card, setting_expander, setting_switch, SettingCard,
+};
 use crate::widgets::text::text;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -112,9 +112,7 @@ impl ProcessesSettingsPage {
             ProcessesSettingsMsg::MemoryAsPercent(percent) => {
                 self.memory_as_percent = percent;
                 if let Some(setting) = &self.memory_setting {
-                    setting
-                        .set(percent)
-                        .or_warn("could not keep how memory is shown");
+                    setting.set(percent).or_warn("could not keep how memory is shown");
                 }
             }
             ProcessesSettingsMsg::Expand(group, open) => {
@@ -136,12 +134,7 @@ impl ProcessesSettingsPage {
         }
     }
 
-    fn memory_card(
-        &self,
-        l10n: &L10n,
-        palette: Palette,
-        forward: &Callback<ProcessesSettingsMsg>,
-    ) -> View {
+    fn memory_card(&self, l10n: &L10n, palette: Palette, forward: &Callback<ProcessesSettingsMsg>) -> View {
         let forward = forward.clone();
         let choice = choice(
             ProcessesSettingsMark::MemoryValues,
@@ -289,15 +282,11 @@ fn expander(
     setting_expander()
         .mark(group.mark())
         .is_expanded(open)
-        .on_is_expanded_changed(move |open: bool| {
-            expanded.call(ProcessesSettingsMsg::Expand(group, open))
-        })
+        .on_is_expanded_changed(move |open: bool| expanded.call(ProcessesSettingsMsg::Expand(group, open)))
         .header(header)
         .content(expander_rows(
             0.0,
-            rows.into_iter()
-                .chain([("reset".to_string(), reset)])
-                .collect(),
+            rows.into_iter().chain([("reset".to_string(), reset)]).collect(),
         ))
         .into()
 }
@@ -334,21 +323,13 @@ fn reset_row(
     message: ProcessesSettingsMsg,
 ) -> View {
     let forward = forward.clone();
-    let button = action_button(
-        mark,
-        l10n.processes_settings_reset(),
-        None,
-        enabled,
-        move || {
-            forward.call(message);
-        },
-    );
+    let button = action_button(mark, l10n.processes_settings_reset(), None, enabled, move || {
+        forward.call(message);
+    });
     Grid::new()
         .columns([GridLength::Star(1.0), GridLength::Auto])
         .children((
-            text(label)
-                .vertical_alignment(VerticalAlignment::Center)
-                .grid_column(0),
+            text(label).vertical_alignment(VerticalAlignment::Center).grid_column(0),
             Grid::new()
                 .grid_column(1)
                 .vertical_alignment(VerticalAlignment::Center)

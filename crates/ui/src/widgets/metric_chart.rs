@@ -1,19 +1,17 @@
 use app_contracts::features::metrics::History;
 use app_contracts::features::settings::SidebarChart;
 use guinea::prelude::Load;
-use guinea_widgets::chart::{
-    Chart, ChartGrid, HoverInfo, Interpolation, LineChartOptions, Live, Series,
-};
+use guinea_widgets::chart::{Chart, ChartGrid, HoverInfo, Interpolation, LineChartOptions, Live, Series};
 use guinea_widgets::color::{hex, hex_alpha};
 use windows_canvas::ColorF;
 use windows_reactor::{
-    Border, Color, Grid, GridLength, HorizontalAlignment, StackPanel, ThemeBrush, Thickness,
-    VerticalAlignment, View,
+    Border, Color, Grid, GridLength, HorizontalAlignment, StackPanel, ThemeBrush, Thickness, VerticalAlignment,
+    View,
 };
 
 use crate::format::{self, Rate};
 use crate::l10n::L10n;
-use crate::theme::{Palette, color_f, radius, space};
+use crate::theme::{color_f, radius, space, Palette};
 use crate::widgets::text::caption;
 
 pub fn chart_title(l10n: &L10n, chart: SidebarChart) -> String {
@@ -109,17 +107,13 @@ where
         Rate::Bytes(_) => round_up(peak, RateScale::Least, &RateScale::Units),
         Rate::Bits => {
             let bits = peak.saturating_mul(RateScale::BitsInByte);
-            round_up(bits, RateScale::LeastBits, &RateScale::BitUnits)
-                .div_ceil(RateScale::BitsInByte)
+            round_up(bits, RateScale::LeastBits, &RateScale::BitUnits).div_ceil(RateScale::BitsInByte)
         }
     }
 }
 
 fn current(history: &Load<History>) -> f32 {
-    history
-        .ready()
-        .and_then(History::last)
-        .map_or(0.0, |(_, v)| v)
+    history.ready().and_then(History::last).map_or(0.0, |(_, v)| v)
 }
 
 pub fn chart_level(history: &Load<History>, scale: Scale) -> f32 {
@@ -127,9 +121,7 @@ pub fn chart_level(history: &Load<History>, scale: Scale) -> f32 {
     match scale {
         Scale::Percent => value,
         Scale::Rate(rate) => {
-            let ceiling = history
-                .ready()
-                .map_or(0, |points| rate_ceiling(points.iter(), rate));
+            let ceiling = history.ready().map_or(0, |points| rate_ceiling(points.iter(), rate));
             if ceiling == 0 {
                 0.0
             } else {
@@ -150,26 +142,10 @@ impl MiniBar {
     const CriticalAbove: f32 = 90.0;
     const CriticalFillFrom: f32 = 95.0;
 
-    const Warning: Color = Color {
-        a: 255,
-        r: 0xFF,
-        g: 0xB9,
-        b: 0x00,
-    };
-    const Critical: Color = Color {
-        a: 255,
-        r: 0xE7,
-        g: 0x48,
-        b: 0x56,
-    };
-    const TrackWarning: Color = Color {
-        a: 130,
-        ..Self::Warning
-    };
-    const TrackCritical: Color = Color {
-        a: 130,
-        ..Self::Critical
-    };
+    const Warning: Color = Color { a: 255, r: 0xFF, g: 0xB9, b: 0x00 };
+    const Critical: Color = Color { a: 255, r: 0xE7, g: 0x48, b: 0x56 };
+    const TrackWarning: Color = Color { a: 130, ..Self::Warning };
+    const TrackCritical: Color = Color { a: 130, ..Self::Critical };
 }
 
 pub fn metric_mini_bar(palette: Palette, chart: SidebarChart, level: f32, warns: bool) -> View {
@@ -232,10 +208,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
         palette,
     } = props;
 
-    let points: Vec<(u64, f32)> = history
-        .ready()
-        .map(|history| history.iter().copied().collect())
-        .unwrap_or_default();
+    let points: Vec<(u64, f32)> = history.ready().map(|history| history.iter().copied().collect()).unwrap_or_default();
     let now = points.last().map_or(0.0, |&(_, v)| v);
     let (ceiling, reading, bound) = match scale {
         Scale::Percent => (100.0, format::percent(now), None),
@@ -261,10 +234,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
             border: None,
             grid: Some(ChartGrid {
                 every_t: Some(Timeline::Tick),
-                at_v: Timeline::Levels
-                    .iter()
-                    .map(|level| ceiling * level / 100.0)
-                    .collect(),
+                at_v: Timeline::Levels.iter().map(|level| ceiling * level / 100.0).collect(),
                 color: color_f(palette.divider_stroke),
             }),
             x_window: Some(Timeline::Window),
@@ -291,9 +261,7 @@ pub fn metric_chart(props: MetricChart<'_>) -> View {
                 .into(),
         );
     }
-    let title = Grid::new()
-        .columns([GridLength::Auto, GridLength::Star(1.0)])
-        .children(heading);
+    let title = Grid::new().columns([GridLength::Auto, GridLength::Star(1.0)]).children(heading);
     let label = StackPanel::new()
         .margin(Thickness::xy(space::Header, space::Compact))
         .vertical_alignment(VerticalAlignment::Top)
@@ -322,27 +290,15 @@ mod tests {
         assert_eq!(rate_ceiling(&[], BYTES), 100 << 10);
         assert_eq!(rate_ceiling(&[(0, 3_000.0)], BYTES), 100 << 10);
         assert_eq!(rate_ceiling(&[(0, 150.0 * 1024.0)], BYTES), 200 << 10);
-        assert_eq!(
-            rate_ceiling(&[(0, 60.0 * 1024.0 * 1024.0)], BYTES),
-            100 << 20
-        );
-        assert_eq!(
-            rate_ceiling(&[(1_000, 3.0 * 1024.0 * 1024.0)], BYTES),
-            5 << 20
-        );
+        assert_eq!(rate_ceiling(&[(0, 60.0 * 1024.0 * 1024.0)], BYTES), 100 << 20);
+        assert_eq!(rate_ceiling(&[(1_000, 3.0 * 1024.0 * 1024.0)], BYTES), 5 << 20);
     }
 
     #[test]
     fn a_scale_in_bits_lands_on_a_round_number_of_bits() {
         assert_eq!(rate_ceiling(&[], Rate::Bits) * 8, 100_000);
-        assert_eq!(
-            rate_ceiling(&[(0, 1_000_000.0)], Rate::Bits) * 8,
-            10_000_000
-        );
-        assert_eq!(
-            format::rate_bound(Rate::Bits, rate_ceiling(&[(0, 1_000_000.0)], Rate::Bits)),
-            "10 Mbps"
-        );
+        assert_eq!(rate_ceiling(&[(0, 1_000_000.0)], Rate::Bits) * 8, 10_000_000);
+        assert_eq!(format::rate_bound(Rate::Bits, rate_ceiling(&[(0, 1_000_000.0)], Rate::Bits)), "10 Mbps");
     }
 
     #[test]

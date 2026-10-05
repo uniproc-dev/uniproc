@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use guinea::Mark;
 use windows_reactor::{
-    Border, Callback, Color, Component, ComponentContext, CornerRadius, Grid, HorizontalAlignment,
-    PointerEventInfo, Thickness, VerticalAlignment, View, ViewContext, VirtualSource, keyed,
+    keyed, Border, Callback, Color, Component, ComponentContext, CornerRadius, Grid, HorizontalAlignment,
+    PointerEventInfo, Thickness, VerticalAlignment, View, ViewContext, VirtualSource,
 };
 
 use super::columns::{ColumnSpec, Laid, Look};

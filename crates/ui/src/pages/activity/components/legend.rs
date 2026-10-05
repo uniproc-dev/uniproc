@@ -2,14 +2,14 @@ use app_contracts::features::activity::{Filter, Group, Legend, ShowGroup, ShowOt
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Button, ButtonStyle, Color, KeyedView, Orientation, StackPanel, Thickness, TooltipExt,
-    VerticalAlignment, View, keyed,
+    keyed, Button, ButtonStyle, Color, KeyedView, Orientation, StackPanel, Thickness, TooltipExt, VerticalAlignment,
+    View,
 };
 
 use super::super::marks::ActivityMark;
 use super::groups::{group_label, swatch};
 use crate::l10n::L10n;
-use crate::theme::{Palette, opacity, space};
+use crate::theme::{opacity, space, Palette};
 use crate::widgets::text::caption;
 
 fn chip(
@@ -41,14 +41,7 @@ fn chip(
         .tooltip(label)
 }
 
-pub fn legend(
-    groups: &[Group],
-    filter: &Filter,
-    counts: &Legend,
-    dispatch: &Dispatch,
-    l10n: &L10n,
-    palette: Palette,
-) -> View {
+pub fn legend(groups: &[Group], filter: &Filter, counts: &Legend, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let mut chips: Vec<KeyedView> = groups
         .iter()
         .enumerate()

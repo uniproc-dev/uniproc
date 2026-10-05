@@ -4,40 +4,37 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::widgets::table::{Look, Reordered, Resized, SortState, table};
 use amethystate::{Field, ReactiveMap};
-use app_contracts::OrWarn;
 use app_contracts::features::agents::AgentConnectionState;
 use app_contracts::features::processes::{
-    ColumnConfig, Deselect, DismissFailure, GroupCommand, PinnedProcess, ProcessCategory,
-    ProcessColumn, ProcessRow, ProcessesState, RunGroupCommand, RunImageCommand, RunNewTask,
-    RunProcessCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate,
+    ColumnConfig, Deselect, DismissFailure, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState, RunNewTask,
+    RunProcessCommand,
+    RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate, GroupCommand, RunGroupCommand,
 };
 use app_contracts::features::settings::Units;
+use app_contracts::OrWarn;
 use guicons::icon;
 use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
+use crate::widgets::table::{table, Look, Reordered, Resized, SortState};
 use windows_reactor::{
-    Border, Callback, Grid, GridLength, Orientation, PointerEventInfo, StackPanel, Thickness,
-    VerticalAlignment, View,
+    Border, Callback, Grid, GridLength, PointerEventInfo, Orientation, StackPanel, Thickness, VerticalAlignment,
+    View,
 };
 
 use super::components::column_layout::ColumnLayout;
-use super::components::columns::{ColumnInputs, GroupByType, NameCellActions, build_columns};
-use super::components::context_menu::{
-    MenuCommand, MenuInputs, MenuTarget, OpenMenu, context_menu,
-};
+use super::components::columns::{build_columns, ColumnInputs, GroupByType, NameCellActions};
+use super::components::context_menu::{context_menu, MenuCommand, MenuInputs, MenuTarget, OpenMenu};
 use super::components::grouping::{
-    Child, DisplayRow, Grouping, GroupsCache, Held, Order, Pins, SectionId, SectionOrder,
-    Selection, ViewState, WslRow, environment_key, flatten_for_display, group_members, highlight,
-    keep_group_place,
+    environment_key, flatten_for_display, group_members, highlight, keep_group_place, Child, DisplayRow, Grouping, GroupsCache, Pins,
+    Held, Order, SectionId, SectionOrder, Selection, ViewState, WslRow,
 };
 use super::components::overlay::disconnected_overlay;
 use super::components::section_drag::{self, Grab, Placement, SectionGesture};
-use super::components::status::{StatusCounts, status_bar};
+use super::components::status::{status_bar, StatusCounts};
 use super::marks::ProcessesMark;
 use crate::l10n::L10n;
-use crate::theme::{Palette, radius, size, space};
+use crate::theme::{radius, size, space, Palette};
 use crate::widgets::action_failure::action_failure;
 use crate::widgets::button::{command_button, icon_button};
 use crate::widgets::page::{loading, page_frame, page_title};
@@ -93,12 +90,8 @@ impl Press {
     fn of(d: &DisplayRow) -> Self {
         match (&d.section, &d.wsl) {
             (Some(section), _) => Self::Toggle(section.id),
-            (None, Some(WslRow::Environment { pid_ns, .. })) => {
-                Self::Expand(environment_key(*pid_ns))
-            }
-            (None, Some(WslRow::Process { global_pid })) => {
-                Self::Select(Selection::Linux(*global_pid))
-            }
+            (None, Some(WslRow::Environment { pid_ns, .. })) => Self::Expand(environment_key(*pid_ns)),
+            (None, Some(WslRow::Process { global_pid })) => Self::Select(Selection::Linux(*global_pid)),
             (None, None) if d.absent => Self::Nothing,
             (None, None) if d.has_children => Self::Select(Selection::Group(d.row.pid)),
             (None, None) => Self::Select(Selection::Process(d.row.pid)),
@@ -111,9 +104,7 @@ fn menu_target(d: &DisplayRow) -> Option<MenuTarget> {
         return None;
     }
     if d.absent {
-        return Some(MenuTarget::Absent {
-            image: d.row.clone(),
-        });
+        return Some(MenuTarget::Absent { image: d.row.clone() });
     }
     match &d.child {
         Some(Child::Window(window)) => Some(MenuTarget::Window {
@@ -182,11 +173,9 @@ fn toggle_key(map: Option<&ReactiveMap<String, bool>>, key: String) {
         return;
     };
     if map.get(&key).unwrap_or(false) {
-        map.remove(&key)
-            .or_warn(format_args!("could not open {key} again"));
+        map.remove(&key).or_warn(format_args!("could not open {key} again"));
     } else {
-        map.insert(key.clone(), &true)
-            .or_warn(format_args!("could not keep {key} collapsed"));
+        map.insert(key.clone(), &true).or_warn(format_args!("could not keep {key} collapsed"));
     }
 }
 
@@ -195,31 +184,26 @@ fn toggle_pin(map: Option<&ReactiveMap<String, PinnedProcess>>, name: String, pi
         return;
     };
     if map.get(&name).is_some() {
-        map.remove(&name)
-            .or_warn(format_args!("could not unpin {name}"));
+        map.remove(&name).or_warn(format_args!("could not unpin {name}"));
     } else {
-        map.insert(name.clone(), &pin)
-            .or_warn(format_args!("could not pin {name}"));
+        map.insert(name.clone(), &pin).or_warn(format_args!("could not pin {name}"));
     }
 }
 
 impl ProcessesPage {
     pub fn new(settings: Option<ProcessesSettingsMaps>) -> Self {
-        let memory_as_percent = settings
-            .as_ref()
-            .is_some_and(|maps| maps.memory_as_percent.get());
-        let (columns, column_order, collapsed_sections, pins, by_type_setting, section_ranks) =
-            match settings {
-                Some(maps) => (
-                    Some(maps.columns),
-                    Some(maps.column_order),
-                    Some(maps.collapsed_sections),
-                    Some(maps.pins),
-                    Some(maps.group_by_type),
-                    Some(maps.section_order),
-                ),
-                None => (None, None, None, None, None, None),
-            };
+        let memory_as_percent = settings.as_ref().is_some_and(|maps| maps.memory_as_percent.get());
+        let (columns, column_order, collapsed_sections, pins, by_type_setting, section_ranks) = match settings {
+            Some(maps) => (
+                Some(maps.columns),
+                Some(maps.column_order),
+                Some(maps.collapsed_sections),
+                Some(maps.pins),
+                Some(maps.group_by_type),
+                Some(maps.section_order),
+            ),
+            None => (None, None, None, None, None, None),
+        };
         let section_order = SectionOrder::kept(section_ranks.as_ref());
         Self {
             expanded_groups: HashSet::new(),
@@ -249,11 +233,7 @@ impl ProcessesPage {
 
     fn section_gesture(&mut self, gesture: SectionGesture) {
         match gesture {
-            SectionGesture::Grab {
-                section,
-                at,
-                offset,
-            } => {
+            SectionGesture::Grab { section, at, offset } => {
                 self.dropped = None;
                 self.grab = Some(Grab::new(section, at, offset));
             }
@@ -310,24 +290,17 @@ impl ProcessesPage {
                 }
             }
             ProcessesMsg::Section(gesture) => self.section_gesture(gesture),
-            ProcessesMsg::TogglePin(name, pin) => {
-                toggle_pin(self.pins.as_ref(), name.to_string(), pin)
-            }
+            ProcessesMsg::TogglePin(name, pin) => toggle_pin(self.pins.as_ref(), name.to_string(), pin),
             ProcessesMsg::ToggleGroupByType => {
                 self.by_type = !self.by_type;
                 if let Some(setting) = &self.by_type_setting {
-                    setting
-                        .set(self.by_type)
-                        .or_warn("could not keep grouping by type");
+                    setting.set(self.by_type).or_warn("could not keep grouping by type");
                 }
             }
             ProcessesMsg::SelectGroup(pid) => self.selected_group = pid,
             ProcessesMsg::MenuAnchor { x, y } => {
                 self.menu_anchor = Some((x, y));
-                self.menu = self
-                    .pending_menu
-                    .take()
-                    .map(|target| OpenMenu::at(x, y, target));
+                self.menu = self.pending_menu.take().map(|target| OpenMenu::at(x, y, target));
             }
             ProcessesMsg::MenuFor(target) => {
                 if let Some((x, y)) = self.menu_anchor.take() {
@@ -361,16 +334,9 @@ impl ProcessesPage {
     ) -> View {
         self.selected_group_size.set(None);
         let body = match &state.rows {
-            Load::Ready(rows) => self.table(
-                state,
-                rows,
-                dispatch,
-                l10n,
-                palette,
-                forward.clone(),
-                open_settings.clone(),
-                units,
-            ),
+            Load::Ready(rows) => {
+                self.table(state, rows, dispatch, l10n, palette, forward.clone(), open_settings.clone(), units)
+            }
             Load::Failed(err) => text(l10n.processes_failed(err.to_string())).into(),
             _ => loading(),
         };
@@ -379,9 +345,7 @@ impl ProcessesPage {
             .selected
             .and_then(|pid| state.rows().iter().find(|r| r.pid == pid));
         let selected_label = match (live, self.selected_group_size.get()) {
-            (Some(row), Some(count)) => {
-                l10n.processes_selected_group(row.name.to_string(), count as i64)
-            }
+            (Some(row), Some(count)) => l10n.processes_selected_group(row.name.to_string(), count as i64),
             (Some(row), None) => l10n.processes_selected(row.name.to_string(), row.pid as i64),
             (None, _) => state
                 .selected
@@ -412,18 +376,13 @@ impl ProcessesPage {
                 .borrow()
                 .rows()
                 .iter()
-                .filter(|row| {
-                    row.takes_actions() && state.rows().iter().any(|live| live.pid == row.pid)
-                })
+                .filter(|row| row.takes_actions() && state.rows().iter().any(|live| live.pid == row.pid))
                 .map(|row| row.pid)
                 .collect()
         });
         let (end_label, end_enabled) = match &tree {
             Some(pids) => (l10n.processes_end_tree_tasks(), !pids.is_empty()),
-            None => (
-                l10n.processes_end_task(),
-                live.is_some_and(ProcessRow::takes_actions),
-            ),
+            None => (l10n.processes_end_task(), live.is_some_and(ProcessRow::takes_actions)),
         };
         let terminate = dispatch.clone();
         let end = move || match &tree {
@@ -468,21 +427,16 @@ impl ProcessesPage {
                     .margin(Thickness::xy(space::Control, 0.0))
                     .vertical_alignment(VerticalAlignment::Center)
                     .background(palette.divider_stroke),
-                Border::new()
-                    .mark(SelectionMark::Keeper)
-                    .grid_column(4)
-                    .content(command_button(
-                        ProcessesMark::EndTask,
-                        end_label,
-                        Some(icon!(prohibited).size(Header::CommandIcon).build_element()),
-                        end_enabled,
-                        end,
-                    )),
+                Border::new().mark(SelectionMark::Keeper).grid_column(4).content(command_button(
+                    ProcessesMark::EndTask,
+                    end_label,
+                    Some(icon!(prohibited).size(Header::CommandIcon).build_element()),
+                    end_enabled,
+                    end,
+                )),
                 Border::new().grid_column(5).content(icon_button(
                     ProcessesMark::OpenSettings,
-                    icon!(more_horizontal)
-                        .size(Header::CommandIcon)
-                        .build_element(),
+                    icon!(more_horizontal).size(Header::CommandIcon).build_element(),
                     move || {
                         open_settings.call(());
                     },
@@ -502,34 +456,21 @@ impl ProcessesPage {
         Grid::new()
             .children((
                 page_frame(header, body, Self::status(state, l10n, palette), palette),
-                action_failure(state.failure.as_ref(), l10n, move || {
-                    dismiss.emit(DismissFailure)
-                }),
+                action_failure(state.failure.as_ref(), l10n, move || dismiss.emit(DismissFailure)),
             ))
             .into()
     }
 
     fn status(state: &ProcessesState, l10n: &L10n, palette: Palette) -> View {
         let of = |wanted: &[ProcessCategory]| {
-            state
-                .rows()
-                .iter()
-                .filter(|row| wanted.contains(&row.category))
-                .count()
+            state.rows().iter().filter(|row| wanted.contains(&row.category)).count()
         };
         let counts = StatusCounts {
             apps: of(&[ProcessCategory::App]),
-            background: of(&[
-                ProcessCategory::BackgroundThirdParty,
-                ProcessCategory::BackgroundMicrosoft,
-            ]),
+            background: of(&[ProcessCategory::BackgroundThirdParty, ProcessCategory::BackgroundMicrosoft]),
             services: of(&[ProcessCategory::WindowsService]),
             kernel: of(&[ProcessCategory::WindowsKernel]),
-            linux: state
-                .wsl
-                .iter()
-                .map(|environment| environment.processes.len())
-                .sum(),
+            linux: state.wsl.iter().map(|environment| environment.processes.len()).sum(),
         };
         status_bar(&counts, l10n, palette)
     }
@@ -545,18 +486,15 @@ impl ProcessesPage {
         open_settings: Callback<()>,
         units: Units,
     ) -> View {
-        let collapsed_sections: HashSet<SectionId> = enabled_keys(self.collapsed_sections.as_ref())
-            .iter()
-            .filter_map(|id| SectionId::from_id(id))
-            .collect();
+        let collapsed_sections: HashSet<SectionId> =
+            enabled_keys(self.collapsed_sections.as_ref())
+                .iter()
+                .filter_map(|id| SectionId::from_id(id))
+                .collect();
         let pins: Pins = self
             .pins
             .as_ref()
-            .map(|map| {
-                map.entries()
-                    .map(|(name, pin)| (Arc::from(name), pin))
-                    .collect()
-            })
+            .map(|map| map.entries().map(|(name, pin)| (Arc::from(name), pin)).collect())
             .unwrap_or_default();
 
         let order = Order {
@@ -591,11 +529,8 @@ impl ProcessesPage {
                     section_order: &self.section_order,
                 },
             );
-            self.kept_place.set(keep_group_place(
-                sections,
-                state.selected,
-                self.kept_place.get(),
-            ));
+            self.kept_place
+                .set(keep_group_place(sections, state.selected, self.kept_place.get()));
             self.held.borrow_mut().hold(sections, selection);
             let mut display_rows = flatten_for_display(
                 sections,
@@ -607,9 +542,7 @@ impl ProcessesPage {
                 },
             );
             highlight(&mut display_rows, selection);
-            let placement = self
-                .grab
-                .and_then(|grab| section_drag::placement(&display_rows, &grab));
+            let placement = self.grab.and_then(|grab| section_drag::placement(&display_rows, &grab));
             self.placement.set(placement);
             if let Some(grab) = &self.grab {
                 section_drag::mark(&mut display_rows, grab, placement);
@@ -704,68 +637,54 @@ impl ProcessesPage {
             let command_forward = forward.clone();
             let dismiss_forward = forward.clone();
             let pin = menu.target.pin();
-            let pinned = pin
-                .as_ref()
-                .is_some_and(|(name, _)| pins.contains_key(name));
+            let pinned = pin.as_ref().is_some_and(|(name, _)| pins.contains_key(name));
             let image = menu
                 .target
                 .image()
                 .map(|image| (image.exe_path.to_string(), image.name.to_string()));
             let group: Vec<u32> = members.iter().map(|row| row.pid).collect();
-            context_menu(
-                menu,
-                MenuInputs {
-                    l10n,
-                    palette,
-                    pinned,
-                    members: &members,
-                    columns: self
-                        .layout
-                        .columns()
-                        .iter()
-                        .map(|c| (c.column, c.visible))
-                        .collect(),
-                    on_command: Callback::new(move |command: MenuCommand| {
-                        match command {
-                            MenuCommand::TogglePin => {
-                                if let Some((name, pin)) = pin.clone() {
-                                    command_forward.call(ProcessesMsg::TogglePin(name, pin));
-                                }
-                            }
-                            MenuCommand::EndTask => command_dispatch.emit(Terminate),
-                            MenuCommand::Group(command) => command_dispatch.emit(RunGroupCommand {
-                                pids: group.clone(),
-                                command,
-                            }),
-                            MenuCommand::ShowPriority => {
-                                command_forward.call(ProcessesMsg::MenuPriority);
-                                return;
-                            }
-                            MenuCommand::Process(command) => match image.clone() {
-                                Some((exe_path, name)) => command_dispatch.emit(RunImageCommand {
-                                    command,
-                                    exe_path,
-                                    name,
-                                }),
-                                None => command_dispatch.emit(RunProcessCommand(command)),
-                            },
-                            MenuCommand::Window { handle, command } => {
-                                command_dispatch.emit(RunWindowCommand { handle, command })
-                            }
-                            MenuCommand::ToggleColumn(column) => {
-                                command_forward.call(ProcessesMsg::ToggleColumn(column));
-                            }
-                            MenuCommand::OpenSettings => {
-                                open_settings.call(());
+            context_menu(menu, MenuInputs {
+                l10n,
+                palette,
+                pinned,
+                members: &members,
+                columns: self.layout.columns().iter().map(|c| (c.column, c.visible)).collect(),
+                on_command: Callback::new(move |command: MenuCommand| {
+                    match command {
+                        MenuCommand::TogglePin => {
+                            if let Some((name, pin)) = pin.clone() {
+                                command_forward.call(ProcessesMsg::TogglePin(name, pin));
                             }
                         }
-                        command_forward.call(ProcessesMsg::MenuDismiss);
-                    }),
-                    on_dismiss: Callback::new(move |()| {
-                        dismiss_forward.call(ProcessesMsg::MenuDismiss);
-                    }),
-                },
-            )
+                        MenuCommand::EndTask => command_dispatch.emit(Terminate),
+                        MenuCommand::Group(command) => command_dispatch.emit(RunGroupCommand {
+                            pids: group.clone(),
+                            command,
+                        }),
+                        MenuCommand::ShowPriority => {
+                            command_forward.call(ProcessesMsg::MenuPriority);
+                            return;
+                        }
+                        MenuCommand::Process(command) => match image.clone() {
+                            Some((exe_path, name)) => command_dispatch.emit(RunImageCommand { command, exe_path, name }),
+                            None => command_dispatch.emit(RunProcessCommand(command)),
+                        },
+                        MenuCommand::Window { handle, command } => {
+                            command_dispatch.emit(RunWindowCommand { handle, command })
+                        }
+                        MenuCommand::ToggleColumn(column) => {
+                            command_forward.call(ProcessesMsg::ToggleColumn(column));
+                        }
+                        MenuCommand::OpenSettings => {
+                            open_settings.call(());
+                        }
+                    }
+                    command_forward.call(ProcessesMsg::MenuDismiss);
+                }),
+                on_dismiss: Callback::new(move |()| {
+                    dismiss_forward.call(ProcessesMsg::MenuDismiss);
+                }),
+            })
         });
 
         let header_forward = forward.clone();
@@ -826,16 +745,8 @@ impl ProcessesPage {
             .sort_indicator(|_| None)
             .build();
 
-        let mut layers: Vec<View> = vec![
-            Border::new()
-                .on_pointer_pressed(on_pointer_pressed)
-                .content(table)
-                .into(),
-        ];
+        let mut layers: Vec<View> = vec![Border::new().on_pointer_pressed(on_pointer_pressed).content(table).into()];
         layers.extend(menu);
-        Grid::new()
-            .mark(SelectionMark::Keeper)
-            .children(layers)
-            .into()
+        Grid::new().mark(SelectionMark::Keeper).children(layers).into()
     }
 }

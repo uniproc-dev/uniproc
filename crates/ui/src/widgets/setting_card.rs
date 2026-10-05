@@ -1,12 +1,11 @@
-use guinea::Mark;
 use guinea::winui::MarkExt;
+use guinea::Mark;
 use windows_reactor::{
-    Border, Color, ComboBox, Expander, Grid, GridLength, HorizontalAlignment, KeyedView,
-    Orientation, ResourceOverrides, StackPanel, ThemeBrush, Thickness, ToggleSwitch,
-    VerticalAlignment, View, keyed,
+    keyed, Border, Color, ComboBox, Expander, Grid, GridLength, HorizontalAlignment, KeyedView, Orientation,
+    ResourceOverrides, StackPanel, ThemeBrush, Thickness, ToggleSwitch, VerticalAlignment, View,
 };
 
-use crate::theme::{Palette, radius, setting, space};
+use crate::theme::{radius, setting, space, Palette};
 use crate::widgets::card::card;
 use crate::widgets::text::{caption, text};
 
@@ -31,11 +30,7 @@ pub fn setting_switch(
     on_toggled: impl Fn(bool) + 'static,
 ) -> View {
     let state = text(state).vertical_alignment(VerticalAlignment::Center);
-    let state = if enabled {
-        state
-    } else {
-        state.foreground(palette.disabled_text)
-    };
+    let state = if enabled { state } else { state.foreground(palette.disabled_text) };
     let trim = (SettingCardSize::WinuiSwitchHeight - SettingCardSize::SwitchHeight) / 2.0;
     let switch = ToggleSwitch::new()
         .mark(mark)
@@ -44,12 +39,7 @@ pub fn setting_switch(
         .on_content(text(""))
         .off_content(text(""))
         .min_width(0.0)
-        .margin(Thickness::new(
-            0.0,
-            -trim,
-            -SettingCardSize::WinuiSwitchEmptyContent,
-            -trim,
-        ))
+        .margin(Thickness::new(0.0, -trim, -SettingCardSize::WinuiSwitchEmptyContent, -trim))
         .on_toggled(on_toggled);
     StackPanel::new()
         .orientation(Orientation::Horizontal)
@@ -68,11 +58,7 @@ pub struct SettingCard {
 pub fn card_words(title: impl Into<String>, description: Option<String>, palette: Palette) -> View {
     let mut words: Vec<View> = vec![text(title).into()];
     if let Some(description) = description {
-        words.push(
-            caption(description)
-                .foreground(palette.secondary_text)
-                .into(),
-        );
+        words.push(caption(description).foreground(palette.secondary_text).into());
     }
     StackPanel::new()
         .vertical_alignment(VerticalAlignment::Center)
@@ -98,24 +84,10 @@ fn bands(rows: Vec<(String, View)>, start: f64, end: f64) -> StackPanel {
         .map(|(at, (key, view))| {
             let band = Border::new()
                 .min_height(setting::ExpanderRowMinHeight)
-                .padding(Thickness::new(
-                    start,
-                    setting::ExpanderRowInset,
-                    end,
-                    setting::ExpanderRowInset,
-                ))
-                .border_thickness(Thickness::new(
-                    0.0,
-                    if at == 0 { 0.0 } else { space::Hairline },
-                    0.0,
-                    0.0,
-                ))
+                .padding(Thickness::new(start, setting::ExpanderRowInset, end, setting::ExpanderRowInset))
+                .border_thickness(Thickness::new(0.0, if at == 0 { 0.0 } else { space::Hairline }, 0.0, 0.0))
                 .border_brush(ThemeBrush::CardStroke)
-                .content(
-                    Grid::new()
-                        .vertical_alignment(VerticalAlignment::Center)
-                        .children((view,)),
-                );
+                .content(Grid::new().vertical_alignment(VerticalAlignment::Center).children((view,)));
             keyed(key, band)
         })
         .collect();
@@ -123,9 +95,8 @@ fn bands(rows: Vec<(String, View)>, start: f64, end: f64) -> StackPanel {
 }
 
 pub fn expander_rows(indent: f64, rows: Vec<(String, View)>) -> StackPanel {
-    bands(rows, setting::ExpanderStart + indent, setting::ExpanderEnd).margin(Thickness::uniform(
-        -SettingCardSize::WinuiExpanderContentPadding,
-    ))
+    bands(rows, setting::ExpanderStart + indent, setting::ExpanderEnd)
+        .margin(Thickness::uniform(-SettingCardSize::WinuiExpanderContentPadding))
 }
 
 pub fn card_rows(rows: Vec<(String, View)>) -> View {

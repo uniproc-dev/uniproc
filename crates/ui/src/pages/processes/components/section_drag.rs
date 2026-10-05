@@ -4,14 +4,8 @@ use super::grouping::{DisplayRow, DropEdge, SectionId};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SectionGesture {
-    Grab {
-        section: SectionId,
-        at: f64,
-        offset: f64,
-    },
-    Move {
-        at: f64,
-    },
+    Grab { section: SectionId, at: f64, offset: f64 },
+    Move { at: f64 },
     Release,
     Lost,
 }
@@ -114,8 +108,7 @@ pub(crate) fn mark(rows: &mut [DisplayRow], grab: &Grab, placement: Option<Place
     if !grab.moved() || !grab.held {
         return;
     }
-    let heading =
-        |d: &DisplayRow, id: SectionId| d.section.as_ref().is_some_and(|section| section.id == id);
+    let heading = |d: &DisplayRow, id: SectionId| d.section.as_ref().is_some_and(|section| section.id == id);
     for d in rows.iter_mut() {
         d.lifted = heading(d, grab.section);
     }
@@ -165,11 +158,7 @@ mod tests {
     #[test]
     fn a_nudge_is_not_a_drag() {
         assert_eq!(placement(&table(), &dragged(APPS, 3.0)), None);
-        assert_eq!(
-            placement(&table(), &dragged(APPS, 20.0)),
-            None,
-            "still over its own section"
-        );
+        assert_eq!(placement(&table(), &dragged(APPS, 20.0)), None, "still over its own section");
     }
 
     #[test]
@@ -177,9 +166,7 @@ mod tests {
         let to_third_party_heading = 2.0 * size::ProcessRow + size::SectionRow / 2.0;
         assert_eq!(
             placement(&table(), &dragged(APPS, to_third_party_heading)),
-            Some(Placement {
-                before: Some(KERNEL)
-            })
+            Some(Placement { before: Some(KERNEL) })
         );
         assert_eq!(
             placement(&table(), &dragged(APPS, 1_000.0)),
@@ -192,9 +179,7 @@ mod tests {
     fn up_into_the_previous_section_goes_before_it() {
         assert_eq!(
             placement(&table(), &dragged(KERNEL, -size::ProcessRow)),
-            Some(Placement {
-                before: Some(THIRD_PARTY)
-            })
+            Some(Placement { before: Some(THIRD_PARTY) })
         );
         assert_eq!(
             placement(&table(), &dragged(KERNEL, -1_000.0)),
@@ -210,11 +195,8 @@ mod tests {
         let place = placement(&rows, &grab);
         mark(&mut rows, &grab, place);
         let lifted: Vec<usize> = (0..rows.len()).filter(|at| rows[*at].lifted).collect();
-        let edges: Vec<(usize, DropEdge)> = rows
-            .iter()
-            .enumerate()
-            .filter_map(|(at, d)| d.drop_edge.map(|edge| (at, edge)))
-            .collect();
+        let edges: Vec<(usize, DropEdge)> =
+            rows.iter().enumerate().filter_map(|(at, d)| d.drop_edge.map(|edge| (at, edge))).collect();
         assert_eq!(lifted, [0]);
         assert_eq!(edges, [(6, DropEdge::Below)]);
 
@@ -222,11 +204,8 @@ mod tests {
         let grab = dragged(KERNEL, -size::ProcessRow);
         let place = placement(&rows, &grab);
         mark(&mut rows, &grab, place);
-        let edges: Vec<(usize, DropEdge)> = rows
-            .iter()
-            .enumerate()
-            .filter_map(|(at, d)| d.drop_edge.map(|edge| (at, edge)))
-            .collect();
+        let edges: Vec<(usize, DropEdge)> =
+            rows.iter().enumerate().filter_map(|(at, d)| d.drop_edge.map(|edge| (at, edge))).collect();
         assert_eq!(edges, [(3, DropEdge::Above)]);
     }
 }

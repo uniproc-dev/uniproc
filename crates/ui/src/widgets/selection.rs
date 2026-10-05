@@ -27,10 +27,7 @@ pub struct Pinned<T, K> {
 
 impl<T, K> Default for Pinned<T, K> {
     fn default() -> Self {
-        Self {
-            place: None,
-            held: None,
-        }
+        Self { place: None, held: None }
     }
 }
 
@@ -74,16 +71,9 @@ mod tests {
     #[test]
     fn a_selected_item_keeps_its_place_when_newer_items_come_on_top() {
         let mut pinned = Pinned::default();
-        assert_eq!(
-            place(&mut pinned, &[(1, "a"), (2, "b"), (3, "c")], Some(2)),
-            [1, 2, 3]
-        );
+        assert_eq!(place(&mut pinned, &[(1, "a"), (2, "b"), (3, "c")], Some(2)), [1, 2, 3]);
 
-        let placed = place(
-            &mut pinned,
-            &[(9, "x"), (8, "y"), (1, "a"), (2, "b"), (3, "c")],
-            Some(2),
-        );
+        let placed = place(&mut pinned, &[(9, "x"), (8, "y"), (1, "a"), (2, "b"), (3, "c")], Some(2));
 
         assert_eq!(placed, [9, 2, 8, 1, 3]);
     }
@@ -93,14 +83,8 @@ mod tests {
         let mut pinned = Pinned::default();
         place(&mut pinned, &[(1, "a"), (2, "b"), (3, "c")], Some(2));
 
-        assert_eq!(
-            place(&mut pinned, &[(1, "a"), (3, "c")], Some(2)),
-            [1, 2, 3]
-        );
-        assert_eq!(
-            place(&mut pinned, &[(1, "a"), (3, "c")], Some(2)),
-            [1, 2, 3]
-        );
+        assert_eq!(place(&mut pinned, &[(1, "a"), (3, "c")], Some(2)), [1, 2, 3]);
+        assert_eq!(place(&mut pinned, &[(1, "a"), (3, "c")], Some(2)), [1, 2, 3]);
     }
 
     #[test]

@@ -156,18 +156,9 @@ mod tests {
 
     #[test]
     fn a_rate_bound_is_written_whole() {
-        assert_eq!(
-            rate_bound(Rate::Bytes(ByteUnits::Windows), 100 << 20),
-            "100 MB/s"
-        );
-        assert_eq!(
-            rate_bound(Rate::Bytes(ByteUnits::Iec), 500 << 10),
-            "500 KiB/s"
-        );
-        assert_eq!(
-            rate_bound(Rate::Bytes(ByteUnits::Windows), 1 << 30),
-            "1 GB/s"
-        );
+        assert_eq!(rate_bound(Rate::Bytes(ByteUnits::Windows), 100 << 20), "100 MB/s");
+        assert_eq!(rate_bound(Rate::Bytes(ByteUnits::Iec), 500 << 10), "500 KiB/s");
+        assert_eq!(rate_bound(Rate::Bytes(ByteUnits::Windows), 1 << 30), "1 GB/s");
         assert_eq!(rate_bound(Rate::Bits, 12_500_000), "100 Mbps");
     }
 

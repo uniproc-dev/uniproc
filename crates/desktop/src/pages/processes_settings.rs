@@ -1,7 +1,7 @@
 use guinea::feature::FeatureInitContext;
-use guinea::winui::{Page, PageCx, UpdateCx, page};
+use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::pages::processes::{ProcessesSettingsMsg, ProcessesSettingsPage};
-use ui::theme::{Palette, scheme_context};
+use ui::theme::{scheme_context, Palette};
 use windows_reactor::{Callback, View};
 
 use super::processes::open_settings;
@@ -16,10 +16,7 @@ impl Page for ProcessesSettings {
     type Installs = ();
     type Message = ProcessesSettingsMsg;
 
-    fn install(
-        _ctx: &FeatureInitContext,
-        _params: &Self::Params,
-    ) -> anyhow::Result<Self::Installs> {
+    fn install(_ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
         Ok(())
     }
 
@@ -45,9 +42,9 @@ impl Page for ProcessesSettings {
 mod tests {
     use app_contracts::features::processes::{ProcessCategory, ProcessColumn};
     use domain::features::processes::settings::ProcessesSettings as Stored;
-    use guinea::Mark;
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
+    use guinea::Mark;
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::{StoreAccess, StorePlugin};
     use ui::pages::processes::{Group, ProcessesSettingsMark, SectionId};
@@ -73,10 +70,7 @@ mod tests {
         page
     }
 
-    fn expanded(
-        page: &mut Mounted<'_, ProcessesSettings>,
-        group: ProcessesSettingsMark,
-    ) -> Option<PropertyValue> {
+    fn expanded(page: &mut Mounted<'_, ProcessesSettings>, group: ProcessesSettingsMark) -> Option<PropertyValue> {
         let node = page.find(group)?;
         page.property(node, PropertyId::IsExpanded).cloned()
     }
@@ -104,10 +98,7 @@ mod tests {
     }
 
     fn sections(page: &Mounted<'_, ProcessesSettings>) -> Vec<String> {
-        let names: Vec<&str> = all_sections()
-            .iter()
-            .map(|section| section.name())
-            .collect();
+        let names: Vec<&str> = all_sections().iter().map(|section| section.name()).collect();
         let mut out = Vec::new();
         marked(&page.tree(), &names, &mut out);
         out
@@ -127,18 +118,11 @@ mod tests {
         page.property(node, property).cloned()
     }
 
-    fn enabled(
-        page: &mut Mounted<'_, ProcessesSettings>,
-        row: impl Mark,
-        mark: ProcessesSettingsMark,
-    ) -> bool {
+    fn enabled(page: &mut Mounted<'_, ProcessesSettings>, row: impl Mark, mark: ProcessesSettingsMark) -> bool {
         property(page, row, mark, PropertyId::IsEnabled) != Some(PropertyValue::Bool(false))
     }
 
-    fn shown(
-        page: &mut Mounted<'_, ProcessesSettings>,
-        column: ProcessColumn,
-    ) -> Option<PropertyValue> {
+    fn shown(page: &mut Mounted<'_, ProcessesSettings>, column: ProcessColumn) -> Option<PropertyValue> {
         property(page, column, ProcessesSettingsMark::Shown, PropertyId::IsOn)
     }
 
@@ -148,37 +132,23 @@ mod tests {
         start(h);
         let h = &*h;
         let mut page = mount(h);
-        assert_eq!(
-            expanded(&mut page, ColumnsGroup),
-            Some(PropertyValue::Bool(false))
-        );
-        assert_eq!(
-            expanded(&mut page, SectionsGroup),
-            Some(PropertyValue::Bool(false))
-        );
+        assert_eq!(expanded(&mut page, ColumnsGroup), Some(PropertyValue::Bool(false)));
+        assert_eq!(expanded(&mut page, SectionsGroup), Some(PropertyValue::Bool(false)));
 
         page.send(ProcessesSettingsMsg::Expand(Group::Columns, true));
         page.settle();
-        page.within(ProcessColumn::Pid)
-            .click(ProcessesSettingsMark::Shown)
-            .settle();
+        page.within(ProcessColumn::Pid).click(ProcessesSettingsMark::Shown).settle();
         page.settle();
         assert_eq!(
             expanded(&mut page, ColumnsGroup),
             Some(PropertyValue::Bool(true)),
             "a redraw keeps the group open"
         );
-        assert_eq!(
-            expanded(&mut page, SectionsGroup),
-            Some(PropertyValue::Bool(false))
-        );
+        assert_eq!(expanded(&mut page, SectionsGroup), Some(PropertyValue::Bool(false)));
 
         page.send(ProcessesSettingsMsg::Expand(Group::Columns, false));
         page.settle();
-        assert_eq!(
-            expanded(&mut page, ColumnsGroup),
-            Some(PropertyValue::Bool(false))
-        );
+        assert_eq!(expanded(&mut page, ColumnsGroup), Some(PropertyValue::Bool(false)));
     }
 
     #[guinea::test(iterations = 4)]
@@ -192,12 +162,7 @@ mod tests {
         assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(false)));
         assert_eq!(shown(&mut page, Cpu), Some(PropertyValue::Bool(true)));
         assert_eq!(
-            property(
-                &mut page,
-                Name,
-                ProcessesSettingsMark::Shown,
-                PropertyId::IsEnabled
-            ),
+            property(&mut page, Name, ProcessesSettingsMark::Shown, PropertyId::IsEnabled),
             Some(PropertyValue::Bool(false)),
             "the name column cannot be hidden"
         );
@@ -211,23 +176,13 @@ mod tests {
         page.send(ProcessesSettingsMsg::Expand(Group::Columns, true));
         page.settle();
 
-        let margin = property(
-            &mut page,
-            ProcessColumn::Cpu,
-            ProcessesSettingsMark::Shown,
-            PropertyId::Margin,
-        );
+        let margin = property(&mut page, ProcessColumn::Cpu, ProcessesSettingsMark::Shown, PropertyId::Margin);
 
         let (winui_height, settings_height, winui_empty_content) = (40.0, 36.0, 12.0);
         let trim = (winui_height - settings_height) / 2.0;
         assert_eq!(
             margin,
-            Some(PropertyValue::Thickness(Thickness::new(
-                0.0,
-                -trim,
-                -winui_empty_content,
-                -trim
-            )))
+            Some(PropertyValue::Thickness(Thickness::new(0.0, -trim, -winui_empty_content, -trim)))
         );
     }
 
@@ -274,18 +229,14 @@ mod tests {
         let h = &*h;
         let mut page = mount(h);
 
-        page.within(Pid)
-            .click(ProcessesSettingsMark::Shown)
-            .settle();
+        page.within(Pid).click(ProcessesSettingsMark::Shown).settle();
         page.settle();
 
         assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(true)));
         let kept = stored(h).columns().configs().get(Pid.id());
         assert!(kept.is_some_and(|config| config.visible));
 
-        page.within(Pid)
-            .click(ProcessesSettingsMark::Shown)
-            .settle();
+        page.within(Pid).click(ProcessesSettingsMark::Shown).settle();
         page.settle();
 
         assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(false)));
@@ -303,9 +254,7 @@ mod tests {
         assert!(!enabled(&mut page, reset, reset), "nothing to reset yet");
 
         page.within(Cpu).click(ProcessesSettingsMark::Down).settle();
-        page.within(Pid)
-            .click(ProcessesSettingsMark::Shown)
-            .settle();
+        page.within(Pid).click(ProcessesSettingsMark::Shown).settle();
         page.settle();
         assert!(enabled(&mut page, reset, reset));
 
@@ -317,12 +266,7 @@ mod tests {
         assert!(!enabled(&mut page, reset, reset));
         let kept = stored(h);
         assert_eq!(kept.columns().order().get("cpu"), None);
-        assert!(
-            kept.columns()
-                .configs()
-                .get(Pid.id())
-                .is_some_and(|config| !config.visible)
-        );
+        assert!(kept.columns().configs().get(Pid.id()).is_some_and(|config| !config.visible));
     }
 
     #[guinea::test(iterations = 4)]
@@ -333,15 +277,9 @@ mod tests {
         let services = SectionId::Category(ProcessCategory::WindowsService);
         let background = SectionId::Category(ProcessCategory::BackgroundMicrosoft);
         assert_eq!(sections(&page), names(&all_sections()));
-        assert!(!enabled(
-            &mut page,
-            ProcessesSettingsMark::ResetSections,
-            ProcessesSettingsMark::ResetSections
-        ));
+        assert!(!enabled(&mut page, ProcessesSettingsMark::ResetSections, ProcessesSettingsMark::ResetSections));
 
-        page.within(services)
-            .click(ProcessesSettingsMark::Up)
-            .settle();
+        page.within(services).click(ProcessesSettingsMark::Up).settle();
         page.settle();
 
         let moved = sections(&page);
@@ -367,18 +305,12 @@ mod tests {
             let node = page.find(ProcessesSettingsMark::MemoryValues)?;
             page.property(node, PropertyId::SelectedIndex).cloned()
         };
-        assert_eq!(
-            choice(&mut page),
-            Some(PropertyValue::SelectionIndex(Some(0)))
-        );
+        assert_eq!(choice(&mut page), Some(PropertyValue::SelectionIndex(Some(0))));
 
         page.send(ProcessesSettingsMsg::MemoryAsPercent(true));
         page.settle();
 
-        assert_eq!(
-            choice(&mut page),
-            Some(PropertyValue::SelectionIndex(Some(1)))
-        );
+        assert_eq!(choice(&mut page), Some(PropertyValue::SelectionIndex(Some(1))));
         assert!(stored(h).columns().memory_as_percent().get());
     }
 
