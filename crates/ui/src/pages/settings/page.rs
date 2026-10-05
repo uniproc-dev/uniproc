@@ -176,7 +176,7 @@ fn sidebar_charts_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, 
     setting_expander()
         .mark(SettingsMark::SidebarCharts)
         .header(header)
-        .content(expander_rows(setting::Icon + space::Card, toggles, palette))
+        .content(expander_rows(setting::Icon + space::Card, toggles))
         .into()
 }
 

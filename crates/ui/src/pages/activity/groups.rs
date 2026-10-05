@@ -31,6 +31,7 @@ impl Layout {
     const RowMinHeight: f64 = 40.0;
     const Ring: f64 = 18.0;
     const RingWidth: f64 = 2.0;
+    const RuleIcon: f64 = 20.0;
 }
 
 #[derive(Clone)]
@@ -47,9 +48,9 @@ pub struct ActivityGroupsPage {
 
 fn rule_label(rule: &Pick, l10n: &L10n) -> View {
     let (glyph, kind) = match rule {
-        Pick::Exe(_) => (icon!(app_generic), l10n.activity_groups_kind_exe()),
-        Pick::Folder(_) => (icon!(folder), l10n.activity_groups_kind_folder()),
-        Pick::Under(_) => (icon!(tree), l10n.activity_groups_kind_under()),
+        Pick::Exe(_) => (icon!(rule_exe), l10n.activity_groups_kind_exe()),
+        Pick::Folder(_) => (icon!(rule_folder), l10n.activity_groups_kind_folder()),
+        Pick::Under(_) => (icon!(rule_under), l10n.activity_groups_kind_under()),
     };
     StackPanel::new()
         .orientation(Orientation::Horizontal)
@@ -57,7 +58,7 @@ fn rule_label(rule: &Pick, l10n: &L10n) -> View {
         .children((
             Border::new()
                 .vertical_alignment(VerticalAlignment::Center)
-                .content(glyph.size(size::Icon).build_element()),
+                .content(glyph.size(Layout::RuleIcon).build_element()),
             text(named(rule)).vertical_alignment(VerticalAlignment::Center),
         ))
         .tooltip(kind)
@@ -342,7 +343,7 @@ impl ActivityGroupsPage {
             .is_expanded(self.expanded.contains(&group.id))
             .on_is_expanded_changed(move |open: bool| expanded.call(ActivityGroupsMsg::Expand(id.clone(), open)))
             .header(header(group, dispatch, l10n, palette))
-            .content(expander_rows(Swatch::Size + space::Header, content, palette))
+            .content(expander_rows(Swatch::Size + space::Header, content).mark(ActivityGroupsMark::Rows))
             .into()
     }
 

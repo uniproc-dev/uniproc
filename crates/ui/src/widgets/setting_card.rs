@@ -15,6 +15,7 @@ struct SettingCardSize;
 impl SettingCardSize {
     const Border: f64 = 1.0;
     const ContentMinWidth: f64 = 120.0;
+    const WinuiExpanderContentPadding: f64 = 16.0;
 }
 
 pub struct SettingCard {
@@ -42,26 +43,32 @@ pub fn setting_expander() -> Expander {
         .resource_overrides(
             ResourceOverrides::new()
                 .set("ExpanderChevronPointerOverBackground", Color::transparent())
-                .set("ExpanderChevronPressedBackground", Color::transparent())
-                .set("ExpanderContentPadding", Thickness::uniform(0.0)),
+                .set("ExpanderChevronPressedBackground", Color::transparent()),
         )
 }
 
-pub fn expander_rows(indent: f64, rows: Vec<(String, View)>, palette: Palette) -> View {
+pub fn expander_rows(indent: f64, rows: Vec<(String, View)>) -> StackPanel {
     let bands: Vec<KeyedView> = rows
         .into_iter()
         .enumerate()
         .map(|(at, (key, view))| {
             let band = Border::new()
                 .min_height(setting::ExpanderRowMinHeight)
-                .padding(Thickness::new(setting::ExpanderStart + indent, 0.0, setting::ExpanderEnd, 0.0))
+                .padding(Thickness::new(
+                    setting::ExpanderStart + indent,
+                    setting::ExpanderRowInset,
+                    setting::ExpanderEnd,
+                    setting::ExpanderRowInset,
+                ))
                 .border_thickness(Thickness::new(0.0, if at == 0 { 0.0 } else { space::Hairline }, 0.0, 0.0))
-                .border_brush(palette.divider_stroke)
+                .border_brush(ThemeBrush::CardStroke)
                 .content(Grid::new().vertical_alignment(VerticalAlignment::Center).children((view,)));
             keyed(key, band)
         })
         .collect();
-    StackPanel::new().keyed_children(bands).into()
+    StackPanel::new()
+        .margin(Thickness::uniform(-SettingCardSize::WinuiExpanderContentPadding))
+        .keyed_children(bands)
 }
 
 pub fn choice<T: Copy + PartialEq + 'static>(

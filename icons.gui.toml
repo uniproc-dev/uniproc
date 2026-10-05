@@ -186,11 +186,14 @@ iconify = "fluent:filter-24-regular"
 [folder]
 iconify = "fluent:folder-24-regular"
 
-[app-generic]
-iconify = "fluent:app-generic-24-regular"
+[rule-exe]
+iconify = "fluent:app-generic-20-regular"
 
-[tree]
-iconify = "fluent:text-bullet-list-tree-24-regular"
+[rule-folder]
+iconify = "fluent:folder-20-regular"
+
+[rule-under]
+iconify = "fluent:text-bullet-list-tree-20-regular"
 
 [gears]
 iconify = "carbon:gears"

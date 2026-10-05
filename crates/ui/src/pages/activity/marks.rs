@@ -33,6 +33,7 @@ pub enum ActivityMark {
 pub enum ActivityGroupsMark {
     Back,
     Group,
+    Rows,
     BuiltIn,
     Shown,
     Name,

@@ -285,7 +285,6 @@ fn expander(
         .content(expander_rows(
             0.0,
             rows.into_iter().chain([("reset".to_string(), reset)]).collect(),
-            palette,
         ))
         .into()
 }

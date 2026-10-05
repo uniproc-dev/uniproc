@@ -45,6 +45,7 @@ mod tests {
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::{StoreAccess, StorePlugin};
     use ui::pages::activity::ActivityGroupsMark;
+    use windows_reactor::Thickness;
 
     use super::*;
 
@@ -123,6 +124,24 @@ mod tests {
                 kind: "HorizontalAlignment",
                 variant: "Stretch"
             })
+        );
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn the_lines_between_what_a_group_holds_run_from_edge_to_edge_of_its_card(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        expand(&mut page, Group::WINDOWS_BACKGROUND);
+        let rows = page.find(ActivityGroupsMark::Rows);
+        assert!(rows.is_some(), "{:#?}", page.tree());
+
+        let margin = page.property(rows.unwrap(), PropertyId::Margin).cloned();
+
+        let winui_content_padding = 16.0;
+        assert_eq!(
+            margin,
+            Some(PropertyValue::Thickness(Thickness::uniform(-winui_content_padding)))
         );
     }
 
