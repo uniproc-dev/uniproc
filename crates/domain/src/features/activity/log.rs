@@ -957,7 +957,11 @@ fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatte
         groups: vec![0; sieve.groups.all.len()],
         other: 0,
     };
-    let (first, last) = (frame.start / Ticks::Minute, (frame.end - 1) / Ticks::Minute);
+    let shown = Frame {
+        start: frame.start.saturating_sub(Scatter::Lag),
+        end: frame.end,
+    };
+    let (first, last) = (shown.start / Ticks::Minute, (shown.end - 1) / Ticks::Minute);
     let mut drawn = log.drawn.borrow_mut();
     let mut spare = log.spare.borrow_mut();
     for (_, gone) in drawn.extract_if(|&minute, _| !(first..=last).contains(&minute)) {
@@ -975,24 +979,27 @@ fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatte
             }
         };
         let (start, end) = (minute * Ticks::Minute, (minute + 1) * Ticks::Minute);
-        let runs = if frame.start <= start && end <= frame.end {
+        if frame.start <= start && end <= frame.end {
             for (total, count) in legend.groups.iter_mut().zip(&kept.legend.groups) {
                 *total += count;
             }
             legend.other += kept.legend.other;
-            kept.runs.clone()
         } else {
             for event in log.span(start.max(frame.start), end.min(frame.end)) {
                 if let Some((group, _)) = plotted(sieve, &event) {
                     counted(&mut legend, group);
                 }
             }
+        }
+        let runs = if shown.start <= start && end <= shown.end {
+            kept.runs.clone()
+        } else {
             kept.runs
                 .iter()
                 .filter_map(|run| {
                     let dots = &kept.dots[run.from..run.to];
-                    let from = run.from + dots.partition_point(|dot| dot.at() < frame.start);
-                    let to = run.from + dots.partition_point(|dot| dot.at() < frame.end);
+                    let from = run.from + dots.partition_point(|dot| dot.at() < shown.start);
+                    let to = run.from + dots.partition_point(|dot| dot.at() < shown.end);
                     (from < to).then_some(Run { from, to, ..*run })
                 })
                 .collect()
@@ -2457,6 +2464,23 @@ mod tests {
         assert_eq!(alive.lived(), Lived::Running);
         let orphan = dot(&scatter, 30);
         assert_eq!((orphan.at(), orphan.lived()), (at(50, 0), Lived::Unknown));
+    }
+
+    #[test]
+    fn a_scatter_holds_the_lag_before_its_span_and_counts_only_the_span() {
+        let start = at(59, 59) - HOUR;
+        let mut log = Log::default();
+        log.record(&[
+            went(30, start - Scatter::Lag - Ticks::Second / 2),
+            went(31, start - Ticks::Second / 2),
+            went(32, start + Ticks::Second / 2),
+        ]);
+
+        let view = look(&log, &Filter::default(), None);
+
+        let pids: Vec<u32> = view.scatter.dots().map(|dot| dot.key().pid).collect();
+        assert_eq!(pids, [31, 32], "{:#?}", view.scatter);
+        assert_eq!(view.legend.other, 1, "{:#?}", view.legend);
     }
 
     #[test]

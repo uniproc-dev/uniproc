@@ -131,7 +131,10 @@ pub fn options(scatter: &Scatter, l10n: &L10n, palette: Palette) -> ScatterOptio
     ScatterOptions {
         background: None,
         border: None,
-        x: (scatter.now.saturating_sub(scatter.length), scatter.now),
+        x: (
+            scatter.now.saturating_sub(scatter.length + Scatter::Lag),
+            scatter.now.saturating_sub(Scatter::Lag),
+        ),
         live: Some(Ticks::Second as f64),
         y: Scale::Log {
             from: Look::Shortest,
@@ -140,7 +143,7 @@ pub fn options(scatter: &Scatter, l10n: &L10n, palette: Palette) -> ScatterOptio
         above: vec![String::new()],
         below: vec![String::new()],
         y_lines: Look::Lines.iter().map(|&line| (seconds(line), lasted(l10n, line))).collect(),
-        x_ticks: ticks(scatter.now, scatter.now_clock, scatter.length)
+        x_ticks: ticks(scatter.now, scatter.now_clock, scatter.length + Scatter::Lag)
             .into_iter()
             .map(|(at, clock)| (at, format::clock(clock)))
             .collect(),
@@ -335,9 +338,22 @@ mod tests {
         assert!(labels.contains(&"100 ms".to_string()) && labels.contains(&"1 min".to_string()), "{labels:?}");
         assert!(options.above.iter().chain(&options.below).all(String::is_empty), "{options:#?}");
         assert_eq!(options.y, Scale::Log { from: 0.1, to: 3600.0 });
-        assert_eq!(options.x, (NOW - HOUR, NOW));
+        assert_eq!(options.x, (NOW - HOUR - Scatter::Lag, NOW - Scatter::Lag));
         assert_eq!(options.live, Some(Ticks::Second as f64));
         assert!(!options.x_ticks.is_empty(), "{options:#?}");
+    }
+
+    #[test]
+    fn the_time_marks_reach_back_to_the_lagging_left_edge() {
+        let scatter = Scatter {
+            now: NOW + Ticks::Second / 2,
+            ..scatter(Vec::new())
+        };
+
+        let options = options(&scatter, &l10n(), palette());
+
+        assert!(options.x.0 <= NOW - HOUR, "{:?}", options.x);
+        assert!(options.x_ticks.iter().any(|(at, _)| *at == NOW - HOUR), "{options:#?}");
     }
 
     #[test]

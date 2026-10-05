@@ -282,6 +282,11 @@ pub struct Scatter {
     pub area: Option<Area>,
 }
 
+#[expect(non_upper_case_globals)]
+impl Scatter {
+    pub const Lag: u64 = 10_000_000;
+}
+
 impl Scatter {
     pub fn dots(&self) -> impl Iterator<Item = &Dot> {
         self.pieces.iter().flat_map(Piece::dots)
