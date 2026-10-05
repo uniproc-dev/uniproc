@@ -117,6 +117,27 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]
+    fn a_page_left_with_a_redraw_pending_is_not_drawn_again(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        serve("notepad.exe");
+        let mut app = Mounted::routed(h, Route::Services {}).unwrap();
+        h.advance(Duration::from_secs(1));
+        app.settle();
+        serve("calc.exe");
+        h.advance(Duration::from_secs(1));
+
+        let left = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            app.navigate(Route::Settings {});
+            app.settle();
+        }));
+
+        assert!(left.is_ok(), "leaving Services with a redraw pending panicked");
+        assert!(app.is_mounted::<Settings>());
+        assert!(!app.is_mounted::<Services>());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn processes_come_back_as_they_were_left_and_catch_up_after(h: &mut Harness) {
         start(h);
         let h = &*h;
