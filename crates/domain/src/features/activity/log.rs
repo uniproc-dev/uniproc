@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{vec_deque, BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -50,11 +50,40 @@ struct Started {
     folder: Option<Folder>,
     first_seen: bool,
     launched: Option<(ProcessInstance, Word)>,
+    went_at: Option<u64>,
 }
 
 struct Ended {
     went: ProcessWent,
     placed: Placed,
+    came_at: Option<u64>,
+}
+
+enum Event {
+    Came(Started),
+    Went(Ended),
+}
+
+impl Event {
+    fn at(&self) -> u64 {
+        match self {
+            Event::Came(started) => started.came.at,
+            Event::Went(ended) => ended.went.at,
+        }
+    }
+
+    fn key(&self) -> (u64, Kind, ProcessInstance) {
+        match self {
+            Event::Came(started) => (started.came.at, Kind::Came, started.came.instance),
+            Event::Went(ended) => (ended.went.at, Kind::Went, ended.went.instance),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct Slots {
+    came: Option<usize>,
+    went: Option<usize>,
 }
 
 struct Known {
@@ -73,9 +102,8 @@ pub struct Log {
     names: Names,
     shells: [Word; Pace::Shells.len()],
     console_host: Word,
-    started: HashMap<ProcessInstance, Started>,
-    ended: HashMap<ProcessInstance, Ended>,
-    timeline: BTreeSet<(u64, Kind, ProcessInstance)>,
+    events: VecDeque<Event>,
+    index: HashMap<ProcessInstance, Slots>,
     seen: HashSet<Option<Folder>>,
     habits: HashMap<(Word, Option<Folder>), usize>,
     unplaced: Vec<ProcessInstance>,
@@ -93,9 +121,8 @@ impl Default for Log {
             names,
             shells,
             console_host,
-            started: HashMap::new(),
-            ended: HashMap::new(),
-            timeline: BTreeSet::new(),
+            events: VecDeque::new(),
+            index: HashMap::new(),
             seen: HashSet::new(),
             habits: HashMap::new(),
             unplaced: Vec::new(),
@@ -142,49 +169,7 @@ impl<'a> Groups<'a> {
 impl Log {
     pub fn record(&mut self, events: &[ProcessEvent]) {
         for event in events {
-            match event {
-                ProcessEvent::Came(came) => {
-                    if self.started.contains_key(&came.instance) {
-                        continue;
-                    }
-                    let placed = self.names.path(&came.image_path);
-                    let first_seen = came.image_path.is_empty() || self.seen.insert(placed.folder);
-                    self.timeline.insert((came.at, Kind::Came, came.instance));
-                    let name = match placed.file {
-                        Some(file) => file,
-                        None => self
-                            .names
-                            .spell(came.command_line.split_whitespace().next().map(file_name).unwrap_or_default()),
-                    };
-                    self.started.insert(
-                        came.instance,
-                        Started {
-                            name,
-                            came: came.clone(),
-                            folder: placed.folder,
-                            first_seen,
-                            launched: None,
-                        },
-                    );
-                    if !self.settle_launcher(came.instance) {
-                        self.unplaced.push(came.instance);
-                    }
-                }
-                ProcessEvent::Went(went) => {
-                    if self.ended.contains_key(&went.instance) {
-                        continue;
-                    }
-                    self.timeline.insert((went.at, Kind::Went, went.instance));
-                    let placed = self.names.path(&went.image_path);
-                    self.ended.insert(
-                        went.instance,
-                        Ended {
-                            went: went.clone(),
-                            placed,
-                        },
-                    );
-                }
-            }
+            self.add(event, Self::insert);
         }
     }
 
@@ -198,7 +183,125 @@ impl Log {
 
     pub fn history(&mut self, since: u64, events: &[ProcessEvent]) {
         self.since = Some(self.since.map_or(since, |known| known.min(since)));
-        self.record(events);
+        for event in events {
+            self.add(event, Self::append);
+        }
+        self.events.make_contiguous().sort_by_key(Event::key);
+        self.reindex(0);
+    }
+
+    fn add(&mut self, event: &ProcessEvent, place: fn(&mut Self, Event)) {
+        match event {
+            ProcessEvent::Came(came) => {
+                if self.index.get(&came.instance).is_some_and(|slots| slots.came.is_some()) {
+                    return;
+                }
+                let placed = self.names.path(&came.image_path);
+                let first_seen = came.image_path.is_empty() || self.seen.insert(placed.folder);
+                let name = match placed.file {
+                    Some(file) => file,
+                    None => self
+                        .names
+                        .spell(came.command_line.split_whitespace().next().map(file_name).unwrap_or_default()),
+                };
+                let went_at = self.ended_mut(came.instance).map(|ended| {
+                    ended.came_at = Some(came.at);
+                    ended.went.at
+                });
+                place(
+                    self,
+                    Event::Came(Started {
+                        name,
+                        came: came.clone(),
+                        folder: placed.folder,
+                        first_seen,
+                        launched: None,
+                        went_at,
+                    }),
+                );
+                if !self.settle_launcher(came.instance) {
+                    self.unplaced.push(came.instance);
+                }
+            }
+            ProcessEvent::Went(went) => {
+                if self.index.get(&went.instance).is_some_and(|slots| slots.went.is_some()) {
+                    return;
+                }
+                let placed = self.names.path(&went.image_path);
+                let came_at = self.started_mut(went.instance).map(|started| {
+                    started.went_at = Some(went.at);
+                    started.came.at
+                });
+                place(
+                    self,
+                    Event::Went(Ended {
+                        went: went.clone(),
+                        placed,
+                        came_at,
+                    }),
+                );
+            }
+        }
+    }
+
+    fn insert(&mut self, event: Event) {
+        let key = event.key();
+        let position = if self.events.back().is_none_or(|last| last.key() <= key) {
+            self.events.len()
+        } else {
+            self.events.partition_point(|known| known.key() < key)
+        };
+        self.events.insert(position, event);
+        self.reindex(position);
+    }
+
+    fn append(&mut self, event: Event) {
+        self.events.push_back(event);
+        self.reindex(self.events.len() - 1);
+    }
+
+    fn reindex(&mut self, from: usize) {
+        for (position, event) in self.events.range(from..).enumerate() {
+            let position = from + position;
+            match event {
+                Event::Came(started) => self.index.entry(started.came.instance).or_default().came = Some(position),
+                Event::Went(ended) => self.index.entry(ended.went.instance).or_default().went = Some(position),
+            }
+        }
+    }
+
+    fn started(&self, instance: ProcessInstance) -> Option<&Started> {
+        match self.events.get(self.index.get(&instance)?.came?)? {
+            Event::Came(started) => Some(started),
+            Event::Went(_) => None,
+        }
+    }
+
+    fn ended(&self, instance: ProcessInstance) -> Option<&Ended> {
+        match self.events.get(self.index.get(&instance)?.went?)? {
+            Event::Went(ended) => Some(ended),
+            Event::Came(_) => None,
+        }
+    }
+
+    fn started_mut(&mut self, instance: ProcessInstance) -> Option<&mut Started> {
+        match self.events.get_mut(self.index.get(&instance)?.came?)? {
+            Event::Came(started) => Some(started),
+            Event::Went(_) => None,
+        }
+    }
+
+    fn ended_mut(&mut self, instance: ProcessInstance) -> Option<&mut Ended> {
+        match self.events.get_mut(self.index.get(&instance)?.went?)? {
+            Event::Went(ended) => Some(ended),
+            Event::Came(_) => None,
+        }
+    }
+
+    fn span(&self, from: u64, to: u64) -> vec_deque::Iter<'_, Event> {
+        let start = self.events.partition_point(|event| event.at() < from);
+        let end = self.events.partition_point(|event| event.at() < to);
+        self.events.range(start..end.max(start))
     }
 
     pub fn note_running(&mut self, processes: &[WindowsProcessStats]) {
@@ -222,17 +325,18 @@ impl Log {
     }
 
     fn settle_launcher(&mut self, instance: ProcessInstance) -> bool {
-        let Some(started) = self.started.get(&instance) else {
+        let Some(started) = self.started(instance) else {
             return true;
         };
+        let folder = started.folder;
         let Some((launcher, word)) = self
             .launched_by(started)
             .and_then(|launcher| self.named(launcher).map(|name| (launcher, self.names.word_of(name))))
         else {
             return false;
         };
-        *self.habits.entry((word, started.folder)).or_default() += 1;
-        if let Some(started) = self.started.get_mut(&instance) {
+        *self.habits.entry((word, folder)).or_default() += 1;
+        if let Some(started) = self.started_mut(instance) {
             started.launched = Some((launcher, word));
         }
         true
@@ -297,13 +401,13 @@ impl Log {
             if self.named(at).is_some_and(|name| self.names.word_of(name) == wanted) {
                 return true;
             }
-            next = self.started.get(&at).map(|started| started.came.parent);
+            next = self.started(at).map(|started| started.came.parent);
         }
         false
     }
 
     fn went_has(&self, ended: &Ended, rule: Rule) -> bool {
-        if let Some(started) = self.started.get(&ended.went.instance) {
+        if let Some(started) = self.started(ended.went.instance) {
             return self.has(started, rule);
         }
         match rule {
@@ -322,7 +426,7 @@ impl Log {
     }
 
     fn began(&self) -> Option<u64> {
-        let first = self.timeline.first().map(|(at, ..)| *at);
+        let first = self.events.front().map(Event::at);
         match (self.since, first) {
             (Some(since), Some(first)) => Some(since.min(first)),
             (since, first) => since.or(first),
@@ -330,8 +434,7 @@ impl Log {
     }
 
     fn named(&self, instance: ProcessInstance) -> Option<Spell> {
-        self.started
-            .get(&instance)
+        self.started(instance)
             .map(|started| started.name)
             .or_else(|| self.running.get(&instance.pid).map(|known| known.name))
     }
@@ -342,7 +445,7 @@ impl Log {
             let at = next.take()?;
             let name = self.named(at)?;
             if self.is_shell(name) {
-                next = self.started.get(&at).map(|parent| parent.came.parent);
+                next = self.started(at).map(|parent| parent.came.parent);
             }
             Some((at, name))
         })
@@ -408,16 +511,16 @@ impl Frame {
     }
 }
 
-fn came_lived(log: &Log, started: &Started) -> Lived {
-    log.ended
-        .get(&started.came.instance)
-        .map_or(Lived::Running, |ended| Lived::For(ended.went.at.saturating_sub(started.came.at)))
+fn came_lived(started: &Started) -> Lived {
+    started
+        .went_at
+        .map_or(Lived::Running, |at| Lived::For(at.saturating_sub(started.came.at)))
 }
 
-fn went_lived(log: &Log, went: &ProcessWent) -> Lived {
-    log.started
-        .get(&went.instance)
-        .map_or(Lived::Unknown, |started| Lived::For(went.at.saturating_sub(started.came.at)))
+fn went_lived(ended: &Ended) -> Lived {
+    ended
+        .came_at
+        .map_or(Lived::Unknown, |at| Lived::For(ended.went.at.saturating_sub(at)))
 }
 
 fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatter, Legend) {
@@ -427,24 +530,23 @@ fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatte
         other: 0,
     };
     let mut dots = Vec::new();
-    let span = (frame.start, Kind::Came, ProcessInstance::default())..(frame.end, Kind::Came, ProcessInstance::default());
-    for (at, kind, instance) in log.timeline.range(span) {
-        let (graded, lived, faint) = match kind {
-            Kind::Came => {
-                let Some(started) = log.started.get(instance).filter(|started| !log.hosted(started)) else {
-                    continue;
-                };
-                let graded = sieve
-                    .grade_came(started)
-                    .or_else(|| log.ended.get(instance).and_then(|ended| sieve.grade_went(ended)));
-                (graded, came_lived(log, started), log.routine(started))
-            }
-            Kind::Went => {
-                if log.started.contains_key(instance) {
+    for event in log.span(frame.start, frame.end) {
+        let (instance, graded, lived, faint) = match event {
+            Event::Came(started) => {
+                if log.hosted(started) {
                     continue;
                 }
-                let graded = log.ended.get(instance).and_then(|ended| sieve.grade_went(ended));
-                (graded, Lived::Unknown, false)
+                let instance = started.came.instance;
+                let graded = sieve
+                    .grade_came(started)
+                    .or_else(|| log.ended(instance).and_then(|ended| sieve.grade_went(ended)));
+                (instance, graded, came_lived(started), log.routine(started))
+            }
+            Event::Went(ended) => {
+                if ended.came_at.is_some() {
+                    continue;
+                }
+                (ended.went.instance, sieve.grade_went(ended), Lived::Unknown, false)
             }
         };
         let Some(group) = graded else {
@@ -456,8 +558,8 @@ fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatte
         }
         if sieve.shown(group) {
             dots.push(Dot {
-                key: *instance,
-                at: *at,
+                key: instance,
+                at: event.at(),
                 lived,
                 faint,
                 hue: sieve.hue(group),
@@ -516,8 +618,7 @@ fn came_of(
         parent_services: came.parent_services.clone(),
         first_seen: started.first_seen,
         exit: log
-            .ended
-            .get(&came.instance)
+            .ended(came.instance)
             .map(|ended| exit_of(&ended.went, Some(came.at), clock)),
         picks: log.picks(started),
         hue: groups.hue(log.came_group(groups, started)),
@@ -527,8 +628,7 @@ fn came_of(
 
 fn went_name(log: &Log, ended: &Ended) -> Option<Arc<str>> {
     let went = &ended.went;
-    log.started
-        .get(&went.instance)
+    log.started(went.instance)
         .map(|started| log.text(started.name))
         .or_else(|| ended.placed.file.map(|file| log.text(file)))
         .or_else(|| (!went.image_name.is_empty()).then(|| went.image_name.clone()))
@@ -537,10 +637,8 @@ fn went_name(log: &Log, ended: &Ended) -> Option<Arc<str>> {
 
 fn went_of(log: &Log, groups: &Groups<'_>, ended: &Ended, clock: fn(u64) -> Clock) -> Went {
     let went = &ended.went;
-    let started = log
-        .started
-        .get(&went.instance)
-        .map(|started| started.came.at)
+    let started = ended
+        .came_at
         .or(went.started_at)
         .or_else(|| {
             log.running
@@ -579,10 +677,10 @@ fn series_of(
     clock: fn(u64) -> Clock,
 ) -> Option<Series> {
     let (at, newest) = members.first()?;
-    let newest = log.started.get(newest)?;
+    let newest = log.started(*newest)?;
     let (launcher, launcher_word) = newest.launched?;
     let folder = log.names.folder_text(newest.folder?);
-    let started: Vec<&Started> = members.iter().filter_map(|(_, instance)| log.started.get(instance)).collect();
+    let started: Vec<&Started> = members.iter().filter_map(|&(_, instance)| log.started(instance)).collect();
     let mut names: BTreeMap<Arc<str>, usize> = BTreeMap::new();
     for member in &started {
         *names.entry(log.text(member.name)).or_default() += 1;
@@ -603,7 +701,7 @@ fn series_of(
         folder,
         names,
         count: members.len(),
-        went: started.iter().filter(|member| log.ended.contains_key(&member.came.instance)).count(),
+        went: started.iter().filter(|member| member.went_at.is_some()).count(),
         routine: log.routine(newest),
         members: started
             .iter()
@@ -650,7 +748,7 @@ impl<'a> Sieve<'a> {
         let passes = self.filter.came
             && (!self.filter.new_only || started.first_seen)
             && !self.log.hosted(started)
-            && self.held(came_lived(self.log, started))
+            && self.held(came_lived(started))
             && admitted(self.only, &self.hidden, |rule| self.log.has(started, rule))
             && [
                 &**self.log.names.text(started.name),
@@ -665,12 +763,12 @@ impl<'a> Sieve<'a> {
     fn grade_went(&self, ended: &Ended) -> Option<Option<usize>> {
         let passes = self.filter.went
             && !self.filter.new_only
-            && !self
-                .log
-                .started
-                .get(&ended.went.instance)
-                .is_some_and(|started| self.log.hosted(started))
-            && self.held(went_lived(self.log, &ended.went))
+            && !ended.came_at.is_some_and(|_| {
+                self.log
+                    .started(ended.went.instance)
+                    .is_some_and(|started| self.log.hosted(started))
+            })
+            && self.held(went_lived(ended))
             && admitted(self.only, &self.hidden, |rule| self.log.went_has(ended, rule))
             && contains(went_name(self.log, ended).as_deref().unwrap_or_default(), &self.text);
         passes.then(|| self.log.went_group(self.groups, ended))
@@ -696,11 +794,12 @@ struct Walk<'a> {
 }
 
 impl Walk<'_> {
-    fn came(&mut self, at: u64, instance: ProcessInstance) {
+    fn came(&mut self, started: &Started) {
         let sieve = &self.sieve;
-        let Some(started) = sieve.log.started.get(&instance).filter(|started| sieve.admits_came(started)) else {
+        if !sieve.admits_came(started) {
             return;
-        };
+        }
+        let (at, instance) = (started.came.at, started.came.instance);
         let launched = started.launched.zip(started.folder).filter(|_| sieve.filter.series);
         let Some(((launcher, _), folder)) = launched else {
             self.rows.push((at, Light::Came(instance)));
@@ -720,9 +819,9 @@ impl Walk<'_> {
         }
     }
 
-    fn went(&mut self, at: u64, instance: ProcessInstance) {
-        if self.sieve.log.ended.get(&instance).is_some_and(|ended| self.sieve.admits_went(ended)) {
-            self.rows.push((at, Light::Went(instance)));
+    fn went(&mut self, ended: &Ended) {
+        if self.sieve.admits_went(ended) {
+            self.rows.push((ended.went.at, Light::Went(ended.went.instance)));
         }
     }
 
@@ -747,15 +846,15 @@ fn contains(field: &str, text: &str) -> bool {
 fn row_of(log: &Log, groups: &Groups<'_>, row: Light, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
     Some(match row {
         Light::Came(instance) => {
-            ActivityRow::Came(Rc::new(came_of(log, groups, log.started.get(&instance)?, clock).0))
+            ActivityRow::Came(Rc::new(came_of(log, groups, log.started(instance)?, clock).0))
         }
-        Light::Went(instance) => ActivityRow::Went(Rc::new(went_of(log, groups, log.ended.get(&instance)?, clock))),
+        Light::Went(instance) => ActivityRow::Went(Rc::new(went_of(log, groups, log.ended(instance)?, clock))),
         Light::Series(members) => ActivityRow::Series(Rc::new(series_of(&members, log, groups, clock)?)),
     })
 }
 
 pub fn row(log: &Log, groups: &[Group], key: ProcessInstance, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
-    let light = if log.started.contains_key(&key) {
+    let light = if log.started(key).is_some() {
         Light::Came(key)
     } else {
         Light::Went(key)
@@ -778,12 +877,11 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
         .map_or((frame.start, frame.end), |area| (area.from.max(frame.start), area.to.min(frame.end)));
 
     let window = |at: u64| (from..to).contains(&at);
-    let span = (from, Kind::Came, ProcessInstance::default())..(to, Kind::Came, ProcessInstance::default());
     let (mut came_count, mut went_count) = (0, 0);
-    for (_, kind, _) in log.timeline.range(span.clone()) {
-        match kind {
-            Kind::Came => came_count += 1,
-            Kind::Went => went_count += 1,
+    for event in log.span(from, to) {
+        match event {
+            Event::Came(_) => came_count += 1,
+            Event::Went(_) => went_count += 1,
         }
     }
 
@@ -792,14 +890,12 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
         rows: Vec::new(),
         series: HashMap::new(),
     };
-    for (at, kind, instance) in log.timeline.range(span).rev() {
-        match kind {
-            Kind::Came => walk.came(*at, *instance),
-            Kind::Went => {
-                let shown = ask.filter.came
-                    && log.started.get(instance).is_some_and(|started| window(started.came.at));
-                if !shown {
-                    walk.went(*at, *instance);
+    for event in log.span(from, to).rev() {
+        match event {
+            Event::Came(started) => walk.came(started),
+            Event::Went(ended) => {
+                if !(ask.filter.came && ended.came_at.is_some_and(window)) {
+                    walk.went(ended);
                 }
             }
         }
@@ -1700,6 +1796,60 @@ mod tests {
             only_came(first(&rows(&log))).launcher,
             Launcher::Services(Arc::from([Arc::from("Schedule")]))
         );
+    }
+
+    #[test]
+    fn an_event_that_arrives_late_takes_its_place_by_time() {
+        let mut log = Log::default();
+        log.record(&[came(21, 1, "b.exe", at(20, 0)), came(23, 1, "d.exe", at(40, 0))]);
+        log.record(&[came(22, 1, "c.exe", at(30, 0)), came(20, 1, "a.exe", at(10, 0))]);
+        let area = Area {
+            from: at(15, 0),
+            to: at(35, 0),
+            shortest: Lived::Unknown,
+            longest: Lived::Running,
+        };
+
+        let names: Vec<_> = rows(&log).iter().map(|row| only_came(row).name.clone()).collect();
+        assert_eq!(names, ["d.exe", "c.exe", "b.exe", "a.exe"].map(Arc::from));
+        let inside: Vec<_> = look(&log, &Filter::default(), Some(area))
+            .rows
+            .iter()
+            .map(|row| only_came(row).name.clone())
+            .collect();
+        assert_eq!(inside, ["c.exe", "b.exe"].map(Arc::from));
+    }
+
+    #[test]
+    fn an_exit_heard_before_its_start_still_makes_one_row() {
+        let mut log = Log::default();
+        log.record(&[went(20, at(10, 2))]);
+        log.record(&[came(20, 1, "tool.exe", at(10, 0))]);
+
+        let view = look(&log, &Filter::default(), None);
+        assert_eq!(view.rows.len(), 1, "{:#?}", view.rows);
+        assert_eq!(only_came(&view.rows[0]).exit.as_ref().map(|exit| exit.lived), Some(2 * Ticks::Second));
+        assert_eq!(dot(&view.scatter, 20).lived, Lived::For(2 * Ticks::Second));
+    }
+
+    #[test]
+    fn history_heard_after_live_events_goes_before_them() {
+        let mut log = Log::default();
+        log.note_running(&[running(4, "Code.exe", at(0, 0))]);
+        log.record(&[came(30, 4, "git.exe", at(40, 0))]);
+        log.history(
+            at(1, 0),
+            &[
+                came(20, 4, "git.exe", at(10, 0)),
+                came(21, 4, "git.exe", at(20, 0)),
+                went(20, at(10, 1)),
+            ],
+        );
+
+        let rows = rows(&log);
+        let series = only_series(&rows);
+        assert_eq!((series.count, series.at, series.key), (3, utc(at(40, 0)), id(20)));
+        assert_eq!(series.went, 1);
     }
 
     #[test]
