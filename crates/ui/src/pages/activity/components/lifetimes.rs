@@ -112,10 +112,23 @@ impl ScatterData<ProcessInstance> for Plotted {
     }
 
     fn points(&self, index: usize, each: &mut dyn FnMut(&ScatterPoint<ProcessInstance>)) {
+        self.points_between(index, 0, u64::MAX, each);
+    }
+
+    fn points_between(
+        &self,
+        index: usize,
+        from: u64,
+        to: u64,
+        each: &mut dyn FnMut(&ScatterPoint<ProcessInstance>),
+    ) {
         let ink = self.inks[index];
         for piece in &self.scatter.pieces {
             for run in piece.runs.iter().filter(|run| run.look == ink) {
-                for dot in piece.run(run) {
+                let dots = piece.run(run);
+                let start = dots.partition_point(|dot| dot.at() < from);
+                let end = dots.partition_point(|dot| dot.at() <= to);
+                for dot in &dots[start..end.max(start)] {
                     each(&ScatterPoint {
                         key: dot.key(),
                         at: dot.at(),
@@ -284,6 +297,32 @@ mod tests {
         };
         assert_eq!(keys(Marker::Tick), [vec![20, 22, 23]], "{series:#?}");
         assert_eq!(keys(Marker::Ring), [vec![21, 24]], "{series:#?}");
+    }
+
+    #[test]
+    fn a_series_asked_for_a_stretch_of_time_hands_over_the_points_within_it_ends_included() {
+        let at = |pid: u32, at: u64, lived: Lived| Dot::new(id(pid), at, lived, false, None);
+        let scatter = Scatter {
+            pieces: vec![
+                vec![at(20, NOW - 90, Lived::Unknown), at(21, NOW - 80, Lived::Unknown), at(22, NOW - 70, Lived::Running)]
+                    .into(),
+                vec![at(23, NOW - 60, Lived::Unknown), at(24, NOW - 50, Lived::Unknown)].into(),
+                vec![at(25, NOW - 10, Lived::Unknown)].into(),
+            ],
+            ..scatter(Vec::new())
+        };
+        let plotted = Plotted::new(Arc::new(scatter), palette());
+        let ticks = (0..plotted.series()).find(|&index| plotted.style(index).marker == Marker::Tick).unwrap_or(0);
+
+        let between = |from: u64, to: u64| {
+            let mut pids = Vec::new();
+            plotted.points_between(ticks, from, to, &mut |point| pids.push(point.key.pid));
+            pids
+        };
+
+        assert_eq!(between(NOW - 80, NOW - 50), [21, 23, 24]);
+        assert_eq!(between(NOW - 75, NOW - 65), Vec::<u32>::new());
+        assert_eq!(between(0, NOW), [20, 21, 23, 24, 25]);
     }
 
     #[test]
