@@ -53,9 +53,16 @@ impl AppFeature for ActivityFeature {
             .driven_by(move |push| ActivityActor::new(push, deps, settings, &seed));
         addr.subscribe_on::<WindowsProcessEvents>(Bus::Global);
         addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
-        app.every(Pace::Refresh, &addr, || Refresh).named("activity-refresh");
-        app.every(Pace::Flush, &addr, || Flush).named("activity-flush");
-        addr.send(Refresh);
+        addr.subscribe_on::<Refresh>(Bus::Global);
+        addr.subscribe_on::<Flush>(Bus::Global);
         Ok(())
     }
+}
+
+pub fn watch(cx: &FeatureInitContext) {
+    GlobalEventBus::publish(Refresh);
+    cx.repeat(Pace::Refresh, || GlobalEventBus::publish(Refresh))
+        .named("activity-refresh");
+    cx.repeat(Pace::Flush, || GlobalEventBus::publish(Flush))
+        .named("activity-flush");
 }

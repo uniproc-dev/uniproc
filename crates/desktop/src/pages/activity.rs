@@ -18,7 +18,8 @@ impl Page for Activity {
     type Installs = ();
     type Message = ActivityPageMsg;
 
-    fn install(_ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
+    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
+        domain::features::activity::watch(ctx);
         Ok(())
     }
 
@@ -160,6 +161,26 @@ mod tests {
 
     fn rows(node: &Node) -> usize {
         usize::from(node.id.as_deref() == Some("Row")) + node.children.iter().map(rows).sum::<usize>()
+    }
+
+    fn listed_now(h: &Harness) -> usize {
+        match &h.state::<ActivityState>().view {
+            Load::Ready(view) => view.rows.len(),
+            _ => 0,
+        }
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn the_log_keeps_everything_while_the_page_is_closed_and_shows_it_all_when_it_opens(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        tell(h, vec![came(20, 10), came(21, 11)]);
+        h.advance(Duration::from_secs(6));
+        assert_eq!(listed_now(h), 0, "no view is built for a closed page");
+
+        let page = mount(h);
+
+        assert_eq!(listed_now(h), 2, "{:#?}", page.tree());
     }
 
     #[guinea::test(iterations = 4)]

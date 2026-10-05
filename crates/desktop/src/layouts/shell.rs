@@ -105,11 +105,10 @@ mod tests {
 
     use std::sync::Arc;
 
-    use app_contracts::features::activity::{ActivityState, Clock};
+    use app_contracts::features::activity::{ActivityState, Clock, Hover};
     use app_contracts::features::agent_link::{AgentLinkState, InProcess};
     use app_contracts::features::agents::{ProcessCame, ProcessEvent, ProcessInstance, WindowsProcessEvents};
     use domain::features::activity::ActivityDeps;
-    use guinea::prelude::Load;
     use app_contracts::features::settings::{SettingsState, SidebarChart};
     use app_contracts::features::agents::{
         ActionOutcome, AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsMachineSample,
@@ -601,10 +600,9 @@ mod tests {
     }
 
     fn logged(h: &Harness) -> usize {
-        match &h.state::<ActivityState>().view {
-            Load::Ready(view) => view.rows.len(),
-            _ => 0,
-        }
+        h.act::<ActivityState>(Hover(Some(ProcessInstance { pid: 20, sequence: 9 })))
+            .settle();
+        usize::from(h.state::<ActivityState>().hovered.is_some())
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]

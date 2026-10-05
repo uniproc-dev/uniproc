@@ -85,8 +85,10 @@ impl ActivityActor {
     }
 }
 
+#[derive(Clone, Debug, Event)]
 pub struct Refresh;
 
+#[derive(Clone, Debug, Event)]
 pub struct Flush;
 
 actor! {

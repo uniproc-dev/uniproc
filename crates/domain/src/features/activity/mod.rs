@@ -5,4 +5,4 @@ pub mod log;
 mod names;
 pub mod settings;
 
-pub use install::{ActivityDeps, ActivityFeature};
+pub use install::{watch, ActivityDeps, ActivityFeature};
