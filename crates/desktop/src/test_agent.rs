@@ -216,8 +216,8 @@ impl AppFeature for FakeAgentFeature {
     type Exports = ();
 
     fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
-        let settings = app.settings::<AgentSettings>()?;
-        let general = app.settings::<GeneralSettings>()?;
+        let settings = app.settings::<AgentSettings>();
+        let general = app.settings::<GeneralSettings>();
         actions::install(app);
         let addr = app.spawn(GenericAgentActor::<FakeAgent>::new(
             settings.connect_attempt_secs(),

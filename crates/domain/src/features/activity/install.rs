@@ -39,7 +39,7 @@ impl AppFeature for ActivityFeature {
 
     fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
         let deps = app.require_or_default::<ActivityDeps>();
-        let settings = app.settings::<ActivitySettings>()?;
+        let settings = app.settings::<ActivitySettings>();
         let (span, filter) = remembered(&settings);
         let seed = ActivityState {
             span,

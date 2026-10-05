@@ -294,7 +294,7 @@ impl ProcessesPage {
             ProcessesMsg::ToggleGroupByType => {
                 self.by_type = !self.by_type;
                 if let Some(setting) = &self.by_type_setting {
-                    setting.set(self.by_type).or_warn("could not keep grouping by type");
+                    setting.set(self.by_type);
                 }
             }
             ProcessesMsg::SelectGroup(pid) => self.selected_group = pid,

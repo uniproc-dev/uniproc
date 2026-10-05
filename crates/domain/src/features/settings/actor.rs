@@ -2,7 +2,6 @@ use app_contracts::features::settings::{
     SetByteUnits, SetNetworkUnits, SetStartPage, SetTheme, SetUpdateInterval, SettingsMsg, SettingsState, ShowSidebarChart,
     UpdateIntervalChanged,
 };
-use app_contracts::OrWarn;
 use guinea::prelude::*;
 
 use super::settings::GeneralSettings;
@@ -39,34 +38,31 @@ actor! {
 #[handler]
 fn show_sidebar_chart(this: &mut SettingsActor, ShowSidebarChart(chart, shown): ShowSidebarChart) {
     let charts = this.settings.sidebar_charts().with(chart, shown);
-    this.settings
-        .hidden_sidebar_charts()
-        .set(charts.hidden_ids())
-        .or_warn("could not keep which sidebar charts are shown");
+    this.settings.hidden_sidebar_charts().set(charts.hidden_ids());
     this.publish();
 }
 
 #[handler]
 fn set_byte_units(this: &mut SettingsActor, SetByteUnits(units): SetByteUnits) {
-    this.settings.byte_units().set(units.id().to_string()).or_warn("could not keep the byte units");
+    this.settings.byte_units().set(units.id().to_string());
     this.publish();
 }
 
 #[handler]
 fn set_network_units(this: &mut SettingsActor, SetNetworkUnits(units): SetNetworkUnits) {
-    this.settings.network_units().set(units.id().to_string()).or_warn("could not keep the network units");
+    this.settings.network_units().set(units.id().to_string());
     this.publish();
 }
 
 #[handler]
 fn set_theme(this: &mut SettingsActor, SetTheme(theme): SetTheme) {
-    this.settings.theme().set(theme.id().to_string()).or_warn("could not keep the theme");
+    this.settings.theme().set(theme.id().to_string());
     this.publish();
 }
 
 #[handler]
 fn set_start_page(this: &mut SettingsActor, SetStartPage(page): SetStartPage) {
-    this.settings.start_page().set(page.id().to_string()).or_warn("could not keep the start page");
+    this.settings.start_page().set(page.id().to_string());
     this.publish();
 }
 
@@ -74,7 +70,7 @@ fn set_start_page(this: &mut SettingsActor, SetStartPage(page): SetStartPage) {
 fn set_update_interval(this: &mut SettingsActor, SetUpdateInterval(ms): SetUpdateInterval) {
     let interval = this.settings.update_interval_ms();
     let before = interval.get();
-    interval.set(ms).or_warn("could not keep the update interval");
+    interval.set(ms);
     let after = interval.get();
     if after == before {
         return;

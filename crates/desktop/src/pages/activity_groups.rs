@@ -73,7 +73,7 @@ mod tests {
     }
 
     fn stored(h: &Harness) -> ActivitySettings {
-        ActivitySettings::new_with(&h.segment().store().unwrap()).unwrap()
+        h.segment().settings::<ActivitySettings>()
     }
 
     fn groups(h: &Harness) -> Vec<Group> {

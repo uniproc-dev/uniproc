@@ -37,7 +37,7 @@ pub fn deps() -> SystemDeps {
 }
 
 pub fn stored(h: &Harness) -> SystemSettings {
-    h.segment().settings::<SystemSettings>().unwrap()
+    h.segment().settings::<SystemSettings>()
 }
 
 pub fn start(h: &mut Harness) {

@@ -101,13 +101,13 @@ pub fn remembered(settings: &ActivitySettings) -> (Span, Filter) {
 }
 
 pub fn remember(settings: &ActivitySettings, span: Span, filter: &Filter) -> anyhow::Result<()> {
-    settings.span().set(span.id().to_string())?;
-    settings.came().set(filter.came)?;
-    settings.went().set(filter.went)?;
-    settings.new_only().set(filter.new_only)?;
-    settings.series().set(filter.series)?;
-    settings.only().set(filter.only.as_ref().map(Pick::id).unwrap_or_default())?;
-    settings.other().set(filter.other)?;
+    settings.span().set(span.id().to_string());
+    settings.came().set(filter.came);
+    settings.went().set(filter.went);
+    settings.new_only().set(filter.new_only);
+    settings.series().set(filter.series);
+    settings.only().set(filter.only.as_ref().map(Pick::id).unwrap_or_default());
+    settings.other().set(filter.other);
 
     let hidden = settings.hidden();
     let kept: Vec<String> = filter.hidden.iter().map(Pick::id).collect();
@@ -142,8 +142,8 @@ mod tests {
             other: false,
         };
 
-        remember(&ActivitySettings::new_with(&store).unwrap(), Span::Quarter, &chosen).unwrap();
-        let (span, filter) = remembered(&ActivitySettings::new_with(&store).unwrap());
+        remember(&ActivitySettings::new_with(&store), Span::Quarter, &chosen).unwrap();
+        let (span, filter) = remembered(&ActivitySettings::new_with(&store));
 
         assert_eq!(span, Span::Quarter);
         assert_eq!(
@@ -160,7 +160,7 @@ mod tests {
         let (store, _) = StoreBuilder::in_memory().migrate().unwrap();
 
         assert_eq!(
-            remembered_groups(&ActivitySettings::new_with(&store).unwrap()),
+            remembered_groups(&ActivitySettings::new_with(&store)),
             [Group::windows_background()]
         );
     }
@@ -168,7 +168,7 @@ mod tests {
     #[test]
     fn groups_are_read_back_in_their_order_and_a_dropped_one_is_gone() {
         let (store, _) = StoreBuilder::in_memory().migrate().unwrap();
-        let settings = ActivitySettings::new_with(&store).unwrap();
+        let settings = ActivitySettings::new_with(&store);
         let tooling = Group {
             id: "g1".into(),
             name: "Dev tooling".into(),
@@ -192,7 +192,7 @@ mod tests {
         remember_groups(&settings, &[tooling.clone(), background.clone()]).unwrap();
 
         assert_eq!(
-            remembered_groups(&ActivitySettings::new_with(&store).unwrap()),
+            remembered_groups(&ActivitySettings::new_with(&store)),
             [tooling, background]
         );
     }

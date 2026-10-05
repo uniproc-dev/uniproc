@@ -60,7 +60,7 @@ mod tests {
         let at = dir.path().join("settings");
         let (earlier, _) = StoreBuilder::new(&at).migrate().unwrap();
         earlier.kv().namespace("agents").set("scan_interval_ms", &500u64).unwrap();
-        AgentSettings::new_with(&earlier).unwrap().ping_interval_ms().set(1000).unwrap();
+        AgentSettings::new_with(&earlier).ping_interval_ms().set(1000);
         earlier.close().unwrap();
         drop(earlier);
 

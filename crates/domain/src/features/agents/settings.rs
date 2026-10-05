@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use amethystate::amethystate;
-use amethystate::store::{Invalid, RuleContext};
+use amethystate::store::RuleContext;
 use amethystate_guinea::IntoChanging;
 use guinea::timers::Period;
 
@@ -38,20 +38,19 @@ impl Limits {
     const PingIntervalMs: RangeInclusive<u64> = 250..=60_000;
     const WslConnectTimeoutSecs: RangeInclusive<u64> = 1..=600;
 
-    fn connect_attempt(secs: &mut u64, _: &RuleContext) -> Result<(), Invalid> {
+    fn connect_attempt(secs: &mut u64, _: &RuleContext) {
         Self::fit(secs, Self::ConnectAttemptSecs)
     }
 
-    fn ping_interval(ms: &mut u64, _: &RuleContext) -> Result<(), Invalid> {
+    fn ping_interval(ms: &mut u64, _: &RuleContext) {
         Self::fit(ms, Self::PingIntervalMs)
     }
 
-    fn wsl_connect_timeout(secs: &mut u64, _: &RuleContext) -> Result<(), Invalid> {
+    fn wsl_connect_timeout(secs: &mut u64, _: &RuleContext) {
         Self::fit(secs, Self::WslConnectTimeoutSecs)
     }
 
-    fn fit(value: &mut u64, range: RangeInclusive<u64>) -> Result<(), Invalid> {
+    fn fit(value: &mut u64, range: RangeInclusive<u64>) {
         *value = (*value).clamp(*range.start(), *range.end());
-        Ok(())
     }
 }

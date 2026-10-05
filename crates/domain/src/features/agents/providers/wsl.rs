@@ -413,8 +413,8 @@ impl AgentBackend for WslBackend {
 }
 
 pub fn wsl_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
-    let settings = app.settings::<AgentSettings>()?;
-    let general = app.settings::<GeneralSettings>()?;
+    let settings = app.settings::<AgentSettings>();
+    let general = app.settings::<GeneralSettings>();
     let (distro, agent_path) = (settings.wsl_distro(), settings.wsl_agent_path());
     set_launch_config(move || (distro.get(), agent_path.get()));
 

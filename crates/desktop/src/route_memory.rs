@@ -1,6 +1,5 @@
-use amethystate::{amethystate, Open};
+use amethystate::amethystate;
 use app_contracts::features::settings::StartPage;
-use app_contracts::OrWarn;
 use domain::features::settings::settings::GeneralSettings;
 use guinea::feature::{FeatureInitContext, ScopeContext};
 use guinea_plugin_store::StoreAccess;
@@ -13,8 +12,8 @@ pub struct RouteSettings {
     last_route: String,
 }
 
-pub fn open(ctx: &FeatureInitContext) -> Option<RouteSettings> {
-    ctx.settings::<RouteSettings>().or_warn("could not open the route settings")
+pub fn open(ctx: &FeatureInitContext) -> RouteSettings {
+    ctx.settings::<RouteSettings>()
 }
 
 pub fn remember(settings: &RouteSettings, route: &Route) {
@@ -31,18 +30,12 @@ pub fn remember(settings: &RouteSettings, route: &Route) {
     let Some(saved) = route.save() else {
         return;
     };
-    settings.last_route().set(saved).or_warn("could not remember the current route");
-}
-
-fn opened<S: Open>(cx: &ScopeContext) -> Option<S> {
-    cx.settings::<S>().or_warn(format_args!("could not open {}", std::any::type_name::<S>()))
+    settings.last_route().set(saved);
 }
 
 pub fn restore(cx: &ScopeContext) -> Route {
-    let page = opened::<GeneralSettings>(cx).map(|general| general.start_page_choice()).unwrap_or_default();
-    route_for(page, || {
-        opened::<RouteSettings>(cx).and_then(|settings| Route::restore(&settings.last_route().get()))
-    })
+    let page = cx.settings::<GeneralSettings>().start_page_choice();
+    route_for(page, || Route::restore(&cx.settings::<RouteSettings>().last_route().get()))
 }
 
 fn route_for(page: StartPage, last: impl FnOnce() -> Option<Route>) -> Route {

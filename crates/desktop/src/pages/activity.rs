@@ -477,7 +477,7 @@ mod tests {
     }
 
     fn stored(h: &Harness) -> ActivitySettings {
-        ActivitySettings::new_with(&h.segment().store().unwrap()).unwrap()
+        h.segment().settings::<ActivitySettings>()
     }
 
     #[guinea::test(iterations = 4)]

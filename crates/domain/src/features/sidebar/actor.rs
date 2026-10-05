@@ -35,19 +35,19 @@ actor! {
 #[handler]
 fn toggle(this: &mut SidebarActor, _msg: Toggle) {
     let open = !this.settings.open().get();
-    let _ = this.settings.open().set(open);
+    this.settings.open().set(open);
     this.publish();
 }
 
 #[handler]
 fn set_open(this: &mut SidebarActor, SetOpen(open): SetOpen) {
-    let _ = this.settings.open().set(open);
+    this.settings.open().set(open);
     this.publish();
 }
 
 #[handler]
 fn set_width(this: &mut SidebarActor, SetWidth(width): SetWidth) {
-    let _ = this.settings.width().set(width);
+    this.settings.width().set(width);
     this.publish();
 }
 

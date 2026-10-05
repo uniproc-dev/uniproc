@@ -23,7 +23,7 @@ pub fn requested() -> Option<usize> {
 }
 
 pub fn install(app: &mut FeatureBuilder, processes: usize) -> anyhow::Result<()> {
-    let interval = app.settings::<GeneralSettings>()?.update_interval();
+    let interval = app.settings::<GeneralSettings>().update_interval();
     let executables = executables();
     let unique = std::env::var_os(UNIQUE_VARIABLE).is_some();
     let jitter: usize = std::env::var(JITTER_VARIABLE)

@@ -13,7 +13,7 @@ feature! {
 
 #[installs]
 fn sidebar(cx: &FeatureInitContext) -> anyhow::Result<SidebarFeature> {
-    let settings = cx.settings::<SidebarSettings>()?;
+    let settings = cx.settings::<SidebarSettings>();
 
     let seed = SidebarState {
         open: settings.open().get(),

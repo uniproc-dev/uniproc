@@ -50,7 +50,7 @@ impl Layout for MainWindow {
         crate::xaml_resources::override_navigation_view_resources();
         crate::window_press::install();
         let window = Self {
-            routes: route_memory::open(ctx),
+            routes: Some(route_memory::open(ctx)),
             ..Self::default()
         };
         guicons::set_theme(icon_theme(window.scheme));

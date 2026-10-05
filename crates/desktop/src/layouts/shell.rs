@@ -218,12 +218,12 @@ mod tests {
         start(h, true);
         let h = &*h;
         let mut page = mount(h);
-        let interval = h.segment().settings::<AgentSettings>().unwrap().ping_interval_ms();
-        interval.set(60_000).unwrap();
+        let interval = h.segment().settings::<AgentSettings>().ping_interval_ms();
+        interval.set(60_000);
         after(h, &mut page, 5);
         let before = test_agent::pings();
 
-        interval.set(1_000).unwrap();
+        interval.set(1_000);
         after(h, &mut page, 2);
 
         assert!(test_agent::pings() > before, "a minute-long wait is not sat out after the interval shrank");

@@ -29,7 +29,7 @@ feature! {
 #[installs]
 fn agent_link(cx: &FeatureInitContext, deps: &AgentLinkDeps) -> anyhow::Result<AgentLinkFeature> {
     let start_in_process = deps.start_in_process;
-    let update_interval_ms = cx.settings::<GeneralSettings>()?.update_interval_ms();
+    let update_interval_ms = cx.settings::<GeneralSettings>().update_interval_ms();
     let (link, addr) = cx
         .state::<AgentLinkState>()
         .driven_by(move |port| AgentLinkActor::new(port, start_in_process, update_interval_ms));

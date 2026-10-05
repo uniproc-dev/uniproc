@@ -31,7 +31,7 @@ feature! {
 
 #[installs]
 fn wsl(cx: &FeatureInitContext, deps: &WslDeps) -> anyhow::Result<WslFeature> {
-    let settings = cx.settings::<AgentSettings>()?;
+    let settings = cx.settings::<AgentSettings>();
     let configured = settings.wsl_distro();
     let scan = deps.scan;
 

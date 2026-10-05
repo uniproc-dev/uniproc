@@ -129,8 +129,8 @@ impl AgentBackend for WindowsBackend {
 }
 
 pub fn windows_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
-    let settings = app.settings::<AgentSettings>()?;
-    let general = app.settings::<GeneralSettings>()?;
+    let settings = app.settings::<AgentSettings>();
+    let general = app.settings::<GeneralSettings>();
     let addr = app.spawn(GenericAgentActor::<WindowsBackend>::new(
         settings.connect_attempt_secs(),
         general.update_interval_ms(),

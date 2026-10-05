@@ -45,7 +45,7 @@ mod tests {
     use super::*;
 
     fn stored(h: &Harness) -> GeneralSettings {
-        h.segment().settings::<GeneralSettings>().unwrap()
+        h.segment().settings::<GeneralSettings>()
     }
 
     fn start(h: &mut Harness) {

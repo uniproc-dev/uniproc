@@ -32,7 +32,7 @@ feature! {
 #[installs]
 fn system(cx: &FeatureInitContext, deps: &SystemDeps) -> anyhow::Result<SystemFeature> {
     let deps = *deps;
-    let settings = cx.settings::<SystemSettings>()?;
+    let settings = cx.settings::<SystemSettings>();
     let (pinned, frequent) = favourites(&settings);
     let seed = SystemState {
         pinned,

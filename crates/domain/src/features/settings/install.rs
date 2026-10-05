@@ -13,7 +13,7 @@ feature! {
 
 #[installs]
 fn settings(cx: &FeatureInitContext) -> anyhow::Result<SettingsFeature> {
-    let settings = cx.settings::<GeneralSettings>()?;
+    let settings = cx.settings::<GeneralSettings>();
     let seed = settings.snapshot();
 
     let (state, _) = cx

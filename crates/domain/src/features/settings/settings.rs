@@ -1,5 +1,5 @@
 use amethystate::amethystate;
-use amethystate::store::{Invalid, RuleContext};
+use amethystate::store::RuleContext;
 use app_contracts::features::settings::{
     AppTheme, ByteUnits, NetworkUnits, SettingsState, SidebarCharts, StartPage, Units, UpdateInterval,
 };
@@ -68,7 +68,6 @@ impl GeneralSettings {
     }
 }
 
-fn fit_update_interval(ms: &mut u64, _: &RuleContext) -> Result<(), Invalid> {
+fn fit_update_interval(ms: &mut u64, _: &RuleContext) {
     *ms = UpdateInterval::clamp(*ms).as_millis() as u64;
-    Ok(())
 }

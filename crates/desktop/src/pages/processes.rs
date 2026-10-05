@@ -1,7 +1,6 @@
 use app_contracts::features::processes::ProcessesState;
 use app_contracts::features::settings::SettingsState;
 use app_contracts::features::window::PressedAway;
-use app_contracts::OrWarn;
 use domain::features::processes::settings::ProcessesSettings;
 use guinea::feature::FeatureInitContext;
 use guinea::prelude::GlobalEventBus;
@@ -17,7 +16,7 @@ use crate::routes::Route;
 pub struct Processes(ProcessesPage);
 
 pub(super) fn open_settings(ctx: &FeatureInitContext) -> Option<ProcessesSettingsMaps> {
-    let settings = ctx.settings::<ProcessesSettings>().or_warn("could not open the processes settings")?;
+    let settings = ctx.settings::<ProcessesSettings>();
     Some(ProcessesSettingsMaps {
         columns: settings.columns().configs().clone(),
         column_order: settings.columns().order().clone(),
@@ -225,7 +224,7 @@ mod tests {
     }
 
     fn stored(h: &Harness) -> ProcessesSettings {
-        h.segment().settings::<ProcessesSettings>().unwrap()
+        h.segment().settings::<ProcessesSettings>()
     }
 
     fn start(h: &mut Harness) {
@@ -2164,7 +2163,7 @@ mod tests {
     #[guinea::test(iterations = 4)]
     fn memory_kept_as_percents_shows_a_share_in_the_header(h: &mut Harness) {
         start(h);
-        stored(h).columns().memory_as_percent().set(true).unwrap();
+        stored(h).columns().memory_as_percent().set(true);
         let h = &*h;
         let mut page = mount(h);
         memory_report(h);

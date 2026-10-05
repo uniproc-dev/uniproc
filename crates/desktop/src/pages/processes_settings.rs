@@ -53,7 +53,7 @@ mod tests {
     use super::*;
 
     fn stored(h: &Harness) -> Stored {
-        h.segment().settings::<Stored>().unwrap()
+        h.segment().settings::<Stored>()
     }
 
     fn start(h: &mut Harness) {
