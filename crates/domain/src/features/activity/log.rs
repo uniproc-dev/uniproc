@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::collections::{vec_deque, BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{vec_deque, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -703,37 +703,30 @@ fn went_of(log: &Log, groups: &Groups<'_>, ended: &Ended, clock: fn(u64) -> Cloc
     }
 }
 
-enum Light {
+enum Light<'a> {
     Came(ProcessInstance),
     Went(ProcessInstance),
-    Series(Vec<(u64, ProcessInstance)>),
+    Series(Vec<&'a Started>),
 }
 
-impl Light {
+impl Light<'_> {
     fn key(&self) -> ProcessInstance {
         match self {
             Light::Came(instance) | Light::Went(instance) => *instance,
-            Light::Series(members) => members.last().map(|(_, instance)| *instance).unwrap_or_default(),
+            Light::Series(members) => members.last().map(|member| member.came.instance).unwrap_or_default(),
         }
     }
 }
 
-fn series_of(
-    members: &[(u64, ProcessInstance)],
-    log: &Log,
-    groups: &Groups<'_>,
-    clock: fn(u64) -> Clock,
-) -> Option<Series> {
-    let (at, newest) = members.first()?;
-    let newest = log.started(*newest)?;
+fn series_of(started: &[&Started], log: &Log, groups: &Groups<'_>, clock: fn(u64) -> Clock) -> Option<Series> {
+    let newest = *started.first()?;
     let (_, launcher) = newest.launched?;
     let folder = log.names.folder_text(newest.folder?);
-    let started: Vec<&Started> = members.iter().filter_map(|&(_, instance)| log.started(instance)).collect();
-    let mut names: BTreeMap<Arc<str>, usize> = BTreeMap::new();
-    for member in &started {
-        *names.entry(log.text(member.name)).or_default() += 1;
+    let mut counted: HashMap<Spell, usize> = HashMap::new();
+    for member in started {
+        *counted.entry(member.name).or_default() += 1;
     }
-    let mut names: Vec<_> = names.into_iter().collect();
+    let mut names: Vec<_> = counted.into_iter().map(|(name, count)| (log.text(name), count)).collect();
     names.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     let file = log.names.word_of(newest.name);
     let mut picks = Vec::new();
@@ -743,12 +736,12 @@ fn series_of(
     picks.push(Pick::Folder(folder.clone()));
     picks.push(Pick::Under(log.names.folded(log.names.word_of(launcher)).clone()));
     Some(Series {
-        key: members.last()?.1,
-        at: clock(*at),
+        key: started.last()?.came.instance,
+        at: clock(newest.came.at),
         launcher: log.text(launcher),
         folder,
         names,
-        count: members.len(),
+        count: started.len(),
         went: started.iter().filter(|member| member.went_at.is_some()).count(),
         routine: log.routine(newest),
         members: started
@@ -866,12 +859,12 @@ impl<'a> Sieve<'a> {
 
 struct Walk<'a> {
     sieve: Sieve<'a>,
-    rows: Vec<(u64, Light)>,
+    rows: Vec<(u64, Light<'a>)>,
     series: HashMap<(ProcessInstance, Folder), usize>,
 }
 
-impl Walk<'_> {
-    fn came(&mut self, started: &Started) {
+impl<'a> Walk<'a> {
+    fn came(&mut self, started: &'a Started) {
         let sieve = &self.sieve;
         if !sieve.admits_came(started) {
             return;
@@ -886,12 +879,12 @@ impl Walk<'_> {
         match self.series.get(&key) {
             Some(&index) => {
                 if let (_, Light::Series(members)) = &mut self.rows[index] {
-                    members.push((at, instance));
+                    members.push(started);
                 }
             }
             None => {
                 self.series.insert(key, self.rows.len());
-                self.rows.push((at, Light::Series(vec![(at, instance)])));
+                self.rows.push((at, Light::Series(vec![started])));
             }
         }
     }
@@ -902,12 +895,16 @@ impl Walk<'_> {
         }
     }
 
-    fn finish(self) -> Vec<(u64, Light)> {
+    fn finish(self) -> Vec<(u64, Light<'a>)> {
         let mut rows = Vec::with_capacity(self.rows.len());
         for (at, light) in self.rows {
             match light {
                 Light::Series(members) if members.len() < Pace::SeriesLeast => {
-                    rows.extend(members.into_iter().map(|(at, instance)| (at, Light::Came(instance))));
+                    rows.extend(
+                        members
+                            .into_iter()
+                            .map(|member| (member.came.at, Light::Came(member.came.instance))),
+                    );
                 }
                 light => rows.push((at, light)),
             }
@@ -920,7 +917,7 @@ fn contains(field: &str, text: &str) -> bool {
     text.is_empty() || field.to_lowercase().contains(text)
 }
 
-fn row_of(log: &Log, groups: &Groups<'_>, row: Light, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
+fn row_of(log: &Log, groups: &Groups<'_>, row: Light<'_>, clock: fn(u64) -> Clock) -> Option<ActivityRow> {
     Some(match row {
         Light::Came(instance) => {
             ActivityRow::Came(Rc::new(came_of(log, groups, log.started(instance)?, clock)))
@@ -956,13 +953,6 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
 
     let window = |at: u64| (from..to).contains(&at);
     let (mut came_count, mut went_count) = (0, 0);
-    for event in log.span(from, to) {
-        match event {
-            Event::Came(_) => came_count += 1,
-            Event::Went(_) => went_count += 1,
-        }
-    }
-
     let mut walk = Walk {
         sieve: Sieve::new(log, ask.filter, &groups, ask.area, asked),
         rows: Vec::new(),
@@ -970,8 +960,12 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     };
     for event in log.span(from, to).rev() {
         match event {
-            Event::Came(started) => walk.came(started),
+            Event::Came(started) => {
+                came_count += 1;
+                walk.came(started);
+            }
             Event::Went(ended) => {
+                went_count += 1;
                 if !(ask.filter.came && ended.came_at.is_some_and(window)) {
                     walk.went(ended);
                 }
