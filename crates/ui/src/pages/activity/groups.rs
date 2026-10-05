@@ -12,15 +12,14 @@ use windows_reactor::{
     TextBox, ThemeBrush, Thickness, ToggleSwitch, TooltipExt, VerticalAlignment, View,
 };
 
-use super::components::groups::{group_label, swatch};
+use super::components::groups::{group_label, swatch, Swatch};
 use super::components::picks::named;
 use super::marks::ActivityGroupsMark;
 use crate::l10n::L10n;
 use crate::theme::{setting, size, space, Palette};
 use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
 use crate::widgets::card::card;
-use crate::widgets::nothing::nothing;
-use crate::widgets::setting_card::setting_expander;
+use crate::widgets::setting_card::{expander_rows, setting_expander};
 use crate::widgets::settings_column::{settings_column, settings_section};
 use crate::widgets::text::{caption, text};
 
@@ -29,7 +28,6 @@ struct Layout;
 #[expect(non_upper_case_globals)]
 impl Layout {
     const NameWidth: f64 = 220.0;
-    const ContentInset: f64 = 36.0;
     const RowMinHeight: f64 = 40.0;
     const Ring: f64 = 18.0;
     const RingWidth: f64 = 2.0;
@@ -134,11 +132,11 @@ fn header(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> 
         .into()
 }
 
-fn rules(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> Vec<KeyedView> {
+fn rules(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> Vec<(String, View)> {
     if group.rules.is_empty() {
-        return vec![keyed(
-            "empty",
-            line(caption(l10n.activity_groups_empty()).foreground(palette.secondary_text).into(), nothing()),
+        return vec![(
+            "empty".to_string(),
+            caption(l10n.activity_groups_empty()).foreground(palette.secondary_text).into(),
         )];
     }
     group
@@ -157,7 +155,7 @@ fn rules(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> V
                     })
                 },
             );
-            keyed(rule.id(), line(text(rule_label(rule, l10n)).into(), drop))
+            (rule.id(), line(text(rule_label(rule, l10n)).into(), drop))
         })
         .collect()
 }
@@ -327,18 +325,14 @@ impl ActivityGroupsPage {
         forward: &Callback<ActivityGroupsMsg>,
     ) -> View {
         let mut content = rules(group, dispatch, l10n, palette);
-        content.push(keyed("edit", edit(group, place, dispatch, l10n, palette)));
+        content.push(("edit".to_string(), edit(group, place, dispatch, l10n, palette)));
         let (expanded, id) = (forward.clone(), group.id.clone());
         setting_expander()
             .mark(ActivityGroupsMark::Group)
             .is_expanded(self.expanded.contains(&group.id))
             .on_is_expanded_changed(move |open: bool| expanded.call(ActivityGroupsMsg::Expand(id.clone(), open)))
             .header(header(group, dispatch, l10n, palette))
-            .content(
-                StackPanel::new()
-                    .margin(Thickness::new(Layout::ContentInset, 0.0, 0.0, 0.0))
-                    .keyed_children(content),
-            )
+            .content(expander_rows(Swatch::Size + space::Header, content, palette))
             .into()
     }
 

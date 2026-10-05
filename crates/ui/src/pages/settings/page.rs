@@ -16,7 +16,7 @@ use super::marks::SettingsMark;
 use crate::l10n::L10n;
 use crate::theme::{setting, space, Palette};
 use crate::widgets::settings_column::{settings_column, settings_section};
-use crate::widgets::setting_card::{card_words, choice, setting_card, setting_expander, SettingCard};
+use crate::widgets::setting_card::{card_words, choice, expander_rows, setting_card, setting_expander, SettingCard};
 use crate::widgets::text::{subtitle, text};
 
 struct Control;
@@ -25,13 +25,6 @@ struct Control;
 impl Control {
     const SliderWidth: f64 = 200.0;
     const ValueWidth: f64 = 88.0;
-}
-
-struct Layout;
-
-#[expect(non_upper_case_globals)]
-impl Layout {
-    const ExpanderContentInset: f64 = 36.0;
 }
 
 fn theme_label(l10n: &L10n, theme: AppTheme) -> String {
@@ -152,17 +145,20 @@ fn sidebar_chart_label(l10n: &L10n, chart: SidebarChart) -> String {
 }
 
 fn sidebar_charts_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
-    let toggles: [View; 5] = SidebarChart::ALL.map(|chart| {
-        let dispatch = dispatch.clone();
-        CheckBox::new()
-            .mark(SettingsMark::sidebar_chart(chart))
-            .is_checked(state.sidebar_charts.shows(chart))
-            .on_is_checked_changed(move |shown: Option<bool>| {
-                dispatch.emit(ShowSidebarChart(chart, shown == Some(true)))
-            })
-            .content(text(sidebar_chart_label(l10n, chart)))
-            .into()
-    });
+    let toggles: Vec<(String, View)> = SidebarChart::ALL
+        .into_iter()
+        .map(|chart| {
+            let dispatch = dispatch.clone();
+            let toggle = CheckBox::new()
+                .mark(SettingsMark::sidebar_chart(chart))
+                .is_checked(state.sidebar_charts.shows(chart))
+                .on_is_checked_changed(move |shown: Option<bool>| {
+                    dispatch.emit(ShowSidebarChart(chart, shown == Some(true)))
+                })
+                .content(text(sidebar_chart_label(l10n, chart)));
+            (chart.id().to_string(), toggle.into())
+        })
+        .collect();
     let header = StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(space::Card)
@@ -180,11 +176,7 @@ fn sidebar_charts_card(state: &SettingsState, dispatch: &Dispatch, l10n: &L10n, 
     setting_expander()
         .mark(SettingsMark::SidebarCharts)
         .header(header)
-        .content(
-            StackPanel::new()
-                .margin(Thickness::new(Layout::ExpanderContentInset, 0.0, 0.0, 0.0))
-                .children(toggles),
-        )
+        .content(expander_rows(setting::Icon + space::Card, toggles, palette))
         .into()
 }
 

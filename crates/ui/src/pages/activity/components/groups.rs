@@ -4,11 +4,11 @@ use windows_reactor::{Border, Color, CornerRadius, Thickness, VerticalAlignment,
 use crate::l10n::L10n;
 use crate::theme::space;
 
-struct Swatch;
+pub(in crate::pages::activity) struct Swatch;
 
 #[expect(non_upper_case_globals)]
 impl Swatch {
-    const Size: f64 = 10.0;
+    pub(in crate::pages::activity) const Size: f64 = 10.0;
 }
 
 pub fn group_label(group: &Group, l10n: &L10n) -> String {

@@ -5,8 +5,8 @@ use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    keyed, Border, Button, ButtonStyle, Callback, Grid, GridLength, KeyedView,
-    Orientation, StackPanel, Thickness, ToggleSwitch, VerticalAlignment, View,
+    Border, Button, ButtonStyle, Callback, Grid, GridLength, Orientation, StackPanel, Thickness, ToggleSwitch,
+    VerticalAlignment, View,
 };
 
 use super::components::column_layout::ColumnLayout;
@@ -20,16 +20,8 @@ use crate::theme::{setting, size, space, Palette};
 use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
 use crate::widgets::button::action_button;
 use crate::widgets::settings_column::settings_column;
-use crate::widgets::separator;
-use crate::widgets::setting_card::{card_words, choice, setting_card, setting_expander, SettingCard};
+use crate::widgets::setting_card::{card_words, choice, expander_rows, setting_card, setting_expander, SettingCard};
 use crate::widgets::text::text;
-
-struct Layout;
-
-#[expect(non_upper_case_globals)]
-impl Layout {
-    const RowMinHeight: f64 = 44.0;
-}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Group {
@@ -179,7 +171,7 @@ impl ProcessesSettingsPage {
                 move |step| ProcessesSettingsMsg::MoveColumn(column, step),
             );
             let switch = shown_switch(column, self.layout.visible(column), l10n, palette, &forward);
-            row(column, column_label(l10n, column), (moves, Some(switch)), palette)
+            row(column, column_label(l10n, column), (moves, Some(switch)))
         });
 
         let sections = self.sections.ids().iter().map(|&section| {
@@ -188,7 +180,7 @@ impl ProcessesSettingsPage {
                 &forward,
                 move |step| ProcessesSettingsMsg::MoveSection(section, step),
             );
-            row(section, section_label(l10n, section), (moves, None), palette)
+            row(section, section_label(l10n, section), (moves, None))
         });
 
         let columns = expander(
@@ -270,7 +262,7 @@ struct Heading {
 
 fn expander(
     heading: Heading,
-    rows: Vec<KeyedView>,
+    rows: Vec<(String, View)>,
     reset: View,
     palette: Palette,
     forward: &Callback<ProcessesSettingsMsg>,
@@ -290,7 +282,11 @@ fn expander(
         .is_expanded(open)
         .on_is_expanded_changed(move |open: bool| expanded.call(ProcessesSettingsMsg::Expand(group, open)))
         .header(header)
-        .content(StackPanel::new().keyed_children(rows.into_iter().chain([keyed("reset", reset)])))
+        .content(expander_rows(
+            0.0,
+            rows.into_iter().chain([("reset".to_string(), reset)]).collect(),
+            palette,
+        ))
         .into()
 }
 
@@ -345,8 +341,6 @@ fn reset_row(
     });
     Grid::new()
         .columns([GridLength::Star(1.0), GridLength::Auto])
-        .min_height(Layout::RowMinHeight)
-        .margin(Thickness::new(0.0, space::Control, 0.0, 0.0))
         .children((
             text(label).vertical_alignment(VerticalAlignment::Center).grid_column(0),
             Grid::new()
@@ -392,8 +386,8 @@ fn move_buttons(
         .into()
 }
 
-fn row(mark: impl Mark, label: String, (moves, control): (View, Option<View>), palette: Palette) -> KeyedView {
-    let key = mark.name();
+fn row(mark: impl Mark, label: String, (moves, control): (View, Option<View>)) -> (String, View) {
+    let key = mark.name().to_string();
     let mut cells: Vec<View> = vec![
         text(label)
             .vertical_alignment(VerticalAlignment::Center)
@@ -412,11 +406,11 @@ fn row(mark: impl Mark, label: String, (moves, control): (View, Option<View>), p
             .children((control,))
             .into()
     }));
-    let line = Border::new().mark(mark).min_height(Layout::RowMinHeight).content(
+    let line = Border::new().mark(mark).content(
         Grid::new()
             .columns([GridLength::Star(1.0), GridLength::Auto, GridLength::Auto])
             .column_spacing(space::Card)
             .children(cells),
     );
-    keyed(key, StackPanel::new().children((line, separator(palette))))
+    (key, line.into())
 }

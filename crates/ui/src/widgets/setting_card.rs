@@ -1,8 +1,8 @@
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Color, ComboBox, Expander, Grid, GridLength, HorizontalAlignment, ResourceOverrides, StackPanel, ThemeBrush,
-    Thickness, VerticalAlignment, View,
+    keyed, Border, Color, ComboBox, Expander, Grid, GridLength, HorizontalAlignment, KeyedView, ResourceOverrides,
+    StackPanel, ThemeBrush, Thickness, VerticalAlignment, View,
 };
 
 use crate::theme::{radius, setting, space, Palette};
@@ -40,10 +40,28 @@ pub fn setting_expander() -> Expander {
         .horizontal_alignment(HorizontalAlignment::Stretch)
         .horizontal_content_alignment(HorizontalAlignment::Stretch)
         .resource_overrides(
-        ResourceOverrides::new()
-            .set("ExpanderChevronPointerOverBackground", Color::transparent())
-            .set("ExpanderChevronPressedBackground", Color::transparent()),
-    )
+            ResourceOverrides::new()
+                .set("ExpanderChevronPointerOverBackground", Color::transparent())
+                .set("ExpanderChevronPressedBackground", Color::transparent())
+                .set("ExpanderContentPadding", Thickness::uniform(0.0)),
+        )
+}
+
+pub fn expander_rows(indent: f64, rows: Vec<(String, View)>, palette: Palette) -> View {
+    let bands: Vec<KeyedView> = rows
+        .into_iter()
+        .enumerate()
+        .map(|(at, (key, view))| {
+            let band = Border::new()
+                .min_height(setting::ExpanderRowMinHeight)
+                .padding(Thickness::new(setting::ExpanderStart + indent, 0.0, setting::ExpanderEnd, 0.0))
+                .border_thickness(Thickness::new(0.0, if at == 0 { 0.0 } else { space::Hairline }, 0.0, 0.0))
+                .border_brush(palette.divider_stroke)
+                .content(Grid::new().vertical_alignment(VerticalAlignment::Center).children((view,)));
+            keyed(key, band)
+        })
+        .collect();
+    StackPanel::new().keyed_children(bands).into()
 }
 
 pub fn choice<T: Copy + PartialEq + 'static>(
