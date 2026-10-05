@@ -17,19 +17,19 @@ members = [
 
 [workspace.dependencies]
 # --- guinea ---
-guinea = "0.25.0"
-guinea-meta-build = "0.25.0"
+guinea = "0.26.0"
+guinea-meta-build = "0.26.0"
 
-guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.3" }
-guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.3" }
-guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.3" }
-guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.3" }
-guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.3" }
-guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.3" }
+guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.26.0" }
+guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.26.0" }
+guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.26.0" }
+guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.26.0" }
+guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.26.0" }
+guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.26.0" }
 
 # --- guicons ---
-guicons = "0.12.0"
-guicons-build = "0.12.0"
+guicons = "0.13.0"
+guicons-build = "0.13.0"
 
 # --- amethystate ---
 # Same minor as guinea-plugin-store's own amethystate dep: the store is a thin
@@ -38,9 +38,9 @@ amethystate = "0.24.0"
 amethystate-guinea = "0.24.0"
 
 # --- windows-rs ---
-windows-reactor = { package = "windows-reactor-pre", version = "0.102" }
+windows-reactor = { package = "windows-reactor-pre", version = "0.103" }
 windows-reactor-setup = "0.100"
-windows-canvas = { package = "windows-canvas-pre", version = "0.102", features = ["reactor"] }
+windows-canvas = { package = "windows-canvas-pre", version = "0.103", features = ["reactor"] }
 windows-collections = "0.100"
 windows-core = "0.100"
 windows-reference = "0.100"
