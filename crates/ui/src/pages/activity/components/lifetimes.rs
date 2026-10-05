@@ -1,7 +1,9 @@
-use app_contracts::features::activity::{Area, Lived, Scatter};
+use std::rc::Rc;
+
+use app_contracts::features::activity::{Area, Dot, Hue, Lived, Scatter};
 use app_contracts::features::agents::ProcessInstance;
 use guinea_widgets::chart::scatter::{
-    Area as Brushed, Level, Marker, Scale, ScatterEvent, ScatterOptions, ScatterPoint, ScatterSeries,
+    Area as Brushed, Level, Marker, Scale, ScatterData, ScatterEvent, ScatterOptions, ScatterPoint, SeriesStyle,
 };
 use windows_reactor::Color;
 
@@ -64,32 +66,79 @@ fn marker(lived: Lived) -> Marker {
     }
 }
 
-pub fn series(scatter: &Scatter, palette: Palette) -> Vec<ScatterSeries<ProcessInstance>> {
-    let mut series: Vec<ScatterSeries<ProcessInstance>> = Vec::new();
-    for dot in scatter.dots() {
-        let marker = marker(dot.lived());
-        let base = match dot.hue() {
-            Some(hue) => palette.hue(hue),
-            None if marker == Marker::Tick => palette.critical,
-            None => palette.success,
-        };
-        let color = color_f(if dot.faint() { Color { a: Look::Faint, ..base } } else { base });
-        let point = ScatterPoint {
-            key: dot.key(),
-            at: dot.at(),
-            value: level(dot.lived()),
-        };
-        match series.iter_mut().find(|series| series.marker == marker && series.color == color) {
-            Some(series) => series.points.push(point),
-            None => series.push(ScatterSeries {
-                color,
-                marker,
-                size: Look::Size,
-                points: vec![point],
-            }),
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct Ink {
+    marker: Marker,
+    hue: Option<Hue>,
+    faint: bool,
+}
+
+impl Ink {
+    fn of(dot: &Dot) -> Self {
+        Self {
+            marker: marker(dot.lived()),
+            hue: dot.hue(),
+            faint: dot.faint(),
         }
     }
-    series
+
+    fn color(self, palette: Palette) -> Color {
+        let base = match self.hue {
+            Some(hue) => palette.hue(hue),
+            None if self.marker == Marker::Tick => palette.critical,
+            None => palette.success,
+        };
+        if self.faint { Color { a: Look::Faint, ..base } } else { base }
+    }
+}
+
+pub struct Plotted {
+    scatter: Rc<Scatter>,
+    palette: Palette,
+    inks: Vec<Ink>,
+}
+
+impl Plotted {
+    pub fn new(scatter: Rc<Scatter>, palette: Palette) -> Self {
+        let mut inks = Vec::new();
+        for dot in scatter.dots() {
+            let ink = Ink::of(dot);
+            if !inks.contains(&ink) {
+                inks.push(ink);
+            }
+        }
+        Self { scatter, palette, inks }
+    }
+
+    pub fn holds(&self, scatter: &Rc<Scatter>, palette: Palette) -> bool {
+        Rc::ptr_eq(&self.scatter, scatter) && self.palette == palette
+    }
+}
+
+impl ScatterData<ProcessInstance> for Plotted {
+    fn series(&self) -> usize {
+        self.inks.len()
+    }
+
+    fn style(&self, index: usize) -> SeriesStyle {
+        let ink = self.inks[index];
+        SeriesStyle {
+            color: color_f(ink.color(self.palette)),
+            marker: ink.marker,
+            size: Look::Size,
+        }
+    }
+
+    fn points(&self, index: usize, each: &mut dyn FnMut(&ScatterPoint<ProcessInstance>)) {
+        let ink = self.inks[index];
+        for dot in self.scatter.dots().filter(|dot| Ink::of(dot) == ink) {
+            each(&ScatterPoint {
+                key: dot.key(),
+                at: dot.at(),
+                value: level(dot.lived()),
+            });
+        }
+    }
 }
 
 pub fn options(scatter: &Scatter, l10n: &L10n, palette: Palette) -> ScatterOptions {
@@ -137,8 +186,8 @@ pub fn acts(event: &ScatterEvent<ProcessInstance>, scatter: &Scatter) -> Vec<Act
 
 #[cfg(test)]
 mod tests {
-    use app_contracts::features::activity::{Clock, Dot, Hue};
-    use guinea_widgets::chart::scatter::{Area as Brushed, Hit, Level, Marker, Scale};
+    use app_contracts::features::activity::Clock;
+    use guinea_widgets::chart::scatter::{Area as Brushed, Hit, Level, Marker, Scale, ScatterSeries};
 
     use super::*;
     use crate::pages::activity::components::timeline::Ticks;
@@ -166,6 +215,33 @@ mod tests {
 
     fn palette() -> Palette {
         Palette::of(windows_reactor::ColorScheme::Dark)
+    }
+
+    fn series(scatter: &Scatter, palette: Palette) -> Vec<ScatterSeries<ProcessInstance>> {
+        let plotted = Plotted::new(Rc::new(scatter.clone()), palette);
+        (0..plotted.series())
+            .map(|index| {
+                let style = plotted.style(index);
+                let mut points = Vec::new();
+                plotted.points(index, &mut |point| points.push(*point));
+                ScatterSeries {
+                    color: style.color,
+                    marker: style.marker,
+                    size: style.size,
+                    points,
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_chart_is_handed_new_data_only_for_another_scatter_or_palette() {
+        let scatter = Rc::new(scatter(vec![dot(20, Lived::Running, false)]));
+        let plotted = Plotted::new(scatter.clone(), palette());
+
+        assert!(plotted.holds(&scatter, palette()));
+        assert!(!plotted.holds(&Rc::new((*scatter).clone()), palette()));
+        assert!(!plotted.holds(&scatter, Palette::of(windows_reactor::ColorScheme::Light)));
     }
 
     fn l10n() -> L10n {

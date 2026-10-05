@@ -20,7 +20,7 @@ use windows_reactor::{
 
 use super::components::card::card;
 use super::components::legend::legend;
-use super::components::lifetimes::{acts, options, series, Act};
+use super::components::lifetimes::{acts, options, Act, Plotted};
 use super::components::picks::{pick_lines, picked, PickCommand};
 use super::components::rows::{rows, Rows};
 use super::marks::ActivityMark;
@@ -73,6 +73,7 @@ pub struct ActivityPage {
     pinned: RefCell<Pinned<ActivityRow, ProcessInstance>>,
     asked: RefCell<Option<(Span, Filter)>>,
     chart: Scatter<ProcessInstance>,
+    plotted: RefCell<Option<Rc<Plotted>>>,
 }
 
 fn shown(mark: impl Mark, label: String, checked: bool, on_change: impl Fn(bool) + 'static) -> View {
@@ -251,7 +252,18 @@ impl ActivityPage {
 
     fn chart(&self, view: &ActivityView, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
         let scatter = view.scatter.clone();
-        self.chart.publish(series(&scatter, palette), options(&scatter, l10n, palette));
+        let plotted = {
+            let mut kept = self.plotted.borrow_mut();
+            match &*kept {
+                Some(plotted) if plotted.holds(&scatter, palette) => plotted.clone(),
+                _ => {
+                    let plotted = Rc::new(Plotted::new(scatter.clone(), palette));
+                    *kept = Some(plotted.clone());
+                    plotted
+                }
+            }
+        };
+        self.chart.publish(plotted, options(&scatter, l10n, palette));
         let dispatch = dispatch.clone();
         let plot = self.chart.view(move |event: ScatterEvent<ProcessInstance>| {
             for act in acts(&event, &scatter) {
