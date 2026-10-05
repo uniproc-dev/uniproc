@@ -20,12 +20,12 @@ members = [
 guinea = "0.25.0"
 guinea-meta-build = "0.25.0"
 
-guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.0" }
-guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.0" }
-guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.0" }
-guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.0" }
-guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.0" }
-guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.0" }
+guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.1" }
+guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.1" }
+guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.1" }
+guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.1" }
+guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.1" }
+guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.25.1" }
 
 # --- guicons ---
 guicons = "0.12.0"

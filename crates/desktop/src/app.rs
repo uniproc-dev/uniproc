@@ -39,7 +39,9 @@ pub fn with_fakes(app: &mut FeatureBuilder) -> anyhow::Result<App> {
 }
 
 fn settings_store(plugin: StorePlugin) -> StorePlugin {
-    let plugin = plugin.configure(|store| store.rules(|rules| rules.on_unreadable(OnUnreadable::UseDefault)));
+    let plugin = plugin
+        .or_in_memory()
+        .configure(|store| store.rules(|rules| rules.on_unreadable(OnUnreadable::UseDefault)));
     #[cfg(debug_assertions)]
     let plugin = plugin.configure(|store| store.rules(|rules| rules.on_undeclared(guinea_plugin_store::amethystate::store::OnUndeclared::Drop)));
     plugin
@@ -50,7 +52,7 @@ mod tests {
     use domain::features::agents::settings::AgentSettings;
     use guinea::app::Harness;
     use guinea_plugin_store::amethystate::store::builder::StoreBuilder;
-    use guinea_plugin_store::{StoreAccess, StorePlugin};
+    use guinea_plugin_store::{Persistence, StoreAccess, StorePlugin};
 
     use super::settings_store;
 
@@ -92,5 +94,19 @@ mod tests {
 
         let opened = h.segment().try_settings::<AgentSettings>().map(|settings| settings.ping_interval_ms().get());
         assert!(matches!(opened, Ok(2000)), "{opened:?}");
+    }
+
+    #[guinea::test(iterations = 1)]
+    fn a_store_file_that_will_not_open_leaves_the_settings_in_memory(h: &mut Harness) {
+        let dir = tempfile::tempdir().unwrap();
+        let at = dir.path().join("settings");
+        std::fs::write(at.with_extension("redb"), "{ this never finished").unwrap();
+
+        let installed = h.plugin(settings_store(StorePlugin::at(&at))).map(|_| ());
+
+        assert!(installed.is_ok(), "{installed:?}");
+        let in_memory = h.segment().try_require::<Persistence>().map(|persistence| persistence.is_in_memory());
+        assert_eq!(in_memory, Some(true));
+        assert_eq!(h.segment().settings::<AgentSettings>().ping_interval_ms().get(), 2000);
     }
 }
