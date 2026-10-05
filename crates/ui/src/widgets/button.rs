@@ -14,7 +14,7 @@ pub fn command_button(
     enabled: bool,
     on_click: impl Fn() + 'static,
 ) -> View {
-    labelled_button(ButtonStyle::Subtle, mark, label, icon, enabled, on_click)
+    labelled_button(Some(ButtonStyle::Subtle), mark, label, icon, enabled, on_click)
 }
 
 struct IconButton;
@@ -41,22 +41,22 @@ pub fn action_button(
     enabled: bool,
     on_click: impl Fn() + 'static,
 ) -> View {
-    labelled_button(ButtonStyle::Default, mark, label, icon, enabled, on_click)
+    labelled_button(None, mark, label, icon, enabled, on_click)
 }
 
 fn labelled_button(
-    style: ButtonStyle,
+    style: Option<ButtonStyle>,
     mark: impl Mark,
     label: impl Into<String>,
     icon: Option<View>,
     enabled: bool,
     on_click: impl Fn() + 'static,
 ) -> View {
-    let button = Button::new()
-        .mark(mark)
-        .style(style)
-        .is_enabled(enabled)
-        .on_click(on_click);
+    let button = Button::new().mark(mark).is_enabled(enabled).on_click(on_click);
+    let button = match style {
+        Some(style) => button.style(style),
+        None => button,
+    };
     match icon {
         Some(icon) => button.content(
             StackPanel::new()

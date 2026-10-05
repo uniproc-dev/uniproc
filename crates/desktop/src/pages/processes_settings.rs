@@ -187,6 +187,21 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4)]
+    fn the_reset_button_keeps_the_fluent_look(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        page.send(ProcessesSettingsMsg::Expand(Group::Sections, true));
+        page.settle();
+        let reset = page.find(ProcessesSettingsMark::ResetSections);
+        assert!(reset.is_some(), "{:#?}", page.tree());
+
+        let style = page.property(reset.unwrap(), PropertyId::Style).cloned();
+
+        assert_eq!(style, None, "a style set to Default turns WinUI's Fluent button off");
+    }
+
+    #[guinea::test(iterations = 4)]
     fn the_name_column_stays_first(h: &mut Harness) {
         use ProcessColumn::*;
         start(h);
