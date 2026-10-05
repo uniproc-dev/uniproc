@@ -1,7 +1,7 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct Pool<T> {
-    spare: Vec<Rc<Vec<T>>>,
+    spare: Vec<Arc<Vec<T>>>,
 }
 
 impl<T> Default for Pool<T> {
@@ -18,20 +18,20 @@ impl Spare {
 }
 
 impl<T> Pool<T> {
-    pub fn retire(&mut self, items: Rc<Vec<T>>) {
+    pub fn retire(&mut self, items: Arc<Vec<T>>) {
         if self.spare.len() < Spare::Kept {
             self.spare.push(items);
         }
     }
 
-    pub fn take(&mut self) -> Rc<Vec<T>> {
+    pub fn take(&mut self) -> Arc<Vec<T>> {
         for at in 0..self.spare.len() {
-            if let Some(items) = Rc::get_mut(&mut self.spare[at]) {
+            if let Some(items) = Arc::get_mut(&mut self.spare[at]) {
                 items.clear();
                 return self.spare.swap_remove(at);
             }
         }
-        Rc::default()
+        Arc::default()
     }
 }
 
@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn a_buffer_nobody_holds_any_more_is_handed_out_again_empty() {
         let mut pool = Pool::default();
-        let buffer = Rc::new(vec![7u64; 50]);
+        let buffer = Arc::new(vec![7u64; 50]);
         let kept = buffer.as_ptr();
         pool.retire(buffer);
 
@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn a_buffer_still_held_elsewhere_waits_until_it_is_let_go() {
         let mut pool = Pool::default();
-        let buffer = Rc::new(vec![7u64; 50]);
+        let buffer = Arc::new(vec![7u64; 50]);
         let held = buffer.clone();
         pool.retire(buffer);
 

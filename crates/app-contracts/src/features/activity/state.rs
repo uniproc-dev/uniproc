@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use guinea::prelude::*;
 
@@ -7,7 +7,7 @@ use super::model::{ActivityRow, ActivityView, Filter, Group, Span};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ActivityState {
-    pub view: Load<Rc<ActivityView>>,
+    pub view: Load<Arc<ActivityView>>,
     pub span: Span,
     pub filter: Filter,
     pub hovered: Option<ActivityRow>,

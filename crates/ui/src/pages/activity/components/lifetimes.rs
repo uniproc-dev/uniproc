@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use app_contracts::features::activity::{Area, Dot, Hue, Lived, Scatter};
 use app_contracts::features::agents::ProcessInstance;
@@ -93,13 +93,13 @@ impl Ink {
 }
 
 pub struct Plotted {
-    scatter: Rc<Scatter>,
+    scatter: Arc<Scatter>,
     palette: Palette,
     inks: Vec<Ink>,
 }
 
 impl Plotted {
-    pub fn new(scatter: Rc<Scatter>, palette: Palette) -> Self {
+    pub fn new(scatter: Arc<Scatter>, palette: Palette) -> Self {
         let mut inks = Vec::new();
         for dot in scatter.dots() {
             let ink = Ink::of(dot);
@@ -110,8 +110,8 @@ impl Plotted {
         Self { scatter, palette, inks }
     }
 
-    pub fn holds(&self, scatter: &Rc<Scatter>, palette: Palette) -> bool {
-        Rc::ptr_eq(&self.scatter, scatter) && self.palette == palette
+    pub fn holds(&self, scatter: &Arc<Scatter>, palette: Palette) -> bool {
+        Arc::ptr_eq(&self.scatter, scatter) && self.palette == palette
     }
 }
 
@@ -218,7 +218,7 @@ mod tests {
     }
 
     fn series(scatter: &Scatter, palette: Palette) -> Vec<ScatterSeries<ProcessInstance>> {
-        let plotted = Plotted::new(Rc::new(scatter.clone()), palette);
+        let plotted = Plotted::new(Arc::new(scatter.clone()), palette);
         (0..plotted.series())
             .map(|index| {
                 let style = plotted.style(index);
@@ -236,11 +236,11 @@ mod tests {
 
     #[test]
     fn the_chart_is_handed_new_data_only_for_another_scatter_or_palette() {
-        let scatter = Rc::new(scatter(vec![dot(20, Lived::Running, false)]));
+        let scatter = Arc::new(scatter(vec![dot(20, Lived::Running, false)]));
         let plotted = Plotted::new(scatter.clone(), palette());
 
         assert!(plotted.holds(&scatter, palette()));
-        assert!(!plotted.holds(&Rc::new((*scatter).clone()), palette()));
+        assert!(!plotted.holds(&Arc::new((*scatter).clone()), palette()));
         assert!(!plotted.holds(&scatter, Palette::of(windows_reactor::ColorScheme::Light)));
     }
 

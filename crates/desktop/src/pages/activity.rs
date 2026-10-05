@@ -52,8 +52,8 @@ mod tests {
     use std::time::Duration;
 
     use app_contracts::features::activity::{
-        ActivityRow, Clock, DeleteGroup, DropRule, Filter, Group, Hue, MoveGroup, NewGroup, Pick, PutInGroup,
-        RecolorGroup, RenameGroup, ShowGroup, ShowOther, ShowSeries, Span,
+        ActivityRow, Clock, DeleteGroup, DropRule, Filter, Group, Hover, Hue, MoveGroup, NewGroup, Pick, PutInGroup,
+        RecolorGroup, RenameGroup, ShowCame, ShowGroup, ShowOther, ShowSeries, Span,
     };
     use app_contracts::features::agents::{
         ProcessCame, ProcessEvent, ProcessInstance, ProcessWent, WindowsProcessEvents,
@@ -181,6 +181,31 @@ mod tests {
         let page = mount(h);
 
         assert_eq!(listed_now(h), 2, "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 8)]
+    fn what_is_heard_and_asked_while_a_view_is_being_built_is_in_the_view_after_it(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let _page = mount(h);
+
+        h.publish(WindowsProcessEvents {
+            events: Arc::from(vec![came(20, 10)]),
+            ..WindowsProcessEvents::default()
+        });
+        h.act::<ActivityState>(ShowCame(false));
+        h.publish(WindowsProcessEvents {
+            events: Arc::from(vec![came(21, 11)]),
+            ..WindowsProcessEvents::default()
+        });
+        h.act::<ActivityState>(Hover(Some(id(20))));
+        h.act::<ActivityState>(ShowCame(true));
+        h.settled();
+
+        let state = h.state::<ActivityState>();
+        assert!(state.filter.came, "{:#?}", state.filter);
+        assert_eq!(listed_now(h), 2, "{:#?}", state.view);
+        assert_eq!(state.hovered.as_ref().map(ActivityRow::key), Some(id(20)));
     }
 
     #[guinea::test(iterations = 4)]

@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::features::agents::{ProcessInstance, ScheduledTask};
@@ -200,7 +199,7 @@ impl Dot {
 
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct Piece {
-    pub dots: Rc<Vec<Dot>>,
+    pub dots: Arc<Vec<Dot>>,
     pub from: usize,
     pub to: usize,
 }
@@ -215,7 +214,7 @@ impl From<Vec<Dot>> for Piece {
     fn from(dots: Vec<Dot>) -> Self {
         Self {
             to: dots.len(),
-            dots: Rc::new(dots),
+            dots: Arc::new(dots),
             from: 0,
         }
     }
@@ -294,16 +293,16 @@ pub struct Series {
     pub count: usize,
     pub went: usize,
     pub routine: bool,
-    pub members: Vec<Rc<Came>>,
+    pub members: Vec<Arc<Came>>,
     pub picks: Vec<Pick>,
     pub hue: Option<Hue>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ActivityRow {
-    Came(Rc<Came>),
-    Went(Rc<Went>),
-    Series(Rc<Series>),
+    Came(Arc<Came>),
+    Went(Arc<Went>),
+    Series(Arc<Series>),
 }
 
 impl ActivityRow {
@@ -340,7 +339,7 @@ pub struct Legend {
 
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct ActivityView {
-    pub scatter: Rc<Scatter>,
+    pub scatter: Arc<Scatter>,
     pub rows: Vec<ActivityRow>,
     pub earlier: usize,
     pub came: usize,

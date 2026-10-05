@@ -1,6 +1,5 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::rc::Rc;
 use std::sync::Arc;
 
 use app_contracts::features::activity::{
@@ -880,7 +879,7 @@ struct Drawn {
     asked: u32,
     named: u32,
     touched: u32,
-    dots: Rc<Vec<Dot>>,
+    dots: Arc<Vec<Dot>>,
     legend: Legend,
 }
 
@@ -924,13 +923,13 @@ fn counted(legend: &mut Legend, group: Option<usize>) {
     }
 }
 
-fn draw(sieve: &Sieve<'_>, minute: u64, mut dots: Rc<Vec<Dot>>) -> Drawn {
+fn draw(sieve: &Sieve<'_>, minute: u64, mut dots: Arc<Vec<Dot>>) -> Drawn {
     let log = sieve.log;
     let mut legend = Legend {
         groups: vec![0; sieve.groups.all.len()],
         other: 0,
     };
-    let kept = Rc::make_mut(&mut dots);
+    let kept = Arc::make_mut(&mut dots);
     for event in log.span(minute * Ticks::Minute, (minute + 1) * Ticks::Minute) {
         if let Some((group, dot)) = plotted(sieve, &event) {
             counted(&mut legend, group);
@@ -1117,7 +1116,7 @@ struct Shown {
     named: u32,
     went_at: Option<u64>,
     launched: Option<(ProcessInstance, Spell)>,
-    row: Rc<Came>,
+    row: Arc<Came>,
 }
 
 struct Rows<'a> {
@@ -1141,7 +1140,7 @@ impl<'a> Rows<'a> {
         }
     }
 
-    fn came(&mut self, started: &Started) -> Rc<Came> {
+    fn came(&mut self, started: &Started) -> Arc<Came> {
         let instance = started.instance();
         if let Some(shown) = self.shown.get(&instance) {
             return shown.row.clone();
@@ -1157,7 +1156,7 @@ impl<'a> Rows<'a> {
             named: self.log.naming.len() as u32,
             went_at: started.went_at(),
             launched: started.launched(),
-            row: Rc::new(came_of(self.log, self.groups, started, self.clock)),
+            row: Arc::new(came_of(self.log, self.groups, started, self.clock)),
         });
         let row = shown.row.clone();
         self.shown.insert(instance, shown);
@@ -1197,9 +1196,9 @@ impl<'a> Rows<'a> {
         Some(match row {
             Light::Came(instance) => ActivityRow::Came(self.came(log.started(instance)?)),
             Light::Went(instance) => {
-                ActivityRow::Went(Rc::new(went_of(log, self.groups, log.ended(instance)?, self.clock)))
+                ActivityRow::Went(Arc::new(went_of(log, self.groups, log.ended(instance)?, self.clock)))
             }
-            Light::Series(gathered) => ActivityRow::Series(Rc::new(self.series(&gathered)?)),
+            Light::Series(gathered) => ActivityRow::Series(Arc::new(self.series(&gathered)?)),
         })
     }
 }
@@ -1427,7 +1426,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     log.shown.replace(built.shown);
 
     ActivityView {
-        scatter: Rc::new(scatter),
+        scatter: Arc::new(scatter),
         rows,
         earlier,
         came: came_count,
@@ -1954,7 +1953,7 @@ mod tests {
         assert_eq!(listed(&log, &filter), [Arc::from("cmd.exe")]);
     }
 
-    fn came_row(rows: &[ActivityRow], pid: u32) -> Rc<app_contracts::features::activity::Came> {
+    fn came_row(rows: &[ActivityRow], pid: u32) -> Arc<app_contracts::features::activity::Came> {
         let found = rows.iter().find_map(|row| match row {
             ActivityRow::Came(came) if came.key == id(pid) => Some(came.clone()),
             _ => None,
@@ -1971,10 +1970,10 @@ mod tests {
 
         let (first, second) = (rows(&log), rows(&log));
 
-        assert!(Rc::ptr_eq(&came_row(&first, 20), &came_row(&second, 20)));
+        assert!(Arc::ptr_eq(&came_row(&first, 20), &came_row(&second, 20)));
         let (first, second) = (only_series(&first[1..]), only_series(&second[1..]));
         assert!(
-            first.members.iter().zip(&second.members).all(|(a, b)| Rc::ptr_eq(a, b)),
+            first.members.iter().zip(&second.members).all(|(a, b)| Arc::ptr_eq(a, b)),
             "{first:#?}"
         );
     }
@@ -2617,7 +2616,7 @@ mod tests {
         )
     }
 
-    fn piece_of(view: &ActivityView, pid: u32) -> Rc<Vec<Dot>> {
+    fn piece_of(view: &ActivityView, pid: u32) -> Arc<Vec<Dot>> {
         let piece = view
             .scatter
             .pieces
@@ -2636,8 +2635,8 @@ mod tests {
         log.record(&[came(22, 1, "c.exe", at(30, 1))]);
         let after = seen_at(&log, at(30, 2), &Filter::default(), &[]);
 
-        assert!(Rc::ptr_eq(&piece_of(&before, 20), &piece_of(&after, 20)));
-        assert!(Rc::ptr_eq(&piece_of(&before, 21), &piece_of(&after, 21)));
+        assert!(Arc::ptr_eq(&piece_of(&before, 20), &piece_of(&after, 20)));
+        assert!(Arc::ptr_eq(&piece_of(&before, 21), &piece_of(&after, 21)));
         assert_eq!(drawn(&after.scatter), [20, 21, 22]);
     }
 
@@ -2650,7 +2649,7 @@ mod tests {
         log.record(&[went(21, at(30, 1))]);
         let after = seen_at(&log, at(30, 2), &Filter::default(), &[]);
 
-        assert!(Rc::ptr_eq(&piece_of(&before, 20), &piece_of(&after, 20)));
+        assert!(Arc::ptr_eq(&piece_of(&before, 20), &piece_of(&after, 20)));
         assert_eq!(dot(&after.scatter, 21).lived(), Lived::For(10 * Ticks::Minute + Ticks::Second));
     }
 

@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -72,7 +71,7 @@ fn came(index: usize) -> Came {
 
 fn row(index: usize) -> ActivityRow {
     match index % 10 {
-        0 => ActivityRow::Series(Rc::new(Series {
+        0 => ActivityRow::Series(Arc::new(Series {
             key: instance(index),
             at: clock(index),
             launcher: "cargo.exe".into(),
@@ -81,18 +80,18 @@ fn row(index: usize) -> ActivityRow {
             count: 6,
             went: 5,
             routine: false,
-            members: (0..6).map(|member| Rc::new(came(index * 10 + member))).collect(),
+            members: (0..6).map(|member| Arc::new(came(index * 10 + member))).collect(),
             picks: vec![Pick::Under("cargo.exe".into())],
             hue: Some(Hue::Purple),
         })),
-        1 | 2 => ActivityRow::Went(Rc::new(Went {
+        1 | 2 => ActivityRow::Went(Arc::new(Went {
             key: instance(index),
             name: Some(format!("gone-{index}.exe").into()),
             lived: Some(5_000),
             exit: exit(index),
             hue: None,
         })),
-        _ => ActivityRow::Came(Rc::new(came(index))),
+        _ => ActivityRow::Came(Arc::new(came(index))),
     }
 }
 
@@ -121,8 +120,8 @@ fn state(dots: usize, rows: usize) -> ActivityState {
         area: None,
     };
     ActivityState {
-        view: Load::Ready(Rc::new(ActivityView {
-            scatter: Rc::new(scatter),
+        view: Load::Ready(Arc::new(ActivityView {
+            scatter: Arc::new(scatter),
             rows: (0..rows).map(row).collect(),
             earlier: 40,
             came: rows,

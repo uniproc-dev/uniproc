@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use serde::Deserialize;
 
@@ -7,7 +7,7 @@ use crate::features::agents::ProcessInstance;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ActivityMsg {
-    View(Rc<ActivityView>),
+    View(Arc<ActivityView>),
     Span(Span),
     Filter(Filter),
     Hovered(Option<ActivityRow>),
