@@ -154,7 +154,7 @@ impl ActivityPage {
         }))
     }
 
-    fn menu(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+    fn menu(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette, manage: Callback<()>) -> View {
         let filter = &state.filter;
         let (came, went, new_only, series) = (dispatch.clone(), dispatch.clone(), dispatch.clone(), dispatch.clone());
         let spans: Vec<KeyedView> = Span::ALL
@@ -183,6 +183,12 @@ impl ActivityPage {
             }),
             separator(palette).margin(Thickness::xy(0.0, space::Control)),
             StackPanel::new().keyed_children(spans),
+            separator(palette).margin(Thickness::xy(0.0, space::Control)),
+            Button::new()
+                .mark(ActivityMark::ManageGroups)
+                .style(ButtonStyle::Subtle)
+                .on_click(move || manage.call(()))
+                .content(text(l10n.activity_menu_manage_groups())),
         ));
         Button::new()
             .mark(ActivityMark::Menu)
@@ -191,7 +197,7 @@ impl ActivityPage {
             .flyout_with(Flyout::rich(choices).placement(FlyoutPlacement::BottomEdgeAlignedRight))
     }
 
-    fn header(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+    fn header(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette, manage: Callback<()>) -> View {
         Grid::new()
             .columns([GridLength::Star(1.0), GridLength::Auto])
             .children((
@@ -199,7 +205,7 @@ impl ActivityPage {
                 Border::new()
                     .grid_column(1)
                     .vertical_alignment(VerticalAlignment::Center)
-                    .content(Self::menu(state, dispatch, l10n, palette)),
+                    .content(Self::menu(state, dispatch, l10n, palette, manage)),
             ))
             .into()
     }
@@ -275,8 +281,9 @@ impl ActivityPage {
         l10n: &L10n,
         palette: Palette,
         forward: Callback<ActivityPageMsg>,
+        manage_groups: Callback<()>,
     ) -> View {
-        let header = Self::header(state, dispatch, l10n, palette);
+        let header = Self::header(state, dispatch, l10n, palette, manage_groups);
         let Load::Ready(view) = &state.view else {
             return page_frame(header, loading(), status_text(l10n.activity_loading(), palette), palette);
         };

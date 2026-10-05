@@ -26,4 +26,18 @@ pub enum ActivityMark {
     NewGroup,
     Facts,
     Empty,
+    ManageGroups,
+}
+
+#[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ActivityGroupsMark {
+    Back,
+    Group,
+    BuiltIn,
+    Name,
+    Recolor,
+    Up,
+    Down,
+    Delete,
+    Rule,
 }

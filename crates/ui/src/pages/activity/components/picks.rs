@@ -9,7 +9,7 @@ use crate::theme::{size, space, Palette};
 use crate::widgets::button::command_button;
 use crate::widgets::popup_menu::MenuLine;
 
-fn named(pick: &Pick) -> String {
+pub fn named(pick: &Pick) -> String {
     match pick {
         Pick::Exe(name) | Pick::Under(name) => name.to_string(),
         Pick::Folder(folder) => folder.to_string(),

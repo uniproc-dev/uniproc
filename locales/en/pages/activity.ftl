@@ -34,6 +34,7 @@ activity-series-name = { $name } × { $count }
 activity-series-names-separator = {", "}
 activity-series-summary = { $came } started, { $went } exited
 activity-services-separator = {", "}
+activity-menu-manage-groups = Manage groups…
 activity-legend-other = Other
 activity-legend-count = { $count }
 activity-group-windows-background = Windows background
@@ -61,6 +62,19 @@ activity-fact-exit = Exit
 activity-fact-exit-value = { $at } · code { $code } · lived { $lived }
 activity-fact-exit-code = { $at } · code { $code }
 activity-fact-unknown = Not known
+
+activity-groups-title = Groups
+activity-groups-built-in = built in
+activity-groups-name = Group name
+activity-groups-recolor = Change colour
+activity-groups-up = Move up
+activity-groups-down = Move down
+activity-groups-delete = Delete group
+activity-groups-empty = Nothing in this group yet. Right-click a row on the Activity page to put a program here.
+activity-groups-order = A process in two groups goes to the upper one.
+activity-groups-rule-exe = { $program }
+activity-groups-rule-folder = Folder { $folder }
+activity-groups-rule-under = Everything under { $launcher }
 
 activity-milliseconds = { $count } ms
 activity-seconds = { $count } s

@@ -165,6 +165,9 @@ paint = "none"
 iconify = "fluent-color:database-24"
 paint = "none"
 
+[delete]
+iconify = "fluent:delete-24-regular"
+
 [dismiss]
 iconify = "fluent:dismiss-20-regular"
 

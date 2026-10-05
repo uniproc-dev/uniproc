@@ -1,4 +1,5 @@
 mod activity;
+mod activity_groups;
 mod processes;
 mod processes_settings;
 mod services;
@@ -8,6 +9,7 @@ mod system_tools;
 mod wsl;
 
 pub use activity::Activity;
+pub use activity_groups::ActivityGroups;
 pub use processes::Processes;
 pub use processes_settings::ProcessesSettings;
 pub use services::Services;

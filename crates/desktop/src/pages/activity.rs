@@ -5,7 +5,9 @@ use guinea::prelude::GlobalEventBus;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::pages::activity::{ActivityPage, ActivityPageMsg};
 use ui::theme::{scheme_context, Palette};
-use windows_reactor::View;
+use windows_reactor::{Callback, View};
+
+use crate::routes::Route;
 
 #[derive(Default)]
 pub struct Activity(ActivityPage);
@@ -36,7 +38,9 @@ impl Page for Activity {
                 away.call(ActivityPageMsg::MenuDismiss);
             })
         });
-        self.0.view(&state, &dispatch, &l10n, palette, forward)
+        let nav = cx.navigate::<Route>();
+        let manage = Callback::new(move |()| nav.to(Route::ActivityGroups {}));
+        self.0.view(&state, &dispatch, &l10n, palette, forward, manage)
     }
 }
 
@@ -63,7 +67,6 @@ mod tests {
     use ui::pages::activity::ActivityMark;
 
     use super::*;
-    use crate::routes::Route;
 
     const SECOND: u64 = 10_000_000;
     const HOUR: u64 = 3600 * SECOND;
@@ -718,6 +721,19 @@ mod tests {
         let groups = h.state::<ActivityState>().groups.clone();
         assert_eq!(groups[0].rules, std::slice::from_ref(&taskhost), "{groups:#?}");
         assert!(groups[1].rules.is_empty(), "{groups:#?}");
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn the_menu_opens_the_page_that_manages_groups(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10)]);
+        assert!(page.find(ActivityMark::ManageGroups).is_some(), "{:#?}", page.tree());
+
+        page.click(ActivityMark::ManageGroups).settle();
+
+        assert_eq!(page.navigated::<Route>(), [Route::ActivityGroups {}]);
     }
 
     #[guinea::test(iterations = 4)]
