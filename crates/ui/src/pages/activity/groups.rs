@@ -2,14 +2,14 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityState, DeleteGroup, DropRule, Group, Hue, MoveGroup, Pick, RecolorGroup, RenameGroup, ShowGroup, Unhide,
+    ActivityState, DeleteGroup, DropRule, Group, MoveGroup, Pick, RenameGroup, ShowGroup, Unhide,
 };
 use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    keyed, Border, Button, ButtonStyle, Callback, CornerRadius, Grid, GridLength, KeyedView, Orientation, StackPanel,
-    TextBox, ThemeBrush, Thickness, ToggleSwitch, TooltipExt, VerticalAlignment, View,
+    keyed, Border, Button, ButtonStyle, Callback, Grid, GridLength, KeyedView, Orientation, StackPanel, TextBox,
+    ThemeBrush, Thickness, ToggleSwitch, TooltipExt, VerticalAlignment, View,
 };
 
 use super::components::groups::{group_label, swatch};
@@ -32,8 +32,6 @@ impl Layout {
     const NameWidth: f64 = 220.0;
     const ContentInset: f64 = 36.0;
     const RowMinHeight: f64 = 40.0;
-    const Ring: f64 = 18.0;
-    const RingWidth: f64 = 2.0;
 }
 
 #[derive(Clone)]
@@ -163,46 +161,12 @@ fn rules(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> V
         .collect()
 }
 
-fn colours(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
-    let picks: Vec<KeyedView> = Hue::ALL
-        .into_iter()
-        .map(|hue| {
-            let (dispatch, id) = (dispatch.clone(), group.id.clone());
-            let ring = Border::new()
-                .width(Layout::Ring)
-                .height(Layout::Ring)
-                .corner_radius(CornerRadius::uniform(Layout::Ring / 2.0))
-                .border_thickness(Thickness::uniform(Layout::RingWidth))
-                .content(swatch(palette.hue(hue), true));
-            let ring = if group.hue == hue {
-                ring.border_brush(ThemeBrush::PrimaryText)
-            } else {
-                ring
-            };
-            keyed(
-                hue.id(),
-                Button::new()
-                    .mark(ActivityGroupsMark::Colour)
-                    .style(ButtonStyle::Subtle)
-                    .on_click(move || dispatch.emit(RecolorGroup { group: id.clone(), hue }))
-                    .content(ring)
-                    .tooltip(l10n.activity_groups_colour()),
-            )
-        })
-        .collect();
-    StackPanel::new()
-        .orientation(Orientation::Horizontal)
-        .vertical_alignment(VerticalAlignment::Center)
-        .keyed_children(picks)
-        .into()
-}
-
 struct Place {
     first: bool,
     last: bool,
 }
 
-fn edit(group: &Group, place: Place, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+fn edit(group: &Group, place: Place, dispatch: &Dispatch, l10n: &L10n) -> View {
     let mut parts: Vec<KeyedView> = Vec::new();
     if !group.is_built_in() {
         let (renamed, id) = (dispatch.clone(), group.id.clone());
@@ -221,7 +185,6 @@ fn edit(group: &Group, place: Place, dispatch: &Dispatch, l10n: &L10n, palette: 
                 }),
         ));
     }
-    parts.push(keyed("colours", colours(group, dispatch, l10n, palette)));
 
     let mut tools: Vec<KeyedView> = Vec::new();
     let moved = |up: bool| {
@@ -329,7 +292,7 @@ impl ActivityGroupsPage {
         forward: &Callback<ActivityGroupsMsg>,
     ) -> View {
         let mut content = rules(group, dispatch, l10n, palette);
-        content.push(keyed("edit", edit(group, place, dispatch, l10n, palette)));
+        content.push(keyed("edit", edit(group, place, dispatch, l10n)));
         let (expanded, id) = (forward.clone(), group.id.clone());
         setting_expander()
             .mark(ActivityGroupsMark::Group)

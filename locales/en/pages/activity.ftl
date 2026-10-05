@@ -74,7 +74,6 @@ activity-groups-built-in-rules = Built in · { $count ->
 activity-groups-shown-on = Shown
 activity-groups-shown-off = Hidden
 activity-groups-name = Group name
-activity-groups-colour = Colour
 activity-groups-up = Move up
 activity-groups-down = Move down
 activity-groups-delete = Delete group

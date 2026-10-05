@@ -37,11 +37,11 @@ impl Page for ActivityGroups {
 
 #[cfg(test)]
 mod tests {
-    use app_contracts::features::activity::{Clock, Group, Hide, Hue, NewGroup, Pick};
+    use app_contracts::features::activity::{Clock, Group, Hide, NewGroup, Pick};
     use domain::features::activity::settings::{remembered_groups, ActivitySettings};
     use domain::features::activity::{ActivityDeps, ActivityFeature};
     use guinea::app::Harness;
-    use guinea::winui::harness::Mounted;
+    use guinea::winui::harness::{Mounted, PropertyId, PropertyValue};
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::{StoreAccess, StorePlugin};
     use ui::pages::activity::ActivityGroupsMark;
@@ -101,11 +101,29 @@ mod tests {
         assert!(page.find(ActivityGroupsMark::BuiltIn).is_some(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::Shown).is_some(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::Rule).is_some(), "{:#?}", page.tree());
-        assert!(page.find(ActivityGroupsMark::Colour).is_some(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::Name).is_none(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::Delete).is_none(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::Up).is_none(), "{:#?}", page.tree());
         assert!(page.find(ActivityGroupsMark::Down).is_none(), "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn what_a_group_holds_takes_the_whole_width_of_its_card(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let page = mount(h);
+        let card = page.find(ActivityGroupsMark::Group);
+        assert!(card.is_some(), "{:#?}", page.tree());
+
+        let alignment = page.property(card.unwrap(), PropertyId::HorizontalContentAlignment).cloned();
+
+        assert_eq!(
+            alignment,
+            Some(PropertyValue::Enum {
+                kind: "HorizontalAlignment",
+                variant: "Stretch"
+            })
+        );
     }
 
     #[guinea::test(iterations = 4)]
@@ -121,22 +139,18 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4)]
-    fn a_group_is_moved_recoloured_emptied_and_deleted_from_its_card(h: &mut Harness) {
+    fn a_group_is_moved_emptied_and_deleted_from_its_card(h: &mut Harness) {
         start(h);
         let h = &*h;
         let tool = Pick::Exe("tool.exe".into());
         h.act::<ActivityState>(NewGroup(tool)).settle();
         let mut page = mount(h);
         let id = groups(h)[1].id.clone();
-        assert_ne!(groups(h)[1].hue, Hue::Teal);
         expand(&mut page, &id);
         assert!(page.find(ActivityGroupsMark::Name).is_some(), "{:#?}", page.tree());
 
         click(&mut page, ActivityGroupsMark::Up);
         assert_eq!(groups(h)[0].id, id);
-
-        click(&mut page, ActivityGroupsMark::Colour);
-        assert_eq!(groups(h)[0].hue, Hue::Teal);
 
         click(&mut page, ActivityGroupsMark::Rule);
         assert!(groups(h)[0].rules.is_empty(), "{:#?}", groups(h));

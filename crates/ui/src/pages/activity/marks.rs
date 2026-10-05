@@ -36,7 +36,6 @@ pub enum ActivityGroupsMark {
     BuiltIn,
     Shown,
     Name,
-    Colour,
     Up,
     Down,
     Delete,

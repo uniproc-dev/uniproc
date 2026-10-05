@@ -36,7 +36,10 @@ pub fn card_words(title: impl Into<String>, description: Option<String>, palette
 }
 
 pub fn setting_expander() -> Expander {
-    Expander::new().horizontal_alignment(HorizontalAlignment::Stretch).resource_overrides(
+    Expander::new()
+        .horizontal_alignment(HorizontalAlignment::Stretch)
+        .horizontal_content_alignment(HorizontalAlignment::Stretch)
+        .resource_overrides(
         ResourceOverrides::new()
             .set("ExpanderChevronPointerOverBackground", Color::transparent())
             .set("ExpanderChevronPressedBackground", Color::transparent()),
