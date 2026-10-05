@@ -1,12 +1,12 @@
 use app_contracts::features::activity::{Came, Launcher, Went};
 use guinea::winui::MarkExt;
-use windows_reactor::{keyed, Grid, GridLength, KeyedView, TextWrapping, Thickness, View};
+use windows_reactor::{Grid, GridLength, KeyedView, TextWrapping, Thickness, View, keyed};
 
 use super::super::marks::ActivityMark;
 use super::lasted::lasted;
 use crate::format;
 use crate::l10n::L10n;
-use crate::theme::{space, Palette};
+use crate::theme::{Palette, space};
 use crate::widgets::text::caption;
 
 fn fact(at: usize, label: String, value: String, palette: Palette) -> [KeyedView; 2] {
@@ -41,7 +41,10 @@ fn or_unknown(value: &str, l10n: &L10n) -> String {
 
 pub fn facts(came: &Came, l10n: &L10n, palette: Palette, indent: f64) -> View {
     let mut lines = vec![
-        (l10n.activity_fact_command_line(), or_unknown(&came.command_line, l10n)),
+        (
+            l10n.activity_fact_command_line(),
+            or_unknown(&came.command_line, l10n),
+        ),
         (
             l10n.activity_fact_launched_by(),
             came.chain
@@ -67,7 +70,10 @@ pub fn facts(came: &Came, l10n: &L10n, palette: Palette, indent: f64) -> View {
                 .join(&l10n.activity_services_separator()),
         ));
     }
-    lines.push((l10n.activity_fact_folder(), or_unknown(&came.working_dir, l10n)));
+    lines.push((
+        l10n.activity_fact_folder(),
+        or_unknown(&came.working_dir, l10n),
+    ));
     let user = or_unknown(&came.user, l10n);
     let session = i64::from(came.session_id);
     lines.push((
@@ -81,7 +87,11 @@ pub fn facts(came: &Came, l10n: &L10n, palette: Palette, indent: f64) -> View {
     if let Some(exit) = &came.exit {
         lines.push((
             l10n.activity_fact_exit(),
-            l10n.activity_fact_exit_value(format::clock(exit.at), i64::from(exit.code), lasted(l10n, exit.lived)),
+            l10n.activity_fact_exit_value(
+                format::clock(exit.at),
+                i64::from(exit.code),
+                lasted(l10n, exit.lived),
+            ),
         ));
     }
     table(lines, palette, indent)
@@ -90,7 +100,11 @@ pub fn facts(came: &Came, l10n: &L10n, palette: Palette, indent: f64) -> View {
 pub fn went_facts(went: &Went, l10n: &L10n, palette: Palette, indent: f64) -> View {
     let exit = &went.exit;
     let value = match went.lived {
-        Some(lived) => l10n.activity_fact_exit_value(format::clock(exit.at), i64::from(exit.code), lasted(l10n, lived)),
+        Some(lived) => l10n.activity_fact_exit_value(
+            format::clock(exit.at),
+            i64::from(exit.code),
+            lasted(l10n, lived),
+        ),
         None => l10n.activity_fact_exit_code(format::clock(exit.at), i64::from(exit.code)),
     };
     table(vec![(l10n.activity_fact_exit(), value)], palette, indent)
@@ -107,7 +121,12 @@ fn table(lines: Vec<(String, String)>, palette: Palette, indent: f64) -> View {
         .mark(ActivityMark::Facts)
         .columns([GridLength::Auto, GridLength::Star(1.0)])
         .rows(rows)
-        .margin(Thickness::new(indent + space::Control, space::Compact, 0.0, space::Control))
+        .margin(Thickness::new(
+            indent + space::Control,
+            space::Compact,
+            0.0,
+            space::Control,
+        ))
         .keyed_children(cells)
         .into()
 }

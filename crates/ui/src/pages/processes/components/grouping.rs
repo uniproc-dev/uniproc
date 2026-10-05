@@ -1,10 +1,10 @@
 use amethystate::ReactiveMap;
+use app_contracts::OrWarn;
 use app_contracts::features::agents::EnvironmentKind;
 use app_contracts::features::processes::{
     HostedService, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessWindow,
     WslEnvironment, WslProcess,
 };
-use app_contracts::OrWarn;
 
 use super::Step;
 use crate::theme::size;
@@ -161,7 +161,10 @@ impl SectionOrder {
         for (rank, id) in self.0.iter().enumerate() {
             ranks
                 .insert(id.id().to_string(), &(rank as u32))
-                .or_warn(format_args!("could not keep where the {} section goes", id.id()));
+                .or_warn(format_args!(
+                    "could not keep where the {} section goes",
+                    id.id()
+                ));
         }
     }
 
@@ -305,7 +308,8 @@ fn absent_pins(groups: &[ProcessGroup], pins: &Pins) -> Vec<(Arc<str>, PinnedPro
 
 fn one_section(groups: Vec<ProcessGroup>, pins: &Pins, wsl: &[WslEnvironment]) -> Vec<Section> {
     let absent = absent_pins(&groups, pins);
-    let (pinned, rest): (Vec<_>, Vec<_>) = groups.into_iter().partition(|group| is_pinned(group, pins));
+    let (pinned, rest): (Vec<_>, Vec<_>) =
+        groups.into_iter().partition(|group| is_pinned(group, pins));
     let rest_id = SectionId::Category(ProcessCategory::ORDER[0]);
     let mut sections: Vec<Section> = [
         Section::with_absent(SectionId::Pinned, false, pinned, absent),
@@ -352,7 +356,10 @@ fn split_keeping(
 ) -> Vec<Section> {
     let mut absent = absent_pins(&groups, pins);
     let (hosts, groups): (Vec<_>, Vec<_>) = groups.into_iter().partition(is_wsl_host);
-    let mut wsl_section = Section::wsl(hosts.into_iter().next().map(|host| host.leader), environments_of(wsl));
+    let mut wsl_section = Section::wsl(
+        hosts.into_iter().next().map(|host| host.leader),
+        environments_of(wsl),
+    );
     let mut by_section: HashMap<SectionId, Vec<ProcessGroup>> = HashMap::new();
     for group in groups {
         let id = if is_pinned(&group, pins) {
@@ -386,12 +393,17 @@ fn split_keeping(
         .collect()
 }
 
-pub(crate) fn detach_consoles(rows: &[ProcessRow]) -> (Vec<ProcessRow>, HashMap<u32, Vec<ProcessRow>>) {
+pub(crate) fn detach_consoles(
+    rows: &[ProcessRow],
+) -> (Vec<ProcessRow>, HashMap<u32, Vec<ProcessRow>>) {
     let present: HashSet<u32> = rows.iter().map(|r| r.pid).collect();
     let mut rest = Vec::with_capacity(rows.len());
     let mut consoles: HashMap<u32, Vec<ProcessRow>> = HashMap::new();
     for row in rows {
-        match row.owner_pid.filter(|owner| *owner != row.pid && present.contains(owner)) {
+        match row
+            .owner_pid
+            .filter(|owner| *owner != row.pid && present.contains(owner))
+        {
             Some(owner) => consoles.entry(owner).or_default().push(row.clone()),
             None => rest.push(row.clone()),
         }
@@ -402,7 +414,10 @@ pub(crate) fn detach_consoles(rows: &[ProcessRow]) -> (Vec<ProcessRow>, HashMap<
     (rest, consoles)
 }
 
-pub(crate) fn attach_consoles(sections: &mut [Section], mut consoles: HashMap<u32, Vec<ProcessRow>>) {
+pub(crate) fn attach_consoles(
+    sections: &mut [Section],
+    mut consoles: HashMap<u32, Vec<ProcessRow>>,
+) {
     for section in sections {
         for group in &section.groups {
             for member in &group.members {
@@ -505,8 +520,14 @@ impl Child {
 }
 
 fn children_of(row: &ProcessRow) -> impl Iterator<Item = Child> + '_ {
-    let windows = row.windows.iter().flat_map(|titles| titles.iter().cloned().map(Child::Window));
-    let services = row.services.iter().flat_map(|services| services.iter().cloned().map(Child::Service));
+    let windows = row
+        .windows
+        .iter()
+        .flat_map(|titles| titles.iter().cloned().map(Child::Window));
+    let services = row
+        .services
+        .iter()
+        .flat_map(|services| services.iter().cloned().map(Child::Service));
     windows.chain(services)
 }
 
@@ -531,7 +552,12 @@ fn plain_row(row: &ProcessRow, depth: u8) -> DisplayRow {
     }
 }
 
-fn process_row(row: &ProcessRow, depth: u8, expanded: &ViewState<'_>, section: &Section) -> DisplayRow {
+fn process_row(
+    row: &ProcessRow,
+    depth: u8,
+    expanded: &ViewState<'_>,
+    section: &Section,
+) -> DisplayRow {
     let details = children_of(row).next().is_some()
         || section.consoles.contains_key(&row.pid)
         || section.hosts_environments(row.pid);
@@ -550,8 +576,15 @@ fn child_row(row: &ProcessRow, depth: u8, child: Child) -> DisplayRow {
     }
 }
 
-fn push_environment(out: &mut Vec<DisplayRow>, environment: &Environment, expanded: &ViewState<'_>, depth: u8) {
-    let is_expanded = expanded.groups.contains(&environment_key(environment.pid_ns));
+fn push_environment(
+    out: &mut Vec<DisplayRow>,
+    environment: &Environment,
+    expanded: &ViewState<'_>,
+    depth: u8,
+) {
+    let is_expanded = expanded
+        .groups
+        .contains(&environment_key(environment.pid_ns));
     out.push(DisplayRow {
         has_children: true,
         is_expanded,
@@ -575,7 +608,12 @@ fn push_environment(out: &mut Vec<DisplayRow>, environment: &Environment, expand
     }
 }
 
-fn push_with_details(out: &mut Vec<DisplayRow>, host: DisplayRow, section: &Section, expanded: &ViewState<'_>) {
+fn push_with_details(
+    out: &mut Vec<DisplayRow>,
+    host: DisplayRow,
+    section: &Section,
+    expanded: &ViewState<'_>,
+) {
     let open = host.details_expanded;
     let depth = host.depth + 1;
     let row = host.row.clone();
@@ -596,7 +634,10 @@ fn push_with_details(out: &mut Vec<DisplayRow>, host: DisplayRow, section: &Sect
     }
 }
 
-pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>) -> Vec<DisplayRow> {
+pub(crate) fn flatten_for_display(
+    sections: &[Section],
+    expanded: &ViewState<'_>,
+) -> Vec<DisplayRow> {
     let mut out = Vec::new();
 
     for section in sections {
@@ -614,7 +655,12 @@ pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>
 
         for group in &section.groups {
             if group.members.len() == 1 {
-                push_with_details(&mut out, process_row(&group.leader, 1, expanded, section), section, expanded);
+                push_with_details(
+                    &mut out,
+                    process_row(&group.leader, 1, expanded, section),
+                    section,
+                    expanded,
+                );
                 continue;
             }
 
@@ -625,13 +671,21 @@ pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>
                 group_size: group.members.len(),
                 details: false,
                 details_expanded: false,
-                exited: group.members.iter().all(|m| expanded.exited.contains(&m.pid)),
+                exited: group
+                    .members
+                    .iter()
+                    .all(|m| expanded.exited.contains(&m.pid)),
                 ..process_row(&group.leader, 1, expanded, section)
             });
 
             if is_expanded {
                 for member in &group.members {
-                    push_with_details(&mut out, process_row(member, 2, expanded, section), section, expanded);
+                    push_with_details(
+                        &mut out,
+                        process_row(member, 2, expanded, section),
+                        section,
+                        expanded,
+                    );
                 }
             }
         }
@@ -642,7 +696,12 @@ pub(crate) fn flatten_for_display(sections: &[Section], expanded: &ViewState<'_>
             }
         }
 
-        out.extend(section.absent.iter().map(|(name, pin)| DisplayRow::absent(name, pin)));
+        out.extend(
+            section
+                .absent
+                .iter()
+                .map(|(name, pin)| DisplayRow::absent(name, pin)),
+        );
 
         if section.ruled
             && let Some(last) = out.last_mut()
@@ -709,7 +768,12 @@ fn compare_by(column: ProcessColumn, a: &ProcessRow, b: &ProcessRow) -> Ordering
         ProcessColumn::CommandLine => caseless(&a.details.command_line, &b.details.command_line),
         ProcessColumn::ImagePath => caseless(&a.exe_path, &b.exe_path),
         ProcessColumn::GpuEngine => {
-            let key = |row: &ProcessRow| row.details.gpu_engine.as_ref().map(|label| (label.adapter, label.engine.clone()));
+            let key = |row: &ProcessRow| {
+                row.details
+                    .gpu_engine
+                    .as_ref()
+                    .map(|label| (label.adapter, label.engine.clone()))
+            };
             key(a).cmp(&key(b))
         }
         ProcessColumn::Platform => a.details.architecture.cmp(&b.details.architecture),
@@ -719,12 +783,18 @@ fn compare_by(column: ProcessColumn, a: &ProcessRow, b: &ProcessRow) -> Ordering
 }
 
 fn caseless(a: &str, b: &str) -> Ordering {
-    a.chars().flat_map(char::to_lowercase).cmp(b.chars().flat_map(char::to_lowercase))
+    a.chars()
+        .flat_map(char::to_lowercase)
+        .cmp(b.chars().flat_map(char::to_lowercase))
 }
 
 fn compare_rows(order: &Order, a: &ProcessRow, b: &ProcessRow) -> Ordering {
     let primary = compare_by(order.column, a, b);
-    let primary = if order.descending { primary.reverse() } else { primary };
+    let primary = if order.descending {
+        primary.reverse()
+    } else {
+        primary
+    };
     primary
         .then_with(|| compare_by(ProcessColumn::Name, a, b))
         .then_with(|| a.name.cmp(&b.name))
@@ -743,9 +813,9 @@ pub(crate) fn sort_groups(sections: &mut [Section], order: &Order) {
             .environments
             .sort_by(|a, b| compare_rows(order, &a.leader, &b.leader));
         for environment in &mut section.environments {
-            environment
-                .processes
-                .sort_by(|a, b| compare_rows(order, &a.row, &b.row).then(a.global_pid.cmp(&b.global_pid)));
+            environment.processes.sort_by(|a, b| {
+                compare_rows(order, &a.row, &b.row).then(a.global_pid.cmp(&b.global_pid))
+            });
         }
     }
 }
@@ -810,7 +880,11 @@ impl GroupsCache {
         } = grouping;
         let rows_ptr = rows.as_ptr();
         let same_exited = self.exited.len() == exited.len()
-            && self.exited.iter().zip(exited).all(|(pid, row)| *pid == row.pid);
+            && self
+                .exited
+                .iter()
+                .zip(exited)
+                .all(|(pid, row)| *pid == row.pid);
         if self.rows_ptr != rows_ptr
             || self.rows_len != rows.len()
             || self.wsl_ptr != wsl.as_ptr()
@@ -950,10 +1024,15 @@ fn section_of(sections: &[Section], selection: Option<Selection>) -> Option<Sect
 
 impl Held {
     pub(crate) fn section(&self, selection: Option<Selection>) -> Option<SectionId> {
-        self.section.filter(|_| selection.is_some() && self.selection == selection)
+        self.section
+            .filter(|_| selection.is_some() && self.selection == selection)
     }
 
-    pub(crate) fn exited(&self, selection: Option<Selection>, rows: &[ProcessRow]) -> Vec<ProcessRow> {
+    pub(crate) fn exited(
+        &self,
+        selection: Option<Selection>,
+        rows: &[ProcessRow],
+    ) -> Vec<ProcessRow> {
         if selection.is_none() || self.selection != selection {
             return Vec::new();
         }
@@ -1041,10 +1120,7 @@ pub(crate) fn highlight(rows: &mut [DisplayRow], selection: Option<Selection>) {
     while at < rows.len() {
         let heading = &rows[at];
         let members = if heading.section.is_none() && heading.depth == 1 && heading.is_expanded {
-            rows[at + 1..]
-                .iter()
-                .take_while(|d| d.depth >= 2)
-                .count()
+            rows[at + 1..].iter().take_while(|d| d.depth >= 2).count()
         } else {
             0
         };
@@ -1174,7 +1250,9 @@ pub(crate) fn keep_group_place(
 ) -> Option<(u32, usize)> {
     let pid = selected?;
     let holds = |group: &ProcessGroup| group.members.iter().any(|member| member.pid == pid);
-    let section = sections.iter().position(|section| section.groups.iter().any(holds))?;
+    let section = sections
+        .iter()
+        .position(|section| section.groups.iter().any(holds))?;
     keep_place(&mut sections[section].groups, pid, holds, previous)
 }
 
@@ -1309,7 +1387,11 @@ pub(crate) mod tests {
         let groups = group_by_name(&rows, Some(9));
         let order: Vec<u32> = groups[0].members.iter().map(|r| r.pid).collect();
 
-        assert_eq!(order, vec![2, 5, 9], "members stay in pid order whoever is selected");
+        assert_eq!(
+            order,
+            vec![2, 5, 9],
+            "members stay in pid order whoever is selected"
+        );
     }
 
     #[test]
@@ -1321,7 +1403,10 @@ pub(crate) mod tests {
             row(9, "chrome.exe"),
         ];
         let groups = group_by_name(&rows, None);
-        let sizes: Vec<(u32, usize)> = groups.iter().map(|g| (g.leader.pid, g.members.len())).collect();
+        let sizes: Vec<(u32, usize)> = groups
+            .iter()
+            .map(|g| (g.leader.pid, g.members.len()))
+            .collect();
 
         assert_eq!(sizes, vec![(5, 1), (2, 1), (7, 2)]);
     }
@@ -1409,7 +1494,11 @@ pub(crate) mod tests {
         let kept = keep_group_place(&mut resorted, Some(2), kept);
 
         assert_eq!(kept, Some((2, 1)));
-        assert_eq!(group_pids(&resorted), vec![1, 2, 3], "beta pulled back to its place");
+        assert_eq!(
+            group_pids(&resorted),
+            vec![1, 2, 3],
+            "beta pulled back to its place"
+        );
     }
 
     #[test]
@@ -1423,13 +1512,20 @@ pub(crate) mod tests {
         let kept = keep_group_place(&mut sections, Some(3), Some((1, 0)));
 
         assert_eq!(kept, Some((3, 2)));
-        assert_eq!(group_pids(&sections), vec![1, 2, 3], "the clicked group does not jump");
+        assert_eq!(
+            group_pids(&sections),
+            vec![1, 2, 3],
+            "the clicked group does not jump"
+        );
     }
 
     #[test]
     fn a_held_group_never_lands_inside_an_expanded_group() {
         let mut sections = one_section(vec![
-            group(row(10, "rust-analyzer.exe"), vec![row(11, "rust-analyzer.exe"), row(12, "rust-analyzer.exe")]),
+            group(
+                row(10, "rust-analyzer.exe"),
+                vec![row(11, "rust-analyzer.exe"), row(12, "rust-analyzer.exe")],
+            ),
             group(row(20, "proc-macro-srv.exe"), vec![]),
             group(row(30, "cargo.exe"), vec![]),
         ]);
@@ -1437,7 +1533,10 @@ pub(crate) mod tests {
 
         let mut resorted = one_section(vec![
             group(row(30, "cargo.exe"), vec![]),
-            group(row(10, "rust-analyzer.exe"), vec![row(11, "rust-analyzer.exe"), row(12, "rust-analyzer.exe")]),
+            group(
+                row(10, "rust-analyzer.exe"),
+                vec![row(11, "rust-analyzer.exe"), row(12, "rust-analyzer.exe")],
+            ),
             group(row(20, "proc-macro-srv.exe"), vec![]),
         ]);
         keep_group_place(&mut resorted, Some(20), kept);
@@ -1459,25 +1558,43 @@ pub(crate) mod tests {
             group(row(10, "chrome.exe"), vec![row(11, "chrome.exe")]),
         ]);
 
-        assert_eq!(keep_group_place(&mut sections, Some(11), None), Some((11, 1)));
+        assert_eq!(
+            keep_group_place(&mut sections, Some(11), None),
+            Some((11, 1))
+        );
     }
 
     #[test]
     fn holding_reports_none_when_the_selection_is_not_on_screen() {
         let mut sections = one_section(vec![group(row(1, "alpha"), vec![])]);
 
-        assert_eq!(keep_group_place(&mut sections, Some(99), Some((99, 0))), None);
+        assert_eq!(
+            keep_group_place(&mut sections, Some(99), Some((99, 0))),
+            None
+        );
         assert_eq!(keep_group_place(&mut sections, None, None), None);
     }
 
     #[test]
     fn categories_render_in_order_under_their_parent_headings() {
         let sections = split_by_category(vec![
-            group(categorised(1, "svchost.exe", ProcessCategory::WindowsService), vec![]),
+            group(
+                categorised(1, "svchost.exe", ProcessCategory::WindowsService),
+                vec![],
+            ),
             group(categorised(2, "chrome.exe", ProcessCategory::App), vec![]),
-            group(categorised(3, "updater.exe", ProcessCategory::BackgroundThirdParty), vec![]),
-            group(categorised(4, "System", ProcessCategory::WindowsKernel), vec![]),
-            group(categorised(5, "RuntimeBroker.exe", ProcessCategory::BackgroundMicrosoft), vec![]),
+            group(
+                categorised(3, "updater.exe", ProcessCategory::BackgroundThirdParty),
+                vec![],
+            ),
+            group(
+                categorised(4, "System", ProcessCategory::WindowsKernel),
+                vec![],
+            ),
+            group(
+                categorised(5, "RuntimeBroker.exe", ProcessCategory::BackgroundMicrosoft),
+                vec![],
+            ),
         ]);
         let out = flat(&sections, &HashSet::new(), &HashSet::new());
 
@@ -1509,7 +1626,10 @@ pub(crate) mod tests {
     fn collapsing_a_category_hides_its_processes_but_keeps_the_heading() {
         let sections = split_by_category(vec![
             group(categorised(1, "chrome.exe", ProcessCategory::App), vec![]),
-            group(categorised(2, "svchost.exe", ProcessCategory::WindowsService), vec![]),
+            group(
+                categorised(2, "svchost.exe", ProcessCategory::WindowsService),
+                vec![],
+            ),
         ]);
         let mut collapsed = HashSet::new();
         collapsed.insert(SectionId::Category(ProcessCategory::WindowsService));
@@ -1524,7 +1644,11 @@ pub(crate) mod tests {
 
     #[test]
     fn the_kernel_heading_takes_compressed_memory_out_of_its_total() {
-        let mut compression = categorised(4, ProcessName::MemoryCompression, ProcessCategory::WindowsKernel);
+        let mut compression = categorised(
+            4,
+            ProcessName::MemoryCompression,
+            ProcessCategory::WindowsKernel,
+        );
         compression.memory_bytes = 3_000;
         let mut system = categorised(5, "System", ProcessCategory::WindowsKernel);
         system.memory_bytes = 1_000;
@@ -1577,7 +1701,10 @@ pub(crate) mod tests {
             ],
         )]);
 
-        assert_eq!(labels(&flat(&sections, &HashSet::new(), &HashSet::new())), vec!["app"]);
+        assert_eq!(
+            labels(&flat(&sections, &HashSet::new(), &HashSet::new())),
+            vec!["app"]
+        );
     }
 
     fn highlighted(rows: &[DisplayRow]) -> Vec<(u8, u32, Highlight)> {
@@ -1604,9 +1731,18 @@ pub(crate) mod tests {
         let mut out = chrome_expanded(5);
         highlight(&mut out, Some(Selection::Group(5)));
 
-        let top = Highlight { top: true, bottom: false };
-        let middle = Highlight { top: false, bottom: false };
-        let bottom = Highlight { top: false, bottom: true };
+        let top = Highlight {
+            top: true,
+            bottom: false,
+        };
+        let middle = Highlight {
+            top: false,
+            bottom: false,
+        };
+        let bottom = Highlight {
+            top: false,
+            bottom: true,
+        };
         assert_eq!(
             highlighted(&out),
             vec![(1, 5, top), (2, 2, middle), (2, 5, middle), (2, 9, bottom)]
@@ -1646,7 +1782,11 @@ pub(crate) mod tests {
         b.cpu_percent = 0.04;
         let mut sections = split_by_category(group_by_name(&[b.clone(), a.clone()], None));
         sort_groups(&mut sections, &cpu_order());
-        assert_eq!(group_pids(&sections), vec![1, 2], "both show 0.0%, so by name");
+        assert_eq!(
+            group_pids(&sections),
+            vec![1, 2],
+            "both show 0.0%, so by name"
+        );
 
         a.cpu_percent = 0.03;
         b.cpu_percent = 0.02;
@@ -1666,7 +1806,11 @@ pub(crate) mod tests {
         let out = flat(&sections, &HashSet::new(), &HashSet::new());
         let heading = out.iter().find(|d| d.section.is_some()).unwrap();
 
-        assert!((heading.row.cpu_percent - 1.8).abs() < 1e-4, "{}", heading.row.cpu_percent);
+        assert!(
+            (heading.row.cpu_percent - 1.8).abs() < 1e-4,
+            "{}",
+            heading.row.cpu_percent
+        );
     }
 
     #[test]
@@ -1676,7 +1820,13 @@ pub(crate) mod tests {
         let busy = categorised(4, "System", ProcessCategory::WindowsKernel);
         let mut sections = split_by_category(vec![group(idle, vec![]), group(busy, vec![])]);
 
-        sort_groups(&mut sections, &Order { column: ProcessColumn::Cpu, descending: true });
+        sort_groups(
+            &mut sections,
+            &Order {
+                column: ProcessColumn::Cpu,
+                descending: true,
+            },
+        );
 
         assert_eq!(group_pids(&sections), vec![4, 0]);
     }
@@ -1692,11 +1842,23 @@ pub(crate) mod tests {
         let groups = || group_by_name(&[compression.clone(), small.clone(), large.clone()], None);
 
         let mut descending = one_section(groups());
-        sort_groups(&mut descending, &Order { column: ProcessColumn::Memory, descending: true });
+        sort_groups(
+            &mut descending,
+            &Order {
+                column: ProcessColumn::Memory,
+                descending: true,
+            },
+        );
         assert_eq!(group_pids(&descending), vec![3, 2, 1]);
 
         let mut ascending = one_section(groups());
-        sort_groups(&mut ascending, &Order { column: ProcessColumn::Memory, descending: false });
+        sort_groups(
+            &mut ascending,
+            &Order {
+                column: ProcessColumn::Memory,
+                descending: false,
+            },
+        );
         assert_eq!(group_pids(&ascending), vec![1, 2, 3]);
     }
 
@@ -1803,7 +1965,10 @@ pub(crate) mod tests {
 
         let out = with_open(&sections, &[7]);
 
-        assert_eq!(children(&out), vec![(2, 7, "Main window"), (2, 7, "Helper")]);
+        assert_eq!(
+            children(&out),
+            vec![(2, 7, "Main window"), (2, 7, "Helper")]
+        );
     }
 
     #[test]
@@ -1821,15 +1986,32 @@ pub(crate) mod tests {
         assert_eq!(
             highlighted(&open),
             vec![
-                (1, 7, Highlight { top: true, bottom: false }),
-                (2, 7, Highlight { top: false, bottom: true }),
+                (
+                    1,
+                    7,
+                    Highlight {
+                        top: true,
+                        bottom: false
+                    }
+                ),
+                (
+                    2,
+                    7,
+                    Highlight {
+                        top: false,
+                        bottom: true
+                    }
+                ),
             ]
         );
     }
 
     #[test]
     fn a_process_hosting_services_can_open_to_show_them() {
-        let sections = one_section(vec![group(hosting(7, "svchost.exe", &["Audio", "Power"]), vec![])]);
+        let sections = one_section(vec![group(
+            hosting(7, "svchost.exe", &["Audio", "Power"]),
+            vec![],
+        )]);
 
         let closed = with_open(&sections, &[]);
         let host = closed.iter().find(|d| d.row.pid == 7).unwrap();
@@ -1866,8 +2048,14 @@ pub(crate) mod tests {
         );
 
         assert_eq!(children(&out), vec![(3, 5, "B")]);
-        let heading = out.iter().find(|d| d.depth == 1 && d.section.is_none()).unwrap();
-        assert!(!heading.details, "a group heading stands for several processes, not one");
+        let heading = out
+            .iter()
+            .find(|d| d.depth == 1 && d.section.is_none())
+            .unwrap();
+        assert!(
+            !heading.details,
+            "a group heading stands for several processes, not one"
+        );
     }
 
     #[test]
@@ -1879,8 +2067,22 @@ pub(crate) mod tests {
         assert_eq!(
             highlighted(&out),
             vec![
-                (1, 7, Highlight { top: true, bottom: false }),
-                (2, 7, Highlight { top: false, bottom: true }),
+                (
+                    1,
+                    7,
+                    Highlight {
+                        top: true,
+                        bottom: false
+                    }
+                ),
+                (
+                    2,
+                    7,
+                    Highlight {
+                        top: false,
+                        bottom: true
+                    }
+                ),
             ]
         );
     }
@@ -1892,7 +2094,8 @@ pub(crate) mod tests {
         console
     }
 
-    static DEFAULT_ORDER: std::sync::LazyLock<SectionOrder> = std::sync::LazyLock::new(SectionOrder::default);
+    static DEFAULT_ORDER: std::sync::LazyLock<SectionOrder> =
+        std::sync::LazyLock::new(SectionOrder::default);
 
     fn grouped<'a>(by_type: bool, order: &'a Order, pins: &'a Pins) -> Grouping<'a> {
         Grouping {
@@ -1922,11 +2125,15 @@ pub(crate) mod tests {
     #[test]
     fn sections_come_in_the_kept_order() {
         let order = SectionOrder::default().moved(KERNEL, Some(APPS));
-        let rows = [row(1, "a.exe"), categorised(2, "System", ProcessCategory::WindowsKernel)];
-        let ids: Vec<SectionId> = split_keeping(group_by_name(&rows, None), &Pins::new(), &[], None, &order)
-            .iter()
-            .map(|section| section.id)
-            .collect();
+        let rows = [
+            row(1, "a.exe"),
+            categorised(2, "System", ProcessCategory::WindowsKernel),
+        ];
+        let ids: Vec<SectionId> =
+            split_keeping(group_by_name(&rows, None), &Pins::new(), &[], None, &order)
+                .iter()
+                .map(|section| section.id)
+                .collect();
         assert_eq!(ids, [KERNEL, APPS]);
     }
 
@@ -1984,7 +2191,11 @@ pub(crate) mod tests {
 
     #[test]
     fn same_name_groups_survive_without_grouping_by_type() {
-        let rows = vec![row(10, "notepad.exe"), row(11, "notepad.exe"), row(20, "zeta")];
+        let rows = vec![
+            row(10, "notepad.exe"),
+            row(11, "notepad.exe"),
+            row(20, "zeta"),
+        ];
         let flat = with_open(&untyped_sections_for(&rows), &[]);
 
         let group = flat.iter().find(|d| d.has_children).unwrap();
@@ -1997,7 +2208,10 @@ pub(crate) mod tests {
         let sections = sections_for(&rows);
 
         let closed = with_open(&sections, &[]);
-        assert!(!process_pids(&closed).contains(&11), "not a top-level row any more");
+        assert!(
+            !process_pids(&closed).contains(&11),
+            "not a top-level row any more"
+        );
         assert!(closed.iter().find(|d| d.row.pid == 10).unwrap().details);
 
         let open = with_open(&sections, &[10]);
@@ -2031,7 +2245,10 @@ pub(crate) mod tests {
     }
 
     fn ruled(rows: &[DisplayRow]) -> Vec<u32> {
-        rows.iter().filter(|d| d.rule_below).map(|d| d.row.pid).collect()
+        rows.iter()
+            .filter(|d| d.rule_below)
+            .map(|d| d.row.pid)
+            .collect()
     }
 
     #[test]
@@ -2044,16 +2261,28 @@ pub(crate) mod tests {
 
         let out = with_open(&pinned_sections_for(&rows, true, &["agent.exe"]), &[]);
 
-        assert_eq!(labels(&out), vec!["pinned", "app", "background-third-party"]);
+        assert_eq!(
+            labels(&out),
+            vec!["pinned", "app", "background-third-party"]
+        );
         assert_eq!(process_pids(&out), vec![30, 10, 20]);
-        assert_eq!(ruled(&out), Vec::<u32>::new(), "headings part the sections already");
+        assert_eq!(
+            ruled(&out),
+            Vec::<u32>::new(),
+            "headings part the sections already"
+        );
     }
 
     #[test]
     fn without_grouping_by_type_pinned_groups_come_first_above_a_rule() {
         let mut busy = row(10, "notepad.exe");
         busy.cpu_percent = 50.0;
-        let rows = vec![busy, row(20, "zeta"), row(30, "agent.exe"), row(31, "agent.exe")];
+        let rows = vec![
+            busy,
+            row(20, "zeta"),
+            row(30, "agent.exe"),
+            row(31, "agent.exe"),
+        ];
 
         let out = with_open(&untyped_pinned(&rows, &["agent.exe"]), &[]);
         assert!(out.iter().all(|d| d.section.is_none()));
@@ -2062,7 +2291,11 @@ pub(crate) mod tests {
 
         let mut expanded = HashSet::new();
         expanded.insert("agent.exe".to_string());
-        let open = flat(&untyped_pinned(&rows, &["agent.exe"]), &expanded, &HashSet::new());
+        let open = flat(
+            &untyped_pinned(&rows, &["agent.exe"]),
+            &expanded,
+            &HashSet::new(),
+        );
         assert_eq!(process_pids(&open), vec![30, 31, 30, 10, 20]);
         let under: Vec<usize> = open
             .iter()
@@ -2081,29 +2314,48 @@ pub(crate) mod tests {
     fn a_rule_needs_something_on_both_sides() {
         let rows = vec![row(10, "notepad.exe"), row(20, "zeta")];
 
-        assert_eq!(ruled(&with_open(&untyped_pinned(&rows, &[]), &[])), Vec::<u32>::new());
         assert_eq!(
-            ruled(&with_open(&untyped_pinned(&rows, &["notepad.exe", "zeta"]), &[])),
+            ruled(&with_open(&untyped_pinned(&rows, &[]), &[])),
+            Vec::<u32>::new()
+        );
+        assert_eq!(
+            ruled(&with_open(
+                &untyped_pinned(&rows, &["notepad.exe", "zeta"]),
+                &[]
+            )),
             Vec::<u32>::new()
         );
     }
 
     fn absent(rows: &[DisplayRow]) -> Vec<&str> {
-        rows.iter().filter(|d| d.absent).map(|d| &*d.row.name).collect()
+        rows.iter()
+            .filter(|d| d.absent)
+            .map(|d| &*d.row.name)
+            .collect()
     }
 
     #[test]
     fn a_pin_that_is_not_running_stays_in_the_pinned_section() {
         let rows = vec![row(10, "notepad.exe"), row(30, "agent.exe")];
 
-        let out = with_open(&pinned_sections_for(&rows, true, &["agent.exe", "Zed.exe", "cargo.exe"]), &[]);
+        let out = with_open(
+            &pinned_sections_for(&rows, true, &["agent.exe", "Zed.exe", "cargo.exe"]),
+            &[],
+        );
 
         assert_eq!(labels(&out), vec!["pinned", "app"]);
         assert_eq!(absent(&out), vec!["cargo.exe", "Zed.exe"]);
         let heading = out.iter().find(|d| d.section.is_some()).unwrap();
-        assert_eq!(heading.group_size, 3, "the heading counts what is not running too");
+        assert_eq!(
+            heading.group_size, 3,
+            "the heading counts what is not running too"
+        );
         let pinned: Vec<&str> = out.iter().skip(1).take(3).map(|d| &*d.row.name).collect();
-        assert_eq!(pinned, vec!["agent.exe", "cargo.exe", "Zed.exe"], "running first");
+        assert_eq!(
+            pinned,
+            vec!["agent.exe", "cargo.exe", "Zed.exe"],
+            "running first"
+        );
     }
 
     #[test]
@@ -2122,7 +2374,10 @@ pub(crate) mod tests {
         let placeholder = out.iter().find(|d| d.absent).unwrap();
 
         assert_eq!(&*placeholder.row.exe_path, r"C:\tools\agent.exe");
-        assert_eq!(&*placeholder.row.display_name, "Build Agent", "it reads as it did while running");
+        assert_eq!(
+            &*placeholder.row.display_name, "Build Agent",
+            "it reads as it did while running"
+        );
         assert_eq!(&*placeholder.row.name, "agent.exe");
     }
 
@@ -2141,7 +2396,12 @@ pub(crate) mod tests {
     fn a_pin_that_is_not_running_is_never_part_of_a_selection() {
         let rows = vec![row(10, "notepad.exe")];
         let mut out = with_open(&pinned_sections_for(&rows, true, &["agent.exe"]), &[]);
-        assert!(!out.iter().find(|d| d.absent).unwrap().stands_for_one_process());
+        assert!(
+            !out.iter()
+                .find(|d| d.absent)
+                .unwrap()
+                .stands_for_one_process()
+        );
 
         highlight(&mut out, Some(Selection::Process(0)));
         highlight(&mut out, Some(Selection::Group(0)));
@@ -2159,7 +2419,10 @@ pub(crate) mod tests {
 
         assert_eq!(labels(&out), vec!["pinned", "app"]);
         assert_eq!(process_pids(&out), vec![10]);
-        assert_eq!(SectionId::from_id(SectionId::Pinned.id()), Some(SectionId::Pinned));
+        assert_eq!(
+            SectionId::from_id(SectionId::Pinned.id()),
+            Some(SectionId::Pinned)
+        );
     }
 
     #[test]
@@ -2169,7 +2432,9 @@ pub(crate) mod tests {
         let selected = Some(Selection::Group(30));
         screen.show(&rows, selected);
 
-        screen.pins.insert("agent.exe".into(), PinnedProcess::default());
+        screen
+            .pins
+            .insert("agent.exe".into(), PinnedProcess::default());
         let pinned = screen.show(&rows, selected);
         assert_eq!(labels(&pinned), vec!["pinned", "app"]);
         assert_eq!(process_pids(&pinned), vec![30, 10]);
@@ -2232,7 +2497,10 @@ pub(crate) mod tests {
     }
 
     fn exited_pids(rows: &[DisplayRow]) -> Vec<u32> {
-        rows.iter().filter(|d| d.exited).map(|d| d.row.pid).collect()
+        rows.iter()
+            .filter(|d| d.exited)
+            .map(|d| d.row.pid)
+            .collect()
     }
 
     #[test]
@@ -2244,19 +2512,35 @@ pub(crate) mod tests {
 
         let after = screen.show(&[row(9, "zeta")], Some(Selection::Process(7)));
 
-        let ghost = after.iter().find(|d| d.row.pid == 7).expect("still on screen");
+        let ghost = after
+            .iter()
+            .find(|d| d.row.pid == 7)
+            .expect("still on screen");
         assert!(ghost.exited);
-        assert_eq!(ghost.row.memory_bytes, 0, "no numbers for a process that is gone");
-        assert_eq!(ghost.highlight, Some(Highlight::Whole), "and still selected");
+        assert_eq!(
+            ghost.row.memory_bytes, 0,
+            "no numbers for a process that is gone"
+        );
+        assert_eq!(
+            ghost.highlight,
+            Some(Highlight::Whole),
+            "and still selected"
+        );
     }
 
     #[test]
     fn an_exited_process_stays_across_further_reports_while_selected() {
         let mut screen = Screen::new();
-        screen.show(&[row(7, "notepad.exe"), row(9, "zeta")], Some(Selection::Process(7)));
+        screen.show(
+            &[row(7, "notepad.exe"), row(9, "zeta")],
+            Some(Selection::Process(7)),
+        );
         screen.show(&[row(9, "zeta")], Some(Selection::Process(7)));
 
-        let later = screen.show(&[row(9, "zeta"), row(11, "new.exe")], Some(Selection::Process(7)));
+        let later = screen.show(
+            &[row(9, "zeta"), row(11, "new.exe")],
+            Some(Selection::Process(7)),
+        );
 
         assert_eq!(exited_pids(&later), vec![7]);
     }
@@ -2264,7 +2548,10 @@ pub(crate) mod tests {
     #[test]
     fn selecting_something_else_lets_the_exited_process_go() {
         let mut screen = Screen::new();
-        screen.show(&[row(7, "notepad.exe"), row(9, "zeta")], Some(Selection::Process(7)));
+        screen.show(
+            &[row(7, "notepad.exe"), row(9, "zeta")],
+            Some(Selection::Process(7)),
+        );
         screen.show(&[row(9, "zeta")], Some(Selection::Process(7)));
 
         let after = screen.show(&[row(9, "zeta")], Some(Selection::Process(9)));
@@ -2278,12 +2565,26 @@ pub(crate) mod tests {
         let group = [row(2, "notepad.exe"), row(5, "notepad.exe"), row(9, "zeta")];
         screen.show(&group, Some(Selection::Group(2)));
 
-        let after = screen.show(&[row(2, "notepad.exe"), row(9, "zeta")], Some(Selection::Group(2)));
+        let after = screen.show(
+            &[row(2, "notepad.exe"), row(9, "zeta")],
+            Some(Selection::Group(2)),
+        );
 
         assert_eq!(exited_pids(&after), vec![5]);
-        let members: Vec<u32> = after.iter().filter(|d| d.depth == 2).map(|d| d.row.pid).collect();
-        assert_eq!(members, vec![2, 5], "the exited member keeps its place among the members");
-        let heading = after.iter().find(|d| d.has_children && d.section.is_none()).unwrap();
+        let members: Vec<u32> = after
+            .iter()
+            .filter(|d| d.depth == 2)
+            .map(|d| d.row.pid)
+            .collect();
+        assert_eq!(
+            members,
+            vec![2, 5],
+            "the exited member keeps its place among the members"
+        );
+        let heading = after
+            .iter()
+            .find(|d| d.has_children && d.section.is_none())
+            .unwrap();
         assert!(!heading.exited, "one member is still alive");
     }
 
@@ -2313,7 +2614,11 @@ pub(crate) mod tests {
         )]);
         let out = flat(&sections, &HashSet::new(), &HashSet::new());
 
-        assert!(out.iter().filter(|d| d.section.is_some()).all(|d| d.row.pid == 0));
+        assert!(
+            out.iter()
+                .filter(|d| d.section.is_some())
+                .all(|d| d.row.pid == 0)
+        );
     }
 
     fn linux(global_pid: u32, local_pid: u32, name: &str) -> WslProcess {
@@ -2326,7 +2631,12 @@ pub(crate) mod tests {
     const UBUNTU: u64 = 11;
     const WEB: u64 = 33;
 
-    fn environment(pid_ns: u64, name: &str, kind: EnvironmentKind, processes: Vec<WslProcess>) -> WslEnvironment {
+    fn environment(
+        pid_ns: u64,
+        name: &str,
+        kind: EnvironmentKind,
+        processes: Vec<WslProcess>,
+    ) -> WslEnvironment {
         WslEnvironment {
             pid_ns,
             name: name.into(),
@@ -2343,7 +2653,12 @@ pub(crate) mod tests {
                 EnvironmentKind::CurrentDistro,
                 vec![linux(100, 1, "init"), linux(101, 2, "bash")],
             ),
-            environment(WEB, "web", EnvironmentKind::DockerContainer, vec![linux(300, 1, "nginx")]),
+            environment(
+                WEB,
+                "web",
+                EnvironmentKind::DockerContainer,
+                vec![linux(300, 1, "nginx")],
+            ),
         ]
     }
 
@@ -2353,11 +2668,22 @@ pub(crate) mod tests {
         vm
     }
 
-    fn wsl_sections_for(rows: &[ProcessRow], by_type: bool, wsl: &[WslEnvironment]) -> Vec<Section> {
+    fn wsl_sections_for(
+        rows: &[ProcessRow],
+        by_type: bool,
+        wsl: &[WslEnvironment],
+    ) -> Vec<Section> {
         let pins = Pins::new();
         let order = cpu_order();
         let mut cache = GroupsCache::empty();
-        cache.get(rows, &[], Grouping { wsl, ..grouped(by_type, &order, &pins) });
+        cache.get(
+            rows,
+            &[],
+            Grouping {
+                wsl,
+                ..grouped(by_type, &order, &pins)
+            },
+        );
         cache.sections
     }
 
@@ -2380,9 +2706,18 @@ pub(crate) mod tests {
         let out = opened(&wsl_sections_for(&rows, true, &ubuntu_and_web()), &[]);
 
         assert_eq!(labels(&out), vec!["app", "wsl"]);
-        assert_eq!(names(&out), vec![(1, "notepad.exe"), (1, "Ubuntu"), (1, "web")]);
-        let heading = out.iter().find(|d| d.section.as_ref().is_some_and(|s| s.id.id() == "wsl")).unwrap();
-        assert_eq!(heading.row.memory_bytes, 5_000, "what the VM costs Windows, not a sum of Linux rows");
+        assert_eq!(
+            names(&out),
+            vec![(1, "notepad.exe"), (1, "Ubuntu"), (1, "web")]
+        );
+        let heading = out
+            .iter()
+            .find(|d| d.section.as_ref().is_some_and(|s| s.id.id() == "wsl"))
+            .unwrap();
+        assert_eq!(
+            heading.row.memory_bytes, 5_000,
+            "what the VM costs Windows, not a sum of Linux rows"
+        );
         assert_eq!(heading.row.cpu_percent, 20.0);
         assert_eq!(heading.group_size, 2);
     }
@@ -2401,39 +2736,66 @@ pub(crate) mod tests {
         let ubuntu = out.iter().find(|d| &*d.row.name == "Ubuntu").unwrap();
         assert!(ubuntu.has_children && ubuntu.is_expanded);
         assert_eq!(ubuntu.group_size, 2);
-        assert_eq!(ubuntu.row.cpu_percent, 3.0, "an environment sums its processes");
+        assert_eq!(
+            ubuntu.row.cpu_percent, 3.0,
+            "an environment sums its processes"
+        );
         assert!(!ubuntu.stands_for_one_process());
     }
 
     #[test]
     fn environments_nothing_names_open_one_at_a_time() {
         let unnamed = |pid_ns, global_pid, name| {
-            environment(pid_ns, "", EnvironmentKind::Unknown, vec![linux(global_pid, 1, name)])
+            environment(
+                pid_ns,
+                "",
+                EnvironmentKind::Unknown,
+                vec![linux(global_pid, 1, name)],
+            )
         };
-        let sections = wsl_sections_for(&[vm(20)], true, &[unnamed(7, 700, "one"), unnamed(8, 800, "two")]);
+        let sections = wsl_sections_for(
+            &[vm(20)],
+            true,
+            &[unnamed(7, 700, "one"), unnamed(8, 800, "two")],
+        );
 
         let out = opened(&sections, &[7]);
 
-        let open: Vec<&str> = out.iter().filter(|d| d.depth == 2).map(|d| &*d.row.name).collect();
+        let open: Vec<&str> = out
+            .iter()
+            .filter(|d| d.depth == 2)
+            .map(|d| &*d.row.name)
+            .collect();
         assert_eq!(open, vec!["one"]);
     }
 
     #[test]
     fn a_linux_process_is_told_apart_from_a_windows_one_with_the_same_pid() {
-        let rows = vec![categorised(1, "svchost.exe", ProcessCategory::WindowsService), vm(20)];
+        let rows = vec![
+            categorised(1, "svchost.exe", ProcessCategory::WindowsService),
+            vm(20),
+        ];
         let sections = wsl_sections_for(&rows, true, &ubuntu_and_web());
 
         let mut windows = opened(&sections, &[UBUNTU]);
         highlight(&mut windows, Some(Selection::Process(1)));
         assert_eq!(highlighted(&windows), vec![(1, 1, Highlight::Whole)]);
-        assert!(windows.iter().filter(|d| d.highlight.is_some()).all(|d| d.wsl.is_none()));
+        assert!(
+            windows
+                .iter()
+                .filter(|d| d.highlight.is_some())
+                .all(|d| d.wsl.is_none())
+        );
 
         let mut linux = opened(&sections, &[UBUNTU]);
         highlight(&mut linux, Some(Selection::Linux(100)));
         let lit: Vec<&DisplayRow> = linux.iter().filter(|d| d.highlight.is_some()).collect();
         assert_eq!(lit.len(), 1);
         assert_eq!(lit[0].wsl, Some(WslRow::Process { global_pid: 100 }));
-        assert_eq!(lit[0].row.pid, 1, "the row shows the pid its own namespace sees");
+        assert_eq!(
+            lit[0].row.pid, 1,
+            "the row shows the pid its own namespace sees"
+        );
     }
 
     #[test]
@@ -2448,7 +2810,10 @@ pub(crate) mod tests {
 
     #[test]
     fn without_an_agent_the_vm_still_heads_an_empty_wsl_section() {
-        let out = opened(&wsl_sections_for(&[row(10, "notepad.exe"), vm(20)], true, &[]), &[]);
+        let out = opened(
+            &wsl_sections_for(&[row(10, "notepad.exe"), vm(20)], true, &[]),
+            &[],
+        );
 
         assert_eq!(labels(&out), vec!["app", "wsl"]);
         assert_eq!(names(&out), vec![(1, "notepad.exe")]);
@@ -2472,8 +2837,14 @@ pub(crate) mod tests {
         assert!(closed.iter().all(|d| d.section.is_none()));
         assert_eq!(names(&closed), vec![(1, "vmmemWSL"), (1, "notepad.exe")]);
         let vm_row = &closed[0];
-        assert!(vm_row.details && !vm_row.details_expanded, "the VM carries a chevron");
-        assert!(vm_row.stands_for_one_process(), "and is still selected as the process it is");
+        assert!(
+            vm_row.details && !vm_row.details_expanded,
+            "the VM carries a chevron"
+        );
+        assert!(
+            vm_row.stands_for_one_process(),
+            "and is still selected as the process it is"
+        );
 
         let groups: HashSet<String> = [environment_key(UBUNTU)].into_iter().collect();
         let open = flatten_for_display(
@@ -2487,7 +2858,14 @@ pub(crate) mod tests {
         );
         assert_eq!(
             names(&open),
-            vec![(1, "vmmemWSL"), (1, "Ubuntu"), (2, "bash"), (2, "init"), (1, "web"), (1, "notepad.exe")],
+            vec![
+                (1, "vmmemWSL"),
+                (1, "Ubuntu"),
+                (2, "bash"),
+                (2, "init"),
+                (1, "web"),
+                (1, "notepad.exe")
+            ],
             "the environments sit level with the VM, as they do under the section heading"
         );
 
@@ -2502,15 +2880,23 @@ pub(crate) mod tests {
 
     #[test]
     fn without_grouping_by_type_or_the_vm_environments_follow_the_windows_processes() {
-        let out = opened(&wsl_sections_for(&[row(10, "notepad.exe")], false, &ubuntu_and_web()), &[]);
+        let out = opened(
+            &wsl_sections_for(&[row(10, "notepad.exe")], false, &ubuntu_and_web()),
+            &[],
+        );
 
-        assert_eq!(names(&out), vec![(1, "notepad.exe"), (1, "Ubuntu"), (1, "web")]);
+        assert_eq!(
+            names(&out),
+            vec![(1, "notepad.exe"), (1, "Ubuntu"), (1, "web")]
+        );
     }
 
     #[test]
     fn an_environment_collapses_and_its_section_persists_under_its_own_id() {
         let sections = wsl_sections_for(&[vm(20)], true, &ubuntu_and_web());
-        let collapsed: HashSet<SectionId> = [SectionId::Category(ProcessCategory::Wsl)].into_iter().collect();
+        let collapsed: HashSet<SectionId> = [SectionId::Category(ProcessCategory::Wsl)]
+            .into_iter()
+            .collect();
 
         let out = flat(&sections, &HashSet::new(), &collapsed);
 

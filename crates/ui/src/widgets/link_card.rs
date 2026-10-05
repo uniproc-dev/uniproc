@@ -1,11 +1,12 @@
 use guicons::icon;
-use guinea::winui::MarkExt;
 use guinea::Mark;
+use guinea::winui::MarkExt;
 use windows_reactor::{
-    Button, Grid, GridLength, HorizontalAlignment, ResourceOverrides, Thickness, VerticalAlignment, View,
+    Button, Grid, GridLength, HorizontalAlignment, ResourceOverrides, Thickness, VerticalAlignment,
+    View,
 };
 
-use crate::theme::{setting, space, Palette};
+use crate::theme::{Palette, setting, space};
 use crate::widgets::setting_card::card_words;
 
 struct LinkCardSize;
@@ -59,7 +60,12 @@ fn card_look(palette: Palette) -> ResourceOverrides {
         .set("ButtonBorderBrushPressed", palette.card_stroke)
 }
 
-pub fn link_card(mark: impl Mark, card: LinkCard, palette: Palette, on_click: impl Fn() + 'static) -> View {
+pub fn link_card(
+    mark: impl Mark,
+    card: LinkCard,
+    palette: Palette,
+    on_click: impl Fn() + 'static,
+) -> View {
     let LinkCard {
         icon,
         title,
@@ -116,7 +122,12 @@ pub fn link_card(mark: impl Mark, card: LinkCard, palette: Palette, on_click: im
         .content(
             Grid::new()
                 .margin(LinkCardSize::content_margin())
-                .columns([GridLength::Auto, GridLength::Star(1.0), GridLength::Auto, GridLength::Auto])
+                .columns([
+                    GridLength::Auto,
+                    GridLength::Star(1.0),
+                    GridLength::Auto,
+                    GridLength::Auto,
+                ])
                 .children(parts),
         )
         .into()

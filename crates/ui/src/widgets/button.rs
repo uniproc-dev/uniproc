@@ -1,5 +1,5 @@
-use guinea::winui::MarkExt;
 use guinea::Mark;
+use guinea::winui::MarkExt;
 use windows_reactor::{
     Border, Button, ButtonStyle, Orientation, ResourceOverrides, StackPanel, Thickness, View,
 };
@@ -28,7 +28,9 @@ pub fn icon_button(mark: impl Mark, icon: View, on_click: impl Fn() + 'static) -
     Button::new()
         .mark(mark)
         .style(ButtonStyle::Subtle)
-        .resource_overrides(ResourceOverrides::new().set("ButtonPadding", Thickness::uniform(IconButton::Padding)))
+        .resource_overrides(
+            ResourceOverrides::new().set("ButtonPadding", Thickness::uniform(IconButton::Padding)),
+        )
         .on_click(on_click)
         .content(icon)
         .into()

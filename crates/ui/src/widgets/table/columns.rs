@@ -98,9 +98,19 @@ pub struct ColumnSpec<T, C> {
 }
 
 impl<T, C: Mark> ColumnSpec<T, C> {
-    pub fn new(id: C, header: impl Into<String>, initial_width: f64, cell: impl Fn(&T) -> View + 'static) -> Self {
+    pub fn new(
+        id: C,
+        header: impl Into<String>,
+        initial_width: f64,
+        cell: impl Fn(&T) -> View + 'static,
+    ) -> Self {
         let header = header.into();
-        Self::new_with_header(id, move || TextBlock::new().text(header.clone()).into(), initial_width, cell)
+        Self::new_with_header(
+            id,
+            move || TextBlock::new().text(header.clone()).into(),
+            initial_width,
+            cell,
+        )
     }
 
     pub fn new_with_header(
@@ -160,7 +170,11 @@ pub(super) struct Laid {
 }
 
 impl Laid {
-    pub(super) fn new<T, C: Mark>(columns: &[ColumnSpec<T, C>], placed: &[usize], widths: &ColumnWidths) -> Self {
+    pub(super) fn new<T, C: Mark>(
+        columns: &[ColumnSpec<T, C>],
+        placed: &[usize],
+        widths: &ColumnWidths,
+    ) -> Self {
         let lengths = placed
             .iter()
             .map(|&at| &columns[at])
@@ -174,7 +188,13 @@ impl Laid {
             .collect();
         let least = columns
             .iter()
-            .map(|column| if column.fill { column.min_width } else { width_of(widths, column) })
+            .map(|column| {
+                if column.fill {
+                    column.min_width
+                } else {
+                    width_of(widths, column)
+                }
+            })
             .sum();
         Self {
             slots: slots(placed),

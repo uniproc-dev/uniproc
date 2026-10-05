@@ -2,10 +2,10 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use app_contracts::features::agents::AgentConnectionState;
-use app_contracts::features::settings::Units;
 use app_contracts::features::processes::{
     MachineSummary, ProcessCategory, ProcessColumn, ProcessRow, ProcessesState,
 };
+use app_contracts::features::settings::Units;
 use guinea::prelude::{Dispatch, Load};
 use guinea_plugin_l10n::Localization;
 use ui::l10n::L10n;
@@ -97,7 +97,15 @@ fn main() {
 
     let first = state(rows(&exes, processes, 0));
     let started = Instant::now();
-    drop(page.view(&first, &dispatch, &l10n, palette, forward.clone(), open_settings.clone(), Units::default()));
+    drop(page.view(
+        &first,
+        &dispatch,
+        &l10n,
+        palette,
+        forward.clone(),
+        open_settings.clone(),
+        Units::default(),
+    ));
     println!("first view (cold icon cache): {:?}", started.elapsed());
     std::thread::sleep(Duration::from_secs(3));
 
@@ -106,7 +114,15 @@ fn main() {
     for tick in 1..=ITERATIONS {
         let next = state(rows(&exes, processes, tick));
         let started = Instant::now();
-        let view = page.view(&next, &dispatch, &l10n, palette, forward.clone(), open_settings.clone(), Units::default());
+        let view = page.view(
+            &next,
+            &dispatch,
+            &l10n,
+            palette,
+            forward.clone(),
+            open_settings.clone(),
+            Units::default(),
+        );
         let took = started.elapsed();
         drop(view);
         total += took;

@@ -1,13 +1,18 @@
 use app_contracts::features::agents::AgentConnectionState;
 use windows_reactor::{
-    Border, HorizontalAlignment, Orientation, ProgressRing, StackPanel, Thickness, VerticalAlignment, View,
+    Border, HorizontalAlignment, Orientation, ProgressRing, StackPanel, Thickness,
+    VerticalAlignment, View,
 };
 
 use crate::l10n::L10n;
-use crate::theme::{radius, size, space, Palette};
+use crate::theme::{Palette, radius, size, space};
 use crate::widgets::text::text;
 
-pub(crate) fn disconnected_overlay(l10n: &L10n, palette: Palette, agent: AgentConnectionState) -> View {
+pub(crate) fn disconnected_overlay(
+    l10n: &L10n,
+    palette: Palette,
+    agent: AgentConnectionState,
+) -> View {
     let status = match agent {
         AgentConnectionState::GaveUp => l10n.processes_agent_gave_up(),
         AgentConnectionState::Outdated => l10n.processes_agent_outdated(),

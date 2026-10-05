@@ -1,15 +1,16 @@
 use app_contracts::features::activity::{Area, Lived, Scatter};
 use app_contracts::features::agents::ProcessInstance;
 use guinea_widgets::chart::scatter::{
-    Area as Brushed, Level, Marker, Scale, ScatterEvent, ScatterOptions, ScatterPoint, ScatterSeries,
+    Area as Brushed, Level, Marker, Scale, ScatterEvent, ScatterOptions, ScatterPoint,
+    ScatterSeries,
 };
 use windows_reactor::Color;
 
 use super::lasted::lasted;
-use super::timeline::{ticks, Ticks};
+use super::timeline::{Ticks, ticks};
 use crate::format;
 use crate::l10n::L10n;
-use crate::theme::{accent_color, color_f, Palette};
+use crate::theme::{Palette, accent_color, color_f};
 
 struct Look;
 
@@ -51,7 +52,9 @@ fn level(lived: Lived) -> Level {
 fn lived(level: Level) -> Lived {
     match level {
         Level::Below(_) => Lived::Unknown,
-        Level::Value(seconds) => Lived::For((f64::from(seconds) * Ticks::Second as f64).round().max(0.0) as u64),
+        Level::Value(seconds) => {
+            Lived::For((f64::from(seconds) * Ticks::Second as f64).round().max(0.0) as u64)
+        }
         Level::Above(_) => Lived::Running,
     }
 }
@@ -73,13 +76,23 @@ pub fn series(scatter: &Scatter, palette: Palette) -> Vec<ScatterSeries<ProcessI
             None if marker == Marker::Tick => palette.critical,
             None => palette.success,
         };
-        let color = color_f(if dot.faint { Color { a: Look::Faint, ..base } } else { base });
+        let color = color_f(if dot.faint {
+            Color {
+                a: Look::Faint,
+                ..base
+            }
+        } else {
+            base
+        });
         let point = ScatterPoint {
             key: dot.key,
             at: dot.at,
             value: level(dot.lived),
         };
-        match series.iter_mut().find(|series| series.marker == marker && series.color == color) {
+        match series
+            .iter_mut()
+            .find(|series| series.marker == marker && series.color == color)
+        {
             Some(series) => series.points.push(point),
             None => series.push(ScatterSeries {
                 color,
@@ -104,7 +117,10 @@ pub fn options(scatter: &Scatter, l10n: &L10n, palette: Palette) -> ScatterOptio
         },
         above: vec![String::new()],
         below: vec![String::new()],
-        y_lines: Look::Lines.iter().map(|&line| (seconds(line), lasted(l10n, line))).collect(),
+        y_lines: Look::Lines
+            .iter()
+            .map(|&line| (seconds(line), lasted(l10n, line)))
+            .collect(),
         x_ticks: ticks(scatter.now, scatter.now_clock, scatter.length)
             .into_iter()
             .map(|(at, clock)| (at, format::clock(clock)))
@@ -164,7 +180,11 @@ mod tests {
         Scatter {
             dots,
             now: NOW,
-            now_clock: Clock { hour: 12, minute: 0, second: 0 },
+            now_clock: Clock {
+                hour: 12,
+                minute: 0,
+                second: 0,
+            },
             length: HOUR,
             area: None,
         }
@@ -196,10 +216,26 @@ mod tests {
                 .map(|point| (point.key, point.value))
                 .collect::<Vec<_>>()
         };
-        assert_eq!(found(Marker::Dot), [(id(20), Level::Value(2.0))], "{series:#?}");
-        assert_eq!(found(Marker::Ring), [(id(21), Level::Above(0))], "{series:#?}");
-        assert_eq!(found(Marker::Tick), [(id(22), Level::Below(0))], "{series:#?}");
-        assert!(series.iter().all(|series| series.points.iter().all(|point| point.at == NOW - HOUR / 2)));
+        assert_eq!(
+            found(Marker::Dot),
+            [(id(20), Level::Value(2.0))],
+            "{series:#?}"
+        );
+        assert_eq!(
+            found(Marker::Ring),
+            [(id(21), Level::Above(0))],
+            "{series:#?}"
+        );
+        assert_eq!(
+            found(Marker::Tick),
+            [(id(22), Level::Below(0))],
+            "{series:#?}"
+        );
+        assert!(
+            series
+                .iter()
+                .all(|series| series.points.iter().all(|point| point.at == NOW - HOUR / 2))
+        );
     }
 
     #[test]
@@ -217,7 +253,10 @@ mod tests {
                 .find(|series| series.points.iter().any(|point| point.key == id(pid)))
                 .map(|series| series.color.a)
         };
-        assert!(matches!((alpha(20), alpha(21)), (Some(bold), Some(pale)) if pale < bold), "{series:#?}");
+        assert!(
+            matches!((alpha(20), alpha(21)), (Some(bold), Some(pale)) if pale < bold),
+            "{series:#?}"
+        );
     }
 
     #[test]
@@ -243,7 +282,11 @@ mod tests {
         };
         let purple = Some(color_f(palette().hue(Hue::Purple)));
         assert_eq!((color(20), color(21)), (purple, purple), "{series:#?}");
-        assert_eq!(color(22), Some(color_f(palette().hue(Hue::Coral))), "{series:#?}");
+        assert_eq!(
+            color(22),
+            Some(color_f(palette().hue(Hue::Coral))),
+            "{series:#?}"
+        );
         assert_ne!(color(20), color(22), "{series:#?}");
         assert_ne!(color(20), color(23), "{series:#?}");
     }
@@ -252,11 +295,30 @@ mod tests {
     fn the_lifetime_scale_is_labelled_with_durations_and_the_span_moves_with_the_clock() {
         let options = options(&scatter(Vec::new()), &l10n(), palette());
 
-        let labels: Vec<String> =
-            options.y_lines.iter().map(|(_, label)| label.replace(['\u{2068}', '\u{2069}'], "")).collect();
-        assert!(labels.contains(&"100 ms".to_string()) && labels.contains(&"1 min".to_string()), "{labels:?}");
-        assert!(options.above.iter().chain(&options.below).all(String::is_empty), "{options:#?}");
-        assert_eq!(options.y, Scale::Log { from: 0.1, to: 3600.0 });
+        let labels: Vec<String> = options
+            .y_lines
+            .iter()
+            .map(|(_, label)| label.replace(['\u{2068}', '\u{2069}'], ""))
+            .collect();
+        assert!(
+            labels.contains(&"100 ms".to_string()) && labels.contains(&"1 min".to_string()),
+            "{labels:?}"
+        );
+        assert!(
+            options
+                .above
+                .iter()
+                .chain(&options.below)
+                .all(String::is_empty),
+            "{options:#?}"
+        );
+        assert_eq!(
+            options.y,
+            Scale::Log {
+                from: 0.1,
+                to: 3600.0
+            }
+        );
         assert_eq!(options.x, (NOW - HOUR, NOW));
         assert_eq!(options.live, Some(Ticks::Second as f64));
         assert!(!options.x_ticks.is_empty(), "{options:#?}");
@@ -283,11 +345,25 @@ mod tests {
 
     #[test]
     fn a_hovered_point_names_its_process_and_a_click_lets_a_picked_area_go() {
-        let mut scatter = scatter(vec![dot(20, Lived::Running, false), dot(21, Lived::Unknown, false)]);
-        let hit = Hit { series: 0, key: id(21), x: 10.0, y: 10.0 };
+        let mut scatter = scatter(vec![
+            dot(20, Lived::Running, false),
+            dot(21, Lived::Unknown, false),
+        ]);
+        let hit = Hit {
+            series: 0,
+            key: id(21),
+            x: 10.0,
+            y: 10.0,
+        };
 
-        assert_eq!(acts(&ScatterEvent::Hovered(Some(hit)), &scatter), [Act::Hover(Some(id(21)))]);
-        assert_eq!(acts(&ScatterEvent::Hovered(None), &scatter), [Act::Hover(None)]);
+        assert_eq!(
+            acts(&ScatterEvent::Hovered(Some(hit)), &scatter),
+            [Act::Hover(Some(id(21)))]
+        );
+        assert_eq!(
+            acts(&ScatterEvent::Hovered(None), &scatter),
+            [Act::Hover(None)]
+        );
         assert_eq!(acts(&ScatterEvent::Clicked(None), &scatter), []);
 
         scatter.area = Some(Area::default());

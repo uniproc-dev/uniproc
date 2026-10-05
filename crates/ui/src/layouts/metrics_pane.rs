@@ -6,16 +6,18 @@ use guinea::prelude::Load;
 use guinea::winui::MarkExt;
 use guinea_widgets::chart::Chart;
 use windows_reactor::{
-    keyed, Border, Button, ButtonStyle, Callback, CheckBox, Flyout, FlyoutExt, FlyoutPlacement,
-    HorizontalAlignment, StackPanel, Thickness, View,
+    Border, Button, ButtonStyle, Callback, CheckBox, Flyout, FlyoutExt, FlyoutPlacement,
+    HorizontalAlignment, StackPanel, Thickness, View, keyed,
 };
 
 use crate::format::{self, Rate};
 use crate::l10n::L10n;
-use crate::theme::{size, space, Palette};
-use crate::widgets::metric_chart::{chart_level, metric_chart, metric_mini_bar, MetricChart, Scale};
-use crate::widgets::{nothing, separator};
+use crate::theme::{Palette, size, space};
+use crate::widgets::metric_chart::{
+    MetricChart, Scale, chart_level, metric_chart, metric_mini_bar,
+};
 use crate::widgets::text::text;
+use crate::widgets::{nothing, separator};
 
 struct Pane;
 
@@ -104,8 +106,12 @@ fn detail(chart: SidebarChart, machine: Option<&MachineSummary>, units: Units) -
 
 fn corner(l10n: &L10n, chart: SidebarChart, machine: Option<&MachineSummary>) -> Option<String> {
     match chart {
-        SidebarChart::Cpu => Some(l10n.metric_chart_cpu_frequency(format::ghz(machine?.cpu_current_mhz))),
-        SidebarChart::Memory | SidebarChart::Gpu | SidebarChart::Disk | SidebarChart::Network => None,
+        SidebarChart::Cpu => {
+            Some(l10n.metric_chart_cpu_frequency(format::ghz(machine?.cpu_current_mhz)))
+        }
+        SidebarChart::Memory | SidebarChart::Gpu | SidebarChart::Disk | SidebarChart::Network => {
+            None
+        }
     }
 }
 
@@ -154,7 +160,10 @@ pub fn sidebar_charts(props: &SidebarChartsProps<'_>) -> View {
         let bars = shown.iter().map(|&chart| {
             let scale = scale(chart, props.units);
             let level = chart_level(history(metrics, chart), scale);
-            keyed(chart.id(), metric_mini_bar(palette, chart, level, scale.warns()))
+            keyed(
+                chart.id(),
+                metric_mini_bar(palette, chart, level, scale.warns()),
+            )
         });
         let column = std::iter::once(keyed("above", separator(palette)))
             .chain(bars)
@@ -162,7 +171,11 @@ pub fn sidebar_charts(props: &SidebarChartsProps<'_>) -> View {
         return Border::new()
             .padding(Thickness::xy(size::NavIcon, space::Control))
             .horizontal_alignment(HorizontalAlignment::Center)
-            .content(StackPanel::new().spacing(space::Control).keyed_children(column))
+            .content(
+                StackPanel::new()
+                    .spacing(space::Control)
+                    .keyed_children(column),
+            )
             .into();
     }
 
@@ -170,18 +183,20 @@ pub fn sidebar_charts(props: &SidebarChartsProps<'_>) -> View {
     let tiles = shown.iter().map(|&chart| {
         keyed(
             chart.id(),
-            Border::new().mark(SidebarMark::tile(chart)).content(metric_chart(MetricChart {
-                l10n: props.l10n,
-                chart: &props.charts[chart as usize],
-                kind: chart,
-                history: history(metrics, chart),
-                scale: scale(chart, props.units),
-                cadence_ms: props.cadence_ms,
-                height: Pane::MetricHeight,
-                detail: detail(chart, machine, props.units),
-                corner: corner(props.l10n, chart, machine),
-                palette,
-            })),
+            Border::new()
+                .mark(SidebarMark::tile(chart))
+                .content(metric_chart(MetricChart {
+                    l10n: props.l10n,
+                    chart: &props.charts[chart as usize],
+                    kind: chart,
+                    history: history(metrics, chart),
+                    scale: scale(chart, props.units),
+                    cadence_ms: props.cadence_ms,
+                    height: Pane::MetricHeight,
+                    detail: detail(chart, machine, props.units),
+                    corner: corner(props.l10n, chart, machine),
+                    palette,
+                })),
         )
     });
     let column = std::iter::once(keyed("menu", charts_menu(props))).chain(tiles);
@@ -189,6 +204,10 @@ pub fn sidebar_charts(props: &SidebarChartsProps<'_>) -> View {
     Border::new()
         .padding(Thickness::xy(space::Compact, space::Control))
         .horizontal_alignment(HorizontalAlignment::Stretch)
-        .content(StackPanel::new().spacing(space::Compact).keyed_children(column))
+        .content(
+            StackPanel::new()
+                .spacing(space::Compact)
+                .keyed_children(column),
+        )
         .into()
 }

@@ -1,16 +1,19 @@
 use std::ops::Range;
 use std::rc::Rc;
 
-use guinea::winui::MarkExt;
 use guinea::Mark;
+use guinea::winui::MarkExt;
 use guinea_widgets::resize::RESIZE_HANDLE_WIDTH;
 use windows_reactor::{
-    keyed, Border, Callback, Color, Grid, GridLength, HorizontalAlignment, IntoPayloadCallback, ItemsRepeater,
-    PointerEventInfo, Rectangle, ScrollBarVisibility, ScrollViewer, Thickness, VerticalAlignment, View,
+    Border, Callback, Color, Grid, GridLength, HorizontalAlignment, IntoPayloadCallback,
+    ItemsRepeater, PointerEventInfo, Rectangle, ScrollBarVisibility, ScrollViewer, Thickness,
+    VerticalAlignment, View, keyed,
 };
 
-use super::columns::{placed, width_of, ColumnOrder, ColumnSpec, ColumnWidths, Laid, Look, Reordered, Resized};
-use super::header::{handle, header_cell, HeaderCell, Moving};
+use super::columns::{
+    ColumnOrder, ColumnSpec, ColumnWidths, Laid, Look, Reordered, Resized, placed, width_of,
+};
+use super::header::{HeaderCell, Moving, handle, header_cell};
 use super::rows::rows_source;
 use super::sort::SortState;
 
@@ -34,7 +37,10 @@ pub struct Table<T, C> {
     corner_radius: f64,
 }
 
-pub fn table<T: 'static, C: Mark + Clone + PartialEq>(rows: Vec<T>, columns: Vec<ColumnSpec<T, C>>) -> Table<T, C> {
+pub fn table<T: 'static, C: Mark + Clone + PartialEq>(
+    rows: Vec<T>,
+    columns: Vec<ColumnSpec<T, C>>,
+) -> Table<T, C> {
     Table {
         widths: ColumnWidths::default(),
         rows,
@@ -87,7 +93,11 @@ impl<T: 'static, C: Mark + Clone + PartialEq + 'static> Table<T, C> {
         self
     }
 
-    pub fn selection(mut self, at: Option<usize>, on_select: impl IntoPayloadCallback<Option<usize>>) -> Self {
+    pub fn selection(
+        mut self,
+        at: Option<usize>,
+        on_select: impl IntoPayloadCallback<Option<usize>>,
+    ) -> Self {
         self.selection = Some((at, on_select.into_payload_callback()));
         self
     }
@@ -134,7 +144,11 @@ impl<T: 'static, C: Mark + Clone + PartialEq + 'static> Table<T, C> {
             let slot = laid.slots[at];
             let rounded = (
                 if slot == 0 { corner_radius } else { 0.0 },
-                if slot == last && reaches_right { corner_radius } else { 0.0 },
+                if slot == last && reaches_right {
+                    corner_radius
+                } else {
+                    0.0
+                },
             );
             let railed = on_resize.is_some() && !column.fill;
 
@@ -182,8 +196,18 @@ impl<T: 'static, C: Mark + Clone + PartialEq + 'static> Table<T, C> {
                         .grid_column(slot as i32)
                         .width(RESIZE_HANDLE_WIDTH)
                         .horizontal_alignment(HorizontalAlignment::Right)
-                        .margin(Thickness::new(0.0, 0.0, 0.5 - RESIZE_HANDLE_WIDTH / 2.0, 0.0))
-                        .content(handle(column, width_of(&widths, column), look.separator, on_resize.clone()))
+                        .margin(Thickness::new(
+                            0.0,
+                            0.0,
+                            0.5 - RESIZE_HANDLE_WIDTH / 2.0,
+                            0.0,
+                        ))
+                        .content(handle(
+                            column,
+                            width_of(&widths, column),
+                            look.separator,
+                            on_resize.clone(),
+                        ))
                         .into(),
                 ));
             }

@@ -1,11 +1,11 @@
 use guicons::icon;
-use guinea_widgets::resize::{resize_handle, RESIZE_HANDLE_WIDTH};
+use guinea_widgets::resize::{RESIZE_HANDLE_WIDTH, resize_handle};
 use std::rc::Rc;
 
 use windows_reactor::{
-    keyed, AutoSuggestBox, Border, Callback, Grid, GridLength, HorizontalAlignment, Icon, NavigationView,
-    NavigationViewBackButtonVisible, NavigationViewItem, NavigationViewPaneDisplayMode, Thickness, TitleBar,
-    VerticalAlignment, View, WindowTitleBarHeight,
+    AutoSuggestBox, Border, Callback, Grid, GridLength, HorizontalAlignment, Icon, NavigationView,
+    NavigationViewBackButtonVisible, NavigationViewItem, NavigationViewPaneDisplayMode, Thickness,
+    TitleBar, VerticalAlignment, View, WindowTitleBarHeight, keyed,
 };
 
 use crate::l10n::L10n;
@@ -36,7 +36,14 @@ pub enum ShellNav {
 }
 
 impl ShellNav {
-    const ALL: [Self; 6] = [Self::Processes, Self::Activity, Self::Services, Self::Wsl, Self::System, Self::Settings];
+    const ALL: [Self; 6] = [
+        Self::Processes,
+        Self::Activity,
+        Self::Services,
+        Self::Wsl,
+        Self::System,
+        Self::Settings,
+    ];
 
     fn tag(self) -> &'static str {
         match self {
@@ -108,7 +115,10 @@ pub fn shell_view(props: ShellProps<'_>) -> View {
                 .vertical_alignment(VerticalAlignment::Center),
         );
     let handle = sidebar_resize_handle(&props);
-    let overlay = Border::new().grid_row(0).grid_row_span(2).content(props.overlay.clone());
+    let overlay = Border::new()
+        .grid_row(0)
+        .grid_row_span(2)
+        .content(props.overlay.clone());
 
     let mut layers: Vec<View> = vec![title_bar.into(), navigation(&props)];
     layers.extend(handle);
@@ -133,8 +143,18 @@ fn navigation(props: &ShellProps<'_>) -> View {
                 .is_selected(current),
         )
     };
-    let nav_items: Vec<_> = props.menu.iter().filter(|(nav, _)| !nav.in_footer()).map(to_nav_item).collect();
-    let footer_nav_items: Vec<_> = props.menu.iter().filter(|(nav, _)| nav.in_footer()).map(to_nav_item).collect();
+    let nav_items: Vec<_> = props
+        .menu
+        .iter()
+        .filter(|(nav, _)| !nav.in_footer())
+        .map(to_nav_item)
+        .collect();
+    let footer_nav_items: Vec<_> = props
+        .menu
+        .iter()
+        .filter(|(nav, _)| nav.in_footer())
+        .map(to_nav_item)
+        .collect();
     let on_select = props.on_select.clone();
 
     NavigationView::new()

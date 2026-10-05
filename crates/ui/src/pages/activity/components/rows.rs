@@ -6,9 +6,9 @@ use app_contracts::features::agents::ProcessInstance;
 use guicons::icon;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    keyed, Border, Callback, Color, Component, ComponentContext, CornerRadius, Grid, GridLength, HorizontalAlignment,
-    KeyedView, Orientation, PointerEventInfo, StackPanel, TextTrimming, TextWrapping, Thickness, VerticalAlignment, View,
-    ViewContext,
+    Border, Callback, Color, Component, ComponentContext, CornerRadius, Grid, GridLength,
+    HorizontalAlignment, KeyedView, Orientation, PointerEventInfo, StackPanel, TextTrimming,
+    TextWrapping, Thickness, VerticalAlignment, View, ViewContext, keyed,
 };
 
 use super::super::marks::ActivityMark;
@@ -16,7 +16,7 @@ use super::facts::{facts, went_facts};
 use super::lasted::lasted;
 use crate::format;
 use crate::l10n::L10n;
-use crate::theme::{accent_color, radius, size, space, Palette};
+use crate::theme::{Palette, accent_color, radius, size, space};
 use crate::widgets::text::{caption, text};
 
 struct Line;
@@ -72,7 +72,9 @@ impl Component for ItemView {
             .margin(Thickness::xy(space::Compact, space::Hairline))
             .corner_radius(radius::Control);
         let plate = match (item.selected, self.0) {
-            (true, _) => plate.mark(ActivityMark::Selected).background(item.palette.row_selected),
+            (true, _) => plate
+                .mark(ActivityMark::Selected)
+                .background(item.palette.row_selected),
             (false, true) => plate.background(item.palette.row_hovered),
             (false, false) => plate,
         };
@@ -127,11 +129,16 @@ pub fn rows(list: Rows) -> View {
                 .margin(Thickness::uniform(space::Cell)),
         ));
     }
-    StackPanel::new().mark(ActivityMark::Rows).keyed_children(children).into()
+    StackPanel::new()
+        .mark(ActivityMark::Rows)
+        .keyed_children(children)
+        .into()
 }
 
 fn centered(content: impl Into<String>) -> View {
-    text(content).vertical_alignment(VerticalAlignment::Center).into()
+    text(content)
+        .vertical_alignment(VerticalAlignment::Center)
+        .into()
 }
 
 fn secondary(content: impl Into<String>, palette: Palette) -> View {
@@ -154,7 +161,12 @@ fn spaced(parts: Vec<KeyedView>) -> View {
 
 fn line(at: String, glyph: View, main: View, trailing: View, palette: Palette) -> View {
     Grid::new()
-        .columns([GridLength::Auto, GridLength::Pixel(Line::Icon), GridLength::Star(1.0), GridLength::Auto])
+        .columns([
+            GridLength::Auto,
+            GridLength::Pixel(Line::Icon),
+            GridLength::Star(1.0),
+            GridLength::Auto,
+        ])
         .min_height(size::ProcessRow)
         .children((
             caption(at)
@@ -179,7 +191,11 @@ fn line(at: String, glyph: View, main: View, trailing: View, palette: Palette) -
         .into()
 }
 
-fn pressed(content: impl Into<View>, key: ProcessInstance, on_press: &Callback<ProcessInstance>) -> View {
+fn pressed(
+    content: impl Into<View>,
+    key: ProcessInstance,
+    on_press: &Callback<ProcessInstance>,
+) -> View {
     let on_press = on_press.clone();
     Border::new()
         .mark(ActivityMark::Row)
@@ -224,7 +240,12 @@ fn came_main(came: &Came, l10n: &L10n, palette: Palette) -> View {
 }
 
 fn came_view(item: &Item, came: &Came) -> View {
-    let Item { l10n, palette, on_press, .. } = item;
+    let Item {
+        l10n,
+        palette,
+        on_press,
+        ..
+    } = item;
     let trailing = match &came.exit {
         Some(exit) => lasted(l10n, exit.lived),
         None => l10n.activity_still_running(),
@@ -237,7 +258,9 @@ fn came_view(item: &Item, came: &Came) -> View {
         *palette,
     );
     let body = if item.open {
-        StackPanel::new().children((head, facts(came, l10n, *palette, Line::Indent))).into()
+        StackPanel::new()
+            .children((head, facts(came, l10n, *palette, Line::Indent)))
+            .into()
     } else {
         head
     };
@@ -245,23 +268,41 @@ fn came_view(item: &Item, came: &Came) -> View {
 }
 
 fn went_view(item: &Item, went: &Went) -> View {
-    let Item { l10n, palette, on_press, .. } = item;
+    let Item {
+        l10n,
+        palette,
+        on_press,
+        ..
+    } = item;
     let parts = match &went.name {
         Some(name) => vec![keyed("name", centered(name.to_string()))],
         None => vec![
-            keyed("name", centered(l10n.activity_unknown_process(i64::from(went.key.pid)))),
-            keyed("why", secondary(l10n.activity_unknown_process_why(), *palette)),
+            keyed(
+                "name",
+                centered(l10n.activity_unknown_process(i64::from(went.key.pid))),
+            ),
+            keyed(
+                "why",
+                secondary(l10n.activity_unknown_process_why(), *palette),
+            ),
         ],
     };
     let head = line(
         format::clock(went.exit.at),
         icon!(went).size(size::Icon).build_element(),
         spaced(parts),
-        secondary(went.lived.map(|lived| lasted(l10n, lived)).unwrap_or_default(), *palette),
+        secondary(
+            went.lived
+                .map(|lived| lasted(l10n, lived))
+                .unwrap_or_default(),
+            *palette,
+        ),
         *palette,
     );
     let body = if item.open {
-        StackPanel::new().children((head, went_facts(went, l10n, *palette, Line::Indent))).into()
+        StackPanel::new()
+            .children((head, went_facts(went, l10n, *palette, Line::Indent)))
+            .into()
     } else {
         head
     };
@@ -295,12 +336,20 @@ fn member_view(came: &Came, l10n: &L10n, palette: Palette) -> View {
 }
 
 fn series_view(item: &Item, series: &Series) -> View {
-    let Item { l10n, palette, on_press, open, .. } = item;
+    let Item {
+        l10n,
+        palette,
+        on_press,
+        open,
+        ..
+    } = item;
     let open = *open;
     let chevron = if open {
         icon!(chevron_down_regular).size(size::Icon).build_element()
     } else {
-        icon!(chevron_right_regular).size(size::Icon).build_element()
+        icon!(chevron_right_regular)
+            .size(size::Icon)
+            .build_element()
     };
     let head = line(
         format::clock(series.at),
@@ -322,7 +371,9 @@ fn series_view(item: &Item, series: &Series) -> View {
             .iter()
             .map(|came| keyed(key(came.key), member_view(came, l10n, *palette)))
             .collect();
-        StackPanel::new().children((head, StackPanel::new().keyed_children(members))).into()
+        StackPanel::new()
+            .children((head, StackPanel::new().keyed_children(members)))
+            .into()
     } else {
         head
     };

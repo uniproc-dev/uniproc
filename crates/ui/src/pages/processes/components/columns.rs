@@ -1,31 +1,35 @@
 use std::rc::Rc;
 
+use crate::widgets::table::ColumnSpec;
 use app_contracts::features::agents::{Architecture, EnvironmentKind, Isolation};
 use app_contracts::features::processes::{
-    HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessRow, ProcessStatus, ProcessWindow,
+    HostedService, MachineSummary, ProcessCategory, ProcessColumn, ProcessRow, ProcessStatus,
+    ProcessWindow,
 };
 use app_contracts::features::settings::Units;
 use guicons::icon;
-use crate::widgets::table::ColumnSpec;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, Color, CornerRadius, EncodedImage, Grid, GridLength, HorizontalAlignment,
-    Image, PointerEventInfo, ResourceOverrides, StackPanel, TextTrimming, TextWrapping, ThemeBrush, Thickness,
-    Tooltip, TooltipExt, VerticalAlignment, View,
+    Border, Button, ButtonStyle, Callback, Color, CornerRadius, EncodedImage, Grid, GridLength,
+    HorizontalAlignment, Image, PointerEventInfo, ResourceOverrides, StackPanel, TextTrimming,
+    TextWrapping, ThemeBrush, Thickness, Tooltip, TooltipExt, VerticalAlignment, View,
 };
 
-use crate::format::{self, percent, Rate};
+use crate::format::{self, Rate, percent};
 use crate::l10n::L10n;
-use crate::theme::{accent_color, size, space, Palette};
+use crate::theme::{Palette, accent_color, size, space};
 use crate::widgets::distro_icon::distro_icon;
 use crate::widgets::separator;
-use crate::widgets::table_cell::{self, metric_cell, Heat, Highlight, Metric};
+use crate::widgets::table_cell::{self, Heat, Highlight, Metric, metric_cell};
 use crate::widgets::text::{body_strong, caption, text};
 
 use guinea::winui::MarkExt;
 
 use super::super::marks::ProcessesMark;
 use super::column_layout::ColumnLayout;
-use super::grouping::{is_idle, is_service_host, Child, DisplayRow, DropEdge, ProcessName, SectionId, SectionRow, WslRow};
+use super::grouping::{
+    Child, DisplayRow, DropEdge, ProcessName, SectionId, SectionRow, WslRow, is_idle,
+    is_service_host,
+};
 use super::section_drag::SectionGesture;
 
 struct Header;
@@ -71,9 +75,13 @@ impl Cpu {
 
 pub(crate) fn sort_indicator_icon(descending: bool) -> View {
     if descending {
-        icon!(chevron_down_regular).size(Chevron::Size).build_element()
+        icon!(chevron_down_regular)
+            .size(Chevron::Size)
+            .build_element()
     } else {
-        icon!(chevron_up_regular).size(Chevron::Size).build_element()
+        icon!(chevron_up_regular)
+            .size(Chevron::Size)
+            .build_element()
     }
 }
 
@@ -87,9 +95,13 @@ fn memory_heat_color(row: &ProcessRow, accent: Color, palette: Palette) -> Color
 
 fn expand_chevron(expanded: bool) -> View {
     if expanded {
-        icon!(chevron_down_regular).size(Chevron::Size).build_element()
+        icon!(chevron_down_regular)
+            .size(Chevron::Size)
+            .build_element()
     } else {
-        icon!(chevron_right_regular).size(Chevron::Size).build_element()
+        icon!(chevron_right_regular)
+            .size(Chevron::Size)
+            .build_element()
     }
 }
 
@@ -154,7 +166,10 @@ impl NameLine {
 
 fn name_line(line: NameLine) -> View {
     let mut words: Vec<View> = vec![Border::new().grid_column(0).content(line.label).into()];
-    words.extend(line.count.map(|count| Border::new().grid_column(1).content(count).into()));
+    words.extend(
+        line.count
+            .map(|count| Border::new().grid_column(1).content(count).into()),
+    );
     let label_and_count = Grid::new()
         .grid_column(2)
         .columns([GridLength::Star(1.0), GridLength::Auto])
@@ -198,7 +213,11 @@ fn indent(depth: u8) -> f64 {
 }
 
 fn runs_from_package(exe_path: &str, package_full_name: &str) -> bool {
-    let Some(name) = package_full_name.split('_').next().filter(|name| !name.is_empty()) else {
+    let Some(name) = package_full_name
+        .split('_')
+        .next()
+        .filter(|name| !name.is_empty())
+    else {
         return false;
     };
     let folder = format!("\\{}_", name.to_ascii_lowercase());
@@ -209,8 +228,8 @@ fn process_icon(icons: &context::IconCache, row: &ProcessRow) -> View {
     if is_service_host(row) {
         return table_cell::service_icon();
     }
-    let package = Some(&*row.package_full_name)
-        .filter(|package| runs_from_package(&row.exe_path, package));
+    let package =
+        Some(&*row.package_full_name).filter(|package| runs_from_package(&row.exe_path, package));
     let png = icons.icon(context::IconRequest {
         path: &row.exe_path,
         package_full_name: package,
@@ -259,7 +278,9 @@ fn selection_bar_for(height: f64, band: Highlight) -> View {
         ));
     match (band.top, band.bottom) {
         (true, true) => return selection_bar(),
-        (true, false) => bar.height(reach).vertical_alignment(VerticalAlignment::Bottom),
+        (true, false) => bar
+            .height(reach)
+            .vertical_alignment(VerticalAlignment::Bottom),
         (false, true) => bar.height(reach).vertical_alignment(VerticalAlignment::Top),
         (false, false) => bar.vertical_alignment(VerticalAlignment::Stretch),
     }
@@ -267,8 +288,7 @@ fn selection_bar_for(height: f64, band: Highlight) -> View {
 }
 
 fn header_frame() -> Grid {
-    Grid::new()
-        .height(Header::Height)
+    Grid::new().height(Header::Height)
 }
 
 fn with_column_menu(menu: &Callback<()>, header: impl Into<View>) -> View {
@@ -325,7 +345,10 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
             .into()
     };
     let count = if d.absent {
-        Some(note(ProcessesMark::NotRunning, cell.l10n.processes_not_running()))
+        Some(note(
+            ProcessesMark::NotRunning,
+            cell.l10n.processes_not_running(),
+        ))
     } else if d.exited {
         Some(note(ProcessesMark::Exited, cell.l10n.processes_exited()))
     } else if d.has_children {
@@ -334,22 +357,21 @@ fn name_cell(cell: &NameCell<'_>, d: &DisplayRow) -> View {
         None
     };
     let label = match (&d.row.owner, &d.wsl) {
-        (Some(owner), _) if !d.has_children && d.child.is_none() => {
-            cell.l10n.processes_owned_name(
-                owner.others as i64,
-                owner.name.to_string(),
-                d.row.display_name.to_string(),
-            )
-        }
+        (Some(owner), _) if !d.has_children && d.child.is_none() => cell.l10n.processes_owned_name(
+            owner.others as i64,
+            owner.name.to_string(),
+            d.row.display_name.to_string(),
+        ),
         (_, Some(WslRow::Environment { pid_ns, .. })) if d.row.display_name.is_empty() => {
             cell.l10n.processes_wsl_namespace(pid_ns.to_string())
         }
         _ => d.row.display_name.to_string(),
     };
     let icon = match &d.wsl {
-        Some(WslRow::Environment { kind: EnvironmentKind::DockerContainer, .. }) => {
-            icon!(docker).size(size::Icon).build_element()
-        }
+        Some(WslRow::Environment {
+            kind: EnvironmentKind::DockerContainer,
+            ..
+        }) => icon!(docker).size(size::Icon).build_element(),
         Some(WslRow::Environment { .. }) => distro_icon(&d.row.name),
         Some(WslRow::Process { .. }) => icon!(proc_regular).size(size::Icon).build_element(),
         None => process_icon(&cell.actions.icons, &d.row),
@@ -488,7 +510,12 @@ fn section_name_cell(cell: &NameCell<'_>, d: &DisplayRow, section: &SectionRow) 
 }
 
 fn section_grip(gesture: &Callback<SectionGesture>, section: SectionId) -> Border {
-    let (pressed, moved, released, lost) = (gesture.clone(), gesture.clone(), gesture.clone(), gesture.clone());
+    let (pressed, moved, released, lost) = (
+        gesture.clone(),
+        gesture.clone(),
+        gesture.clone(),
+        gesture.clone(),
+    );
     Border::new()
         .mark(ProcessesMark::SectionGrip)
         .background(Color::transparent())
@@ -504,7 +531,9 @@ fn section_grip(gesture: &Callback<SectionGesture>, section: SectionId) -> Borde
         })
         .on_pointer_moved(move |pointer: PointerEventInfo| {
             if pointer.is_left_button_pressed {
-                moved.call(SectionGesture::Move { at: pointer.window_y });
+                moved.call(SectionGesture::Move {
+                    at: pointer.window_y,
+                });
             }
         })
         .on_pointer_released(move |_: PointerEventInfo| {
@@ -527,7 +556,12 @@ fn sort_mark(sorted: Option<bool>) -> Option<View> {
 }
 
 fn header(sorted: Option<bool>, parts: impl IntoIterator<Item = View>) -> Grid {
-    header_frame().children(sort_mark(sorted).into_iter().chain(parts).collect::<Vec<View>>())
+    header_frame().children(
+        sort_mark(sorted)
+            .into_iter()
+            .chain(parts)
+            .collect::<Vec<View>>(),
+    )
 }
 
 fn group_by_type_toggle(group_by_type: &GroupByType) -> View {
@@ -540,7 +574,9 @@ fn group_by_type_toggle(group_by_type: &GroupByType) -> View {
     Button::new()
         .mark(ProcessesMark::GroupByType)
         .style(ButtonStyle::Subtle)
-        .resource_overrides(ResourceOverrides::new().set("ButtonPadding", Thickness::uniform(space::Compact)))
+        .resource_overrides(
+            ResourceOverrides::new().set("ButtonPadding", Thickness::uniform(space::Compact)),
+        )
         .horizontal_alignment(HorizontalAlignment::Right)
         .vertical_alignment(VerticalAlignment::Bottom)
         .margin(Thickness::new(0.0, 0.0, space::Cell, 0.0))
@@ -551,54 +587,68 @@ fn group_by_type_toggle(group_by_type: &GroupByType) -> View {
 
 fn name_header(label: String, place: &Place, group_by_type: &GroupByType) -> View {
     let (sorted, palette) = (place.sorted, place.palette);
-    with_column_menu(&place.menu, header(sorted, [
-        caption(label)
-            .foreground(palette.tertiary_text)
-            .vertical_alignment(VerticalAlignment::Bottom)
-            .margin(Thickness::new(
-                space::Cell + Chevron::Slot + NameLine::Spacing,
-                0.0,
-                0.0,
-                0.0,
-            ))
-            .into(),
-        group_by_type_toggle(group_by_type),
-    ]))
+    with_column_menu(
+        &place.menu,
+        header(
+            sorted,
+            [
+                caption(label)
+                    .foreground(palette.tertiary_text)
+                    .vertical_alignment(VerticalAlignment::Bottom)
+                    .margin(Thickness::new(
+                        space::Cell + Chevron::Slot + NameLine::Spacing,
+                        0.0,
+                        0.0,
+                        0.0,
+                    ))
+                    .into(),
+                group_by_type_toggle(group_by_type),
+            ],
+        ),
+    )
 }
 
 fn metric_header(label: String, value: String, place: &Place) -> View {
     let (sorted, palette) = (place.sorted, place.palette);
-    with_column_menu(&place.menu, header(sorted, [
-        StackPanel::new()
-            .horizontal_alignment(HorizontalAlignment::Right)
-            .vertical_alignment(VerticalAlignment::Bottom)
-            .margin(Thickness::xy(space::Cell, 0.0))
-            .children((
-                text(value)
-                    .text_wrapping(TextWrapping::NoWrap)
-                    .text_trimming(TextTrimming::CharacterEllipsis)
-                    .horizontal_alignment(HorizontalAlignment::Right),
-                caption(label)
-                    .foreground(palette.tertiary_text)
-                    .text_wrapping(TextWrapping::NoWrap)
-                    .text_trimming(TextTrimming::CharacterEllipsis)
-                    .horizontal_alignment(HorizontalAlignment::Right),
-            ))
-            .into(),
-    ]))
+    with_column_menu(
+        &place.menu,
+        header(
+            sorted,
+            [StackPanel::new()
+                .horizontal_alignment(HorizontalAlignment::Right)
+                .vertical_alignment(VerticalAlignment::Bottom)
+                .margin(Thickness::xy(space::Cell, 0.0))
+                .children((
+                    text(value)
+                        .text_wrapping(TextWrapping::NoWrap)
+                        .text_trimming(TextTrimming::CharacterEllipsis)
+                        .horizontal_alignment(HorizontalAlignment::Right),
+                    caption(label)
+                        .foreground(palette.tertiary_text)
+                        .text_wrapping(TextWrapping::NoWrap)
+                        .text_trimming(TextTrimming::CharacterEllipsis)
+                        .horizontal_alignment(HorizontalAlignment::Right),
+                ))
+                .into()],
+        ),
+    )
 }
 
 fn text_header(label: String, place: &Place, align: HorizontalAlignment) -> View {
-    with_column_menu(&place.menu, header(place.sorted, [
-        caption(label)
-            .foreground(place.palette.tertiary_text)
-            .text_wrapping(TextWrapping::NoWrap)
-            .text_trimming(TextTrimming::CharacterEllipsis)
-            .horizontal_alignment(align)
-            .vertical_alignment(VerticalAlignment::Bottom)
-            .margin(Thickness::xy(space::Cell, 0.0))
-            .into(),
-    ]))
+    with_column_menu(
+        &place.menu,
+        header(
+            place.sorted,
+            [caption(label)
+                .foreground(place.palette.tertiary_text)
+                .text_wrapping(TextWrapping::NoWrap)
+                .text_trimming(TextTrimming::CharacterEllipsis)
+                .horizontal_alignment(align)
+                .vertical_alignment(VerticalAlignment::Bottom)
+                .margin(Thickness::xy(space::Cell, 0.0))
+                .into()],
+        ),
+    )
 }
 
 #[derive(Clone)]
@@ -636,7 +686,13 @@ fn process_name_value(d: &DisplayRow) -> Option<String> {
     }
 }
 
-fn text_column<F>(id: ProcessColumn, label: String, place: Place, align: HorizontalAlignment, value: F) -> Column
+fn text_column<F>(
+    id: ProcessColumn,
+    label: String,
+    place: Place,
+    align: HorizontalAlignment,
+    value: F,
+) -> Column
 where
     F: Fn(&DisplayRow) -> Option<String> + 'static,
 {
@@ -698,14 +754,28 @@ fn detail_row(d: &DisplayRow, scope: DetailScope) -> Option<&ProcessRow> {
     }
 }
 
-fn detail_column<F>(id: ProcessColumn, l10n: &L10n, place: Place, scope: DetailScope, text: F) -> Column
+fn detail_column<F>(
+    id: ProcessColumn,
+    l10n: &L10n,
+    place: Place,
+    scope: DetailScope,
+    text: F,
+) -> Column
 where
     F: Fn(&L10n, &ProcessRow) -> String + 'static,
 {
     let words = l10n.clone();
-    text_column(id, column_label(l10n, id), place, HorizontalAlignment::Left, move |d| {
-        detail_row(d, scope).map(|row| text(&words, row)).filter(|shown| !shown.is_empty())
-    })
+    text_column(
+        id,
+        column_label(l10n, id),
+        place,
+        HorizontalAlignment::Left,
+        move |d| {
+            detail_row(d, scope)
+                .map(|row| text(&words, row))
+                .filter(|shown| !shown.is_empty())
+        },
+    )
 }
 
 fn status_label(l10n: &L10n, status: ProcessStatus) -> String {
@@ -753,7 +823,12 @@ fn gpu_engine_label(l10n: &L10n, row: &ProcessRow) -> String {
         .unwrap_or_default()
 }
 
-fn name_column(place: Place, actions: NameCellActions, group_by_type: GroupByType, l10n: L10n) -> Column {
+fn name_column(
+    place: Place,
+    actions: NameCellActions,
+    group_by_type: GroupByType,
+    l10n: L10n,
+) -> Column {
     let header_l10n = l10n.clone();
     let (width, min_width, palette) = (place.width, place.min_width, place.palette);
     let header = move || name_header(header_l10n.processes_col_name(), &place, &group_by_type);
@@ -864,18 +939,29 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
     let disk = Rate::disk(units);
     let units = units.bytes;
 
-    let net_max =rows.iter().map(|r| r.net_bytes).max().unwrap_or(0).max(1) as f32;
+    let net_max = rows.iter().map(|r| r.net_bytes).max().unwrap_or(0).max(1) as f32;
     let disk_max = rows.iter().map(|r| r.disk_bytes).max().unwrap_or(0).max(1) as f32;
     let net_total: u64 = rows.iter().map(|r| r.net_bytes).sum();
     let disk_total: u64 = rows.iter().map(|r| r.disk_bytes).sum();
     let memory_total_bytes = machine.as_ref().map_or(0, |m| m.memory_total_bytes);
-    let cpu_total = machine.as_ref().map(|m| percent(m.cpu_percent)).unwrap_or_default();
-    let gpu_total = machine.as_ref().map(|m| percent(m.gpu_percent)).unwrap_or_default();
+    let cpu_total = machine
+        .as_ref()
+        .map(|m| percent(m.cpu_percent))
+        .unwrap_or_default();
+    let gpu_total = machine
+        .as_ref()
+        .map(|m| percent(m.gpu_percent))
+        .unwrap_or_default();
     let gpu_memory_total = machine
         .as_ref()
         .map(|m| format::bytes(units, m.gpu_memory_used_bytes))
         .unwrap_or_default();
-    let gpu_memory_max = rows.iter().map(|r| r.gpu_memory_bytes).max().unwrap_or(0).max(1) as f32;
+    let gpu_memory_max = rows
+        .iter()
+        .map(|r| r.gpu_memory_bytes)
+        .max()
+        .unwrap_or(0)
+        .max(1) as f32;
     let memory_share = move |bytes: u64| {
         if memory_total_bytes > 0 {
             bytes as f32 / memory_total_bytes as f32
@@ -884,7 +970,9 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
         }
     };
     let memory_used = match (machine.as_ref(), memory_as_percent) {
-        (Some(m), true) if m.memory_total_bytes > 0 => percent(memory_share(m.memory_used_bytes) * 100.0),
+        (Some(m), true) if m.memory_total_bytes > 0 => {
+            percent(memory_share(m.memory_used_bytes) * 100.0)
+        }
         (Some(m), false) => format::bytes(units, m.memory_used_bytes),
         _ => String::new(),
     };
@@ -930,7 +1018,11 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                     place,
                     value: |r: &ProcessRow| (percent(r.cpu_percent), r.cpu_percent < Cpu::Zero),
                     heat: move |r: &ProcessRow| {
-                        let load = if is_idle(r) { 0.0 } else { r.cpu_percent / 100.0 };
+                        let load = if is_idle(r) {
+                            0.0
+                        } else {
+                            r.cpu_percent / 100.0
+                        };
                         (load, accent)
                     },
                     threshold: Cpu::HeatThreshold,
@@ -948,7 +1040,12 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                         };
                         (shown, r.memory_bytes == 0)
                     },
-                    heat: move |r: &ProcessRow| (memory_share(r.memory_bytes), memory_heat_color(r, accent, palette)),
+                    heat: move |r: &ProcessRow| {
+                        (
+                            memory_share(r.memory_bytes),
+                            memory_heat_color(r, accent, palette),
+                        )
+                    },
                     threshold: Heat::Threshold,
                 }),
                 ProcessColumn::Net => metric_column(MetricColumn {
@@ -956,7 +1053,9 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                     label: l10n.processes_col_net(),
                     total: format::rate(network, net_total),
                     place,
-                    value: move |r: &ProcessRow| (format::rate(network, r.net_bytes), r.net_bytes == 0),
+                    value: move |r: &ProcessRow| {
+                        (format::rate(network, r.net_bytes), r.net_bytes == 0)
+                    },
                     heat: move |r: &ProcessRow| (r.net_bytes as f32 / net_max, accent),
                     threshold: Heat::Threshold,
                 }),
@@ -965,7 +1064,9 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                     label: l10n.processes_col_disk(),
                     total: format::rate(disk, disk_total),
                     place,
-                    value: move |r: &ProcessRow| (format::rate(disk, r.disk_bytes), r.disk_bytes == 0),
+                    value: move |r: &ProcessRow| {
+                        (format::rate(disk, r.disk_bytes), r.disk_bytes == 0)
+                    },
                     heat: move |r: &ProcessRow| (r.disk_bytes as f32 / disk_max, accent),
                     threshold: Heat::Threshold,
                 }),
@@ -983,37 +1084,68 @@ pub(crate) fn build_columns(inputs: ColumnInputs<'_>) -> Vec<Column> {
                     label: l10n.processes_col_gpu_memory(),
                     total: gpu_memory_total.clone(),
                     place,
-                    value: move |r: &ProcessRow| (format::bytes(units, r.gpu_memory_bytes), r.gpu_memory_bytes == 0),
-                    heat: move |r: &ProcessRow| (r.gpu_memory_bytes as f32 / gpu_memory_max, accent),
+                    value: move |r: &ProcessRow| {
+                        (
+                            format::bytes(units, r.gpu_memory_bytes),
+                            r.gpu_memory_bytes == 0,
+                        )
+                    },
+                    heat: move |r: &ProcessRow| {
+                        (r.gpu_memory_bytes as f32 / gpu_memory_max, accent)
+                    },
                     threshold: Heat::Threshold,
                 }),
-                ProcessColumn::Status => detail_column(column.column, l10n, place, DetailScope::Process, |l10n, r| {
-                    status_label(l10n, r.details.status)
-                }),
-                ProcessColumn::Publisher => detail_column(column.column, l10n, place, DetailScope::Group, |_, r| {
-                    r.details.publisher.to_string()
-                }),
+                ProcessColumn::Status => detail_column(
+                    column.column,
+                    l10n,
+                    place,
+                    DetailScope::Process,
+                    |l10n, r| status_label(l10n, r.details.status),
+                ),
+                ProcessColumn::Publisher => {
+                    detail_column(column.column, l10n, place, DetailScope::Group, |_, r| {
+                        r.details.publisher.to_string()
+                    })
+                }
                 ProcessColumn::User => {
-                    detail_column(column.column, l10n, place, DetailScope::Group, |_, r| r.details.user.to_string())
+                    detail_column(column.column, l10n, place, DetailScope::Group, |_, r| {
+                        r.details.user.to_string()
+                    })
                 }
-                ProcessColumn::CommandLine => detail_column(column.column, l10n, place, DetailScope::Process, |_, r| {
-                    r.details.command_line.to_string()
-                }),
+                ProcessColumn::CommandLine => {
+                    detail_column(column.column, l10n, place, DetailScope::Process, |_, r| {
+                        r.details.command_line.to_string()
+                    })
+                }
                 ProcessColumn::ImagePath => {
-                    detail_column(column.column, l10n, place, DetailScope::Group, |_, r| r.exe_path.to_string())
+                    detail_column(column.column, l10n, place, DetailScope::Group, |_, r| {
+                        r.exe_path.to_string()
+                    })
                 }
-                ProcessColumn::GpuEngine => {
-                    detail_column(column.column, l10n, place, DetailScope::Process, gpu_engine_label)
+                ProcessColumn::GpuEngine => detail_column(
+                    column.column,
+                    l10n,
+                    place,
+                    DetailScope::Process,
+                    gpu_engine_label,
+                ),
+                ProcessColumn::Platform => {
+                    detail_column(column.column, l10n, place, DetailScope::Group, |l10n, r| {
+                        platform_label(l10n, r.details.architecture)
+                    })
                 }
-                ProcessColumn::Platform => detail_column(column.column, l10n, place, DetailScope::Group, |l10n, r| {
-                    platform_label(l10n, r.details.architecture)
-                }),
-                ProcessColumn::Elevated => detail_column(column.column, l10n, place, DetailScope::Process, |l10n, r| {
-                    elevated_label(l10n, r.details.elevated)
-                }),
-                ProcessColumn::Isolation => detail_column(column.column, l10n, place, DetailScope::Group, |l10n, r| {
-                    isolation_label(l10n, r.details.isolation)
-                }),
+                ProcessColumn::Elevated => detail_column(
+                    column.column,
+                    l10n,
+                    place,
+                    DetailScope::Process,
+                    |l10n, r| elevated_label(l10n, r.details.elevated),
+                ),
+                ProcessColumn::Isolation => {
+                    detail_column(column.column, l10n, place, DetailScope::Group, |l10n, r| {
+                        isolation_label(l10n, r.details.isolation)
+                    })
+                }
             }
         })
         .collect()
@@ -1059,6 +1191,9 @@ mod tests {
             r"C:\Windows\System32\RuntimeBroker.exe",
             "Claude_2.9939.2.0_x64__pzs8sxrjxfjjc",
         ));
-        assert!(!runs_from_package(r"C:\Windows\System32\RuntimeBroker.exe", ""));
+        assert!(!runs_from_package(
+            r"C:\Windows\System32\RuntimeBroker.exe",
+            ""
+        ));
     }
 }

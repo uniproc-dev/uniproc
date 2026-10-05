@@ -16,14 +16,23 @@ impl SettingsColumn {
 
 pub fn settings_section(title: impl Into<String>, cards: impl IntoViews) -> View {
     let header = body_strong(title).margin(SettingsColumn::section_header());
-    let cards = StackPanel::new().spacing(setting::CardSpacing).children(cards);
+    let cards = StackPanel::new()
+        .spacing(setting::CardSpacing)
+        .children(cards);
     StackPanel::new().children((header, cards)).into()
 }
 
 pub fn settings_column(children: impl IntoViews) -> View {
     let column = StackPanel::new()
         .max_width(SettingsColumn::MaxWidth)
-        .margin(Thickness::new(space::Page, space::Section, space::Page, space::Page))
+        .margin(Thickness::new(
+            space::Page,
+            space::Section,
+            space::Page,
+            space::Page,
+        ))
         .children(children);
-    ScrollViewer::new().content(Grid::new().children((column,))).into()
+    ScrollViewer::new()
+        .content(Grid::new().children((column,)))
+        .into()
 }

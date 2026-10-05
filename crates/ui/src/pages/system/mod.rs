@@ -5,4 +5,4 @@ mod tools;
 
 pub use marks::{SystemMark, ToolMark};
 pub use page::system_view;
-pub use tools::{tools_view, ToolsProps};
+pub use tools::{ToolsProps, tools_view};

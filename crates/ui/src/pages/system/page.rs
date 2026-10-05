@@ -1,15 +1,15 @@
 use app_contracts::features::system::SystemState;
 use guicons::icon;
+use guinea::Mark;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
-use guinea::Mark;
 use windows_reactor::{Callback, KeyedView, StackPanel, Thickness, View};
 
-use super::components::tool_card::{tool_card, CardPlace};
+use super::components::tool_card::{CardPlace, tool_card};
 use super::marks::{SystemMark, ToolMark};
 use crate::l10n::L10n;
-use crate::theme::{setting, space, Palette};
-use crate::widgets::link_card::{link_card, LinkCard, Trailing};
+use crate::theme::{Palette, setting, space};
+use crate::widgets::link_card::{LinkCard, Trailing, link_card};
 use crate::widgets::settings_column::{settings_column, settings_section};
 use crate::widgets::text::{caption, subtitle};
 

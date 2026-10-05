@@ -1,11 +1,11 @@
 use windows_reactor::{
-    Border, Color, Grid, HorizontalAlignment, TextBlock, TextTrimming, TextWrapping, Thickness, VerticalAlignment,
-    View,
+    Border, Color, Grid, HorizontalAlignment, TextBlock, TextTrimming, TextWrapping, Thickness,
+    VerticalAlignment, View,
 };
 
 use guicons::icon;
 
-use crate::theme::{opacity, radius, size, space, Palette};
+use crate::theme::{Palette, opacity, radius, size, space};
 use crate::widgets::text::caption;
 
 #[derive(Clone, Copy)]
@@ -55,7 +55,10 @@ pub fn cell_text(content: impl Into<String>) -> TextBlock {
 pub fn dimmed(content: impl Into<View>, dim: bool) -> View {
     let content = content.into();
     if dim {
-        Border::new().opacity(opacity::Stopped).content(content).into()
+        Border::new()
+            .opacity(opacity::Stopped)
+            .content(content)
+            .into()
     } else {
         content
     }
@@ -122,8 +125,5 @@ pub fn metric_cell(metric: Metric, palette: Palette) -> View {
     }
     layers.push(value.into());
 
-    Grid::new()
-        .height(metric.height)
-        .children(layers)
-        .into()
+    Grid::new().height(metric.height).children(layers).into()
 }

@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use app_contracts::features::activity::{
-    ActivityRow, ActivityState, ActivityView, Came, Clock, Dot, Exit, Hue, Launcher, Legend, Lived, Pick, Scatter,
-    Series, Went,
+    ActivityRow, ActivityState, ActivityView, Came, Clock, Dot, Exit, Hue, Launcher, Legend, Lived,
+    Pick, Scatter, Series, Went,
 };
 use app_contracts::features::agents::ProcessInstance;
 use guinea::prelude::{Dispatch, Load};
@@ -65,7 +65,10 @@ fn came(index: usize) -> Came {
         parent_services: Arc::from([]),
         first_seen: index.is_multiple_of(9),
         exit: index.is_multiple_of(2).then(|| exit(index)),
-        picks: vec![Pick::Exe(name), Pick::Folder(r"c:\program files\tool".into())],
+        picks: vec![
+            Pick::Exe(name),
+            Pick::Folder(r"c:\program files\tool".into()),
+        ],
         hue: index.is_multiple_of(4).then_some(Hue::Purple),
     }
 }
@@ -81,7 +84,9 @@ fn row(index: usize) -> ActivityRow {
             count: 6,
             went: 5,
             routine: false,
-            members: (0..6).map(|member| Rc::new(came(index * 10 + member))).collect(),
+            members: (0..6)
+                .map(|member| Rc::new(came(index * 10 + member)))
+                .collect(),
             picks: vec![Pick::Under("cargo.exe".into())],
             hue: Some(Hue::Purple),
         })),
@@ -138,19 +143,36 @@ fn measure(label: &str, page: &ActivityPage, state: &ActivityState, l10n: &L10n,
     let dispatch = Dispatch::default();
     let forward = Callback::new(|_: ActivityPageMsg| {});
     let manage = Callback::new(|()| {});
-    drop(page.view(state, &dispatch, l10n, palette, forward.clone(), manage.clone()));
+    drop(page.view(
+        state,
+        &dispatch,
+        l10n,
+        palette,
+        forward.clone(),
+        manage.clone(),
+    ));
 
     let mut total = Duration::ZERO;
     let mut worst = Duration::ZERO;
     for _ in 0..ITERATIONS {
         let started = Instant::now();
-        let view = page.view(state, &dispatch, l10n, palette, forward.clone(), manage.clone());
+        let view = page.view(
+            state,
+            &dispatch,
+            l10n,
+            palette,
+            forward.clone(),
+            manage.clone(),
+        );
         let took = started.elapsed();
         drop(view);
         total += took;
         worst = worst.max(took);
     }
-    println!("{label}: mean {:?}, worst {worst:?} over {ITERATIONS} renders", total / ITERATIONS);
+    println!(
+        "{label}: mean {:?}, worst {worst:?} over {ITERATIONS} renders",
+        total / ITERATIONS
+    );
 }
 
 fn main() {
@@ -163,7 +185,25 @@ fn main() {
     let page = ActivityPage::default();
 
     measure("empty", &page, &state(0, 0), &l10n, palette);
-    measure(&format!("{dots} dots, no rows"), &page, &state(dots, 0), &l10n, palette);
-    measure(&format!("no dots, {ROWS} rows"), &page, &state(0, ROWS), &l10n, palette);
-    measure(&format!("{dots} dots, {ROWS} rows"), &page, &state(dots, ROWS), &l10n, palette);
+    measure(
+        &format!("{dots} dots, no rows"),
+        &page,
+        &state(dots, 0),
+        &l10n,
+        palette,
+    );
+    measure(
+        &format!("no dots, {ROWS} rows"),
+        &page,
+        &state(0, ROWS),
+        &l10n,
+        palette,
+    );
+    measure(
+        &format!("{dots} dots, {ROWS} rows"),
+        &page,
+        &state(dots, ROWS),
+        &l10n,
+        palette,
+    );
 }

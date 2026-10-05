@@ -2,12 +2,12 @@ use app_contracts::features::agent_link::InProcess;
 use guicons::icon;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, Callback, Grid, HorizontalAlignment, Orientation, ProgressRing, StackPanel, ThemeBrush, Thickness,
-    VerticalAlignment, View,
+    Border, Callback, Grid, HorizontalAlignment, Orientation, ProgressRing, StackPanel, ThemeBrush,
+    Thickness, VerticalAlignment, View,
 };
 
 use crate::l10n::L10n;
-use crate::theme::{size, space, Palette};
+use crate::theme::{Palette, size, space};
 use crate::widgets::button::action_button;
 use crate::widgets::text::{subtitle, text};
 
@@ -58,7 +58,11 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
         .children((
             Border::new()
                 .horizontal_alignment(HorizontalAlignment::Center)
-                .content(icon!(uniproc_logo_splash).size(Splash::Logo).build_element()),
+                .content(
+                    icon!(uniproc_logo_splash)
+                        .size(Splash::Logo)
+                        .build_element(),
+                ),
             subtitle(props.l10n.shell_splash_name())
                 .foreground(props.palette.secondary_text)
                 .horizontal_alignment(HorizontalAlignment::Center),
@@ -78,22 +82,31 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
         let mut lines: Vec<View> = vec![line(props.l10n.shell_splash_slow(), props.palette).into()];
         match props.service_trouble {
             Some(ServiceTrouble::Unreachable(service)) => lines.push(
-                line(props.l10n.shell_splash_unreachable(service.to_string()), props.palette)
-                    .mark(SplashMark::Unreachable)
-                    .into(),
+                line(
+                    props.l10n.shell_splash_unreachable(service.to_string()),
+                    props.palette,
+                )
+                .mark(SplashMark::Unreachable)
+                .into(),
             ),
             Some(ServiceTrouble::Outdated(service)) => lines.push(
-                line(props.l10n.shell_splash_outdated(service.to_string()), props.palette)
-                    .mark(SplashMark::Outdated)
-                    .into(),
+                line(
+                    props.l10n.shell_splash_outdated(service.to_string()),
+                    props.palette,
+                )
+                .mark(SplashMark::Outdated)
+                .into(),
             ),
             None => {}
         }
         match props.in_process {
             InProcess::NotElevated => lines.push(
-                line(props.l10n.shell_splash_in_process_not_elevated(), props.palette)
-                    .mark(SplashMark::InProcessError)
-                    .into(),
+                line(
+                    props.l10n.shell_splash_in_process_not_elevated(),
+                    props.palette,
+                )
+                .mark(SplashMark::InProcessError)
+                .into(),
             ),
             InProcess::Failed => lines.push(
                 line(props.l10n.shell_splash_in_process_failed(), props.palette)

@@ -1,8 +1,8 @@
-use amethystate::ReactiveMap;
-use app_contracts::features::processes::{ColumnConfig, ProcessColumn};
-use app_contracts::OrWarn;
-use guinea::Mark;
 use crate::widgets::table::{ColumnOrder, ColumnWidths, Reordered, Resized};
+use amethystate::ReactiveMap;
+use app_contracts::OrWarn;
+use app_contracts::features::processes::{ColumnConfig, ProcessColumn};
+use guinea::Mark;
 
 use super::Step;
 
@@ -43,7 +43,12 @@ fn kept_order(ranks: &ReactiveMap<String, u32>) -> ColumnOrder {
         .filter_map(|column| ranks.get(column.id()).map(|rank| (rank, column)))
         .collect();
     ranked.sort_by_key(|(rank, _)| *rank);
-    ColumnOrder::new(ranked.into_iter().map(|(_, column)| column.name()).collect())
+    ColumnOrder::new(
+        ranked
+            .into_iter()
+            .map(|(_, column)| column.name())
+            .collect(),
+    )
 }
 
 impl ColumnLayout {
@@ -100,7 +105,10 @@ impl ColumnLayout {
             };
             ranks
                 .insert(column.id().to_string(), &(rank as u32))
-                .or_warn(format_args!("could not keep where the {} column goes", column.id()));
+                .or_warn(format_args!(
+                    "could not keep where the {} column goes",
+                    column.id()
+                ));
         }
     }
 
@@ -186,10 +194,13 @@ impl ColumnLayout {
 
     pub(crate) fn toggle(&mut self, column: ProcessColumn) {
         let config = self.config(column);
-        self.store(column, ColumnConfig {
-            visible: !config.visible,
-            ..config
-        });
+        self.store(
+            column,
+            ColumnConfig {
+                visible: !config.visible,
+                ..config
+            },
+        );
     }
 
     fn store(&self, column: ProcessColumn, config: ColumnConfig) {
@@ -197,7 +208,9 @@ impl ColumnLayout {
             return;
         };
         let id = column.id();
-        configs.upsert(id, |_| config).or_warn(format_args!("could not keep how the {id} column looks"));
+        configs
+            .upsert(id, |_| config)
+            .or_warn(format_args!("could not keep how the {id} column looks"));
     }
 
     pub(crate) fn columns(&self) -> Vec<ColumnState> {
@@ -207,7 +220,10 @@ impl ColumnLayout {
                 let config = self.config(column);
                 ColumnState {
                     column,
-                    width: self.widths.get(column.name()).unwrap_or(config.width as f64),
+                    width: self
+                        .widths
+                        .get(column.name())
+                        .unwrap_or(config.width as f64),
                     min_width: MinWidth::of(column),
                     visible: config.visible,
                 }
@@ -219,14 +235,20 @@ impl ColumnLayout {
         self.widths.apply(drag);
 
         let Some(column) = ProcessColumn::from_mark(drag.column) else {
-            tracing::warn!(column = drag.column, "resize of a column this page does not know");
+            tracing::warn!(
+                column = drag.column,
+                "resize of a column this page does not know"
+            );
             return;
         };
         let width = drag.width.round().max(0.0) as u64;
-        self.store(column, ColumnConfig {
-            width,
-            ..self.config(column)
-        });
+        self.store(
+            column,
+            ColumnConfig {
+                width,
+                ..self.config(column)
+            },
+        );
     }
 }
 
@@ -242,8 +264,12 @@ mod tests {
     fn a_hidden_column_is_not_dropped_from_the_order_by_a_move_without_it() {
         use ProcessColumn::*;
         let mut layout = ColumnLayout::default();
-        layout.reorder(Reordered { order: names(&[Name, Pid, Memory, Cpu]) });
-        layout.reorder(Reordered { order: names(&[Name, Cpu, Memory]) });
+        layout.reorder(Reordered {
+            order: names(&[Name, Pid, Memory, Cpu]),
+        });
+        layout.reorder(Reordered {
+            order: names(&[Name, Cpu, Memory]),
+        });
         assert_eq!(layout.order().names(), names(&[Name, Cpu, Memory, Pid]));
     }
 }

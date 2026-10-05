@@ -1,12 +1,12 @@
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, Color, CornerRadius, Grid, GridLength, HorizontalAlignment, Orientation, StackPanel, Thickness,
-    VerticalAlignment, View,
+    Border, Color, CornerRadius, Grid, GridLength, HorizontalAlignment, Orientation, StackPanel,
+    Thickness, VerticalAlignment, View,
 };
 
 use super::super::marks::ProcessesMark;
 use crate::l10n::L10n;
-use crate::theme::{space, Palette};
+use crate::theme::{Palette, space};
 use crate::widgets::text::text;
 
 struct Share;
@@ -62,13 +62,23 @@ fn parts(counts: &StatusCounts, l10n: &L10n, palette: Palette) -> Vec<Part> {
         widest_label: label(many),
     };
     let mut parts = vec![
-        part(counts.apps, palette.share_apps, &|n| l10n.processes_status_apps(n)),
-        part(counts.background, palette.share_background, &|n| l10n.processes_status_background(n)),
-        part(counts.services, palette.share_services, &|n| l10n.processes_status_services(n)),
-        part(counts.kernel, palette.share_kernel, &|n| l10n.processes_status_kernel(n)),
+        part(counts.apps, palette.share_apps, &|n| {
+            l10n.processes_status_apps(n)
+        }),
+        part(counts.background, palette.share_background, &|n| {
+            l10n.processes_status_background(n)
+        }),
+        part(counts.services, palette.share_services, &|n| {
+            l10n.processes_status_services(n)
+        }),
+        part(counts.kernel, palette.share_kernel, &|n| {
+            l10n.processes_status_kernel(n)
+        }),
     ];
     if counts.linux > 0 {
-        parts.push(part(counts.linux, palette.share_wsl, &|n| l10n.processes_status_wsl(n)));
+        parts.push(part(counts.linux, palette.share_wsl, &|n| {
+            l10n.processes_status_wsl(n)
+        }));
     }
     parts
 }
@@ -134,7 +144,12 @@ pub(crate) fn status_bar(counts: &StatusCounts, l10n: &L10n, palette: Palette) -
         .orientation(Orientation::Horizontal)
         .spacing(Share::Between)
         .grid_column(0)
-        .children(parts.iter().map(|part| legend_item(part, palette)).collect::<Vec<View>>());
+        .children(
+            parts
+                .iter()
+                .map(|part| legend_item(part, palette))
+                .collect::<Vec<View>>(),
+        );
     let total = Border::new().grid_column(2).content(reserved(
         l10n.processes_status_processes(total as i64),
         l10n.processes_status_processes(most as i64),

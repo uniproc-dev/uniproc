@@ -1,7 +1,7 @@
+use crate::widgets::table::{ColumnWidths, Resized, table};
 use app_contracts::features::settings::ByteUnits;
 use app_contracts::features::wsl::WslState;
 use guinea::prelude::Load;
-use crate::widgets::table::{table, ColumnWidths, Resized};
 use windows_reactor::{Callback, View};
 
 use super::components::columns::build_columns;
@@ -35,15 +35,12 @@ impl WslPage {
         units: ByteUnits,
     ) -> View {
         let body = match &state.distros {
-            Load::Ready(rows) => table(
-                rows.to_vec(),
-                build_columns(l10n, palette, units),
-            )
-            .widths(&self.widths)
-            .on_resize(move |drag: Resized| {
-                forward.call(WslMsg::Resized(drag));
-            })
-            .build(),
+            Load::Ready(rows) => table(rows.to_vec(), build_columns(l10n, palette, units))
+                .widths(&self.widths)
+                .on_resize(move |drag: Resized| {
+                    forward.call(WslMsg::Resized(drag));
+                })
+                .build(),
             Load::Failed(err) => text(l10n.wsl_failed(err.to_string())).into(),
             _ => loading(),
         };
@@ -51,7 +48,10 @@ impl WslPage {
         page_frame(
             page_title(l10n.wsl_title()),
             body,
-            status_text(l10n.wsl_status(state.total() as i64, state.running() as i64), palette),
+            status_text(
+                l10n.wsl_status(state.total() as i64, state.running() as i64),
+                palette,
+            ),
             palette,
         )
     }

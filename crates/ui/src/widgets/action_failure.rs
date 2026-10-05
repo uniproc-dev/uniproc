@@ -34,7 +34,11 @@ fn reason(outcome: ActionOutcome, l10n: &L10n) -> String {
     }
 }
 
-pub fn action_failure(failure: Option<&ActionFailure>, l10n: &L10n, dismiss: impl Fn() + 'static) -> View {
+pub fn action_failure(
+    failure: Option<&ActionFailure>,
+    l10n: &L10n,
+    dismiss: impl Fn() + 'static,
+) -> View {
     let (title, subtitle) = match failure {
         Some(failure) => (
             l10n.action_failure_title(action_id(&failure.action), failure.target.to_string()),

@@ -4,7 +4,7 @@ use windows_reactor::{
 
 use guinea::winui::MarkExt;
 
-use crate::theme::{space, Palette};
+use crate::theme::{Palette, space};
 use crate::widgets::card::card;
 use crate::widgets::separator;
 use crate::widgets::text::{body_large, text};
@@ -19,7 +19,12 @@ pub fn status_text(status: impl Into<String>, palette: Palette) -> View {
     text(status).foreground(palette.secondary_text).into()
 }
 
-pub fn page_frame(header: impl Into<View>, body: impl Into<View>, status: impl Into<View>, palette: Palette) -> View {
+pub fn page_frame(
+    header: impl Into<View>,
+    body: impl Into<View>,
+    status: impl Into<View>,
+    palette: Palette,
+) -> View {
     let header_card = card()
         .mark(PageMark::Header)
         .grid_row(0)
@@ -45,7 +50,12 @@ pub fn page_frame(header: impl Into<View>, body: impl Into<View>, status: impl I
 
     Grid::new()
         .rows([GridLength::Auto, GridLength::Star(1.0)])
-        .margin(Thickness::new(0.0, space::Control, space::Control, space::Control))
+        .margin(Thickness::new(
+            0.0,
+            space::Control,
+            space::Control,
+            space::Control,
+        ))
         .children((header_card, content_card))
         .into()
 }

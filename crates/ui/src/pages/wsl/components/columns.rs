@@ -1,11 +1,11 @@
+use crate::widgets::table::ColumnSpec;
 use app_contracts::features::settings::ByteUnits;
 use app_contracts::features::wsl::{AgentPresence, DistroRow, LinuxMachineSummary};
-use crate::widgets::table::ColumnSpec;
 use windows_reactor::{Border, Color, Orientation, StackPanel, Thickness, VerticalAlignment, View};
 
 use crate::format;
 use crate::l10n::L10n;
-use crate::theme::{accent_color, size, space, Palette};
+use crate::theme::{Palette, accent_color, size, space};
 use crate::widgets::distro_icon::distro_icon;
 use crate::widgets::table_cell;
 use crate::widgets::text::text;
@@ -133,19 +133,33 @@ pub(crate) fn build_columns(l10n: &L10n, palette: Palette, units: ByteUnits) -> 
                 m.cpu_percent.unwrap_or(0.0) / 100.0,
             )
         }),
-        metric_column(WslColumn::Memory, l10n.wsl_col_memory(), 130.0, palette, move |m| {
-            let share = if m.memory_total_bytes > 0 {
-                m.memory_used_bytes as f32 / m.memory_total_bytes as f32
-            } else {
-                0.0
-            };
-            (format::bytes(units, m.memory_used_bytes), share)
-        }),
-        metric_column(WslColumn::Net, l10n.wsl_col_net(), 110.0, palette, move |m| {
-            (format::bytes(units, m.net_bytes), 0.0)
-        }),
-        metric_column(WslColumn::Disk, l10n.wsl_col_disk(), 110.0, palette, move |m| {
-            (format::bytes(units, m.disk_bytes), 0.0)
-        }),
+        metric_column(
+            WslColumn::Memory,
+            l10n.wsl_col_memory(),
+            130.0,
+            palette,
+            move |m| {
+                let share = if m.memory_total_bytes > 0 {
+                    m.memory_used_bytes as f32 / m.memory_total_bytes as f32
+                } else {
+                    0.0
+                };
+                (format::bytes(units, m.memory_used_bytes), share)
+            },
+        ),
+        metric_column(
+            WslColumn::Net,
+            l10n.wsl_col_net(),
+            110.0,
+            palette,
+            move |m| (format::bytes(units, m.net_bytes), 0.0),
+        ),
+        metric_column(
+            WslColumn::Disk,
+            l10n.wsl_col_disk(),
+            110.0,
+            palette,
+            move |m| (format::bytes(units, m.disk_bytes), 0.0),
+        ),
     ]
 }

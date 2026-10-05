@@ -1,12 +1,12 @@
 use guicons::icon;
-use guinea::winui::MarkExt;
 use guinea::Mark;
+use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, Callback, Color, Grid, Orientation, PointerEventInfo, StackPanel, ThemeBrush, Thickness,
-    VerticalAlignment, View,
+    Border, Callback, Color, Grid, Orientation, PointerEventInfo, StackPanel, ThemeBrush,
+    Thickness, VerticalAlignment, View,
 };
 
-use crate::theme::{space, Palette};
+use crate::theme::{Palette, space};
 use crate::widgets::text::subtitle;
 
 struct Crumb;
@@ -32,7 +32,11 @@ pub fn breadcrumb(
     on_hover: Callback<bool>,
     back: Callback<()>,
 ) -> View {
-    let Breadcrumb { parent, current, hovered } = crumb;
+    let Breadcrumb {
+        parent,
+        current,
+        hovered,
+    } = crumb;
     let (entered, exited) = (on_hover.clone(), on_hover);
     let parent_text = subtitle(parent);
     let parent_text = if hovered {
@@ -55,9 +59,16 @@ pub fn breadcrumb(
         })
         .content(parent_text);
     let chevron = Grid::new()
-        .margin(Thickness::new(Crumb::ChevronLead, Crumb::ChevronDrop, Crumb::ChevronTrail, 0.0))
+        .margin(Thickness::new(
+            Crumb::ChevronLead,
+            Crumb::ChevronDrop,
+            Crumb::ChevronTrail,
+            0.0,
+        ))
         .vertical_alignment(VerticalAlignment::Center)
-        .children((icon!(chevron_right_regular).size(Crumb::ChevronSize).build_element(),));
+        .children((icon!(chevron_right_regular)
+            .size(Crumb::ChevronSize)
+            .build_element(),));
     StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(space::Compact)

@@ -1,11 +1,12 @@
-use guinea::winui::MarkExt;
 use guinea::Mark;
+use guinea::winui::MarkExt;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Callback, Color, CornerRadius, Grid, GridLength, HorizontalAlignment, Orientation,
-    PointerEventInfo, StackPanel, Thickness, VerticalAlignment, View,
+    Border, Button, ButtonStyle, Callback, Color, CornerRadius, Grid, GridLength,
+    HorizontalAlignment, Orientation, PointerEventInfo, StackPanel, Thickness, VerticalAlignment,
+    View,
 };
 
-use crate::theme::{radius, space, Palette};
+use crate::theme::{Palette, radius, space};
 use crate::widgets::separator;
 use crate::widgets::text::{caption, text};
 
@@ -61,12 +62,23 @@ pub struct PopupMenu<M, C> {
     pub on_dismiss: Callback<()>,
 }
 
-fn line_view<M: Mark, C: Clone + 'static>(line: MenuLine<M, C>, on_command: &Callback<C>, palette: Palette) -> View {
+fn line_view<M: Mark, C: Clone + 'static>(
+    line: MenuLine<M, C>,
+    on_command: &Callback<C>,
+    palette: Palette,
+) -> View {
     match line {
-        MenuLine::Separator => separator(palette).margin(Thickness::xy(0.0, space::Compact)).into(),
+        MenuLine::Separator => separator(palette)
+            .margin(Thickness::xy(0.0, space::Compact))
+            .into(),
         MenuLine::Caption(words) => caption(words)
             .foreground(palette.secondary_text)
-            .margin(Thickness::new(space::Cell, space::Compact, space::Cell, space::Hairline))
+            .margin(Thickness::new(
+                space::Cell,
+                space::Compact,
+                space::Cell,
+                space::Hairline,
+            ))
             .into(),
         MenuLine::Entry(entry) => {
             let on_command = on_command.clone();
@@ -100,7 +112,10 @@ pub fn popup_menu<M: Mark, C: Clone + 'static>(menu: PopupMenu<M, C>) -> View {
         on_command,
         on_dismiss,
     } = menu;
-    let items: Vec<View> = lines.into_iter().map(|line| line_view(line, &on_command, palette)).collect();
+    let items: Vec<View> = lines
+        .into_iter()
+        .map(|line| line_view(line, &on_command, palette))
+        .collect();
 
     let card = Border::new()
         .mark(card)

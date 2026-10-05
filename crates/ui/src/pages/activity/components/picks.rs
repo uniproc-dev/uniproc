@@ -1,11 +1,11 @@
 use app_contracts::features::activity::{Filter, Group, Pick};
 use guicons::icon;
-use windows_reactor::{keyed, Callback, KeyedView, Orientation, StackPanel, Thickness, View};
+use windows_reactor::{Callback, KeyedView, Orientation, StackPanel, Thickness, View, keyed};
 
 use super::super::marks::ActivityMark;
 use super::groups::{group_label, swatch};
 use crate::l10n::L10n;
-use crate::theme::{size, space, Palette};
+use crate::theme::{Palette, size, space};
 use crate::widgets::button::command_button;
 use crate::widgets::popup_menu::MenuLine;
 
@@ -70,9 +70,13 @@ pub fn pick_lines(
     let mut lines = hide_lines(picks, l10n);
     for pick in picks {
         match pick {
-            Pick::Exe(name) => {
-                lines.extend(group_lines(l10n.activity_pick_put_exe(name.to_string()), pick, groups, l10n, palette))
-            }
+            Pick::Exe(name) => lines.extend(group_lines(
+                l10n.activity_pick_put_exe(name.to_string()),
+                pick,
+                groups,
+                l10n,
+                palette,
+            )),
             Pick::Under(name) => lines.extend(group_lines(
                 l10n.activity_pick_put_under(name.to_string()),
                 pick,
@@ -99,7 +103,12 @@ fn hide_lines(picks: &[Pick], l10n: &L10n) -> Vec<MenuLine<ActivityMark, PickCom
                     l10n.activity_pick_only(),
                     PickCommand::Only(pick.clone()),
                 ));
-                lines.push(MenuLine::entry(ActivityMark::HideExe, hide(), l10n.activity_pick_hide_exe(), hidden));
+                lines.push(MenuLine::entry(
+                    ActivityMark::HideExe,
+                    hide(),
+                    l10n.activity_pick_hide_exe(),
+                    hidden,
+                ));
             }
             Pick::Folder(_) => lines.push(MenuLine::entry(
                 ActivityMark::HideFolder,
@@ -127,5 +136,8 @@ pub fn picked(filter: &Filter, l10n: &L10n, on_all: Callback<()>) -> Option<View
         true,
         move || on_all.call(()),
     );
-    Some(row(vec![keyed("only", chip)], Thickness::xy(space::Cell, 0.0)))
+    Some(row(
+        vec![keyed("only", chip)],
+        Thickness::xy(space::Cell, 0.0),
+    ))
 }

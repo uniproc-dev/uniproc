@@ -111,7 +111,10 @@ impl Palette {
 
 impl Palette {
     pub fn hue(self, hue: Hue) -> Color {
-        self.hues[Hue::ALL.iter().position(|known| *known == hue).unwrap_or_default()]
+        self.hues[Hue::ALL
+            .iter()
+            .position(|known| *known == hue)
+            .unwrap_or_default()]
     }
 }
 

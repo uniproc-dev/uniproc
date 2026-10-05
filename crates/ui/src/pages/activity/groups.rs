@@ -2,24 +2,24 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityState, DeleteGroup, DropRule, Group, Hue, MoveGroup, Pick, RecolorGroup, RenameGroup, ShowGroup, Unhide,
+    ActivityState, DeleteGroup, DropRule, Group, Hue, MoveGroup, Pick, RecolorGroup, RenameGroup,
+    ShowGroup, Unhide,
 };
 use guicons::icon;
 use guinea::prelude::Dispatch;
 use guinea::winui::MarkExt;
 use windows_reactor::{
-    keyed, Border, Button, ButtonStyle, Callback, CornerRadius, Grid, GridLength, KeyedView, Orientation, StackPanel,
-    TextBox, ThemeBrush, Thickness, ToggleSwitch, TooltipExt, VerticalAlignment, View,
+    Border, Button, ButtonStyle, Callback, CornerRadius, Grid, GridLength, KeyedView, Orientation,
+    StackPanel, TextBox, ThemeBrush, Thickness, TooltipExt, VerticalAlignment, View, keyed,
 };
 
-use super::components::groups::{group_label, swatch, Swatch};
+use super::components::groups::{Swatch, group_label, swatch};
 use super::components::picks::named;
 use super::marks::ActivityGroupsMark;
 use crate::l10n::L10n;
-use crate::theme::{setting, size, space, Palette};
-use crate::widgets::breadcrumb::{breadcrumb, Breadcrumb};
-use crate::widgets::card::card;
-use crate::widgets::setting_card::{expander_rows, setting_expander};
+use crate::theme::{Palette, setting, size, space};
+use crate::widgets::breadcrumb::{Breadcrumb, breadcrumb};
+use crate::widgets::setting_card::{card_rows, expander_rows, setting_expander, setting_switch};
 use crate::widgets::settings_column::{settings_column, settings_section};
 use crate::widgets::text::{caption, text};
 
@@ -28,7 +28,6 @@ struct Layout;
 #[expect(non_upper_case_globals)]
 impl Layout {
     const NameWidth: f64 = 220.0;
-    const RowMinHeight: f64 = 40.0;
     const Ring: f64 = 18.0;
     const RingWidth: f64 = 2.0;
     const RuleIcon: f64 = 20.0;
@@ -64,7 +63,12 @@ fn rule_label(rule: &Pick, l10n: &L10n) -> View {
         .tooltip(kind)
 }
 
-fn tool(mark: ActivityGroupsMark, glyph: View, hint: String, on_click: impl Fn() + 'static) -> View {
+fn tool(
+    mark: ActivityGroupsMark,
+    glyph: View,
+    hint: String,
+    on_click: impl Fn() + 'static,
+) -> View {
     Button::new()
         .mark(mark)
         .style(ButtonStyle::Subtle)
@@ -76,39 +80,39 @@ fn tool(mark: ActivityGroupsMark, glyph: View, hint: String, on_click: impl Fn()
 fn line(main: View, trailing: View) -> View {
     Grid::new()
         .columns([GridLength::Star(1.0), GridLength::Auto])
-        .min_height(Layout::RowMinHeight)
         .children((
-            Border::new().grid_column(0).vertical_alignment(VerticalAlignment::Center).content(main),
-            Border::new().grid_column(1).vertical_alignment(VerticalAlignment::Center).content(trailing),
+            Border::new()
+                .grid_column(0)
+                .vertical_alignment(VerticalAlignment::Center)
+                .content(main),
+            Border::new()
+                .grid_column(1)
+                .vertical_alignment(VerticalAlignment::Center)
+                .content(trailing),
         ))
         .into()
 }
 
-fn shown_switch(group: &Group, dispatch: &Dispatch, l10n: &L10n) -> View {
+fn shown_switch(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
     let (dispatch, id) = (dispatch.clone(), group.id.clone());
-    let state = text(if group.shown {
+    let state = if group.shown {
         l10n.activity_groups_shown_on()
     } else {
         l10n.activity_groups_shown_off()
-    })
-    .vertical_alignment(VerticalAlignment::Center);
-    let switch = ToggleSwitch::new()
-        .mark(ActivityGroupsMark::Shown)
-        .is_on(group.shown)
-        .on_content(text(""))
-        .off_content(text(""))
-        .min_width(0.0)
-        .on_toggled(move |shown: bool| {
+    };
+    setting_switch(
+        ActivityGroupsMark::Shown,
+        group.shown,
+        true,
+        state,
+        palette,
+        move |shown: bool| {
             dispatch.emit(ShowGroup {
                 group: id.clone(),
                 shown,
             })
-        });
-    StackPanel::new()
-        .orientation(Orientation::Horizontal)
-        .spacing(space::Header)
-        .children((state, switch))
-        .into()
+        },
+    )
 }
 
 fn header(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
@@ -119,7 +123,12 @@ fn header(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> 
         caption(l10n.activity_groups_rules(count))
     };
     Grid::new()
-        .columns([GridLength::Auto, GridLength::Auto, GridLength::Star(1.0), GridLength::Auto])
+        .columns([
+            GridLength::Auto,
+            GridLength::Auto,
+            GridLength::Star(1.0),
+            GridLength::Auto,
+        ])
         .column_spacing(space::Header)
         .margin(Thickness::xy(0.0, setting::ExpanderHeaderInset))
         .children((
@@ -138,7 +147,7 @@ fn header(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> 
             Border::new()
                 .grid_column(3)
                 .vertical_alignment(VerticalAlignment::Center)
-                .content(shown_switch(group, dispatch, l10n)),
+                .content(shown_switch(group, dispatch, l10n, palette)),
         ))
         .into()
 }
@@ -147,7 +156,9 @@ fn rules(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> V
     if group.rules.is_empty() {
         return vec![(
             "empty".to_string(),
-            caption(l10n.activity_groups_empty()).foreground(palette.secondary_text).into(),
+            caption(l10n.activity_groups_empty())
+                .foreground(palette.secondary_text)
+                .into(),
         )];
     }
     group
@@ -192,7 +203,12 @@ fn colours(group: &Group, dispatch: &Dispatch, l10n: &L10n, palette: Palette) ->
                 Button::new()
                     .mark(ActivityGroupsMark::Colour)
                     .style(ButtonStyle::Subtle)
-                    .on_click(move || dispatch.emit(RecolorGroup { group: id.clone(), hue }))
+                    .on_click(move || {
+                        dispatch.emit(RecolorGroup {
+                            group: id.clone(),
+                            hue,
+                        })
+                    })
                     .content(ring)
                     .tooltip(l10n.activity_groups_colour()),
             )
@@ -234,7 +250,12 @@ fn edit(group: &Group, place: Place, dispatch: &Dispatch, l10n: &L10n, palette: 
     let mut tools: Vec<KeyedView> = Vec::new();
     let moved = |up: bool| {
         let (dispatch, id) = (dispatch.clone(), group.id.clone());
-        move || dispatch.emit(MoveGroup { group: id.clone(), up })
+        move || {
+            dispatch.emit(MoveGroup {
+                group: id.clone(),
+                up,
+            })
+        }
     };
     if !place.first {
         tools.push(keyed(
@@ -270,12 +291,22 @@ fn edit(group: &Group, place: Place, dispatch: &Dispatch, l10n: &L10n, palette: 
             ),
         ));
     }
-    let main = StackPanel::new().orientation(Orientation::Horizontal).spacing(space::Header).keyed_children(parts);
-    let tools = StackPanel::new().orientation(Orientation::Horizontal).keyed_children(tools);
+    let main = StackPanel::new()
+        .orientation(Orientation::Horizontal)
+        .spacing(space::Header)
+        .keyed_children(parts);
+    let tools = StackPanel::new()
+        .orientation(Orientation::Horizontal)
+        .keyed_children(tools);
     line(main.into(), tools.into())
 }
 
-fn hidden_section(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palette: Palette) -> View {
+fn hidden_section(
+    state: &ActivityState,
+    dispatch: &Dispatch,
+    l10n: &L10n,
+    palette: Palette,
+) -> View {
     let hidden = &state.filter.hidden;
     let body: View = if hidden.is_empty() {
         caption(l10n.activity_groups_nothing_hidden())
@@ -284,7 +315,7 @@ fn hidden_section(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palet
             .margin(Thickness::new(setting::CaptionInset, 0.0, 0.0, 0.0))
             .into()
     } else {
-        let rows: Vec<KeyedView> = hidden
+        let rows: Vec<(String, View)> = hidden
             .iter()
             .map(|pick| {
                 let (dispatch, shown) = (dispatch.clone(), pick.clone());
@@ -294,21 +325,13 @@ fn hidden_section(state: &ActivityState, dispatch: &Dispatch, l10n: &L10n, palet
                     l10n.activity_groups_show_again(),
                     move || dispatch.emit(Unhide(shown.clone())),
                 );
-                keyed(
-                    pick.id(),
-                    Border::new()
-                        .mark(ActivityGroupsMark::Hidden)
-                        .padding(Thickness::xy(space::Card, 0.0))
-                        .content(line(rule_label(pick, l10n), again)),
-                )
+                let row = Border::new()
+                    .mark(ActivityGroupsMark::Hidden)
+                    .content(line(rule_label(pick, l10n), again));
+                (pick.id(), row.into())
             })
             .collect();
-        card()
-            .border_thickness(Thickness::uniform(space::Hairline))
-            .border_brush(ThemeBrush::CardStroke)
-            .padding(Thickness::xy(0.0, space::Compact))
-            .content(StackPanel::new().keyed_children(rows))
-            .into()
+        card_rows(rows)
     };
     settings_section(l10n.activity_groups_hidden(), (body,))
 }
@@ -336,14 +359,21 @@ impl ActivityGroupsPage {
         forward: &Callback<ActivityGroupsMsg>,
     ) -> View {
         let mut content = rules(group, dispatch, l10n, palette);
-        content.push(("edit".to_string(), edit(group, place, dispatch, l10n, palette)));
+        content.push((
+            "edit".to_string(),
+            edit(group, place, dispatch, l10n, palette),
+        ));
         let (expanded, id) = (forward.clone(), group.id.clone());
         setting_expander()
             .mark(ActivityGroupsMark::Group)
             .is_expanded(self.expanded.contains(&group.id))
-            .on_is_expanded_changed(move |open: bool| expanded.call(ActivityGroupsMsg::Expand(id.clone(), open)))
+            .on_is_expanded_changed(move |open: bool| {
+                expanded.call(ActivityGroupsMsg::Expand(id.clone(), open))
+            })
             .header(header(group, dispatch, l10n, palette))
-            .content(expander_rows(Swatch::Size + space::Header, content).mark(ActivityGroupsMark::Rows))
+            .content(
+                expander_rows(Swatch::Size + space::Header, content).mark(ActivityGroupsMark::Rows),
+            )
             .into()
     }
 
@@ -378,15 +408,25 @@ impl ActivityGroupsPage {
                     first: at == 0,
                     last: at == last,
                 };
-                keyed(group.id.clone(), self.group(group, place, dispatch, l10n, palette, &forward))
+                keyed(
+                    group.id.clone(),
+                    self.group(group, place, dispatch, l10n, palette, &forward),
+                )
             })
             .collect();
         settings_column((
             crumbs,
             caption(l10n.activity_groups_order())
                 .foreground(palette.secondary_text)
-                .margin(Thickness::new(setting::CaptionInset, space::Section, 0.0, space::Control)),
-            StackPanel::new().spacing(setting::CardSpacing).keyed_children(cards),
+                .margin(Thickness::new(
+                    setting::CaptionInset,
+                    space::Section,
+                    0.0,
+                    space::Control,
+                )),
+            StackPanel::new()
+                .spacing(setting::CardSpacing)
+                .keyed_children(cards),
             hidden_section(state, dispatch, l10n, palette),
         ))
     }
