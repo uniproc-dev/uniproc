@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use app_contracts::features::activity::{Area, Dot, Hue, Lived, Scatter};
+use app_contracts::features::activity::{Area, Fate, Lived, Look as Ink, Scatter};
 use app_contracts::features::agents::ProcessInstance;
 use guinea_widgets::chart::scatter::{
     Area as Brushed, Level, Marker, Scale, ScatterData, ScatterEvent, ScatterOptions, ScatterPoint, SeriesStyle,
@@ -58,38 +58,21 @@ fn lived(level: Level) -> Lived {
     }
 }
 
-fn marker(lived: Lived) -> Marker {
-    match lived {
-        Lived::Unknown => Marker::Tick,
-        Lived::For(_) => Marker::Dot,
-        Lived::Running => Marker::Ring,
+fn marker(fate: Fate) -> Marker {
+    match fate {
+        Fate::Unknown => Marker::Tick,
+        Fate::Ended => Marker::Dot,
+        Fate::Running => Marker::Ring,
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-struct Ink {
-    marker: Marker,
-    hue: Option<Hue>,
-    faint: bool,
-}
-
-impl Ink {
-    fn of(dot: &Dot) -> Self {
-        Self {
-            marker: marker(dot.lived()),
-            hue: dot.hue(),
-            faint: dot.faint(),
-        }
-    }
-
-    fn color(self, palette: Palette) -> Color {
-        let base = match self.hue {
-            Some(hue) => palette.hue(hue),
-            None if self.marker == Marker::Tick => palette.critical,
-            None => palette.success,
-        };
-        if self.faint { Color { a: Look::Faint, ..base } } else { base }
-    }
+fn color(ink: Ink, palette: Palette) -> Color {
+    let base = match ink.hue {
+        Some(hue) => palette.hue(hue),
+        None if ink.fate == Fate::Unknown => palette.critical,
+        None => palette.success,
+    };
+    if ink.faint { Color { a: Look::Faint, ..base } } else { base }
 }
 
 pub struct Plotted {
@@ -101,10 +84,9 @@ pub struct Plotted {
 impl Plotted {
     pub fn new(scatter: Arc<Scatter>, palette: Palette) -> Self {
         let mut inks = Vec::new();
-        for dot in scatter.dots() {
-            let ink = Ink::of(dot);
-            if !inks.contains(&ink) {
-                inks.push(ink);
+        for run in scatter.pieces.iter().flat_map(|piece| piece.runs.iter()) {
+            if !inks.contains(&run.look) {
+                inks.push(run.look);
             }
         }
         Self { scatter, palette, inks }
@@ -123,20 +105,24 @@ impl ScatterData<ProcessInstance> for Plotted {
     fn style(&self, index: usize) -> SeriesStyle {
         let ink = self.inks[index];
         SeriesStyle {
-            color: color_f(ink.color(self.palette)),
-            marker: ink.marker,
+            color: color_f(color(ink, self.palette)),
+            marker: marker(ink.fate),
             size: Look::Size,
         }
     }
 
     fn points(&self, index: usize, each: &mut dyn FnMut(&ScatterPoint<ProcessInstance>)) {
         let ink = self.inks[index];
-        for dot in self.scatter.dots().filter(|dot| Ink::of(dot) == ink) {
-            each(&ScatterPoint {
-                key: dot.key(),
-                at: dot.at(),
-                value: level(dot.lived()),
-            });
+        for piece in &self.scatter.pieces {
+            for run in piece.runs.iter().filter(|run| run.look == ink) {
+                for dot in piece.run(run) {
+                    each(&ScatterPoint {
+                        key: dot.key(),
+                        at: dot.at(),
+                        value: level(dot.lived()),
+                    });
+                }
+            }
         }
     }
 }
@@ -186,7 +172,7 @@ pub fn acts(event: &ScatterEvent<ProcessInstance>, scatter: &Scatter) -> Vec<Act
 
 #[cfg(test)]
 mod tests {
-    use app_contracts::features::activity::Clock;
+    use app_contracts::features::activity::{Clock, Dot, Hue};
     use guinea_widgets::chart::scatter::{Area as Brushed, Hit, Level, Marker, Scale, ScatterSeries};
 
     use super::*;
@@ -270,6 +256,31 @@ mod tests {
         assert_eq!(found(Marker::Ring), [(id(21), Level::Above(0))], "{series:#?}");
         assert_eq!(found(Marker::Tick), [(id(22), Level::Below(0))], "{series:#?}");
         assert!(series.iter().all(|series| series.points.iter().all(|point| point.at == NOW - HOUR / 2)));
+    }
+
+    #[test]
+    fn a_look_over_several_minutes_is_one_series_in_time_order() {
+        let at = |pid: u32, at: u64, lived: Lived| Dot::new(id(pid), at, lived, false, None);
+        let scatter = Scatter {
+            pieces: vec![
+                vec![at(21, NOW - 50, Lived::Running), at(20, NOW - 60, Lived::Unknown), at(22, NOW - 40, Lived::Unknown)]
+                    .into(),
+                vec![at(23, NOW - 10, Lived::Unknown), at(24, NOW - 5, Lived::Running)].into(),
+            ],
+            ..scatter(Vec::new())
+        };
+
+        let series = series(&scatter, palette());
+
+        let keys = |marker: Marker| {
+            series
+                .iter()
+                .filter(|series| series.marker == marker)
+                .map(|series| series.points.iter().map(|point| point.key.pid).collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(keys(Marker::Tick), [vec![20, 22, 23]], "{series:#?}");
+        assert_eq!(keys(Marker::Ring), [vec![21, 24]], "{series:#?}");
     }
 
     #[test]

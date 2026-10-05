@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use app_contracts::features::activity::{
     ActivityRow, ActivityView, Area, Came, Clock, Dot, Exit, Filter, Group, Hue, Launcher, Legend, Lived, Pick,
-    Piece, Scatter, Series, Span, Went,
+    Piece, Run, Scatter, Series, Span, Went,
 };
 use std::hash::BuildHasher;
 use std::num::NonZeroU32;
@@ -880,6 +880,7 @@ struct Drawn {
     named: u32,
     touched: u32,
     dots: Arc<Vec<Dot>>,
+    runs: Arc<[Run]>,
     legend: Legend,
 }
 
@@ -938,11 +939,14 @@ fn draw(sieve: &Sieve<'_>, minute: u64, mut dots: Arc<Vec<Dot>>) -> Drawn {
             }
         }
     }
+    kept.sort_by_key(Dot::look);
+    let runs = Run::split(kept);
     Drawn {
         asked: sieve.asked,
         named: log.naming.len() as u32,
         touched: log.touched(minute),
         dots,
+        runs: runs.into(),
         legend,
     }
 }
@@ -971,25 +975,32 @@ fn scatter(sieve: &Sieve<'_>, frame: &Frame, clock: fn(u64) -> Clock) -> (Scatte
             }
         };
         let (start, end) = (minute * Ticks::Minute, (minute + 1) * Ticks::Minute);
-        if frame.start <= start && end <= frame.end {
+        let runs = if frame.start <= start && end <= frame.end {
             for (total, count) in legend.groups.iter_mut().zip(&kept.legend.groups) {
                 *total += count;
             }
             legend.other += kept.legend.other;
+            kept.runs.clone()
         } else {
             for event in log.span(start.max(frame.start), end.min(frame.end)) {
                 if let Some((group, _)) = plotted(sieve, &event) {
                     counted(&mut legend, group);
                 }
             }
-        }
-        let from = kept.dots.partition_point(|dot| dot.at() < frame.start);
-        let to = kept.dots.partition_point(|dot| dot.at() < frame.end);
-        if from < to {
+            kept.runs
+                .iter()
+                .filter_map(|run| {
+                    let dots = &kept.dots[run.from..run.to];
+                    let from = run.from + dots.partition_point(|dot| dot.at() < frame.start);
+                    let to = run.from + dots.partition_point(|dot| dot.at() < frame.end);
+                    (from < to).then_some(Run { from, to, ..*run })
+                })
+                .collect()
+        };
+        if !runs.is_empty() {
             pieces.push(Piece {
                 dots: kept.dots.clone(),
-                from,
-                to,
+                runs,
             });
         }
         drawn.insert(minute, kept);
@@ -1443,7 +1454,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
 mod tests {
     use std::sync::Arc;
 
-    use app_contracts::features::activity::{ActivityRow, Hue, Launcher};
+    use app_contracts::features::activity::{ActivityRow, Fate, Hue, Launcher, Look};
     use app_contracts::features::agents::{ProcessCame, ProcessInstance, ProcessWent, ScheduledTask};
 
     use super::*;
@@ -2621,7 +2632,7 @@ mod tests {
             .scatter
             .pieces
             .iter()
-            .find(|piece| piece.dots().iter().any(|dot| dot.key() == id(pid)));
+            .find(|piece| piece.dots().any(|dot| dot.key() == id(pid)));
         assert!(piece.is_some(), "no piece holds {pid}: {:#?}", view.scatter);
         piece.unwrap().dots.clone()
     }
@@ -2651,6 +2662,45 @@ mod tests {
 
         assert!(Arc::ptr_eq(&piece_of(&before, 20), &piece_of(&after, 20)));
         assert_eq!(dot(&after.scatter, 21).lived(), Lived::For(10 * Ticks::Minute + Ticks::Second));
+    }
+
+    #[test]
+    fn a_minute_hands_each_look_over_as_one_run_in_time_order() {
+        let mut log = Log::default();
+        log.record(&[
+            came(20, 1, "a.exe", at(10, 1)),
+            came(21, 1, "b.exe", at(10, 2)),
+            went(21, at(10, 3)),
+            went(30, at(10, 4)),
+            came(22, 1, "c.exe", at(10, 5)),
+        ]);
+
+        let view = look(&log, &Filter::default(), None);
+
+        let runs: Vec<(Look, Vec<u32>)> = view
+            .scatter
+            .pieces
+            .iter()
+            .flat_map(|piece| {
+                piece
+                    .runs
+                    .iter()
+                    .map(move |run| (run.look, piece.run(run).iter().map(|dot| dot.key().pid).collect()))
+            })
+            .collect();
+        let plain = |fate| Look {
+            fate,
+            hue: None,
+            faint: false,
+        };
+        assert_eq!(
+            runs,
+            [
+                (plain(Fate::Unknown), vec![30]),
+                (plain(Fate::Ended), vec![21]),
+                (plain(Fate::Running), vec![20, 22]),
+            ]
+        );
     }
 
     struct Dice(u64);

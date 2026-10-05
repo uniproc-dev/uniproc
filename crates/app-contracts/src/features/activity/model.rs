@@ -195,27 +195,80 @@ impl Dot {
     pub fn hue(&self) -> Option<Hue> {
         self.hue
     }
+
+    pub fn look(&self) -> Look {
+        Look {
+            fate: match self.lived {
+                Kept::Unknown => Fate::Unknown,
+                Kept::Running => Fate::Running,
+                _ => Fate::Ended,
+            },
+            hue: self.hue,
+            faint: self.faint,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum Fate {
+    Unknown,
+    Ended,
+    Running,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub struct Look {
+    pub fate: Fate,
+    pub hue: Option<Hue>,
+    pub faint: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Run {
+    pub look: Look,
+    pub from: usize,
+    pub to: usize,
+}
+
+impl Run {
+    pub fn split(dots: &[Dot]) -> Vec<Run> {
+        let mut runs: Vec<Run> = Vec::new();
+        for (at, dot) in dots.iter().enumerate() {
+            match runs.last_mut() {
+                Some(run) if run.look == dot.look() => run.to = at + 1,
+                _ => runs.push(Run {
+                    look: dot.look(),
+                    from: at,
+                    to: at + 1,
+                }),
+            }
+        }
+        runs
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct Piece {
     pub dots: Arc<Vec<Dot>>,
-    pub from: usize,
-    pub to: usize,
+    pub runs: Arc<[Run]>,
 }
 
 impl Piece {
-    pub fn dots(&self) -> &[Dot] {
-        &self.dots[self.from..self.to]
+    pub fn run(&self, run: &Run) -> &[Dot] {
+        &self.dots[run.from..run.to]
+    }
+
+    pub fn dots(&self) -> impl Iterator<Item = &Dot> {
+        self.runs.iter().flat_map(|run| self.run(run))
     }
 }
 
 impl From<Vec<Dot>> for Piece {
-    fn from(dots: Vec<Dot>) -> Self {
+    fn from(mut dots: Vec<Dot>) -> Self {
+        dots.sort_by_key(Dot::look);
         Self {
-            to: dots.len(),
+            runs: Run::split(&dots).into(),
             dots: Arc::new(dots),
-            from: 0,
         }
     }
 }
