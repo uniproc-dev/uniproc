@@ -7,21 +7,26 @@ struct Counting;
 
 static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
 static BYTES: AtomicUsize = AtomicUsize::new(0);
+static LIVE: AtomicUsize = AtomicUsize::new(0);
 
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
         BYTES.fetch_add(layout.size(), Ordering::Relaxed);
+        LIVE.fetch_add(layout.size(), Ordering::Relaxed);
         unsafe { System.alloc(layout) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        LIVE.fetch_sub(layout.size(), Ordering::Relaxed);
         unsafe { System.dealloc(ptr, layout) }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
         BYTES.fetch_add(new_size, Ordering::Relaxed);
+        LIVE.fetch_add(new_size, Ordering::Relaxed);
+        LIVE.fetch_sub(layout.size(), Ordering::Relaxed);
         unsafe { System.realloc(ptr, layout, new_size) }
     }
 }
@@ -168,12 +173,20 @@ fn main() {
     let comes = events.iter().filter(|event| matches!(event, ProcessEvent::Came(_))).count();
     println!("one hour, taskhostw every {storm_every} ms: {} events, {comes} starts", events.len());
 
+    let held = LIVE.load(Ordering::Relaxed);
     let mut log = Log::default();
     let started = Instant::now();
     for batch in events.chunks(64) {
         log.record(batch);
     }
-    println!("record: {:?} for the hour", started.elapsed());
+    let kept = LIVE.load(Ordering::Relaxed) - held;
+    println!(
+        "record: {:?} for the hour, the log holds {:.1} MiB, {} bytes a start",
+        started.elapsed(),
+        kept as f64 / 1024.0 / 1024.0,
+        kept / comes
+    );
+    drop(events);
 
     let now = BASE + 3_600 * Ticks::Second;
     let groups = groups();
