@@ -284,10 +284,7 @@ fn expander(
         .is_expanded(open)
         .on_is_expanded_changed(move |open: bool| expanded.call(ProcessesSettingsMsg::Expand(group, open)))
         .header(header)
-        .content(expander_rows(
-            0.0,
-            rows.into_iter().chain([("reset".to_string(), reset)]).collect(),
-        ))
+        .content(expander_rows(rows.into_iter().chain([("reset".to_string(), reset)]).collect()))
         .into()
 }
 
@@ -386,18 +383,19 @@ fn row(mark: impl Mark, label: String, (moves, control): (View, Option<View>)) -
             .children((moves,))
             .into(),
     ];
-    cells.extend(control.map(|control| {
-        Grid::new()
-            .grid_column(2)
-            .vertical_alignment(VerticalAlignment::Center)
-            .children((control,))
-            .into()
-    }));
-    let line = Border::new().mark(mark).content(
-        Grid::new()
-            .columns([GridLength::Star(1.0), GridLength::Auto, GridLength::Auto])
-            .column_spacing(space::Card)
-            .children(cells),
-    );
+    let mut columns = vec![GridLength::Star(1.0), GridLength::Auto];
+    if let Some(control) = control {
+        columns.push(GridLength::Auto);
+        cells.push(
+            Grid::new()
+                .grid_column(2)
+                .vertical_alignment(VerticalAlignment::Center)
+                .children((control,))
+                .into(),
+        );
+    }
+    let line = Border::new()
+        .mark(mark)
+        .content(Grid::new().columns(columns).column_spacing(space::Card).children(cells));
     (key, line.into())
 }

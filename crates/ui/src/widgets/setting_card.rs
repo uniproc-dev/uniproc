@@ -94,8 +94,8 @@ fn bands(rows: Vec<(String, View)>, start: f64, end: f64) -> StackPanel {
     StackPanel::new().keyed_children(bands)
 }
 
-pub fn expander_rows(indent: f64, rows: Vec<(String, View)>) -> StackPanel {
-    bands(rows, setting::ExpanderStart + indent, setting::ExpanderEnd)
+pub fn expander_rows(rows: Vec<(String, View)>) -> StackPanel {
+    bands(rows, setting::ExpanderStart + setting::icon_column(), setting::ExpanderEnd)
         .margin(Thickness::uniform(-SettingCardSize::WinuiExpanderContentPadding))
 }
 

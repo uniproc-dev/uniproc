@@ -12,7 +12,7 @@ use windows_reactor::{
     TextBox, ThemeBrush, Thickness, TooltipExt, VerticalAlignment, View,
 };
 
-use super::components::groups::{group_label, swatch, Swatch};
+use super::components::groups::{group_label, swatch};
 use super::components::picks::named;
 use super::marks::ActivityGroupsMark;
 use crate::l10n::L10n;
@@ -318,7 +318,7 @@ impl ActivityGroupsPage {
             .is_expanded(self.expanded.contains(&group.id))
             .on_is_expanded_changed(move |open: bool| expanded.call(ActivityGroupsMsg::Expand(id.clone(), open)))
             .header(header(group, dispatch, l10n, palette))
-            .content(expander_rows(Swatch::Size + space::Header, content).mark(ActivityGroupsMark::Rows))
+            .content(expander_rows(content).mark(ActivityGroupsMark::Rows))
             .into()
     }
 
