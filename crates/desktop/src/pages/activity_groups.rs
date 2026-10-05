@@ -37,7 +37,7 @@ impl Page for ActivityGroups {
 
 #[cfg(test)]
 mod tests {
-    use app_contracts::features::activity::{Clock, Group, Hide, NewGroup, Pick};
+    use app_contracts::features::activity::{Clock, Group, Hide, Hue, NewGroup, Pick};
     use domain::features::activity::settings::{remembered_groups, ActivitySettings};
     use domain::features::activity::{ActivityDeps, ActivityFeature};
     use guinea::app::Harness;
@@ -139,18 +139,22 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4)]
-    fn a_group_is_moved_emptied_and_deleted_from_its_card(h: &mut Harness) {
+    fn a_group_is_moved_recoloured_emptied_and_deleted_from_its_card(h: &mut Harness) {
         start(h);
         let h = &*h;
         let tool = Pick::Exe("tool.exe".into());
         h.act::<ActivityState>(NewGroup(tool)).settle();
         let mut page = mount(h);
         let id = groups(h)[1].id.clone();
+        assert_ne!(groups(h)[1].hue, Hue::Teal);
         expand(&mut page, &id);
         assert!(page.find(ActivityGroupsMark::Name).is_some(), "{:#?}", page.tree());
 
         click(&mut page, ActivityGroupsMark::Up);
         assert_eq!(groups(h)[0].id, id);
+
+        click(&mut page, ActivityGroupsMark::Colour);
+        assert_eq!(groups(h)[0].hue, Hue::Teal);
 
         click(&mut page, ActivityGroupsMark::Rule);
         assert!(groups(h)[0].rules.is_empty(), "{:#?}", groups(h));
