@@ -65,6 +65,7 @@ mod tests {
     use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::{StoreAccess, StorePlugin};
     use ui::pages::activity::ActivityMark;
+    use ui::widgets::selection::SelectionMark;
 
     use super::*;
 
@@ -331,6 +332,30 @@ mod tests {
 
     fn menu_open(page: &Mounted<'_, Activity>) -> bool {
         page.find(ActivityMark::RowMenu).is_some()
+    }
+
+    fn keeps(node: &Node, mark: ActivityMark) -> bool {
+        let keeper = guinea::Mark::name(&SelectionMark::Keeper);
+        let wanted = guinea::Mark::name(&mark);
+        fn has(node: &Node, id: &str) -> bool {
+            node.id.as_deref() == Some(id) || node.children.iter().any(|child| has(child, id))
+        }
+        (node.id.as_deref() == Some(keeper) && has(node, wanted)) || node.children.iter().any(|child| keeps(child, mark))
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn a_right_press_on_a_row_is_not_a_press_away_that_closes_its_menu(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        live(h, &mut page, vec![came(20, 10)]);
+
+        right_click(&mut page);
+        assert!(menu_open(&page), "{:#?}", page.tree());
+
+        let tree = page.tree();
+        assert!(keeps(&tree, ActivityMark::Row), "{tree:#?}");
+        assert!(keeps(&tree, ActivityMark::RowMenuBackdrop), "{tree:#?}");
     }
 
     #[guinea::test(iterations = 4)]

@@ -31,7 +31,7 @@ use crate::widgets::button::command_button;
 use crate::widgets::nothing::nothing;
 use crate::widgets::page::{loading, page_frame, page_title, status_text};
 use crate::widgets::popup_menu::{popup_menu, PopupMenu};
-use crate::widgets::selection::Pinned;
+use crate::widgets::selection::{Pinned, SelectionMark};
 use crate::widgets::separator;
 use crate::widgets::text::{caption, text};
 
@@ -330,7 +330,7 @@ impl ActivityPage {
                 .content(scroller)
                 .into()];
             layers.extend(menu);
-            Grid::new().children(layers).into()
+            Grid::new().mark(SelectionMark::Keeper).children(layers).into()
         };
 
         let plot_margin = Thickness::new(space::Cell, space::Compact, space::Cell, 0.0);
