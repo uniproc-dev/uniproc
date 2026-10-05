@@ -1,3 +1,4 @@
+use std::cell::{Cell, RefCell};
 use std::collections::{vec_deque, BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -51,12 +52,21 @@ struct Started {
     first_seen: bool,
     launched: Option<(ProcessInstance, Spell)>,
     went_at: Option<u64>,
+    graded: Cell<Graded>,
 }
 
 struct Ended {
     went: ProcessWent,
     placed: Placed,
     came_at: Option<u64>,
+    graded: Cell<Graded>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct Graded {
+    asked: u32,
+    named: usize,
+    verdict: Option<Option<usize>>,
 }
 
 enum Event {
@@ -110,6 +120,9 @@ pub struct Log {
     running: HashMap<u32, Vec<Known>>,
     since: Option<u64>,
     lost: u64,
+    asked: RefCell<(Filter, Vec<Group>)>,
+    asking: Cell<u32>,
+    naming: Vec<u64>,
 }
 
 impl Default for Log {
@@ -129,6 +142,9 @@ impl Default for Log {
             running: HashMap::new(),
             since: None,
             lost: 0,
+            asked: RefCell::new((Filter::default(), Vec::new())),
+            asking: Cell::new(1),
+            naming: Vec::new(),
         }
     }
 }
@@ -188,6 +204,25 @@ impl Log {
         }
         self.events.make_contiguous().sort_by_key(Event::key);
         self.reindex(0);
+        self.regrade();
+    }
+
+    fn regrade(&self) {
+        self.asking.set(self.asking.get() + 1);
+    }
+
+    fn renamed(&mut self, from: u64) {
+        for floor in self.naming.iter_mut().rev() {
+            if *floor <= from {
+                break;
+            }
+            *floor = from;
+        }
+        self.naming.push(from);
+    }
+
+    fn named_since(&self, named: usize, at: u64) -> bool {
+        self.naming.get(named).is_none_or(|&from| from > at)
     }
 
     fn add(&mut self, event: &ProcessEvent, place: fn(&mut Self, Event)) {
@@ -206,6 +241,7 @@ impl Log {
                 };
                 let went_at = self.ended_mut(came.instance).map(|ended| {
                     ended.came_at = Some(came.at);
+                    ended.graded.take();
                     ended.went.at
                 });
                 place(
@@ -217,6 +253,7 @@ impl Log {
                         first_seen,
                         launched: None,
                         went_at,
+                        graded: Cell::default(),
                     }),
                 );
                 if !self.settle_launcher(came.instance) {
@@ -238,6 +275,7 @@ impl Log {
                         went: went.clone(),
                         placed,
                         came_at,
+                        graded: Cell::default(),
                     }),
                 );
             }
@@ -249,6 +287,9 @@ impl Log {
         let position = if self.events.back().is_none_or(|last| last.key() <= key) {
             self.events.len()
         } else {
+            if let Event::Came(_) = event {
+                self.regrade();
+            }
             self.events.partition_point(|known| known.key() < key)
         };
         self.events.insert(position, event);
@@ -305,6 +346,7 @@ impl Log {
     }
 
     pub fn note_running(&mut self, processes: &[WindowsProcessStats]) {
+        let mut renamed = None::<u64>;
         for process in processes {
             if !process.image_path.is_empty() {
                 let placed = self.names.path(&process.image_path);
@@ -317,7 +359,11 @@ impl Log {
                     name,
                     start_time: process.start_time,
                 });
+                renamed = Some(renamed.map_or(process.start_time, |from| from.min(process.start_time)));
             }
+        }
+        if let Some(from) = renamed {
+            self.renamed(from);
         }
         for instance in std::mem::take(&mut self.unplaced) {
             self.settle_launcher(instance);
@@ -337,6 +383,15 @@ impl Log {
             started.launched = Some(launcher);
         }
         true
+    }
+
+    fn ask(&self, filter: &Filter, groups: &[Group]) -> u32 {
+        let mut asked = self.asked.borrow_mut();
+        if asked.0 != *filter || asked.1 != groups {
+            *asked = (filter.clone(), groups.to_vec());
+            self.asking.set(self.asking.get() + 1);
+        }
+        self.asking.get()
     }
 
     fn known(&self, pid: u32, before: u64) -> Option<&Known> {
@@ -714,10 +769,11 @@ struct Sieve<'a> {
     hidden: Vec<Rule>,
     text: String,
     band: Option<(Lived, Lived)>,
+    asked: u32,
 }
 
 impl<'a> Sieve<'a> {
-    fn new(log: &'a Log, filter: &'a Filter, groups: &'a Groups<'a>, area: Option<Area>) -> Self {
+    fn new(log: &'a Log, filter: &'a Filter, groups: &'a Groups<'a>, area: Option<Area>, asked: u32) -> Self {
         Self {
             log,
             filter,
@@ -726,7 +782,27 @@ impl<'a> Sieve<'a> {
             hidden: filter.hidden.iter().map(|pick| log.rule(pick)).collect(),
             text: filter.text.trim().to_lowercase(),
             band: area.map(|area| (area.shortest, area.longest)),
+            asked,
         }
+    }
+
+    fn cached(
+        &self,
+        graded: &Cell<Graded>,
+        at: u64,
+        judge: impl FnOnce() -> Option<Option<usize>>,
+    ) -> Option<Option<usize>> {
+        let known = graded.get();
+        if known.asked == self.asked && self.log.named_since(known.named, at) {
+            return known.verdict;
+        }
+        let verdict = judge();
+        graded.set(Graded {
+            asked: self.asked,
+            named: self.log.naming.len(),
+            verdict,
+        });
+        verdict
     }
 
     fn held(&self, lived: Lived) -> bool {
@@ -738,10 +814,19 @@ impl<'a> Sieve<'a> {
     }
 
     fn grade_came(&self, started: &Started) -> Option<Option<usize>> {
+        self.cached(&started.graded, started.came.at, || self.judge_came(started))
+            .filter(|_| self.held(came_lived(started)))
+    }
+
+    fn grade_went(&self, ended: &Ended) -> Option<Option<usize>> {
+        self.cached(&ended.graded, ended.went.at, || self.judge_went(ended))
+            .filter(|_| self.held(went_lived(ended)))
+    }
+
+    fn judge_came(&self, started: &Started) -> Option<Option<usize>> {
         let passes = self.filter.came
             && (!self.filter.new_only || started.first_seen)
             && !self.log.hosted(started)
-            && self.held(came_lived(started))
             && admitted(self.only, &self.hidden, |rule| self.log.has(started, rule))
             && [
                 &**self.log.names.text(started.name),
@@ -753,7 +838,7 @@ impl<'a> Sieve<'a> {
         passes.then(|| self.log.came_group(self.groups, started))
     }
 
-    fn grade_went(&self, ended: &Ended) -> Option<Option<usize>> {
+    fn judge_went(&self, ended: &Ended) -> Option<Option<usize>> {
         let passes = self.filter.went
             && !self.filter.new_only
             && !ended.came_at.is_some_and(|_| {
@@ -761,7 +846,6 @@ impl<'a> Sieve<'a> {
                     .started(ended.went.instance)
                     .is_some_and(|started| self.log.hosted(started))
             })
-            && self.held(went_lived(ended))
             && admitted(self.only, &self.hidden, |rule| self.log.went_has(ended, rule))
             && contains(went_name(self.log, ended).as_deref().unwrap_or_default(), &self.text);
         passes.then(|| self.log.went_group(self.groups, ended))
@@ -858,8 +942,9 @@ pub fn row(log: &Log, groups: &[Group], key: ProcessInstance, clock: fn(u64) -> 
 pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     let clock = ask.clock;
     let groups = Groups::new(log, ask.groups);
+    let asked = log.ask(ask.filter, ask.groups);
     let frame = Frame::of(log, ask.now, ask.span);
-    let (scatter, legend) = scatter(&Sieve::new(log, ask.filter, &groups, None), &frame, clock);
+    let (scatter, legend) = scatter(&Sieve::new(log, ask.filter, &groups, None, asked), &frame, clock);
     let scatter = Scatter {
         area: ask.area,
         ..scatter
@@ -879,7 +964,7 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
     }
 
     let mut walk = Walk {
-        sieve: Sieve::new(log, ask.filter, &groups, ask.area),
+        sieve: Sieve::new(log, ask.filter, &groups, ask.area, asked),
         rows: Vec::new(),
         series: HashMap::new(),
     };
@@ -1353,6 +1438,80 @@ mod tests {
         };
         let left: Vec<_> = look(&log, &hidden, None).rows.iter().map(|row| only_came(row).name.clone()).collect();
         assert_eq!(left, [Arc::from("rg.exe")]);
+    }
+
+    fn listed(log: &Log, filter: &Filter) -> Vec<Arc<str>> {
+        look(log, filter, None)
+            .rows
+            .iter()
+            .map(|row| match row {
+                ActivityRow::Came(came) => came.name.clone(),
+                ActivityRow::Went(went) => went.name.clone().unwrap_or_default(),
+                ActivityRow::Series(series) => series.folder.clone(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_launcher_named_after_a_look_hides_what_it_launched_from_then_on() {
+        let mut log = Log::default();
+        log.record(&[came(20, 4, "git.exe", at(10, 0))]);
+        let filter = Filter {
+            hidden: vec![Pick::Under("code.exe".into())],
+            ..Filter::default()
+        };
+        assert_eq!(listed(&log, &filter), [Arc::from("git.exe")]);
+
+        log.note_running(&[running(4, "Code.exe", at(0, 0))]);
+
+        assert_eq!(listed(&log, &filter), [] as [Arc<str>; 0]);
+    }
+
+    #[test]
+    fn a_pid_found_taken_before_the_child_started_moves_the_child_after_a_look() {
+        let mut log = Log::default();
+        log.note_running(&[running(4, "Code.exe", at(0, 0))]);
+        log.record(&[came(20, 4, "git.exe", at(10, 0))]);
+        let filter = Filter {
+            hidden: vec![Pick::Under("notepad.exe".into())],
+            ..Filter::default()
+        };
+        assert_eq!(listed(&log, &filter), [Arc::from("git.exe")]);
+
+        log.note_running(&[running(4, "notepad.exe", at(9, 0))]);
+
+        assert_eq!(listed(&log, &filter), [] as [Arc<str>; 0]);
+    }
+
+    #[test]
+    fn an_exit_heard_before_its_start_is_judged_by_the_start_once_it_is_heard() {
+        let mut log = Log::default();
+        log.record(&[went(20, at(10, 2))]);
+        let filter = Filter {
+            came: false,
+            hidden: vec![Pick::Exe("tool.exe".into())],
+            ..Filter::default()
+        };
+        assert_eq!(listed(&log, &filter).len(), 1);
+
+        log.record(&[came(20, 1, "tool.exe", at(10, 0))]);
+
+        assert_eq!(listed(&log, &filter), [] as [Arc<str>; 0]);
+    }
+
+    #[test]
+    fn a_parent_heard_after_its_child_and_a_look_takes_the_child_under_it() {
+        let mut log = Log::default();
+        log.record(&[came(21, 20, "git.exe", at(10, 1))]);
+        let filter = Filter {
+            hidden: vec![Pick::Under("cmd.exe".into())],
+            ..Filter::default()
+        };
+        assert_eq!(listed(&log, &filter), [Arc::from("git.exe")]);
+
+        log.record(&[came(20, 1, "cmd.exe", at(10, 0))]);
+
+        assert_eq!(listed(&log, &filter), [Arc::from("cmd.exe")]);
     }
 
     #[test]
