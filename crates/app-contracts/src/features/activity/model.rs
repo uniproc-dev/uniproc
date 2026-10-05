@@ -53,18 +53,6 @@ impl Pick {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Preset {
-    pub name: String,
-    pub filter: Filter,
-}
-
-impl Preset {
-    pub fn is(&self, filter: &Filter) -> bool {
-        self.filter == Filter { text: String::new(), ..filter.clone() }
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Filter {
     pub came: bool,
     pub went: bool,

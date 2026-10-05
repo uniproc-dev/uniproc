@@ -1,8 +1,8 @@
 use guinea::prelude::*;
 
 use crate::app::App;
-use crate::layouts::{ActivityArea, MainWindow, Overlay, PaneFooter, ProcessesArea, Shell, SystemArea};
-use crate::pages::{Activity, ActivityPresets, Processes, ProcessesSettings, Services, Settings, System, SystemTools, Wsl};
+use crate::layouts::{MainWindow, Overlay, PaneFooter, ProcessesArea, Shell, SystemArea};
+use crate::pages::{Activity, Processes, ProcessesSettings, Services, Settings, System, SystemTools, Wsl};
 use crate::parts::{Connecting, SidebarCharts};
 
 routes! {
@@ -16,10 +16,7 @@ routes! {
                         page(Processes)
                         page(ProcessesSettings)
                     }
-                    layout(ActivityArea) {
-                        page(Activity)
-                        page(ActivityPresets)
-                    }
+                    page(Activity)
                     page(Services)
                     page(Wsl)
                     layout(SystemArea) {

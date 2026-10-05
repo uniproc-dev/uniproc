@@ -131,14 +131,13 @@ fn state(dots: usize, rows: usize) -> ActivityState {
 fn measure(label: &str, page: &ActivityPage, state: &ActivityState, l10n: &L10n, palette: Palette) {
     let dispatch = Dispatch::default();
     let forward = Callback::new(|_: ActivityPageMsg| {});
-    let manage = Callback::new(|()| {});
-    drop(page.view(state, &dispatch, l10n, palette, forward.clone(), manage.clone()));
+    drop(page.view(state, &dispatch, l10n, palette, forward.clone()));
 
     let mut total = Duration::ZERO;
     let mut worst = Duration::ZERO;
     for _ in 0..ITERATIONS {
         let started = Instant::now();
-        let view = page.view(state, &dispatch, l10n, palette, forward.clone(), manage.clone());
+        let view = page.view(state, &dispatch, l10n, palette, forward.clone());
         let took = started.elapsed();
         drop(view);
         total += took;

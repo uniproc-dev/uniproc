@@ -1,15 +1,15 @@
 use std::rc::Rc;
 
 use app_contracts::features::activity::{
-    ActivityMsg, ActivityState, ApplyPreset, Area, ClearArea, DeletePreset, Filter, Hide, Hover, NewOnly, Only,
-    PickArea, Preset, SavePreset, Search, ShowCame, ShowSeries, ShowSpan, ShowWent, Span, Unhide, UnhideInPreset,
+    ActivityMsg, ActivityState, Area, ClearArea, Filter, Hide, Hover, NewOnly, Only, PickArea, Search, ShowCame,
+    ShowSeries, ShowSpan, ShowWent, Span, Unhide,
 };
 use app_contracts::features::agents::{WindowsProcessEvents, WindowsReportMessage};
 use guinea::prelude::*;
 
 use super::install::ActivityDeps;
 use super::log::{row, view, Ask, Log};
-use super::settings::{remember, remember_presets, ActivitySettings};
+use super::settings::{remember, ActivitySettings};
 
 pub struct ActivityActor {
     push: Push<ActivityState>,
@@ -18,7 +18,6 @@ pub struct ActivityActor {
     log: Log,
     span: Span,
     filter: Filter,
-    presets: Vec<Preset>,
     area: Option<Area>,
     stale: bool,
 }
@@ -34,15 +33,14 @@ impl std::fmt::Debug for ActivityActor {
 }
 
 impl ActivityActor {
-    pub fn new(push: Push<ActivityState>, deps: ActivityDeps, settings: ActivitySettings, seed: &ActivityState) -> Self {
+    pub fn new(push: Push<ActivityState>, deps: ActivityDeps, settings: ActivitySettings, span: Span, filter: Filter) -> Self {
         Self {
             push,
             deps,
             settings,
             log: Log::default(),
-            span: seed.span,
-            filter: seed.filter.clone(),
-            presets: seed.presets.clone(),
+            span,
+            filter,
             area: None,
             stale: false,
         }
@@ -69,14 +67,6 @@ impl ActivityActor {
         self.push.send(ActivityMsg::View(Rc::new(view)));
     }
 
-    fn represet(&mut self, change: impl FnOnce(&mut Vec<Preset>)) {
-        change(&mut self.presets);
-        if let Err(err) = remember_presets(&self.settings, &self.presets) {
-            tracing::warn!(?err, "could not keep the activity presets");
-        }
-        self.push.send(ActivityMsg::Presets(self.presets.clone()));
-    }
-
     fn refilter(&mut self, change: impl FnOnce(&mut Filter)) {
         change(&mut self.filter);
         self.remember();
@@ -93,53 +83,8 @@ actor! {
     ActivityActor {
         handlers {
             WindowsProcessEvents, WindowsReportMessage, Refresh, Flush, ShowSpan, ShowCame, ShowWent, NewOnly,
-            ShowSeries, Only, Hide, Unhide, Search, PickArea, ClearArea, Hover, SavePreset, ApplyPreset, DeletePreset,
-            UnhideInPreset
+            ShowSeries, Only, Hide, Unhide, Search, PickArea, ClearArea, Hover
         }
-    }
-}
-
-#[handler]
-fn save_preset(this: &mut ActivityActor, SavePreset(name): SavePreset) {
-    let filter = Filter {
-        text: String::new(),
-        ..this.filter.clone()
-    };
-    this.represet(|presets| match presets.iter_mut().find(|preset| preset.name == name) {
-        Some(preset) => preset.filter = filter,
-        None => presets.push(Preset { name, filter }),
-    });
-}
-
-#[handler]
-fn apply_preset(this: &mut ActivityActor, ApplyPreset(name): ApplyPreset) {
-    let Some(preset) = this.presets.iter().find(|preset| preset.name == name) else {
-        return;
-    };
-    let chosen = preset.filter.clone();
-    this.refilter(|filter| {
-        *filter = Filter {
-            text: std::mem::take(&mut filter.text),
-            ..chosen
-        }
-    });
-}
-
-#[handler]
-fn delete_preset(this: &mut ActivityActor, DeletePreset(name): DeletePreset) {
-    this.represet(|presets| presets.retain(|preset| preset.name != name));
-}
-
-#[handler]
-fn unhide_in_preset(this: &mut ActivityActor, UnhideInPreset { preset: name, pick }: UnhideInPreset) {
-    let in_use = this.presets.iter().any(|preset| preset.name == name && preset.is(&this.filter));
-    this.represet(|presets| {
-        if let Some(preset) = presets.iter_mut().find(|preset| preset.name == name) {
-            preset.filter.hidden.retain(|hidden| *hidden != pick);
-        }
-    });
-    if in_use {
-        this.refilter(|filter| filter.hidden.retain(|hidden| *hidden != pick));
     }
 }
 

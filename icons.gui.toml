@@ -174,12 +174,6 @@ iconify = "fluent:arrow-download-24-regular"
 [extension]
 file = "extension.svg"
 
-[delete]
-iconify = "fluent:delete-24-regular"
-
-[save]
-iconify = "fluent:save-24-regular"
-
 [eye-off]
 iconify = "fluent:eye-off-24-regular"
 

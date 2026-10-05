@@ -8,7 +8,7 @@ use crate::theme::{size, space};
 use crate::widgets::button::command_button;
 use crate::widgets::popup_menu::MenuLine;
 
-pub fn named(pick: &Pick) -> String {
+fn named(pick: &Pick) -> String {
     match pick {
         Pick::Exe(path) => path.rsplit(['\\', '/']).next().unwrap_or(path).to_string(),
         Pick::Folder(folder) => folder.to_string(),

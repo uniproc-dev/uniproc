@@ -24,7 +24,7 @@ pub enum ShellMsg {
 fn nav(route: &Route) -> ShellNav {
     match route {
         Route::Processes {} | Route::ProcessesSettings {} => ShellNav::Processes,
-        Route::Activity {} | Route::ActivityPresets {} => ShellNav::Activity,
+        Route::Activity {} => ShellNav::Activity,
         Route::Services {} => ShellNav::Services,
         Route::Wsl {} => ShellNav::Wsl,
         Route::System {} | Route::SystemTools {} => ShellNav::System,
