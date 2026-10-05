@@ -290,6 +290,8 @@ pub struct Log {
     touched: HashMap<u64, u32>,
     drawn: RefCell<HashMap<u64, Drawn>>,
     spare: RefCell<Pool<Dot>>,
+    listed: RefCell<HashMap<u64, Listed>>,
+    walked: Cell<usize>,
 }
 
 impl Default for Log {
@@ -325,6 +327,8 @@ impl Default for Log {
             touched: HashMap::new(),
             drawn: RefCell::default(),
             spare: RefCell::default(),
+            listed: RefCell::default(),
+            walked: Cell::new(0),
         }
     }
 }
@@ -1079,9 +1083,11 @@ fn went_of(log: &Log, groups: &Groups<'_>, ended: &Ended, clock: fn(u64) -> Cloc
     }
 }
 
-struct Gathered<'a> {
-    members: Vec<&'a Started>,
-    oldest: &'a Started,
+#[derive(Clone)]
+struct Gathered {
+    members: Vec<ProcessInstance>,
+    newest: u64,
+    oldest: ProcessInstance,
     count: usize,
     went: usize,
     names: HashMap<Spell, usize>,
@@ -1089,11 +1095,12 @@ struct Gathered<'a> {
     one_file: bool,
 }
 
-impl<'a> Gathered<'a> {
-    fn new(log: &Log, started: &'a Started) -> Self {
+impl Gathered {
+    fn new(log: &Log, started: &Started) -> Self {
         Self {
-            members: vec![started],
-            oldest: started,
+            members: vec![started.instance()],
+            newest: started.at,
+            oldest: started.instance(),
             count: 1,
             went: usize::from(started.went_at().is_some()),
             names: HashMap::from([(started.name, 1)]),
@@ -1102,30 +1109,55 @@ impl<'a> Gathered<'a> {
         }
     }
 
-    fn add(&mut self, log: &Log, started: &'a Started) {
+    fn add(&mut self, log: &Log, started: &Started) {
         if self.members.len() < Pace::Shown {
-            self.members.push(started);
+            self.members.push(started.instance());
         }
-        self.oldest = started;
+        self.oldest = started.instance();
         self.count += 1;
         self.went += usize::from(started.went_at().is_some());
         *self.names.entry(started.name).or_default() += 1;
         self.one_file &= log.names.word_of(started.name) == self.file;
     }
+
+    fn absorb(&mut self, older: &Gathered) {
+        let room = Pace::Shown.saturating_sub(self.members.len());
+        self.members.extend(older.members.iter().take(room).copied());
+        self.oldest = older.oldest;
+        self.count += older.count;
+        self.went += older.went;
+        for (&name, &count) in &older.names {
+            *self.names.entry(name).or_default() += count;
+        }
+        self.one_file &= older.one_file && older.file == self.file;
+    }
 }
 
-enum Light<'a> {
+#[derive(Clone)]
+enum Light {
     Came(ProcessInstance),
     Went(ProcessInstance),
-    Series(Gathered<'a>),
+    Series(Gathered),
 }
 
-impl Light<'_> {
+impl Light {
     fn key(&self) -> ProcessInstance {
         match self {
             Light::Came(instance) | Light::Went(instance) => *instance,
-            Light::Series(gathered) => gathered.oldest.instance(),
+            Light::Series(gathered) => gathered.oldest,
         }
+    }
+}
+
+struct Lit {
+    at: u64,
+    light: Light,
+    came: Option<u64>,
+}
+
+impl Lit {
+    fn newest_first(&self, other: &Lit) -> std::cmp::Ordering {
+        other.at.cmp(&self.at).then_with(|| other.light.key().cmp(&self.light.key()))
     }
 }
 
@@ -1181,9 +1213,9 @@ impl<'a> Rows<'a> {
         row
     }
 
-    fn series(&mut self, gathered: &Gathered<'_>) -> Option<Series> {
+    fn series(&mut self, gathered: &Gathered) -> Option<Series> {
         let log = self.log;
-        let newest = *gathered.members.first()?;
+        let newest = log.started(*gathered.members.first()?)?;
         let launcher = newest.launcher?;
         let folder = log.names.folder_text(newest.folder?);
         let mut names: Vec<_> = gathered.names.iter().map(|(&name, &count)| (log.text(name), count)).collect();
@@ -1195,7 +1227,7 @@ impl<'a> Rows<'a> {
         picks.push(Pick::Folder(folder.clone()));
         picks.push(Pick::Under(log.names.folded(log.names.word_of(launcher)).clone()));
         Some(Series {
-            key: gathered.oldest.instance(),
+            key: gathered.oldest,
             at: (self.clock)(newest.at),
             launcher: log.text(launcher),
             folder,
@@ -1203,13 +1235,18 @@ impl<'a> Rows<'a> {
             count: gathered.count,
             went: gathered.went,
             routine: log.routine(newest),
-            members: gathered.members.iter().map(|member| self.came(member)).collect(),
+            members: gathered
+                .members
+                .iter()
+                .filter_map(|&member| log.started(member))
+                .map(|member| self.came(member))
+                .collect(),
             picks,
             hue: self.groups.hue(log.came_group(self.groups, newest)),
         })
     }
 
-    fn row(&mut self, row: Light<'_>) -> Option<ActivityRow> {
+    fn row(&mut self, row: Light) -> Option<ActivityRow> {
         let log = self.log;
         Some(match row {
             Light::Came(instance) => ActivityRow::Came(self.came(log.started(instance)?)),
@@ -1324,62 +1361,93 @@ impl<'a> Sieve<'a> {
     }
 }
 
-struct Walk<'a> {
-    sieve: Sieve<'a>,
-    rows: Vec<(u64, Light<'a>)>,
-    series: HashMap<(ProcessInstance, Folder), usize>,
+type SeriesKey = (ProcessInstance, Folder);
+
+struct Listed {
+    asked: u32,
+    named: u32,
+    touched: u32,
+    band: Option<(Lived, Lived)>,
+    came: usize,
+    went: usize,
+    singles: Vec<Lit>,
+    came_at: Vec<u64>,
+    series: Vec<(SeriesKey, Gathered)>,
 }
 
-impl<'a> Walk<'a> {
-    fn came(&mut self, started: &'a Started) {
-        let sieve = &self.sieve;
-        if !sieve.admits_came(started) {
-            return;
-        }
-        let (at, instance) = (started.at, started.instance());
-        let launched = started.launched().zip(started.folder).filter(|_| sieve.filter.series);
-        let Some(((launcher, _), folder)) = launched else {
-            self.rows.push((at, Light::Came(instance)));
-            return;
-        };
-        let key = (launcher, folder);
+impl Listed {
+    fn holds(&self, sieve: &Sieve<'_>, minute: u64) -> bool {
         let log = sieve.log;
-        match self.series.get(&key) {
-            Some(&index) => {
-                if let (_, Light::Series(gathered)) = &mut self.rows[index] {
-                    gathered.add(log, started);
-                }
-            }
-            None => {
-                self.series.insert(key, self.rows.len());
-                self.rows.push((at, Light::Series(Gathered::new(log, started))));
-            }
-        }
+        self.asked == sieve.asked
+            && self.band == sieve.band
+            && log.named_since(self.named, (minute + 1) * Ticks::Minute - 1)
+            && self.touched == log.touched(minute)
     }
 
-    fn went(&mut self, ended: &Ended) {
-        if self.sieve.admits_went(ended) {
-            self.rows.push((ended.at, Light::Went(ended.instance())));
+    fn hidden(&self, filter: &Filter, from: u64, to: u64) -> usize {
+        if !filter.came {
+            return 0;
         }
+        self.came_at.partition_point(|&at| at < to) - self.came_at.partition_point(|&at| at < from)
     }
+}
 
-    fn finish(self) -> Vec<(u64, Light<'a>)> {
-        let mut rows = Vec::with_capacity(self.rows.len());
-        for (at, light) in self.rows {
-            match light {
-                Light::Series(gathered) if gathered.count < Pace::SeriesLeast => {
-                    rows.extend(
-                        gathered
-                            .members
-                            .into_iter()
-                            .map(|member| (member.at, Light::Came(member.instance()))),
-                    );
+fn list(sieve: &Sieve<'_>, minute: u64, from: u64, to: u64) -> Listed {
+    let log = sieve.log;
+    let mut listed = Listed {
+        asked: sieve.asked,
+        named: log.naming.len() as u32,
+        touched: log.touched(minute),
+        band: sieve.band,
+        came: 0,
+        went: 0,
+        singles: Vec::new(),
+        came_at: Vec::new(),
+        series: Vec::new(),
+    };
+    let mut series: HashMap<SeriesKey, usize> = HashMap::new();
+    for event in log.span(from, to).rev() {
+        log.walked.set(log.walked.get() + 1);
+        match event {
+            Event::Came(started) => {
+                listed.came += 1;
+                if !sieve.admits_came(started) {
+                    continue;
                 }
-                light => rows.push((at, light)),
+                let launched = started.launched().zip(started.folder).filter(|_| sieve.filter.series);
+                let Some(((launcher, _), folder)) = launched else {
+                    listed.singles.push(Lit {
+                        at: started.at,
+                        light: Light::Came(started.instance()),
+                        came: None,
+                    });
+                    continue;
+                };
+                let key = (launcher, folder);
+                match series.get(&key) {
+                    Some(&index) => listed.series[index].1.add(log, started),
+                    None => {
+                        series.insert(key, listed.series.len());
+                        listed.series.push((key, Gathered::new(log, started)));
+                    }
+                }
+            }
+            Event::Went(ended) => {
+                listed.went += 1;
+                if sieve.admits_went(ended) {
+                    listed.singles.push(Lit {
+                        at: ended.at,
+                        light: Light::Went(ended.instance()),
+                        came: ended.came_at(),
+                    });
+                }
             }
         }
-        rows
     }
+    listed.singles.sort_by(Lit::newest_first);
+    listed.came_at = listed.singles.iter().filter_map(|single| single.came).collect();
+    listed.came_at.sort_unstable();
+    listed
 }
 
 fn contains(field: &str, text: &str) -> bool {
@@ -1411,36 +1479,94 @@ pub fn view(log: &Log, ask: &Ask<'_>) -> ActivityView {
         .area
         .map_or((frame.start, frame.end), |area| (area.from.max(frame.start), area.to.min(frame.end)));
 
-    let window = |at: u64| (from..to).contains(&at);
-    let (mut came_count, mut went_count) = (0, 0);
-    let mut walk = Walk {
-        sieve: Sieve::new(log, ask.filter, &groups, ask.area, asked),
-        rows: Vec::new(),
-        series: HashMap::new(),
-    };
-    for event in log.span(from, to).rev() {
-        match event {
-            Event::Came(started) => {
-                came_count += 1;
-                walk.came(started);
+    let sieve = Sieve::new(log, ask.filter, &groups, ask.area, asked);
+    let mut listed = log.listed.borrow_mut();
+    let (first, last) = (frame.start / Ticks::Minute, (frame.end - 1) / Ticks::Minute);
+    listed.retain(|minute, _| (first..=last).contains(minute));
+    log.walked.set(0);
+    let mut edges = HashMap::new();
+    let minutes = if from < to { from / Ticks::Minute..=(to - 1) / Ticks::Minute } else { 1..=0 };
+    for minute in minutes.clone() {
+        let (start, end) = (minute * Ticks::Minute, (minute + 1) * Ticks::Minute);
+        if from <= start && end <= to {
+            if !listed.get(&minute).is_some_and(|kept| kept.holds(&sieve, minute)) {
+                listed.insert(minute, list(&sieve, minute, start, end));
             }
-            Event::Went(ended) => {
-                went_count += 1;
-                if !(ask.filter.came && ended.came_at().is_some_and(window)) {
-                    walk.went(ended);
+        } else {
+            edges.insert(minute, list(&sieve, minute, start.max(from), end.min(to)));
+        }
+    }
+    let parts: Vec<&Listed> = minutes
+        .rev()
+        .filter_map(|minute| edges.get(&minute).or_else(|| listed.get(&minute)))
+        .collect();
+
+    let (mut came_count, mut went_count, mut singles) = (0, 0, 0);
+    let mut gathered: Vec<(SeriesKey, Gathered)> = Vec::new();
+    let mut known: HashMap<SeriesKey, usize> = HashMap::new();
+    for part in &parts {
+        came_count += part.came;
+        went_count += part.went;
+        singles += part.singles.len() - part.hidden(ask.filter, from, to);
+        for (key, series) in &part.series {
+            match known.get(key) {
+                Some(&index) => gathered[index].1.absorb(series),
+                None => {
+                    known.insert(*key, gathered.len());
+                    gathered.push((*key, series.clone()));
                 }
             }
         }
     }
-    let mut rows = walk.finish();
-    rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.key().cmp(&a.1.key())));
-    let earlier = rows.len().saturating_sub(Pace::Shown);
-    rows.truncate(Pace::Shown);
+    let mut grouped = Vec::new();
+    for (_, series) in gathered {
+        if series.count < Pace::SeriesLeast {
+            grouped.extend(series.members.iter().filter_map(|&member| {
+                log.started(member).map(|started| Lit {
+                    at: started.at,
+                    light: Light::Came(member),
+                    came: None,
+                })
+            }));
+        } else {
+            grouped.push(Lit {
+                at: series.newest,
+                light: Light::Series(series),
+                came: None,
+            });
+        }
+    }
+    grouped.sort_by(Lit::newest_first);
+    let earlier = (singles + grouped.len()).saturating_sub(Pace::Shown);
+
+    let window = |at: u64| (from..to).contains(&at);
+    let mut lone = parts
+        .iter()
+        .flat_map(|part| &part.singles)
+        .filter(|single| !(ask.filter.came && single.came.is_some_and(window)))
+        .peekable();
+    let mut grouped = grouped.into_iter().peekable();
+    let mut newest = Vec::with_capacity(Pace::Shown);
+    while newest.len() < Pace::Shown {
+        let light = match (lone.peek(), grouped.peek()) {
+            (Some(single), Some(series)) if single.newest_first(series).is_lt() => lone.next().map(|single| single.light.clone()),
+            (Some(_), None) => lone.next().map(|single| single.light.clone()),
+            (_, Some(_)) => grouped.next().map(|series| series.light),
+            (None, None) => None,
+        };
+        let Some(light) = light else {
+            break;
+        };
+        newest.push(light);
+    }
+    drop(parts);
+    drop(listed);
+
     let mut built = Rows {
         kept: log.shown.take(),
         ..Rows::new(log, &groups, clock, asked)
     };
-    let rows = rows.into_iter().filter_map(|(_, row)| built.row(row)).collect();
+    let rows = newest.into_iter().filter_map(|row| built.row(row)).collect();
     log.shown.replace(built.shown);
 
     ActivityView {
@@ -2828,6 +2954,74 @@ mod tests {
             let dots = |view: &ActivityView| view.scatter.dots().copied().collect::<Vec<_>>();
             assert_eq!(dots(&built), dots(&expected), "round {round}");
             assert_eq!(built.legend, expected.legend, "round {round}");
+            let counts = |view: &ActivityView| (view.earlier, view.came, view.went);
+            assert_eq!(counts(&built), counts(&expected), "round {round}");
+            assert_eq!(built.rows, expected.rows, "round {round}");
         }
+    }
+
+    #[test]
+    fn a_picked_band_of_lifetimes_lists_again_the_minutes_listed_without_it() {
+        let mut log = Log::default();
+        log.record(&[
+            came(20, 1, "short.exe", at(10, 0)),
+            went(20, at(10, 1)),
+            came(21, 1, "long.exe", at(10, 20)),
+            went(21, at(20, 20)),
+        ]);
+        let listed = |view: &ActivityView| view.rows.iter().map(|row| row.key().pid).collect::<Vec<_>>();
+        let short = Area {
+            from: at(5, 0),
+            to: at(30, 0),
+            shortest: Lived::For(0),
+            longest: Lived::For(2 * Ticks::Second),
+        };
+
+        assert_eq!(listed(&look(&log, &singles(), None)), [21, 20]);
+        assert_eq!(listed(&look(&log, &singles(), Some(short))), [20]);
+    }
+
+    #[test]
+    fn an_exit_whose_start_is_listed_counts_only_once_the_start_has_left_the_span() {
+        let mut log = Log::default();
+        let mut events = Vec::new();
+        for n in 0..210u32 {
+            let pid = 1000 + n;
+            events.push(came(pid, 1, "tool.exe", at(0, 0) + u64::from(n) * Ticks::Second / 10));
+            events.push(went(pid, at(10, 0) + u64::from(n) * Ticks::Second / 10));
+        }
+        log.record(&events);
+        let kinds = |view: &ActivityView| {
+            let came = view.rows.iter().filter(|row| matches!(row, ActivityRow::Came(_))).count();
+            (came, view.rows.len() - came, view.earlier)
+        };
+
+        let early = seen_at(&log, at(59, 59), &singles(), &[]);
+        let later = seen_at(&log, at(59, 59) + 5 * Ticks::Minute, &singles(), &[]);
+
+        assert_eq!(kinds(&early), (200, 0, 10));
+        assert_eq!(kinds(&later), (0, 200, 10));
+    }
+
+    #[test]
+    fn a_view_walks_for_its_rows_only_the_minutes_something_touched() {
+        let mut log = Log::default();
+        let mut events = Vec::new();
+        for minute in 0..59 {
+            for second in [5, 25, 45] {
+                let pid = (minute * 100 + second) as u32;
+                events.push(came(pid, 4, "taskhostw.exe", at(minute, second)));
+                events.push(went(pid, at(minute, second + 2)));
+            }
+        }
+        events.push(came(9000, 4, "git.exe", at(59, 10)));
+        log.record(&events);
+        look(&log, &Filter::default(), None);
+
+        log.record(&[came(9001, 4, "rg.exe", at(59, 30))]);
+        let view = look(&log, &Filter::default(), None);
+
+        assert_eq!(view.came, 59 * 3 + 2, "{:#?}", view.rows);
+        assert!(log.walked.get() <= 2, "walked {} events", log.walked.get());
     }
 }
