@@ -4,6 +4,7 @@ use domain::features::agents::AgentsFeature;
 use guinea::prelude::*;
 use guinea_plugin_l10n::L10nPlugin;
 use guinea_plugin_single_instance::SingleInstancePlugin;
+use guinea_plugin_store::amethystate::store::OnUnreadable;
 use guinea_plugin_store::StorePlugin;
 
 use crate::meta;
@@ -38,10 +39,9 @@ pub fn with_fakes(app: &mut FeatureBuilder) -> anyhow::Result<App> {
 }
 
 fn settings_store(plugin: StorePlugin) -> StorePlugin {
+    let plugin = plugin.configure(|store| store.rules(|rules| rules.on_unreadable(OnUnreadable::UseDefault)));
     #[cfg(debug_assertions)]
-    let plugin = plugin.configure(|store| {
-        store.rules(|rules| rules.on_undeclared(guinea_plugin_store::amethystate::store::OnUndeclared::Drop))
-    });
+    let plugin = plugin.configure(|store| store.rules(|rules| rules.on_undeclared(guinea_plugin_store::amethystate::store::OnUndeclared::Drop)));
     plugin
 }
 
@@ -77,5 +77,20 @@ mod tests {
             .collect();
         assert!(!kept.iter().any(|key| key.ends_with("scan_interval_ms")), "{kept:?}");
         assert!(kept.iter().any(|key| key.ends_with("ping_interval_ms")), "{kept:?}");
+    }
+
+    #[guinea::test(iterations = 1)]
+    fn a_setting_that_will_not_read_back_opens_on_its_default(h: &mut Harness) {
+        let dir = tempfile::tempdir().unwrap();
+        let at = dir.path().join("settings");
+        let (earlier, _) = StoreBuilder::new(&at).migrate().unwrap();
+        earlier.set(["agents", "ping_interval_ms"], &"often").unwrap();
+        earlier.close().unwrap();
+        drop(earlier);
+
+        h.plugin(settings_store(StorePlugin::at(&at))).unwrap();
+
+        let opened = h.segment().try_settings::<AgentSettings>().map(|settings| settings.ping_interval_ms().get());
+        assert!(matches!(opened, Ok(2000)), "{opened:?}");
     }
 }
