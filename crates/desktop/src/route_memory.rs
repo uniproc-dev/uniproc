@@ -1,5 +1,6 @@
 use amethystate::{amethystate, Open};
 use app_contracts::features::settings::StartPage;
+use app_contracts::OrWarn;
 use domain::features::settings::settings::GeneralSettings;
 use guinea::feature::{FeatureInitContext, ScopeContext};
 use guinea_plugin_store::StoreAccess;
@@ -13,9 +14,7 @@ pub struct RouteSettings {
 }
 
 pub fn open(ctx: &FeatureInitContext) -> Option<RouteSettings> {
-    ctx.settings::<RouteSettings>()
-        .inspect_err(|err| tracing::warn!(?err, "could not open the route settings"))
-        .ok()
+    ctx.settings::<RouteSettings>().or_warn("could not open the route settings")
 }
 
 pub fn remember(settings: &RouteSettings, route: &Route) {
@@ -32,15 +31,11 @@ pub fn remember(settings: &RouteSettings, route: &Route) {
     let Some(saved) = route.save() else {
         return;
     };
-    if let Err(err) = settings.last_route().set(saved) {
-        tracing::warn!(?err, "could not remember the current route");
-    }
+    settings.last_route().set(saved).or_warn("could not remember the current route");
 }
 
 fn opened<S: Open>(cx: &ScopeContext) -> Option<S> {
-    cx.settings::<S>()
-        .inspect_err(|err| tracing::warn!(?err, settings = std::any::type_name::<S>(), "could not open"))
-        .ok()
+    cx.settings::<S>().or_warn(format_args!("could not open {}", std::any::type_name::<S>()))
 }
 
 pub fn restore(cx: &ScopeContext) -> Route {

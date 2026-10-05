@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use app_contracts::features::system::{
     ForgetTool, GetTool, OpenTool, PinTool, SystemMsg, SystemState, SystemTool,
 };
+use app_contracts::OrWarn;
 use guinea::prelude::*;
 
 use super::favourites;
@@ -105,9 +106,8 @@ fn on_opened(this: &mut SystemActor, opened: Opened, cx: Cx) {
         count: before.count.saturating_add(1),
         last_ms: now_ms(),
     };
-    if let Err(err) = uses.insert(tool.id().to_string(), &now) {
-        tracing::warn!(?err, ?tool, "could not count a system tool use");
-    }
+    uses.insert(tool.id().to_string(), &now)
+        .or_warn(format_args!("could not count a use of {tool:?}"));
     this.publish_favourites();
 }
 
@@ -121,25 +121,18 @@ fn get(this: &SystemActor, GetTool(tool): GetTool) {
 #[handler]
 fn pin(this: &mut SystemActor, PinTool(tool, pinned): PinTool) {
     let pins = this.settings.pinned();
-    let kept = if pinned {
+    if pinned {
         let next = pins.entries().map(|(_, order)| order + 1).max().unwrap_or_default();
-        pins.insert(tool.id().to_string(), &next).map(|_| ())
+        pins.insert(tool.id().to_string(), &next).or_warn(format_args!("could not pin {tool:?}"));
     } else {
-        pins.remove(tool.id()).map(|_| ())
-    };
-    if let Err(err) = kept {
-        tracing::warn!(?err, ?tool, pinned, "could not keep a system tool pin");
+        pins.remove(tool.id()).or_warn(format_args!("could not unpin {tool:?}"));
     }
     this.publish_favourites();
 }
 
 #[handler]
 fn forget(this: &mut SystemActor, ForgetTool(tool): ForgetTool) {
-    if let Err(err) = this.settings.pinned().remove(tool.id()) {
-        tracing::warn!(?err, ?tool, "could not unpin a system tool");
-    }
-    if let Err(err) = this.settings.uses().remove(tool.id()) {
-        tracing::warn!(?err, ?tool, "could not forget a system tool's uses");
-    }
+    this.settings.pinned().remove(tool.id()).or_warn(format_args!("could not unpin {tool:?}"));
+    this.settings.uses().remove(tool.id()).or_warn(format_args!("could not forget the uses of {tool:?}"));
     this.publish_favourites();
 }

@@ -12,6 +12,7 @@ use app_contracts::features::processes::{
     RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate, GroupCommand, RunGroupCommand,
 };
 use app_contracts::features::settings::Units;
+use app_contracts::OrWarn;
 use guicons::icon;
 use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
@@ -171,13 +172,10 @@ fn toggle_key(map: Option<&ReactiveMap<String, bool>>, key: String) {
     let Some(map) = map else {
         return;
     };
-    let result = if map.get(&key).unwrap_or(false) {
-        map.remove(&key).map(|_| ())
+    if map.get(&key).unwrap_or(false) {
+        map.remove(&key).or_warn(format_args!("could not open {key} again"));
     } else {
-        map.insert(key.clone(), &true)
-    };
-    if let Err(err) = result {
-        tracing::warn!(%key, ?err, "grouping state write failed");
+        map.insert(key.clone(), &true).or_warn(format_args!("could not keep {key} collapsed"));
     }
 }
 
@@ -185,13 +183,10 @@ fn toggle_pin(map: Option<&ReactiveMap<String, PinnedProcess>>, name: String, pi
     let Some(map) = map else {
         return;
     };
-    let result = if map.get(&name).is_some() {
-        map.remove(&name).map(|_| ())
+    if map.get(&name).is_some() {
+        map.remove(&name).or_warn(format_args!("could not unpin {name}"));
     } else {
-        map.insert(name.clone(), &pin)
-    };
-    if let Err(err) = result {
-        tracing::warn!(%name, ?err, "pin write failed");
+        map.insert(name.clone(), &pin).or_warn(format_args!("could not pin {name}"));
     }
 }
 
@@ -298,10 +293,8 @@ impl ProcessesPage {
             ProcessesMsg::TogglePin(name, pin) => toggle_pin(self.pins.as_ref(), name.to_string(), pin),
             ProcessesMsg::ToggleGroupByType => {
                 self.by_type = !self.by_type;
-                if let Some(setting) = &self.by_type_setting
-                    && let Err(err) = setting.set(self.by_type)
-                {
-                    tracing::warn!(?err, "group-by-type setting write failed");
+                if let Some(setting) = &self.by_type_setting {
+                    setting.set(self.by_type).or_warn("could not keep grouping by type");
                 }
             }
             ProcessesMsg::SelectGroup(pid) => self.selected_group = pid,

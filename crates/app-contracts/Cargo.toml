@@ -13,6 +13,10 @@ unic-langid = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 guicons = { workspace = true }
 serde = { workspace = true, features = ["rc"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }
 
 [build-dependencies]
 guinea-plugin-l10n-build = { workspace = true }

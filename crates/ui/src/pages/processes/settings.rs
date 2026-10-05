@@ -1,5 +1,6 @@
 use amethystate::{Field, ReactiveMap};
 use app_contracts::features::processes::ProcessColumn;
+use app_contracts::OrWarn;
 use guicons::icon;
 use guinea::winui::MarkExt;
 use guinea::Mark;
@@ -116,10 +117,8 @@ impl ProcessesSettingsPage {
             }
             ProcessesSettingsMsg::MemoryAsPercent(percent) => {
                 self.memory_as_percent = percent;
-                if let Some(setting) = &self.memory_setting
-                    && let Err(err) = setting.set(percent)
-                {
-                    tracing::warn!(?err, "could not keep how memory is shown");
+                if let Some(setting) = &self.memory_setting {
+                    setting.set(percent).or_warn("could not keep how memory is shown");
                 }
             }
             ProcessesSettingsMsg::Expand(group, open) => {

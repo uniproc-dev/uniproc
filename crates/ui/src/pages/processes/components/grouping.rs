@@ -4,6 +4,7 @@ use app_contracts::features::processes::{
     HostedService, PinnedProcess, ProcessCategory, ProcessColumn, ProcessRow, ProcessWindow,
     WslEnvironment, WslProcess,
 };
+use app_contracts::OrWarn;
 
 use super::Step;
 use crate::theme::size;
@@ -158,16 +159,14 @@ impl SectionOrder {
 
     pub(crate) fn store(&self, ranks: &ReactiveMap<String, u32>) {
         for (rank, id) in self.0.iter().enumerate() {
-            if let Err(err) = ranks.insert(id.id().to_string(), &(rank as u32)) {
-                tracing::warn!(section = id.id(), ?err, "section order write failed");
-            }
+            ranks
+                .insert(id.id().to_string(), &(rank as u32))
+                .or_warn(format_args!("could not keep where the {} section goes", id.id()));
         }
     }
 
     pub(crate) fn forget(ranks: &ReactiveMap<String, u32>) {
-        if let Err(err) = ranks.clear() {
-            tracing::warn!(?err, "section order reset failed");
-        }
+        ranks.clear().or_warn("could not forget the section order");
     }
 
     pub(crate) fn moved(&self, section: SectionId, before: Option<SectionId>) -> Self {

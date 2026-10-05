@@ -1,6 +1,7 @@
 use app_contracts::features::processes::ProcessesState;
 use app_contracts::features::settings::SettingsState;
 use app_contracts::features::window::PressedAway;
+use app_contracts::OrWarn;
 use domain::features::processes::settings::ProcessesSettings;
 use guinea::feature::FeatureInitContext;
 use guinea::prelude::GlobalEventBus;
@@ -16,10 +17,7 @@ use crate::routes::Route;
 pub struct Processes(ProcessesPage);
 
 pub(super) fn open_settings(ctx: &FeatureInitContext) -> Option<ProcessesSettingsMaps> {
-    let settings = ctx
-        .settings::<ProcessesSettings>()
-        .inspect_err(|err| tracing::error!(?err, "processes settings did not open"))
-        .ok()?;
+    let settings = ctx.settings::<ProcessesSettings>().or_warn("could not open the processes settings")?;
     Some(ProcessesSettingsMaps {
         columns: settings.columns().configs().clone(),
         column_order: settings.columns().order().clone(),
