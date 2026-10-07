@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/uniproc-preview.png" alt="Uniproc Icon"/>
+  <img src="assets/uniproc-preview.png" alt="Uniproc: the processes page, grouped into pinned, WSL and apps"/>
 
 **A system monitor for Windows 11 and WSL.**
 
