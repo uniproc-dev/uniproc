@@ -258,8 +258,11 @@ impl Component for Painted {
             .on_preview_key_down(self.keys.clone())
             .background(Color::transparent())
             .content(Grid::new().keyed_children(
-                std::iter::once(keyed("host".to_string(), View::from(Grid::new().element_ref(&self.host))))
-                    .chain(self.tip.as_ref().map(|tip| keyed(format!("tip/{}/{}", tip.key, tip.column), tip_view(tip)))),
+                self.tip
+                    .as_ref()
+                    .map(|tip| keyed(format!("tip/{}/{}", tip.key, tip.column), tip_view(tip)))
+                    .into_iter()
+                    .chain(std::iter::once(keyed("host".to_string(), View::from(Grid::new().element_ref(&self.host))))),
             ))
             .capture_pointer_on_press(true)
             .on_pointer_moved(cx.callback(|event: PointerEventInfo| Msg::Moved(event.x as f32, event.y as f32)))
