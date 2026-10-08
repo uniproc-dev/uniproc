@@ -3012,6 +3012,15 @@ dependencies = [
 [[package]]
 name = "table"
 version = "0.1.0"
+dependencies = [
+ "tracing",
+ "windows-canvas-pre",
+ "windows-collections",
+ "windows-core",
+ "windows-numerics",
+ "windows-reactor-pre",
+ "windows-reactor-setup",
+]
 
 [[package]]
 name = "tempfile"

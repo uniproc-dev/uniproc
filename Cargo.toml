@@ -44,6 +44,7 @@ windows-reactor-setup = "0.100"
 windows-canvas = { package = "windows-canvas-pre", version = "0.103", features = ["reactor"] }
 windows-collections = "0.100"
 windows-core = "0.100"
+windows-numerics = "0.100"
 windows-reference = "0.100"
 
 # --- RPC & protocol ---

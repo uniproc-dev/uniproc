@@ -7,13 +7,19 @@ pub struct Lines {
 
 impl Lines {
     pub fn new(sizes: impl IntoIterator<Item = f32>) -> Self {
-        let mut edges = vec![0.0];
+        let mut lines = Self { edges: Vec::new() };
+        lines.refill(sizes);
+        lines
+    }
+
+    pub fn refill(&mut self, sizes: impl IntoIterator<Item = f32>) {
+        self.edges.clear();
+        self.edges.push(0.0);
         let mut end = 0.0;
         for size in sizes {
             end += size;
-            edges.push(end);
+            self.edges.push(end);
         }
-        Self { edges }
     }
 
     pub fn len(&self) -> usize {
@@ -65,6 +71,28 @@ impl Band {
     pub fn holds(self, offset: f32) -> bool {
         self.below <= offset && offset <= self.above
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Width {
+    Fixed(f32),
+    Fill { min: f32 },
+}
+
+pub fn columns(widths: &[Width], available: f32) -> Lines {
+    let fixed: f32 = widths
+        .iter()
+        .map(|width| match width {
+            Width::Fixed(width) => *width,
+            Width::Fill { .. } => 0.0,
+        })
+        .sum();
+    let fills = widths.iter().filter(|width| matches!(width, Width::Fill { .. })).count();
+    let share = if fills == 0 { 0.0 } else { (available - fixed).max(0.0) / fills as f32 };
+    Lines::new(widths.iter().map(|width| match width {
+        Width::Fixed(width) => *width,
+        Width::Fill { min } => share.max(*min),
+    }))
 }
 
 pub fn realized(lines: &Lines, offset: f32, viewport: f32, overscan: f32) -> Range<usize> {
@@ -140,6 +168,36 @@ mod tests {
         assert!(band.holds(320.0));
         assert!(!band.holds(287.0));
         assert!(!band.holds(353.0));
+    }
+
+    fn sizes(lines: &Lines) -> Vec<f32> {
+        (0..lines.len()).map(|at| lines.size(at)).collect()
+    }
+
+    #[test]
+    fn fixed_columns_keep_their_widths_whatever_the_room() {
+        let lines = columns(&[Width::Fixed(100.0), Width::Fixed(50.0)], 400.0);
+        assert_eq!(sizes(&lines), [100.0, 50.0]);
+        assert_eq!(lines.extent(), 150.0);
+    }
+
+    #[test]
+    fn a_fill_column_takes_the_room_the_others_leave() {
+        let lines = columns(&[Width::Fixed(100.0), Width::Fill { min: 50.0 }, Width::Fixed(50.0)], 400.0);
+        assert_eq!(sizes(&lines), [100.0, 250.0, 50.0]);
+        assert_eq!(lines.start(2), 350.0);
+    }
+
+    #[test]
+    fn a_fill_column_never_goes_below_its_minimum() {
+        let lines = columns(&[Width::Fixed(100.0), Width::Fill { min: 50.0 }, Width::Fixed(50.0)], 120.0);
+        assert_eq!(sizes(&lines), [100.0, 50.0, 50.0]);
+    }
+
+    #[test]
+    fn fill_columns_share_the_room_equally() {
+        let lines = columns(&[Width::Fill { min: 0.0 }, Width::Fixed(100.0), Width::Fill { min: 0.0 }], 300.0);
+        assert_eq!(sizes(&lines), [100.0, 100.0, 100.0]);
     }
 
     #[test]

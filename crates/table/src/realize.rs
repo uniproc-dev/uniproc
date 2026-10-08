@@ -141,6 +141,12 @@ impl<V> Realized<V> {
         pass
     }
 
+    pub fn forget(&mut self) {
+        for row in self.rows.values_mut() {
+            row.cells.clear();
+        }
+    }
+
     pub fn clear(&mut self, mut drop: impl FnMut(V)) {
         for (_, row) in self.rows.drain() {
             drop(row.visual);
@@ -271,6 +277,19 @@ mod tests {
         let changed = pass(&mut realized, &fake(&[(1, ["a", "9"])]), 0..1, &mut recorder);
         assert_eq!(changed, Pass { drawn: 1, ..Pass::default() });
         assert_eq!(recorder.drawn, [(1, vec![false, true], vec!["a".to_string(), "9".to_string()])]);
+    }
+
+    #[test]
+    fn forgotten_rows_are_drawn_whole_again_on_their_visuals() {
+        let source = fake(&[(1, ["a", "1"]), (2, ["b", "2"])]);
+        let mut realized = Realized::default();
+        let mut recorder = Recorder::default();
+        pass(&mut realized, &source, 0..2, &mut recorder);
+        realized.forget();
+        let again = pass(&mut realized, &source, 0..2, &mut recorder);
+        assert_eq!(again, Pass { drawn: 2, ..Pass::default() });
+        assert_eq!(recorder.made, 2);
+        assert!(recorder.drawn.iter().all(|(_, changed, _)| changed.iter().all(|c| *c)));
     }
 
     #[test]

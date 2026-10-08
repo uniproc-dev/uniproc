@@ -183,10 +183,12 @@ migrations or compatibility shims for old local data.
 - App metadata — `desktop/build.rs`, from `app.toml`.
 - `<crate>/src/bindings.rs` in `context`, `domain`, `ui`, `xtask` — `cargo run -p xtask --
   bindings`, from `bindings.txt` next to it; an xtask test fails when one is out of date.
-- `desktop/src/window_press/bindings.rs` — `cargo run -p xtask -- winui-bindings <winmd dir>`,
-  from `bindings.txt` next to it. The WinUI metadata is `crates/tools/reactor/winmd` of a
-  windows-rs checkout at the commit `windows-reactor-pre` was published from; without the
-  argument the command names that commit.
+- `desktop/src/window_press/bindings.rs` and `table/src/bindings.rs` — `cargo run -p xtask --
+  winui-bindings <winmd dir>`, from `bindings.txt` next to each. The WinUI metadata is
+  `crates/tools/reactor-metadata/winmd` of a windows-rs checkout at the commit
+  `windows-reactor-pre` was published from; without the argument the command names that
+  commit. That commit is not always on GitHub; the last upstream commit to change the
+  directory before it has the same files.
 - Anything under `target/`.
 
 ## Tests

@@ -1,0 +1,44 @@
+Microsoft::UI::Composition::Compositor::{CreateContainerVisual, CreateSpriteVisual, CreateSurfaceBrushWithSurface, CreateColorBrushWithColor, CreateInsetClip, CreateExpressionAnimationWithExpression, CreateGeometricClipWithGeometry, CreateRoundedRectangleGeometry}
+Microsoft::UI::Composition::CompositionRoundedRectangleGeometry::{put_CornerRadius, put_Size, put_Offset}
+Microsoft::UI::Composition::CompositionGeometry
+Microsoft::UI::Composition::CompositionObject::StartAnimation
+Microsoft::UI::Composition::CompositionAnimation::SetReferenceParameter
+Microsoft::UI::Composition::Visual::{put_Offset, put_Size, put_Clip, put_IsVisible}
+Microsoft::UI::Composition::ContainerVisual::get_Children
+Microsoft::UI::Composition::VisualCollection::{InsertAtTop, InsertAtBottom, Remove}
+Microsoft::UI::Composition::SpriteVisual::put_Brush
+Microsoft::UI::Composition::CompositionColorBrush::put_Color
+Microsoft::UI::Composition::CompositionGraphicsDevice::CreateDrawingSurface
+Microsoft::UI::Composition::CompositionDrawingSurface
+Microsoft::UI::Composition::ICompositionSurface
+Microsoft::UI::Composition::Interactions::InteractionTracker::{CreateWithOwner, put_MaxPosition, TryUpdatePosition, get_InteractionSources}
+Microsoft::UI::Composition::Interactions::CompositionInteractionSourceCollection::Add
+Microsoft::UI::Composition::Interactions::ICompositionInteractionSource
+Microsoft::UI::Composition::Interactions::VisualInteractionSource::{Create, put_PositionYSourceMode, put_ManipulationRedirectionMode}
+Microsoft::UI::Composition::Interactions::IInteractionTrackerOwner
+Microsoft::UI::Composition::Interactions::InteractionTrackerValuesChangedArgs::get_Position
+Windows::Win32::ID2D1RenderTarget::{DrawGlyphRun, PushAxisAlignedClip, PopAxisAlignedClip}
+Windows::Win32::ID2D1Brush
+Windows::Win32::DWriteCreateFactory
+Windows::Win32::DWRITE_FACTORY_TYPE_SHARED
+Windows::Win32::IDWriteFactory::{GetSystemFontCollection, CreateEllipsisTrimmingSign}
+Windows::Win32::IDWriteTextFormat::SetTrimming
+Windows::Win32::DWRITE_TRIMMING
+Windows::Win32::DWRITE_TRIMMING_GRANULARITY_CHARACTER
+Windows::Win32::IDWriteFontCollection::{FindFamilyName, GetFontFamily}
+Windows::Win32::IDWriteFontFamily::GetFirstMatchingFont
+Windows::Win32::IDWriteFont::CreateFontFace
+Windows::Win32::IDWriteFontFace::{GetMetrics, GetGlyphIndices, GetDesignGlyphMetrics}
+Windows::Win32::DWRITE_GLYPH_RUN
+Windows::Win32::DWRITE_GLYPH_METRICS
+Windows::Win32::DWRITE_FONT_METRICS
+Windows::Win32::DWRITE_FONT_WEIGHT_NORMAL
+Windows::Win32::DWRITE_FONT_WEIGHT_SEMI_BOLD
+Windows::Win32::DWRITE_FONT_STRETCH_NORMAL
+Windows::Win32::DWRITE_FONT_STYLE_NORMAL
+Windows::Win32::DWRITE_MEASURING_MODE_NATURAL
+Windows::Win32::D2D1_ANTIALIAS_MODE_PER_PRIMITIVE
+Microsoft::UI::Composition::ICompositorStatics
+Microsoft::UI::Composition::ICompositionObjectStatics
+Microsoft::UI::Composition::Interactions::IInteractionTrackerStatics2
+Microsoft::UI::Composition::Interactions::IVisualInteractionSourceStatics2
