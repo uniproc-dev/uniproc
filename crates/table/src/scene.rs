@@ -219,7 +219,12 @@ impl Painter {
         let Some(surface) = &visual.surface else {
             return Ok(());
         };
-        let (width, height) = visual.size.get();
+        let height = visual.size.get().1;
+        let width = self.row_width();
+        if visual.size.get().0 != width {
+            visual.sprite.SetSize(Vector2::new(width, height))?;
+            visual.size.set((width, height));
+        }
         let pixels = ((width * self.scale).ceil().max(1.0) as i32, (height * self.scale).ceil().max(1.0) as i32);
         if visual.pixels.get() != pixels {
             unsafe { surface.Resize(Size { cx: pixels.0, cy: pixels.1 }).ok()? };
