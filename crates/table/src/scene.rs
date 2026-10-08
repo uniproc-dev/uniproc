@@ -7,6 +7,7 @@ use windows_core::{IUnknown, Interface, Result, HSTRING};
 use windows_numerics::{Vector2, Vector3};
 
 use crate::bindings as c;
+use crate::icons::Icons;
 use crate::interop::{ICompositionDrawingSurfaceInterop, ICompositorInterop, Point, Size};
 use crate::layout::{self, Band, Lines, Width};
 use crate::model::{Cell, RowKey, Source};
@@ -153,8 +154,9 @@ pub(crate) struct RowVisual {
 struct Painter {
     compositor: c::Compositor,
     graphics: c::CompositionGraphicsDevice,
-    _device: GpuDevice,
+    device: GpuDevice,
     content: c::ContainerVisual,
+    icons: Icons,
     scale: f32,
     width: f32,
     lines: Lines,
@@ -207,7 +209,7 @@ impl Painter {
         Ok(())
     }
 
-    fn paint(&self, visual: &RowVisual, cells: &[Cell]) -> Result<()> {
+    fn paint(&mut self, visual: &RowVisual, cells: &[Cell]) -> Result<()> {
         let Some(surface) = &visual.surface else {
             return Ok(());
         };
@@ -223,7 +225,14 @@ impl Painter {
             let at = Matrix3x2::translation(offset.x as f32 / self.scale, offset.y as f32 / self.scale);
             let session = DrawingSession::from_borrowed_context_with_dpi(&context, at, 96.0 * self.scale);
             let row = paint::Row { cells, columns: &self.columns, width, height };
-            paint::row(&session, &self.text, &self.look, &row)
+            let mut ink = paint::Ink {
+                text: &self.text,
+                look: &self.look,
+                icons: &mut self.icons,
+                device: &self.device,
+                scale: self.scale,
+            };
+            paint::row(&session, &mut ink, &row)
         };
         let ended = unsafe { surface.EndDraw().ok() };
         painted.and(ended)
@@ -321,8 +330,9 @@ impl Scene {
             painter: Painter {
                 compositor,
                 graphics,
-                _device: device,
+                device,
                 content,
+                icons: Icons::new(),
                 scale: 1.0,
                 width: 0.0,
                 lines: Lines::default(),
@@ -389,6 +399,7 @@ impl Scene {
         let position = self.shared.position().clamp(0.0, extent);
         let range = layout::realized(&self.painter.lines, position, self.height, self.overscan);
         self.rows.update(source, range.clone(), &mut self.painter);
+        self.painter.icons.sweep();
         for (_, row) in self.rows.rows() {
             let settled = self.painter.settle(&row.visual, row.at);
             self.painter.fail(settled);

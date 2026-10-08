@@ -4,6 +4,8 @@ mod bindings {
     include!("bindings.rs");
 }
 mod body;
+mod cache;
+mod icons;
 mod interop;
 mod iterable;
 mod paint;

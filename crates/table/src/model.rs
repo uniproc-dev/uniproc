@@ -37,14 +37,14 @@ pub struct Rgba {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Icon {
     Svg(&'static [u8]),
-    Png(Arc<[u8]>),
+    Rgba { width: u32, height: u32, pixels: Arc<[u8]> },
 }
 
 impl Icon {
     pub fn identity(&self) -> usize {
         match self {
             Icon::Svg(bytes) => bytes.as_ptr() as usize,
-            Icon::Png(bytes) => bytes.as_ptr() as usize,
+            Icon::Rgba { pixels, .. } => pixels.as_ptr() as usize,
         }
     }
 }

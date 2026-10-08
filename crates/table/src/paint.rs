@@ -1,8 +1,9 @@
-use windows_canvas::{Brush, ColorF, DrawingSession, Rect, RoundedRect};
+use windows_canvas::{Brush, ColorF, DrawingSession, GpuDevice, Rect, RoundedRect};
 use windows_core::Result;
 use windows_numerics::Vector2;
 
 use crate::bindings as c;
+use crate::icons::Icons;
 use crate::layout::Lines;
 use crate::model::{Cell, Chevron, Rgba, Tone};
 use crate::text::{target, Line, Text};
@@ -73,7 +74,15 @@ pub struct Row<'a> {
     pub height: f32,
 }
 
-pub fn row(session: &DrawingSession<'_>, text: &Text, look: &Look, row: &Row<'_>) -> Result<()> {
+pub(crate) struct Ink<'a> {
+    pub text: &'a Text,
+    pub look: &'a Look,
+    pub icons: &'a mut Icons,
+    pub device: &'a GpuDevice,
+    pub scale: f32,
+}
+
+pub(crate) fn row(session: &DrawingSession<'_>, ink: &mut Ink<'_>, row: &Row<'_>) -> Result<()> {
     session.clear(ColorF::from_rgba8(0, 0, 0, 0));
     let target = target(session);
     for (at, cell) in row.cells.iter().enumerate().take(row.columns.len()) {
@@ -81,14 +90,15 @@ pub fn row(session: &DrawingSession<'_>, text: &Text, look: &Look, row: &Row<'_>
         let right = if at + 1 == row.columns.len() { row.width.max(left + row.columns.size(at)) } else { left + row.columns.size(at) };
         let clip = c::D2D_RECT_F { left, top: 0.0, right, bottom: row.height };
         unsafe { target.PushAxisAlignedClip(&clip, c::D2D1_ANTIALIAS_MODE_PER_PRIMITIVE) };
-        let painted = paint_cell(session, text, look, cell, left, right, row.height);
+        let painted = paint_cell(session, ink, cell, left, right, row.height);
         unsafe { target.PopAxisAlignedClip() };
         painted?;
     }
     Ok(())
 }
 
-fn paint_cell(session: &DrawingSession<'_>, text: &Text, look: &Look, cell: &Cell, left: f32, right: f32, height: f32) -> Result<()> {
+fn paint_cell(session: &DrawingSession<'_>, ink: &mut Ink<'_>, cell: &Cell, left: f32, right: f32, height: f32) -> Result<()> {
+    let (text, look) = (ink.text, ink.look);
     let dim = if cell.dim { look.dim } else { 1.0 };
     if let Some(heat) = cell.heat.filter(|heat| heat.a > 0) {
         let wash = session.create_solid_brush(color(heat, dim))?;
@@ -105,7 +115,10 @@ fn paint_cell(session: &DrawingSession<'_>, text: &Text, look: &Look, cell: &Cel
         }
         x += look.chevron;
     }
-    if cell.icon.is_some() {
+    if let Some(icon) = &cell.icon {
+        let top = ((height - look.icon) / 2.0).round();
+        let dest = Rect::from_xywh(x, top, look.icon, look.icon);
+        ink.icons.draw(ink.device, session, icon, &dest, ink.scale, dim)?;
         x += look.icon + look.icon_gap;
     }
     if x >= right {

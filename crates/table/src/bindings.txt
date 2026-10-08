@@ -19,6 +19,8 @@ Microsoft::UI::Composition::Interactions::IInteractionTrackerOwner
 Microsoft::UI::Composition::Interactions::InteractionTrackerValuesChangedArgs::get_Position
 Windows::Win32::ID2D1RenderTarget::{DrawGlyphRun, PushAxisAlignedClip, PopAxisAlignedClip}
 Windows::Win32::ID2D1Brush
+Windows::Win32::ID2D1DeviceContext5::{CreateSvgDocument, DrawSvgDocument}
+Windows::Win32::SHCreateMemStream
 Windows::Win32::DWriteCreateFactory
 Windows::Win32::DWRITE_FACTORY_TYPE_SHARED
 Windows::Win32::IDWriteFactory::{GetSystemFontCollection, CreateEllipsisTrimmingSign}

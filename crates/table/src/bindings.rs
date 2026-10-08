@@ -10,6 +10,16 @@ where
             .and_then(|| windows_core::imp::Type::from_abi(result__))
     }
 }
+#[inline]
+pub unsafe fn SHCreateMemStream(pinit: Option<&[u8]>) -> Option<IStream> {
+    windows_core::link!("shlwapi.dll" "system" fn SHCreateMemStream(pinit : *const u8, cbinit : u32) -> Option < IStream >);
+    unsafe {
+        SHCreateMemStream(
+            pinit.map_or(core::ptr::null(), |slice| slice.as_ptr()),
+            pinit.map_or(0, |slice| slice.len().try_into().unwrap()),
+        )
+    }
+}
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Color {
@@ -972,6 +982,12 @@ pub struct D2D_RECT_F {
     pub right: f32,
     pub bottom: f32,
 }
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct D2D_SIZE_F {
+    pub width: f32,
+    pub height: f32,
+}
 pub type DWRITE_FACTORY_TYPE = i32;
 pub const DWRITE_FACTORY_TYPE_SHARED: DWRITE_FACTORY_TYPE = 0;
 #[repr(C)]
@@ -1861,6 +1877,252 @@ pub struct ID2D1Brush_Vtbl {
 }
 impl windows_core::RuntimeName for ID2D1Brush {}
 windows_core::imp::define_interface!(
+    ID2D1DeviceContext,
+    ID2D1DeviceContext_Vtbl,
+    0xe8f7fe7a_191c_466d_ad95_975678bda998
+);
+impl core::ops::Deref for ID2D1DeviceContext {
+    type Target = ID2D1RenderTarget;
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+windows_core::imp::interface_hierarchy!(
+    ID2D1DeviceContext,
+    windows_core::IUnknown,
+    ID2D1Resource,
+    ID2D1RenderTarget
+);
+#[repr(C)]
+pub struct ID2D1DeviceContext_Vtbl {
+    pub base__: ID2D1RenderTarget_Vtbl,
+    CreateBitmap: usize,
+    CreateBitmapFromWicBitmap: usize,
+    CreateColorContext: usize,
+    CreateColorContextFromFilename: usize,
+    CreateColorContextFromWicColorContext: usize,
+    CreateBitmapFromDxgiSurface: usize,
+    CreateEffect: usize,
+    CreateGradientStopCollection: usize,
+    CreateImageBrush: usize,
+    CreateBitmapBrush: usize,
+    CreateCommandList: usize,
+    IsDxgiFormatSupported: usize,
+    IsBufferPrecisionSupported: usize,
+    GetImageLocalBounds: usize,
+    GetImageWorldBounds: usize,
+    GetGlyphRunWorldBounds: usize,
+    GetDevice: usize,
+    SetTarget: usize,
+    GetTarget: usize,
+    SetRenderingControls: usize,
+    GetRenderingControls: usize,
+    SetPrimitiveBlend: usize,
+    GetPrimitiveBlend: usize,
+    SetUnitMode: usize,
+    GetUnitMode: usize,
+    DrawGlyphRun: usize,
+    DrawImage: usize,
+    DrawGdiMetafile: usize,
+    DrawBitmap: usize,
+    PushLayer: usize,
+    InvalidateEffectInputRectangle: usize,
+    GetEffectInvalidRectangleCount: usize,
+    GetEffectInvalidRectangles: usize,
+    GetEffectRequiredInputRectangles: usize,
+    FillOpacityMask: usize,
+}
+impl windows_core::RuntimeName for ID2D1DeviceContext {}
+windows_core::imp::define_interface!(
+    ID2D1DeviceContext1,
+    ID2D1DeviceContext1_Vtbl,
+    0xd37f57e4_6908_459f_a199_e72f24f79987
+);
+impl core::ops::Deref for ID2D1DeviceContext1 {
+    type Target = ID2D1DeviceContext;
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+windows_core::imp::interface_hierarchy!(
+    ID2D1DeviceContext1,
+    windows_core::IUnknown,
+    ID2D1Resource,
+    ID2D1RenderTarget,
+    ID2D1DeviceContext
+);
+#[repr(C)]
+pub struct ID2D1DeviceContext1_Vtbl {
+    pub base__: ID2D1DeviceContext_Vtbl,
+    CreateFilledGeometryRealization: usize,
+    CreateStrokedGeometryRealization: usize,
+    DrawGeometryRealization: usize,
+}
+impl windows_core::RuntimeName for ID2D1DeviceContext1 {}
+windows_core::imp::define_interface!(
+    ID2D1DeviceContext2,
+    ID2D1DeviceContext2_Vtbl,
+    0x394ea6a3_0c34_4321_950b_6ca20f0be6c7
+);
+impl core::ops::Deref for ID2D1DeviceContext2 {
+    type Target = ID2D1DeviceContext1;
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+windows_core::imp::interface_hierarchy!(
+    ID2D1DeviceContext2,
+    windows_core::IUnknown,
+    ID2D1Resource,
+    ID2D1RenderTarget,
+    ID2D1DeviceContext,
+    ID2D1DeviceContext1
+);
+#[repr(C)]
+pub struct ID2D1DeviceContext2_Vtbl {
+    pub base__: ID2D1DeviceContext1_Vtbl,
+    CreateInk: usize,
+    CreateInkStyle: usize,
+    CreateGradientMesh: usize,
+    CreateImageSourceFromWic: usize,
+    CreateLookupTable3D: usize,
+    CreateImageSourceFromDxgi: usize,
+    GetGradientMeshWorldBounds: usize,
+    DrawInk: usize,
+    DrawGradientMesh: usize,
+    DrawGdiMetafile: usize,
+    CreateTransformedImageSource: usize,
+}
+impl windows_core::RuntimeName for ID2D1DeviceContext2 {}
+windows_core::imp::define_interface!(
+    ID2D1DeviceContext3,
+    ID2D1DeviceContext3_Vtbl,
+    0x235a7496_8351_414c_bcd4_6672ab2d8e00
+);
+impl core::ops::Deref for ID2D1DeviceContext3 {
+    type Target = ID2D1DeviceContext2;
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+windows_core::imp::interface_hierarchy!(
+    ID2D1DeviceContext3,
+    windows_core::IUnknown,
+    ID2D1Resource,
+    ID2D1RenderTarget,
+    ID2D1DeviceContext,
+    ID2D1DeviceContext1,
+    ID2D1DeviceContext2
+);
+#[repr(C)]
+pub struct ID2D1DeviceContext3_Vtbl {
+    pub base__: ID2D1DeviceContext2_Vtbl,
+    CreateSpriteBatch: usize,
+    DrawSpriteBatch: usize,
+}
+impl windows_core::RuntimeName for ID2D1DeviceContext3 {}
+windows_core::imp::define_interface!(
+    ID2D1DeviceContext4,
+    ID2D1DeviceContext4_Vtbl,
+    0x8c427831_3d90_4476_b647_c4fae349e4db
+);
+impl core::ops::Deref for ID2D1DeviceContext4 {
+    type Target = ID2D1DeviceContext3;
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+windows_core::imp::interface_hierarchy!(
+    ID2D1DeviceContext4,
+    windows_core::IUnknown,
+    ID2D1Resource,
+    ID2D1RenderTarget,
+    ID2D1DeviceContext,
+    ID2D1DeviceContext1,
+    ID2D1DeviceContext2,
+    ID2D1DeviceContext3
+);
+#[repr(C)]
+pub struct ID2D1DeviceContext4_Vtbl {
+    pub base__: ID2D1DeviceContext3_Vtbl,
+    CreateSvgGlyphStyle: usize,
+    DrawText: usize,
+    DrawTextLayout: usize,
+    DrawColorBitmapGlyphRun: usize,
+    DrawSvgGlyphRun: usize,
+    GetColorBitmapGlyphImage: usize,
+    GetSvgGlyphImage: usize,
+}
+impl windows_core::RuntimeName for ID2D1DeviceContext4 {}
+windows_core::imp::define_interface!(
+    ID2D1DeviceContext5,
+    ID2D1DeviceContext5_Vtbl,
+    0x7836d248_68cc_4df6_b9e8_de991bf62eb7
+);
+impl core::ops::Deref for ID2D1DeviceContext5 {
+    type Target = ID2D1DeviceContext4;
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+windows_core::imp::interface_hierarchy!(
+    ID2D1DeviceContext5,
+    windows_core::IUnknown,
+    ID2D1Resource,
+    ID2D1RenderTarget,
+    ID2D1DeviceContext,
+    ID2D1DeviceContext1,
+    ID2D1DeviceContext2,
+    ID2D1DeviceContext3,
+    ID2D1DeviceContext4
+);
+impl ID2D1DeviceContext5 {
+    pub unsafe fn CreateSvgDocument<P0>(
+        &self,
+        inputxmlstream: P0,
+        viewportsize: D2D_SIZE_F,
+    ) -> windows_core::Result<ID2D1SvgDocument>
+    where
+        P0: windows_core::Param<IStream>,
+    {
+        unsafe {
+            let mut result__ = core::mem::zeroed();
+            (windows_core::Interface::vtable(self).CreateSvgDocument)(
+                windows_core::Interface::as_raw(self),
+                inputxmlstream.param().abi(),
+                viewportsize,
+                &mut result__,
+            )
+            .and_then(|| windows_core::imp::Type::from_abi(result__))
+        }
+    }
+    pub unsafe fn DrawSvgDocument<P0>(&self, svgdocument: P0)
+    where
+        P0: windows_core::Param<ID2D1SvgDocument>,
+    {
+        unsafe {
+            (windows_core::Interface::vtable(self).DrawSvgDocument)(
+                windows_core::Interface::as_raw(self),
+                svgdocument.param().abi(),
+            );
+        }
+    }
+}
+#[repr(C)]
+pub struct ID2D1DeviceContext5_Vtbl {
+    pub base__: ID2D1DeviceContext4_Vtbl,
+    pub CreateSvgDocument: unsafe extern "system" fn(
+        *mut core::ffi::c_void,
+        *mut core::ffi::c_void,
+        D2D_SIZE_F,
+        *mut *mut core::ffi::c_void,
+    ) -> windows_core::HRESULT,
+    pub DrawSvgDocument: unsafe extern "system" fn(*mut core::ffi::c_void, *mut core::ffi::c_void),
+    CreateColorContextFromDxgiColorSpace: usize,
+    CreateColorContextFromSimpleColorProfile: usize,
+}
+impl windows_core::RuntimeName for ID2D1DeviceContext5 {}
+windows_core::imp::define_interface!(
     ID2D1RenderTarget,
     ID2D1RenderTarget_Vtbl,
     0x2cd90694_12e2_11dc_9fed_001143a055f9
@@ -1990,6 +2252,34 @@ pub struct ID2D1Resource_Vtbl {
     GetFactory: usize,
 }
 impl windows_core::RuntimeName for ID2D1Resource {}
+windows_core::imp::define_interface!(
+    ID2D1SvgDocument,
+    ID2D1SvgDocument_Vtbl,
+    0x86b88e4d_afa4_4d7b_88e4_68a51c4a0aec
+);
+impl core::ops::Deref for ID2D1SvgDocument {
+    type Target = ID2D1Resource;
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+windows_core::imp::interface_hierarchy!(ID2D1SvgDocument, windows_core::IUnknown, ID2D1Resource);
+#[repr(C)]
+pub struct ID2D1SvgDocument_Vtbl {
+    pub base__: ID2D1Resource_Vtbl,
+    SetViewportSize: usize,
+    GetViewportSize: usize,
+    SetRoot: usize,
+    GetRoot: usize,
+    FindElementById: usize,
+    Serialize: usize,
+    Deserialize: usize,
+    CreatePaint: usize,
+    CreateStrokeDashArray: usize,
+    CreatePointCollection: usize,
+    CreatePathData: usize,
+}
+impl windows_core::RuntimeName for ID2D1SvgDocument {}
 windows_core::imp::define_interface!(
     IDWriteFactory,
     IDWriteFactory_Vtbl,
@@ -2912,6 +3202,19 @@ pub struct IInteractionTrackerValuesChangedArgs_Vtbl {
     ) -> windows_core::HRESULT,
 }
 windows_core::imp::define_interface!(
+    ISequentialStream,
+    ISequentialStream_Vtbl,
+    0x0c733a30_2a1c_11ce_ade5_00aa0044773d
+);
+windows_core::imp::interface_hierarchy!(ISequentialStream, windows_core::IUnknown);
+#[repr(C)]
+pub struct ISequentialStream_Vtbl {
+    pub base__: windows_core::IUnknown_Vtbl,
+    Read: usize,
+    Write: usize,
+}
+impl windows_core::RuntimeName for ISequentialStream {}
+windows_core::imp::define_interface!(
     ISpriteVisual,
     ISpriteVisual_Vtbl,
     0x7e964632_45e4_5761_806d_5b4022c14f26
@@ -2931,6 +3234,32 @@ pub struct ISpriteVisual_Vtbl {
         *mut core::ffi::c_void,
     ) -> windows_core::HRESULT,
 }
+windows_core::imp::define_interface!(
+    IStream,
+    IStream_Vtbl,
+    0x0000000c_0000_0000_c000_000000000046
+);
+impl core::ops::Deref for IStream {
+    type Target = ISequentialStream;
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+windows_core::imp::interface_hierarchy!(IStream, windows_core::IUnknown, ISequentialStream);
+#[repr(C)]
+pub struct IStream_Vtbl {
+    pub base__: ISequentialStream_Vtbl,
+    Seek: usize,
+    SetSize: usize,
+    CopyTo: usize,
+    Commit: usize,
+    Revert: usize,
+    LockRegion: usize,
+    UnlockRegion: usize,
+    Stat: usize,
+    Clone: usize,
+}
+impl windows_core::RuntimeName for IStream {}
 windows_core::imp::define_interface!(
     IVisual,
     IVisual_Vtbl,

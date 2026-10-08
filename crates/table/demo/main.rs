@@ -1,11 +1,14 @@
 use std::fmt::Write;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use table::layout::Width;
-use table::model::{Align, Cell, Rgba, RowKey, Source, Tone};
+use table::model::{Align, Cell, Icon, Rgba, RowKey, Source, Tone};
 use table::{body, Body, Look};
 use windows_reactor::{App, Callback, Component, ComponentContext, ComponentTimer, Grid, View, ViewContext};
+
+const SVG: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="11" fill="none" stroke="#9ab4d8" stroke-width="4"/><circle cx="16" cy="16" r="4" fill="#e0a040"/></svg>"##;
 
 const NAMES: [&str; 6] = ["svchost.exe", "chrome.exe", "Служба узла: Брандмауэр", "explorer.exe", "Code.exe", "dwm.exe"];
 
@@ -18,6 +21,16 @@ struct Row {
 
 struct Rows {
     rows: Vec<Row>,
+    square: Arc<[u8]>,
+}
+
+fn square() -> Arc<[u8]> {
+    (0..16u32 * 16)
+        .flat_map(|at| {
+            let (x, y) = (at % 16, at / 16);
+            [(x * 16) as u8, (y * 16) as u8, 200, 255]
+        })
+        .collect()
 }
 
 impl Source for Rows {
@@ -42,6 +55,11 @@ impl Source for Rows {
         let row = &self.rows[at];
         match column {
             0 => {
+                out.icon = Some(if at.is_multiple_of(2) {
+                    Icon::Svg(SVG)
+                } else {
+                    Icon::Rgba { width: 16, height: 16, pixels: self.square.clone() }
+                });
                 out.text.push_str(&row.name);
                 if at.is_multiple_of(7) {
                     out.note.push_str("(3)");
@@ -98,7 +116,7 @@ impl Demo {
 
     fn advance(&mut self) {
         let draws: Vec<[f32; 3]> = (0..self.rows.rows.len()).map(|_| [self.random(), self.random(), self.random()]).collect();
-        let mut rows = Rows { rows: self.rows.rows.clone() };
+        let mut rows = Rows { rows: self.rows.rows.clone(), square: self.rows.square.clone() };
         for (row, r) in rows.rows.iter_mut().zip(draws) {
             row.values[0] = row.values[0] * 0.7 + r[0] * r[0] * 30.0 * 0.3;
             row.values[1] = row.values[1] * 0.95 + r[1] * 800.0 * 0.05;
@@ -125,7 +143,7 @@ impl Component for Demo {
             })
             .collect();
         let mut demo = Self {
-            rows: Rc::new(Rows { rows }),
+            rows: Rc::new(Rows { rows, square: square() }),
             seed: 0x9e3779b97f4a7c15,
             selected: None,
             _timer: Some(cx.set_timeout(Duration::from_millis(1000), Msg::Tick)),
