@@ -359,7 +359,7 @@ mod tests {
     }
 
     fn start_in_process(page: &mut Mounted<'_, Route>) {
-        page.click(ui::SplashMark::OpenInProcess).settle();
+        let _ = page.click(ui::SplashMark::OpenInProcess);
         page.settle();
     }
 
@@ -482,6 +482,29 @@ mod tests {
         assert_eq!(test_agent::closes(), 0);
         assert_eq!(test_agent::in_process_starts(), 0);
         assert_eq!(in_process(&page), InProcess::Off);
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "agent")]
+    fn a_monitor_in_process_that_will_not_start_hands_back_to_the_service(h: &mut Harness) {
+        start(h, false);
+        test_agent::set_elevated(true);
+        test_agent::set_in_process_fails(true);
+        let h = &*h;
+        let mut page = mount(h);
+
+        after(h, &mut page, 5);
+        start_in_process(&mut page);
+        assert_eq!(in_process(&page), InProcess::Failed);
+        assert!(splash_shown(&page), "{:#?}", page.tree());
+
+        let connects = test_agent::connects();
+        after(h, &mut page, 3);
+        assert!(test_agent::connects() > connects, "the service is tried again");
+
+        test_agent::set_up(true);
+        after(h, &mut page, 3);
+        assert_eq!(agent(&page), AgentConnectionState::Connected);
+        assert!(!splash_shown(&page), "{:#?}", page.tree());
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]

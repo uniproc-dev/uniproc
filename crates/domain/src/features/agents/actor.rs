@@ -1,7 +1,7 @@
-use super::backend::{AgentBackend, Outdated};
+use super::backend::{AgentBackend, InProcessError, Outdated};
 use super::connection::*;
 use amethystate::Field;
-use app_contracts::features::agents::{AgentConnectionState, AgentStateRequest, WindowsAgentInProcess};
+use app_contracts::features::agents::{AgentConnectionState, AgentStateRequest, RunWindowsAgentInProcess};
 use guinea::prelude::*;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -18,10 +18,13 @@ pub struct Ping;
 pub struct StartConnect;
 
 #[derive(Clone, Debug)]
-pub struct TryConnectWithDelay(pub std::time::Duration);
+pub struct TryConnectWithDelay {
+    delay: std::time::Duration,
+    epoch: u64,
+}
 
 #[derive(Clone, Debug)]
-pub struct RetryTimerElapsed;
+pub struct RetryTimerElapsed(u64);
 
 #[derive(Clone, Debug)]
 pub struct ConnectionLost;
@@ -36,14 +39,27 @@ pub struct Streamed {
 }
 
 #[derive(Clone, Debug)]
-pub struct ReconnectAfter(pub std::time::Duration);
+pub struct ReconnectAfter {
+    rest: std::time::Duration,
+    epoch: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Source {
+    Service,
+    InProcess,
+}
 
 enum Refused {
     Failed,
     Outdated,
+    InProcess(InProcessError),
 }
 
-struct ConnectResult<C>(Result<C, Refused>);
+struct ConnectResult<C> {
+    epoch: u64,
+    result: Result<C, Refused>,
+}
 
 #[derive(Clone, Copy, Debug)]
 enum Feed {
@@ -79,7 +95,8 @@ pub struct GenericAgentActor<B: AgentBackend> {
     update_interval_ms: Field<u64>,
     attempt_started: Option<tokio::time::Instant>,
     connected_at: Option<tokio::time::Instant>,
-    dormant: bool,
+    source: Source,
+    epoch: u64,
     stream: Option<(u64, Arc<AtomicBool>)>,
     generation: u64,
 }
@@ -94,10 +111,23 @@ impl<B: AgentBackend> GenericAgentActor<B> {
             update_interval_ms,
             attempt_started: None,
             connected_at: None,
-            dormant: false,
+            source: Source::Service,
+            epoch: 0,
             stream: None,
             generation: 0,
         }
+    }
+
+    fn switch_to(&mut self, source: Source, cx: &Cx<Self>) {
+        self.source = source;
+        self.epoch += 1;
+        self.client = None;
+        B::announce(None);
+        self.ping_in_flight = false;
+        self.close_stream();
+        self.connected_at = None;
+        self.connection = ConnectionMachine::new();
+        cx.addr().send(StartConnect);
     }
 
     fn open_stream(&mut self, cx: &Cx<Self>) {
@@ -155,9 +185,6 @@ impl<B: AgentBackend> GenericAgentActor<B> {
     }
 
     fn publish_state(&self, latency_ms: Option<i32>) {
-        if self.dormant {
-            return;
-        }
         let state = self.connection.state();
         GlobalEventBus::publish(B::create_runtime_event(state, latency_ms));
 
@@ -170,19 +197,27 @@ impl<B: AgentBackend> GenericAgentActor<B> {
         self.attempt_started = Some(tokio::time::Instant::now());
         let timeout = self.attempt_window();
         let update_interval_ms = self.update_interval_ms.clone();
-        cx.spawn_bg(async move {
-            match B::connect(timeout, update_interval_ms).await {
-                Ok(client) => ConnectResult(Ok(client)),
-                Err(err) if err.downcast_ref::<Outdated>().is_some() => {
-                    warn!(agent = B::NAME, error = %err, "connect refused");
-                    ConnectResult(Err(Refused::Outdated))
-                }
-                Err(err) => {
-                    warn!(agent = B::NAME, error = %err, "connect failed");
-                    ConnectResult(Err(Refused::Failed))
-                }
-            }
-        });
+        let epoch = self.epoch;
+        match self.source {
+            Source::Service => cx.spawn_bg(async move {
+                let result = match B::connect(timeout, update_interval_ms).await {
+                    Ok(client) => Ok(client),
+                    Err(err) if err.downcast_ref::<Outdated>().is_some() => {
+                        warn!(agent = B::NAME, error = %err, "connect refused");
+                        Err(Refused::Outdated)
+                    }
+                    Err(err) => {
+                        warn!(agent = B::NAME, error = %err, "connect failed");
+                        Err(Refused::Failed)
+                    }
+                };
+                ConnectResult { epoch, result }
+            }),
+            Source::InProcess => cx.spawn_bg(async move {
+                let result = B::connect_in_process(update_interval_ms).await.map_err(Refused::InProcess);
+                ConnectResult { epoch, result }
+            }),
+        }
     }
 }
 
@@ -198,21 +233,21 @@ actor! {
             TryConnectWithDelay,
             RetryTimerElapsed,
             ReconnectAfter,
+            ReconnectDue,
             ConnectionLost,
             AgentStateRequest,
-            WindowsAgentInProcess,
+            RunWindowsAgentInProcess,
         }
     }
 }
 
 #[handler]
-fn on_in_process<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: WindowsAgentInProcess) {
-    info!("[{}] the in-process agent took over, going dormant", B::NAME);
-    this.dormant = true;
-    this.client = None;
-    B::announce(None);
-    this.ping_in_flight = false;
-    this.close_stream();
+fn run_in_process<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: RunWindowsAgentInProcess, cx: Cx) {
+    if this.source == Source::InProcess {
+        return;
+    }
+    info!("[{}] monitoring in process instead of through the service", B::NAME);
+    this.switch_to(Source::InProcess, &cx.detach());
 }
 
 #[handler]
@@ -229,9 +264,6 @@ fn init<B: AgentBackend>(this: &GenericAgentActor<B>, _msg: Init, cx: Cx) {
 
 #[handler]
 fn start_connect<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: StartConnect, cx: Cx) {
-    if this.dormant {
-        return;
-    }
     if let Some(t) = this.apply(ConnectionEvent::BeginConnect)
         && t.to == AgentConnectionState::Connecting
     {
@@ -243,17 +275,20 @@ fn start_connect<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: StartCo
 #[handler]
 fn on_connect_result<B: AgentBackend>(
     this: &mut GenericAgentActor<B>,
-    ConnectResult(client): ConnectResult<B::Client>,
+    ConnectResult { epoch, result }: ConnectResult<B::Client>,
     cx: Cx,
 ) {
-    if this.dormant {
+    if epoch != this.epoch {
         return;
     }
     let addr = cx.addr();
-    match client {
+    let event = match result {
         Ok(client) => {
             if this.apply(ConnectionEvent::ConnectSucceeded).is_some() {
-                info!("[{}] Connected", B::NAME);
+                info!("[{}] Connected ({:?})", B::NAME, this.source);
+                if this.source == Source::InProcess {
+                    B::in_process_started(Ok(()));
+                }
                 B::announce(Some(&client));
                 this.client = Some(client);
                 this.connected_at = Some(tokio::time::Instant::now());
@@ -262,23 +297,29 @@ fn on_connect_result<B: AgentBackend>(
                 addr.send(Ping);
                 this.open_stream(&cx.detach());
             }
+            return;
         }
-        Err(refused) => {
-            let event = match refused {
-                Refused::Failed => ConnectionEvent::ConnectFailed,
-                Refused::Outdated => ConnectionEvent::ConnectOutdated,
-            };
-            if let Some(t) = this.apply(event) {
-                this.client = None;
-                B::announce(None);
-                this.publish_state(None);
-                if t.effect == TransitionEffect::ScheduleRetry {
-                    let spent = this
-                        .attempt_started
-                        .map_or(std::time::Duration::ZERO, |started| started.elapsed());
-                    addr.send(TryConnectWithDelay(retry_in(this.attempt_window(), spent)));
-                }
-            }
+        Err(Refused::InProcess(error)) => {
+            warn!(agent = B::NAME, %error, "back to the service");
+            B::in_process_started(Err(&error));
+            this.switch_to(Source::Service, &cx.detach());
+            return;
+        }
+        Err(Refused::Failed) => ConnectionEvent::ConnectFailed,
+        Err(Refused::Outdated) => ConnectionEvent::ConnectOutdated,
+    };
+    if let Some(t) = this.apply(event) {
+        this.client = None;
+        B::announce(None);
+        this.publish_state(None);
+        if t.effect == TransitionEffect::ScheduleRetry {
+            let spent = this
+                .attempt_started
+                .map_or(std::time::Duration::ZERO, |started| started.elapsed());
+            addr.send(TryConnectWithDelay {
+                delay: retry_in(this.attempt_window(), spent),
+                epoch: this.epoch,
+            });
         }
     }
 }
@@ -327,18 +368,18 @@ fn on_streamed<B: AgentBackend>(this: &mut GenericAgentActor<B>, Streamed { gene
 #[handler]
 async fn schedule_retry<B: AgentBackend>(
     ctx: AsyncContext<GenericAgentActor<B>>,
-    TryConnectWithDelay(delay): TryConnectWithDelay,
+    TryConnectWithDelay { delay, epoch }: TryConnectWithDelay,
 ) {
     let waited = ctx.until_gone(tokio::time::sleep(delay)).await;
     if waited.is_none() {
         return;
     }
-    ctx.send(RetryTimerElapsed);
+    ctx.send(RetryTimerElapsed(epoch));
 }
 
 #[handler]
-fn on_retry_elapsed<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: RetryTimerElapsed, cx: Cx) {
-    if this.dormant {
+fn on_retry_elapsed<B: AgentBackend>(this: &mut GenericAgentActor<B>, RetryTimerElapsed(epoch): RetryTimerElapsed, cx: Cx) {
+    if epoch != this.epoch {
         return;
     }
     if let Some(t) = this.apply(ConnectionEvent::RetryDelayElapsed)
@@ -351,9 +392,6 @@ fn on_retry_elapsed<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Retr
 
 #[handler]
 fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: ConnectionLost, cx: Cx) {
-    if this.dormant {
-        return;
-    }
     if this.apply(ConnectionEvent::ConnectionLost).is_none() {
         return;
     }
@@ -371,17 +409,27 @@ fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Co
         std::time::Duration::ZERO => cx.addr().send(StartConnect),
         rest => {
             warn!("[{}] the connection lasted {lasted:?}; reconnecting in {rest:?}", B::NAME);
-            cx.addr().send(ReconnectAfter(rest));
+            cx.addr().send(ReconnectAfter { rest, epoch: this.epoch });
         }
     }
 }
 
+#[derive(Clone, Debug)]
+struct ReconnectDue(u64);
+
 #[handler]
 async fn reconnect_after<B: AgentBackend>(
     ctx: AsyncContext<GenericAgentActor<B>>,
-    ReconnectAfter(rest): ReconnectAfter,
+    ReconnectAfter { rest, epoch }: ReconnectAfter,
 ) {
     if ctx.until_gone(tokio::time::sleep(rest)).await.is_some() {
-        ctx.send(StartConnect);
+        ctx.send(ReconnectDue(epoch));
+    }
+}
+
+#[handler]
+fn reconnect_due<B: AgentBackend>(this: &GenericAgentActor<B>, ReconnectDue(epoch): ReconnectDue, cx: Cx) {
+    if epoch == this.epoch {
+        cx.addr().send(StartConnect);
     }
 }

@@ -94,8 +94,15 @@ catches up (Processes resets its rates and asks for the service state).
   delta against a `baseEtag`, unchanged); anything it cannot apply asks for a resync.
   Disk is the agent's file I/O (`fileRead/WriteBytes`), not the block layer.
 - When the service does not answer, the splash offers "Open monitor in process" after 5 s.
-  `agent_link` then runs `uniproc_windows_agent::local::Local` inside uniproc and publishes
-  `WindowsAgentInProcess`: the service actor goes dormant and `agent_link` answers for it.
+  The monitor in process is the same Windows agent reached another way: `agent_link`
+  publishes `RunWindowsAgentInProcess`, and the Windows agent actor switches its source
+  from the service to `AgentBackend::connect_in_process` (`Agent::local()`, the same
+  `WindowsClient` and `WindowsFeed`), runs the same streams and announces the same
+  transport. It stays in process for the rest of the run and answers with
+  `WindowsAgentInProcess` (`Running`, `NotElevated`, `Failed`); a start that fails hands
+  back to the service. A switch bumps the actor's epoch, so answers and timers left from
+  the old source are dropped. `agent_link` itself holds only the splash: the offer, the
+  elevation and the restart.
   `Local` needs an elevated uniproc. Without it the button carries a shield and restarts
   uniproc through `runas` with `--in-process --after <pid>`, then closes this window; the
   new copy waits in `main` for that pid to exit (the single-instance lock is the old
@@ -103,9 +110,9 @@ catches up (Processes resets its rates and asks for the service state).
   as they were. `AgentLinkDeps::elevation` is that platform side; tests fake it.
 - Actions on processes and services are an RPC: `WindowsActionRequest(action)` answered
   with `ActionOutcome`, asked through `agents::actions::request`. Only `WindowsActions`
-  answers. It hears which transport is current — the service (`WindowsTransport::Remote`,
-  announced by the service actor on connect and on loss) or the monitor in process
-  (`Local`, which wins for the rest of the run) — and calls `act` on it. Guinea allows
+  answers. It hears the current transport (`WindowsTransport::Connected`, announced by
+  the Windows agent actor on connect, `Lost` on loss), whichever source it came from, and
+  calls `act` on it through `ActsOnWindows`. Guinea allows
   one answerer per request type and panics on a second; with none, the request fails
   at once without being published. Page tests that act fake the service with
   `GlobalEventBus::answer_fn`.

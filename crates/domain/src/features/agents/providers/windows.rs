@@ -1,13 +1,15 @@
-use crate::features::agents::actions::WindowsTransport;
+use crate::features::agents::actions::{ActsOnWindows, WindowsTransport};
 use crate::features::agents::actor::{GenericAgentActor, Init, Ping};
-use crate::features::agents::backend::{AgentBackend, Outdated};
+use crate::features::agents::backend::{AgentBackend, InProcessError, Outdated};
 use crate::features::agents::settings::AgentSettings;
 use crate::features::agents::windows_feed::WindowsFeed;
 use crate::features::settings::settings::GeneralSettings;
 use amethystate::Field;
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, WindowsAction, WindowsAgentInProcess, WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsProcessEvents, WindowsReport, WindowsReportMessage,
+    AgentConnectionState, AgentStateRequest, RunWindowsAgentInProcess, WindowsAction, WindowsAgentInProcess,
+    WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsProcessEvents, WindowsReport, WindowsReportMessage,
 };
+use futures::future::BoxFuture;
 use guinea::prelude::*;
 use guinea_plugin_store::StoreAccess;
 use std::sync::Arc;
@@ -16,6 +18,7 @@ use tracing::instrument;
 use uniproc_protocol::WINDOWS_AGENT_SERVICE;
 use uniproc_windows_agent::agent::Agent;
 pub use uniproc_windows_agent::api::{SERVICE_DISPLAY_NAME, SERVICE_NAME};
+use uniproc_windows_agent::local::StartError;
 use uniproc_windows_agent::remote::Remote;
 
 fn agent_service() -> String {
@@ -46,9 +49,24 @@ impl WindowsClient {
         if !remote.can_watch() {
             return Err(Outdated(remote.agent_version().to_string()).into());
         }
-        Ok(Self {
-            feed: Arc::new(WindowsFeed::new(Agent::Remote(remote), interval)),
-        })
+        Ok(Self::over(Agent::Remote(remote), interval))
+    }
+
+    pub async fn start_in_process(
+        interval: impl Fn() -> Duration + Send + Sync + 'static,
+    ) -> Result<Self, InProcessError> {
+        match tokio::task::spawn_blocking(Agent::local).await {
+            Ok(Ok(agent)) => Ok(Self::over(agent, interval)),
+            Ok(Err(StartError::NotElevated)) => Err(InProcessError::NotElevated),
+            Ok(Err(error)) => Err(InProcessError::Failed(error.to_string())),
+            Err(error) => Err(InProcessError::Failed(error.to_string())),
+        }
+    }
+
+    fn over(agent: Agent, interval: impl Fn() -> Duration + Send + Sync + 'static) -> Self {
+        Self {
+            feed: Arc::new(WindowsFeed::new(agent, interval)),
+        }
     }
 
     pub async fn ping(&self) -> anyhow::Result<()> {
@@ -72,6 +90,13 @@ impl WindowsClient {
     }
 }
 
+impl ActsOnWindows for WindowsClient {
+    fn act(&self, action: WindowsAction) -> BoxFuture<'static, u32> {
+        let client = self.clone();
+        Box::pin(async move { client.feed.act(action).await })
+    }
+}
+
 #[derive(Debug)]
 pub struct WindowsBackend;
 
@@ -85,6 +110,18 @@ impl AgentBackend for WindowsBackend {
 
     async fn connect(timeout: Duration, update_interval_ms: Field<u64>) -> anyhow::Result<Self::Client> {
         WindowsClient::connect(timeout, move || Duration::from_millis(update_interval_ms.get())).await
+    }
+
+    async fn connect_in_process(update_interval_ms: Field<u64>) -> Result<Self::Client, InProcessError> {
+        WindowsClient::start_in_process(move || Duration::from_millis(update_interval_ms.get())).await
+    }
+
+    fn in_process_started(started: Result<(), &InProcessError>) {
+        GlobalEventBus::publish(match started {
+            Ok(()) => WindowsAgentInProcess::Running,
+            Err(InProcessError::NotElevated) => WindowsAgentInProcess::NotElevated,
+            Err(_) => WindowsAgentInProcess::Failed,
+        });
     }
 
     async fn ping(client: &Self::Client) -> anyhow::Result<i32> {
@@ -114,7 +151,7 @@ impl AgentBackend for WindowsBackend {
 
     fn announce(client: Option<&Self::Client>) {
         GlobalEventBus::publish(match client {
-            Some(client) => WindowsTransport::Remote(client.clone()),
+            Some(client) => WindowsTransport::Connected(Arc::new(client.clone())),
             None => WindowsTransport::Lost,
         });
     }
@@ -139,7 +176,7 @@ pub fn windows_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
     app.every(settings.ping_period(), &addr, || Ping).named("windows-agent-ping");
 
     addr.subscribe_on::<AgentStateRequest>(Bus::Global);
-    addr.subscribe_on::<WindowsAgentInProcess>(Bus::Global);
+    addr.subscribe_on::<RunWindowsAgentInProcess>(Bus::Global);
     addr.send(Init);
 
     Ok(())

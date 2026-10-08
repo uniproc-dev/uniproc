@@ -2,41 +2,26 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use app_contracts::features::agents::{ActionOutcome, WindowsAction, WindowsActionRequest};
+use futures::future::BoxFuture;
 use guinea::core::actor::event_bus::{AsyncBus, RpcRequest};
 use guinea::prelude::*;
 
-use crate::features::agent_link::InProcessAgent;
-use crate::features::agents::providers::windows::WindowsClient;
+pub trait ActsOnWindows: Send + Sync + 'static {
+    fn act(&self, action: WindowsAction) -> BoxFuture<'static, u32>;
+}
 
 #[derive(Clone, Event)]
 pub enum WindowsTransport {
-    Remote(WindowsClient),
-    Local(Arc<dyn InProcessAgent>),
+    Connected(Arc<dyn ActsOnWindows>),
     Lost,
 }
 
 impl std::fmt::Debug for WindowsTransport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            Self::Remote(_) => "Remote",
-            Self::Local(_) => "Local",
+            Self::Connected(_) => "Connected",
             Self::Lost => "Lost",
         })
-    }
-}
-
-#[derive(Clone)]
-enum Transport {
-    Remote(WindowsClient),
-    Local(Arc<dyn InProcessAgent>),
-}
-
-impl Transport {
-    async fn act(self, action: WindowsAction) -> u32 {
-        match self {
-            Self::Remote(client) => client.act(action).await,
-            Self::Local(agent) => agent.act(action).await,
-        }
     }
 }
 
@@ -64,17 +49,14 @@ pub fn outcome(code: u32) -> ActionOutcome {
 
 #[derive(Default)]
 pub struct WindowsActions {
-    transport: Option<Transport>,
+    transport: Option<Arc<dyn ActsOnWindows>>,
 }
 
 impl std::fmt::Debug for WindowsActions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let transport = match &self.transport {
-            Some(Transport::Remote(_)) => "Remote",
-            Some(Transport::Local(_)) => "Local",
-            None => "None",
-        };
-        f.debug_struct("WindowsActions").field("transport", &transport).finish()
+        f.debug_struct("WindowsActions")
+            .field("connected", &self.transport.is_some())
+            .finish()
     }
 }
 
@@ -86,11 +68,9 @@ actor! {
 
 #[handler]
 fn on_transport(this: &mut WindowsActions, transport: WindowsTransport) {
-    this.transport = match (this.transport.take(), transport) {
-        (Some(Transport::Local(agent)), _) => Some(Transport::Local(agent)),
-        (_, WindowsTransport::Remote(client)) => Some(Transport::Remote(client)),
-        (_, WindowsTransport::Local(agent)) => Some(Transport::Local(agent)),
-        (_, WindowsTransport::Lost) => None,
+    this.transport = match transport {
+        WindowsTransport::Connected(agent) => Some(agent),
+        WindowsTransport::Lost => None,
     };
 }
 

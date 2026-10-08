@@ -4,13 +4,13 @@ use std::time::Duration;
 
 use amethystate::Field;
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, WindowsAction, WindowsAgentInProcess,
-    WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsProcessEvents, WindowsReport, WindowsReportMessage,
+    AgentConnectionState, AgentStateRequest, RunWindowsAgentInProcess, WindowsAction, WindowsAgentInProcess,
+    WindowsAgentRuntimeEvent, WindowsProcessEvents, WindowsReport, WindowsReportMessage,
 };
-use domain::features::agent_link::{AgentLinkDeps, Elevation, InProcessAgent, InProcessStartError, RelaunchError};
-use domain::features::agents::actions;
+use domain::features::agent_link::{AgentLinkDeps, Elevation, RelaunchError};
+use domain::features::agents::actions::{self, ActsOnWindows, WindowsTransport};
 use domain::features::agents::actor::{GenericAgentActor, Init, Ping};
-use domain::features::agents::backend::{AgentBackend, Outdated};
+use domain::features::agents::backend::{AgentBackend, InProcessError, Outdated};
 use domain::features::agents::settings::AgentSettings;
 use domain::features::settings::settings::GeneralSettings;
 use futures::future::BoxFuture;
@@ -33,6 +33,7 @@ static REPORT: std::sync::Mutex<Option<WindowsReport>> = std::sync::Mutex::new(N
 static ELEVATED: AtomicBool = AtomicBool::new(false);
 static ASKED_AT_START: AtomicBool = AtomicBool::new(false);
 static RELAUNCH_REFUSED: AtomicBool = AtomicBool::new(false);
+static IN_PROCESS_FAILS: AtomicBool = AtomicBool::new(false);
 static RELAUNCHES: AtomicU32 = AtomicU32::new(0);
 static CLOSES: AtomicU32 = AtomicU32::new(0);
 static IN_PROCESS_STARTS: AtomicU32 = AtomicU32::new(0);
@@ -50,6 +51,7 @@ pub fn reset(up: bool) {
     ELEVATED.store(false, Ordering::SeqCst);
     ASKED_AT_START.store(false, Ordering::SeqCst);
     RELAUNCH_REFUSED.store(false, Ordering::SeqCst);
+    IN_PROCESS_FAILS.store(false, Ordering::SeqCst);
     RELAUNCHES.store(0, Ordering::SeqCst);
     CLOSES.store(0, Ordering::SeqCst);
     IN_PROCESS_STARTS.store(0, Ordering::SeqCst);
@@ -76,6 +78,10 @@ pub fn set_elevated(elevated: bool) {
 
 pub fn set_asked_at_start(asked: bool) {
     ASKED_AT_START.store(asked, Ordering::SeqCst);
+}
+
+pub fn set_in_process_fails(fails: bool) {
+    IN_PROCESS_FAILS.store(fails, Ordering::SeqCst);
 }
 
 pub fn set_relaunch_refused(refused: bool) {
@@ -110,7 +116,6 @@ pub fn elevation() -> Elevation {
 
 pub fn agent_link() -> AgentLinkDeps {
     AgentLinkDeps {
-        start_in_process,
         elevation: elevation(),
     }
 }
@@ -127,50 +132,27 @@ pub fn in_process_actions() -> Vec<WindowsAction> {
     IN_PROCESS_ACTIONS.lock().unwrap().clone()
 }
 
-struct FakeInProcess;
+#[derive(Clone, Copy, Debug)]
+pub struct FakeClient {
+    in_process: bool,
+}
 
-impl InProcessAgent for FakeInProcess {
-    fn report(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<Option<WindowsReport>>> {
-        IN_PROCESS_REPORTS.fetch_add(1, Ordering::SeqCst);
-        let report = REPORT.lock().unwrap().clone().unwrap_or_default();
-        Box::pin(async {
-            tokio::time::sleep(Pace::Report).await;
-            Ok(Some(report))
-        })
-    }
-
-    fn machine(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<WindowsMachineSample>> {
-        Box::pin(std::future::pending())
-    }
-
-    fn act(self: Arc<Self>, action: WindowsAction) -> BoxFuture<'static, u32> {
-        IN_PROCESS_ACTIONS.lock().unwrap().push(action);
-        Box::pin(async { 0 })
-    }
-
-    fn process_events(self: Arc<Self>) -> BoxFuture<'static, anyhow::Result<WindowsProcessEvents>> {
-        Box::pin(async {
-            loop {
-                if let Some(events) = told().await {
-                    return Ok(events);
-                }
-            }
-        })
+impl FakeClient {
+    fn up(self) -> anyhow::Result<()> {
+        match self.in_process {
+            true => Ok(()),
+            false => up(),
+        }
     }
 }
 
-pub fn start_in_process(
-    _update_interval_ms: Field<u64>,
-) -> BoxFuture<'static, Result<Arc<dyn InProcessAgent>, InProcessStartError>> {
-    IN_PROCESS_STARTS.fetch_add(1, Ordering::SeqCst);
-    let elevated = ELEVATED.load(Ordering::SeqCst);
-    Box::pin(async move {
-        if elevated {
-            Ok(Arc::new(FakeInProcess) as Arc<dyn InProcessAgent>)
-        } else {
-            Err(InProcessStartError::NotElevated)
+impl ActsOnWindows for FakeClient {
+    fn act(&self, action: WindowsAction) -> BoxFuture<'static, u32> {
+        if self.in_process {
+            IN_PROCESS_ACTIONS.lock().unwrap().push(action);
         }
-    })
+        Box::pin(async { 0 })
+    }
 }
 
 pub fn set_up(up: bool) {
@@ -209,45 +191,79 @@ fn up() -> anyhow::Result<()> {
 pub struct FakeAgent;
 
 impl AgentBackend for FakeAgent {
-    type Client = ();
+    type Client = FakeClient;
     type RuntimeEvent = WindowsAgentRuntimeEvent;
     type ScanMessage = WindowsReportMessage;
 
     const NAME: &'static str = "Fake";
     const STREAMS_PROCESS_EVENTS: bool = true;
 
-    async fn connect(_timeout: Duration, _update_interval_ms: Field<u64>) -> anyhow::Result<()> {
+    async fn connect(_timeout: Duration, _update_interval_ms: Field<u64>) -> anyhow::Result<FakeClient> {
         CONNECTS.fetch_add(1, Ordering::SeqCst);
         if OUTDATED.load(Ordering::SeqCst) {
             return Err(Outdated("windows 2.1.0".into()).into());
         }
-        up()
+        up().map(|()| FakeClient { in_process: false })
     }
 
-    async fn ping(_client: &()) -> anyhow::Result<i32> {
-        PINGS.fetch_add(1, Ordering::SeqCst);
-        up().map(|()| 1)
-    }
-
-    async fn perform_scan(_client: &()) -> anyhow::Result<()> {
-        up()?;
-        if DROPS.load(Ordering::SeqCst) {
-            anyhow::bail!("the agent dropped the watch");
+    async fn connect_in_process(_update_interval_ms: Field<u64>) -> Result<FakeClient, InProcessError> {
+        IN_PROCESS_STARTS.fetch_add(1, Ordering::SeqCst);
+        if IN_PROCESS_FAILS.load(Ordering::SeqCst) {
+            return Err(InProcessError::Failed("the ETW session is taken".into()));
         }
-        let report = REPORT.lock().unwrap().clone();
+        match ELEVATED.load(Ordering::SeqCst) {
+            true => Ok(FakeClient { in_process: true }),
+            false => Err(InProcessError::NotElevated),
+        }
+    }
+
+    fn in_process_started(started: Result<(), &InProcessError>) {
+        GlobalEventBus::publish(match started {
+            Ok(()) => WindowsAgentInProcess::Running,
+            Err(InProcessError::NotElevated) => WindowsAgentInProcess::NotElevated,
+            Err(_) => WindowsAgentInProcess::Failed,
+        });
+    }
+
+    async fn ping(client: &FakeClient) -> anyhow::Result<i32> {
+        PINGS.fetch_add(1, Ordering::SeqCst);
+        client.up().map(|()| 1)
+    }
+
+    async fn perform_scan(client: &FakeClient) -> anyhow::Result<()> {
+        client.up()?;
+        let report = match client.in_process {
+            true => {
+                IN_PROCESS_REPORTS.fetch_add(1, Ordering::SeqCst);
+                Some(REPORT.lock().unwrap().clone().unwrap_or_default())
+            }
+            false => {
+                if DROPS.load(Ordering::SeqCst) {
+                    anyhow::bail!("the agent dropped the watch");
+                }
+                REPORT.lock().unwrap().clone()
+            }
+        };
         if let Some(report) = report {
-            GlobalEventBus::publish(WindowsReportMessage::Report(std::sync::Arc::new(report)));
+            GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(report)));
         }
         tokio::time::sleep(Pace::Report).await;
         Ok(())
     }
 
-    async fn perform_process_events(_client: &()) -> anyhow::Result<()> {
-        up()?;
+    async fn perform_process_events(client: &FakeClient) -> anyhow::Result<()> {
+        client.up()?;
         if let Some(events) = told().await {
             GlobalEventBus::publish(events);
         }
         Ok(())
+    }
+
+    fn announce(client: Option<&FakeClient>) {
+        GlobalEventBus::publish(match client {
+            Some(client) => WindowsTransport::Connected(Arc::new(*client)),
+            None => WindowsTransport::Lost,
+        });
     }
 
     fn create_runtime_event(state: AgentConnectionState, latency_ms: Option<i32>) -> WindowsAgentRuntimeEvent {
@@ -275,7 +291,7 @@ impl AppFeature for FakeAgentFeature {
 
         app.every(settings.ping_period(), &addr, || Ping);
         addr.subscribe_on::<AgentStateRequest>(Bus::Global);
-        addr.subscribe_on::<WindowsAgentInProcess>(Bus::Global);
+        addr.subscribe_on::<RunWindowsAgentInProcess>(Bus::Global);
         addr.send(Init);
 
         Ok(())

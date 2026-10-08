@@ -370,7 +370,15 @@ pub struct WindowsAgentRuntimeEvent {
 
 #[derive(Clone, Debug, Event, Deserialize, guinea::Remote)]
 #[remote(event)]
-pub struct WindowsAgentInProcess;
+pub struct RunWindowsAgentInProcess;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Event, Deserialize, guinea::Remote)]
+#[remote(event)]
+pub enum WindowsAgentInProcess {
+    Running,
+    NotElevated,
+    Failed,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
 pub enum WindowsAction {
