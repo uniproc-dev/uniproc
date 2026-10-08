@@ -3304,6 +3304,7 @@ dependencies = [
  "guinea",
  "guinea-plugin-l10n",
  "guinea-widgets",
+ "table",
  "tracing",
  "uuid",
  "windows-canvas-pre",

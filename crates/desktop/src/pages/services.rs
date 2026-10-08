@@ -42,6 +42,7 @@ mod tests {
         ActionOutcome, WindowsActionRequest, WindowsReport, WindowsReportMessage, WindowsServiceState,
         WindowsServiceStats,
     };
+    use app_contracts::features::services::Select;
     use guinea::app::Harness;
     use guinea::prelude::GlobalEventBus;
     use guinea::winui::harness::{Mounted, PropertyId, PropertyValue};
@@ -80,7 +81,7 @@ mod tests {
         let _service = GlobalEventBus::answer_fn(|_: WindowsActionRequest| ActionOutcome::Busy);
 
         page.settle();
-        page.item(0).click_here();
+        page.segment().act::<ServicesState>(Select("Audiosrv".into())).settle();
         page.settle();
         assert_eq!(tip(&page, PropertyId::IsOpen), Some(PropertyValue::Bool(false)));
         page.click(ServicesMark::Stop).settle();

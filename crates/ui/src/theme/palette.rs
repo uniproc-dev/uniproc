@@ -9,6 +9,7 @@ use crate::bindings::{IUISettings3, UIColorType, UISettings};
 pub struct Palette {
     pub heat_muted: Color,
     pub track_idle: Color,
+    pub primary_text: Color,
     pub secondary_text: Color,
     pub tertiary_text: Color,
     pub disabled_text: Color,
@@ -40,6 +41,7 @@ impl Palette {
             ColorScheme::Dark => Self {
                 heat_muted: Color::argb(255, 150, 150, 150),
                 track_idle: Color::argb(26, 255, 255, 255),
+                primary_text: Color::argb(255, 255, 255, 255),
                 secondary_text: Color::argb(197, 255, 255, 255),
                 tertiary_text: Color::argb(139, 255, 255, 255),
                 disabled_text: Color::argb(93, 255, 255, 255),
@@ -74,6 +76,7 @@ impl Palette {
             ColorScheme::Light => Self {
                 heat_muted: Color::argb(255, 110, 110, 110),
                 track_idle: Color::argb(26, 0, 0, 0),
+                primary_text: Color::argb(228, 0, 0, 0),
                 secondary_text: Color::argb(158, 0, 0, 0),
                 tertiary_text: Color::argb(114, 0, 0, 0),
                 disabled_text: Color::argb(92, 0, 0, 0),

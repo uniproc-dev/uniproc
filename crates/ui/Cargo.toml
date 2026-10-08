@@ -10,6 +10,7 @@ windows-canvas = { workspace = true }
 windows-reactor = { workspace = true }
 app-contracts = { workspace = true }
 context = { workspace = true }
+table = { workspace = true }
 guinea = { workspace = true }
 guinea-widgets = { workspace = true }
 guinea-plugin-l10n = { workspace = true }

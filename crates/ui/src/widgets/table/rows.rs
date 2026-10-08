@@ -7,7 +7,7 @@ use windows_reactor::{
     PointerEventInfo, Thickness, VerticalAlignment, View, ViewContext, VirtualSource,
 };
 
-use super::columns::{ColumnSpec, Laid, Look};
+use super::columns::{CellFn, ColumnSpec, Laid, Look};
 
 struct Rows;
 
@@ -152,7 +152,10 @@ fn row_view<T, C: Mark>(row: &T, columns: &[ColumnSpec<T, C>], laid: &Laid) -> V
             .padding(Thickness::xy(column.inset(), 0.0))
             .grid_column(laid.slots[at] as i32)
             .vertical_alignment(VerticalAlignment::Center)
-            .content((column.cell)(row));
+            .content(match &column.cell {
+                CellFn::View(view) => view(row),
+                CellFn::Paint(_) => Border::new().into(),
+            });
         keyed(column.id.name(), cell)
     });
 

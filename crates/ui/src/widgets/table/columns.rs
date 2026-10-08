@@ -94,7 +94,14 @@ pub struct ColumnSpec<T, C> {
     pub sortable: bool,
     pub flush: bool,
     pub fill: bool,
-    pub cell: Rc<dyn Fn(&T) -> View>,
+    pub cell: CellFn<T>,
+}
+
+pub type PaintFn<T> = Rc<dyn Fn(&T, &mut table::model::Cell)>;
+
+pub enum CellFn<T> {
+    View(Rc<dyn Fn(&T) -> View>),
+    Paint(PaintFn<T>),
 }
 
 impl<T, C: Mark> ColumnSpec<T, C> {
@@ -117,8 +124,31 @@ impl<T, C: Mark> ColumnSpec<T, C> {
             sortable: false,
             flush: false,
             fill: false,
-            cell: Rc::new(cell),
+            cell: CellFn::View(Rc::new(cell)),
         }
+    }
+
+    pub fn painted(
+        id: C,
+        header: impl Into<String>,
+        initial_width: f64,
+        paint: impl Fn(&T, &mut table::model::Cell) + 'static,
+    ) -> Self {
+        let header = header.into();
+        Self {
+            id,
+            header: Rc::new(move || TextBlock::new().text(header.clone()).into()),
+            initial_width,
+            min_width: Space::MinColumn,
+            sortable: false,
+            flush: false,
+            fill: false,
+            cell: CellFn::Paint(Rc::new(paint)),
+        }
+    }
+
+    pub(super) fn is_painted(&self) -> bool {
+        matches!(self.cell, CellFn::Paint(_))
     }
 
     pub fn min_width(mut self, min_width: f64) -> Self {

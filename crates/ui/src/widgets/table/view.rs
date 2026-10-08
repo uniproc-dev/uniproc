@@ -11,6 +11,8 @@ use windows_reactor::{
 
 use super::columns::{placed, width_of, ColumnOrder, ColumnSpec, ColumnWidths, Laid, Look, Reordered, Resized};
 use super::header::{handle, header_cell, HeaderCell, Moving};
+use super::painted::{painted_body, KeyFn, Painted};
+use crate::theme::Palette;
 use super::rows::rows_source;
 use super::sort::SortState;
 
@@ -32,6 +34,8 @@ pub struct Table<T, C> {
     sort_indicator: Option<Rc<dyn Fn(bool) -> Option<View>>>,
     look: Look,
     corner_radius: f64,
+    key: Option<KeyFn<T>>,
+    palette: Option<Palette>,
 }
 
 pub fn table<T: 'static, C: Mark + Clone + PartialEq>(rows: Vec<T>, columns: Vec<ColumnSpec<T, C>>) -> Table<T, C> {
@@ -48,6 +52,8 @@ pub fn table<T: 'static, C: Mark + Clone + PartialEq>(rows: Vec<T>, columns: Vec
         sort_indicator: None,
         look: Look::default(),
         corner_radius: 0.0,
+        key: None,
+        palette: None,
     }
 }
 
@@ -64,6 +70,16 @@ impl<T: 'static, C: Mark + Clone + PartialEq + 'static> Table<T, C> {
 
     pub fn corner_radius(mut self, radius: f64) -> Self {
         self.corner_radius = radius;
+        self
+    }
+
+    pub fn key(mut self, key: impl Fn(&T) -> u64 + 'static) -> Self {
+        self.key = Some(Rc::new(key));
+        self
+    }
+
+    pub fn palette(mut self, palette: Palette) -> Self {
+        self.palette = Some(palette);
         self
     }
 
@@ -116,6 +132,8 @@ impl<T: 'static, C: Mark + Clone + PartialEq + 'static> Table<T, C> {
             sort_indicator,
             look,
             corner_radius,
+            key,
+            palette,
         } = self;
 
         let (sort_state, on_sort) = match sort {
@@ -197,6 +215,23 @@ impl<T: 'static, C: Mark + Clone + PartialEq + 'static> Table<T, C> {
             .keyed_children(header_cells.into_iter().map(|(key, cell)| keyed(key, cell)));
 
         let separator = Rectangle::new().fill(look.rule).height(1.0).grid_row(1);
+
+        if let Some(palette) = palette.filter(|_| !columns.is_empty() && columns.iter().all(ColumnSpec::is_painted)) {
+            let body = Border::new().grid_row(2).content(painted_body(Painted {
+                rows,
+                columns,
+                placed,
+                widths,
+                key,
+                selection,
+                look,
+                palette,
+            }));
+            return Grid::new()
+                .rows([GridLength::Auto, GridLength::Auto, GridLength::Star(1.0)])
+                .children((header, separator, body))
+                .into();
+        }
 
         let on_deselect = selection.as_ref().map(|(_, on_select)| on_select.clone());
 
