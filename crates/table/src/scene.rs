@@ -17,11 +17,37 @@ use crate::paint::{self, Look};
 use crate::realize::{Realized, Visuals};
 use crate::text::Text;
 
+struct Held {
+    below: AtomicU32,
+    above: AtomicU32,
+}
+
+impl Held {
+    fn new() -> Self {
+        Self {
+            below: AtomicU32::new(Band::ALWAYS.below.to_bits()),
+            above: AtomicU32::new(Band::ALWAYS.above.to_bits()),
+        }
+    }
+
+    fn get(&self) -> Band {
+        Band {
+            below: f32::from_bits(self.below.load(Ordering::Relaxed)),
+            above: f32::from_bits(self.above.load(Ordering::Relaxed)),
+        }
+    }
+
+    fn set(&self, band: Band) {
+        self.below.store(band.below.to_bits(), Ordering::Relaxed);
+        self.above.store(band.above.to_bits(), Ordering::Relaxed);
+    }
+}
+
 pub(crate) struct Shared {
     position: AtomicU32,
     pending: AtomicBool,
-    below: AtomicU32,
-    above: AtomicU32,
+    drawn: Held,
+    pointed: Held,
 }
 
 impl Shared {
@@ -29,8 +55,8 @@ impl Shared {
         Self {
             position: AtomicU32::new(0f32.to_bits()),
             pending: AtomicBool::new(false),
-            below: AtomicU32::new(Band::ALWAYS.below.to_bits()),
-            above: AtomicU32::new(Band::ALWAYS.above.to_bits()),
+            drawn: Held::new(),
+            pointed: Held::new(),
         }
     }
 
@@ -38,16 +64,8 @@ impl Shared {
         f32::from_bits(self.position.load(Ordering::Relaxed))
     }
 
-    fn band(&self) -> Band {
-        Band {
-            below: f32::from_bits(self.below.load(Ordering::Relaxed)),
-            above: f32::from_bits(self.above.load(Ordering::Relaxed)),
-        }
-    }
-
-    fn hold(&self, band: Band) {
-        self.below.store(band.below.to_bits(), Ordering::Relaxed);
-        self.above.store(band.above.to_bits(), Ordering::Relaxed);
+    fn holds(&self, position: f32) -> bool {
+        self.drawn.get().holds(position) && self.pointed.get().holds(position)
     }
 }
 
@@ -105,7 +123,7 @@ impl c::IInteractionTrackerOwner_Impl for Owner_Impl {
     ) -> Result<()> {
         let position = args.ok()?.Position()?.y;
         self.shared.position.store(position.to_bits(), Ordering::Relaxed);
-        if !self.shared.band().holds(position) && !self.shared.pending.swap(true, Ordering::Relaxed) {
+        if !self.shared.holds(position) && !self.shared.pending.swap(true, Ordering::Relaxed) {
             (self.wake)();
         }
         Ok(())
@@ -436,7 +454,7 @@ impl Scene {
             let settled = self.painter.settle(&row.visual, row.at);
             self.painter.fail(settled);
         }
-        self.shared.hold(layout::band(&self.painter.lines, range, self.height, self.overscan / 2.0));
+        self.shared.drawn.set(layout::band(&self.painter.lines, range, self.height, self.overscan / 2.0));
         self.point(hovered)?;
         self.place_bar()?;
         let width = self.painter.row_width();
@@ -534,6 +552,7 @@ impl Scene {
 
     pub(crate) fn point(&self, hovered: Option<f32>) -> Result<()> {
         let position = self.shared.position();
+        self.shared.pointed.set(layout::pointed(&self.painter.lines, hovered, position));
         let look = &self.painter.look;
         match hovered.and_then(|y| self.painter.lines.at(y + position)) {
             Some(at) => self.hover.show(

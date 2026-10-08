@@ -113,6 +113,17 @@ pub fn band(lines: &Lines, realized: Range<usize>, viewport: f32, margin: f32) -
     Band { below, above }
 }
 
+pub fn pointed(lines: &Lines, pointer: Option<f32>, offset: f32) -> Band {
+    let Some(pointer) = pointer else {
+        return Band { below: f32::NEG_INFINITY, above: f32::INFINITY };
+    };
+    match lines.at(pointer + offset) {
+        Some(at) => Band { below: lines.start(at) - pointer, above: lines.start(at) + lines.size(at) - pointer },
+        None if pointer + offset < 0.0 => Band { below: f32::NEG_INFINITY, above: -pointer },
+        None => Band { below: lines.extent() - pointer, above: f32::INFINITY },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,6 +179,28 @@ mod tests {
         assert!(band.holds(320.0));
         assert!(!band.holds(287.0));
         assert!(!band.holds(353.0));
+    }
+
+    #[test]
+    fn the_pointed_band_holds_while_the_same_line_stays_under_the_pointer() {
+        let lines = lines();
+        let band = pointed(&lines, Some(50.0), 0.0);
+        assert_eq!(band, Band { below: -14.0, above: 18.0 });
+        assert!(band.holds(10.0));
+        assert!(!band.holds(19.0));
+    }
+
+    #[test]
+    fn past_the_last_line_the_pointed_band_holds_until_a_line_comes_under_the_pointer() {
+        let lines = lines();
+        let band = pointed(&lines, Some(100.0), 80.0);
+        assert_eq!(band, Band { below: 68.0, above: f32::INFINITY });
+    }
+
+    #[test]
+    fn without_a_pointer_the_pointed_band_holds_everywhere() {
+        let band = pointed(&lines(), None, 40.0);
+        assert!(band.holds(-1000.0) && band.holds(1000.0));
     }
 
     fn sizes(lines: &Lines) -> Vec<f32> {
