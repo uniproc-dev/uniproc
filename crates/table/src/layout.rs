@@ -95,6 +95,19 @@ pub fn columns(widths: &[Width], available: f32) -> Lines {
     }))
 }
 
+pub fn column_span(columns: &Lines, row_width: f32, at: usize) -> (f32, f32) {
+    let left = columns.start(at);
+    let right = left + columns.size(at);
+    if at + 1 == columns.len() { (left, right.max(row_width)) } else { (left, right) }
+}
+
+pub fn cell_at(rows: &Lines, columns: &Lines, row_width: f32, x: f32, y: f32) -> Option<(usize, usize)> {
+    let row = rows.at(y)?;
+    let last = columns.len().checked_sub(1)?;
+    let column = columns.at(x).or_else(|| (x >= columns.extent()).then_some(last))?;
+    (x < column_span(columns, row_width, column).1).then_some((row, column))
+}
+
 pub fn realized(lines: &Lines, offset: f32, viewport: f32, overscan: f32) -> Range<usize> {
     lines.span(offset - overscan, offset + viewport + overscan)
 }
@@ -201,6 +214,33 @@ mod tests {
     fn without_a_pointer_the_pointed_band_holds_everywhere() {
         let band = pointed(&lines(), None, 40.0);
         assert!(band.holds(-1000.0) && band.holds(1000.0));
+    }
+
+    #[test]
+    fn the_last_column_reaches_the_end_of_the_row() {
+        let columns = Lines::new([100.0, 50.0]);
+        assert_eq!(column_span(&columns, 400.0, 0), (0.0, 100.0));
+        assert_eq!(column_span(&columns, 400.0, 1), (100.0, 400.0));
+        assert_eq!(column_span(&columns, 120.0, 1), (100.0, 150.0));
+    }
+
+    #[test]
+    fn a_point_finds_the_cell_under_it() {
+        let rows = lines();
+        let columns = Lines::new([100.0, 50.0]);
+        assert_eq!(cell_at(&rows, &columns, 400.0, 120.0, 40.0), Some((1, 1)));
+        assert_eq!(cell_at(&rows, &columns, 400.0, 10.0, 0.0), Some((0, 0)));
+        assert_eq!(cell_at(&rows, &columns, 400.0, 390.0, 40.0), Some((1, 1)));
+    }
+
+    #[test]
+    fn a_point_past_the_rows_or_the_row_width_is_in_no_cell() {
+        let rows = lines();
+        let columns = Lines::new([100.0, 50.0]);
+        assert_eq!(cell_at(&rows, &columns, 400.0, 10.0, 168.0), None);
+        assert_eq!(cell_at(&rows, &columns, 400.0, 400.0, 40.0), None);
+        assert_eq!(cell_at(&rows, &columns, 400.0, -1.0, 40.0), None);
+        assert_eq!(cell_at(&rows, &Lines::new([]), 400.0, 10.0, 40.0), None);
     }
 
     fn sizes(lines: &Lines) -> Vec<f32> {

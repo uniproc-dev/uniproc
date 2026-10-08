@@ -2,8 +2,9 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use windows_reactor::{
-    Border, Callback, Color, Component, ComponentContext, CompositionHostEvent, ElementObservation, ElementRef, Grid,
-    KeyEventInfo, PointerEventInfo, RoutedCallback, View, ViewContext, VirtualKey,
+    keyed, Border, Callback, Color, Component, ComponentContext, CompositionHostEvent, ElementObservation, ElementRef,
+    Grid, HorizontalAlignment, KeyEventInfo, PointerEventInfo, RoutedCallback, Thickness, Tooltip, TooltipExt,
+    TooltipPlacement, VerticalAlignment, View, ViewContext, VirtualKey,
 };
 
 use crate::layout::Width;
@@ -56,6 +57,13 @@ fn step_of(key: VirtualKey) -> Option<Step> {
     }
 }
 
+struct Tip {
+    key: RowKey,
+    column: usize,
+    text: String,
+    bounds: [f32; 4],
+}
+
 pub struct Painted {
     keys: RoutedCallback<KeyEventInfo>,
     host: ElementRef<Grid>,
@@ -63,13 +71,33 @@ pub struct Painted {
     scene: Rc<RefCell<Option<Scene>>>,
     input: Rc<RefCell<Body>>,
     hovered: Rc<Cell<Option<f32>>>,
+    pointer: f32,
     grabbed: Option<f32>,
+    tip: Option<Tip>,
 }
 
 fn frame(scene: &mut Scene, input: &Body, hovered: Option<f32>) {
     if let Err(error) = scene.frame(&*input.source, hovered, input.selected) {
         tracing::warn!(%error, "table frame");
     }
+}
+
+fn tip_view(tip: &Tip) -> View {
+    let [x, y, width, height] = tip.bounds;
+    Border::new()
+        .background(Color::transparent())
+        .horizontal_alignment(HorizontalAlignment::Left)
+        .vertical_alignment(VerticalAlignment::Top)
+        .margin(Thickness::new(x as f64, y as f64, 0.0, 0.0))
+        .width(width as f64)
+        .height(height as f64)
+        .tooltip_with(Tooltip::text(&tip.text).placement(TooltipPlacement::Mouse))
+}
+
+fn tip(scene: &Scene, source: &dyn Source, x: f32, y: Option<f32>) -> Option<Tip> {
+    let (at, column, bounds) = scene.cell(x, y?)?;
+    let text = source.tip(at, column)?;
+    Some(Tip { key: source.key(at), column, text, bounds })
 }
 
 impl Component for Painted {
@@ -142,7 +170,9 @@ impl Component for Painted {
             scene,
             input: shared_input,
             hovered,
+            pointer: 0.0,
             grabbed: None,
+            tip: None,
         }
     }
 
@@ -153,6 +183,7 @@ impl Component for Painted {
                 tracing::warn!(%error, "table style");
             }
             frame(scene, input, self.hovered.get());
+            self.tip = tip(scene, &*input.source, self.pointer, self.hovered.get());
         }
     }
 
@@ -163,7 +194,10 @@ impl Component for Painted {
         };
         let input = self.input.borrow();
         match message {
-            Msg::Scrolled => frame(scene, &input, self.hovered.get()),
+            Msg::Scrolled => {
+                frame(scene, &input, self.hovered.get());
+                self.tip = tip(scene, &*input.source, self.pointer, self.hovered.get());
+            }
             Msg::Moved(x, y) => {
                 if let Some(grab) = self.grabbed {
                     if let Err(error) = scene.drag_bar(y, grab) {
@@ -174,11 +208,14 @@ impl Component for Painted {
                 let over_bar = scene.bar_hit(x, y).is_some();
                 let hovered = (!over_bar).then_some(y);
                 self.hovered.set(hovered);
+                self.pointer = x;
                 let _ = scene.widen_bar(over_bar);
                 let _ = scene.point(hovered);
+                self.tip = tip(scene, &*input.source, x, hovered);
             }
             Msg::Left => {
                 self.hovered.set(None);
+                self.tip = None;
                 let _ = scene.point(None);
                 if self.grabbed.is_none() {
                     let _ = scene.widen_bar(false);
@@ -220,7 +257,10 @@ impl Component for Painted {
             .focus_on_pointer_release(true)
             .on_preview_key_down(self.keys.clone())
             .background(Color::transparent())
-            .content(Grid::new().element_ref(&self.host))
+            .content(Grid::new().keyed_children(
+                std::iter::once(keyed("host".to_string(), View::from(Grid::new().element_ref(&self.host))))
+                    .chain(self.tip.as_ref().map(|tip| keyed(format!("tip/{}/{}", tip.key, tip.column), tip_view(tip)))),
+            ))
             .capture_pointer_on_press(true)
             .on_pointer_moved(cx.callback(|event: PointerEventInfo| Msg::Moved(event.x as f32, event.y as f32)))
             .on_pointer_exited(cx.callback(|_: PointerEventInfo| Msg::Left))

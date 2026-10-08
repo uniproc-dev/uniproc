@@ -435,6 +435,15 @@ impl Scene {
         self.painter.lines.at(y + self.shared.position())
     }
 
+    pub(crate) fn cell(&self, x: f32, y: f32) -> Option<(usize, usize, [f32; 4])> {
+        let position = self.shared.position();
+        let lines = &self.painter.lines;
+        let width = self.painter.row_width();
+        let (at, column) = layout::cell_at(lines, &self.painter.columns, width, x, y + position)?;
+        let (left, right) = layout::column_span(&self.painter.columns, width, column);
+        Some((at, column, [left, lines.start(at) - position, right - left, lines.size(at)]))
+    }
+
     pub(crate) fn frame(&mut self, source: &dyn Source, hovered: Option<f32>, selected: Option<RowKey>) -> Result<()> {
         if self.painter.width <= 0.0 || self.height <= 0.0 {
             return Ok(());

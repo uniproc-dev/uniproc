@@ -96,4 +96,7 @@ pub trait Source {
     fn height(&self, at: usize) -> f32;
     fn columns(&self) -> usize;
     fn cell(&self, at: usize, column: usize, out: &mut Cell);
+    fn tip(&self, _at: usize, _column: usize) -> Option<String> {
+        None
+    }
 }

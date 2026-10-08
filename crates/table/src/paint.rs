@@ -4,7 +4,7 @@ use windows_numerics::Vector2;
 
 use crate::bindings as c;
 use crate::icons::Icons;
-use crate::layout::Lines;
+use crate::layout::{self, Lines};
 use crate::model::{Cell, Chevron, Rgba, Tone};
 use crate::text::{target, Line, Text};
 
@@ -98,8 +98,7 @@ pub(crate) fn row(session: &DrawingSession<'_>, ink: &mut Ink<'_>, row: &Row<'_>
     session.clear(ColorF::from_rgba8(0, 0, 0, 0));
     let target = target(session);
     for (at, cell) in row.cells.iter().enumerate().take(row.columns.len()) {
-        let left = row.columns.start(at);
-        let right = if at + 1 == row.columns.len() { row.width.max(left + row.columns.size(at)) } else { left + row.columns.size(at) };
+        let (left, right) = layout::column_span(row.columns, row.width, at);
         let clip = c::D2D_RECT_F { left, top: 0.0, right, bottom: row.height };
         unsafe { target.PushAxisAlignedClip(&clip, c::D2D1_ANTIALIAS_MODE_PER_PRIMITIVE) };
         let painted = paint_cell(session, ink, cell, left, right, row.height);

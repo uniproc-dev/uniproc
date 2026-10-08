@@ -92,6 +92,15 @@ impl Source for Rows {
             }
         }
     }
+
+    fn tip(&self, at: usize, column: usize) -> Option<String> {
+        let row = &self.rows[at];
+        match column {
+            0 => Some(format!("{}\n\nkey {}", row.name, row.key)),
+            1 => Some(format!("{:.3}%", row.values[0])),
+            _ => None,
+        }
+    }
 }
 
 struct Demo {
