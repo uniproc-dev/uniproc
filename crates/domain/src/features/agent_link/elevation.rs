@@ -44,7 +44,6 @@ impl Handover {
     const Wait: Duration = Duration::from_secs(10);
 }
 
-/// Blocks until the copy that restarted this one as administrator has exited, so this one can take its place.
 pub fn wait_for_the_copy_it_replaces() {
     let Some(pid) = std::env::args()
         .skip_while(|arg| arg != Handover::After)
