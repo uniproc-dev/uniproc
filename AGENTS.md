@@ -28,6 +28,7 @@ we show the right thing.
 | `domain` | Behaviour. One module per feature: actor, installer, settings, platform code. |
 | `ui` | Views. Pages, widgets, theme, formatting. Reads state, dispatches actions. |
 | `context` | Icon and metadata extraction from executables, packages and windows. |
+| `table` | The painted table: layout, row surfaces on a composition host, scrolling, UIA. |
 | `desktop` | The binary: routes, layouts, page wiring, tracing, test fakes. |
 | `xtask` | Dev tasks. |
 

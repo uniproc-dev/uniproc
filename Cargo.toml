@@ -11,6 +11,7 @@ members = [
     "crates/context",
     "crates/desktop",
     "crates/domain",
+    "crates/table",
     "crates/ui",
     "crates/xtask",
 ]
@@ -54,6 +55,7 @@ uniproc-windows-agent = { git = "https://github.com/uniproc-dev/uniproc-windows-
 app-contracts = { path = "crates/app-contracts" }
 context = { path = "crates/context" }
 domain = { path = "crates/domain" }
+table = { path = "crates/table" }
 ui = { path = "crates/ui" }
 
 capnp = "0.27"
