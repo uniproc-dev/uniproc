@@ -14,6 +14,7 @@ mod text;
 
 pub mod layout;
 pub mod model;
+pub mod nav;
 pub mod realize;
 pub mod trim;
 

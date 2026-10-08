@@ -11,6 +11,7 @@ use crate::icons::Icons;
 use crate::interop::{ICompositionDrawingSurfaceInterop, ICompositorInterop, Point, Size};
 use crate::layout::{self, Band, Lines, Width};
 use crate::model::{Cell, RowKey, Source};
+use crate::nav::{self, Step};
 use crate::paint::{self, Look};
 use crate::realize::{Realized, Visuals};
 use crate::text::Text;
@@ -419,6 +420,22 @@ impl Scene {
             Some(error) => Err(error),
             None => Ok(()),
         }
+    }
+
+    pub(crate) fn step(&self, current: Option<usize>, step: Step) -> Option<usize> {
+        nav::step(&self.painter.lines, current, step, self.height)
+    }
+
+    pub(crate) fn reveal(&self, at: usize) -> Result<()> {
+        if at >= self.painter.lines.len() {
+            return Ok(());
+        }
+        let position = self.shared.position();
+        let offset = nav::reveal(&self.painter.lines, at, position, self.height);
+        if offset != position {
+            self.tracker.TryUpdatePosition(Vector3::new(0.0, offset, 0.0))?;
+        }
+        Ok(())
     }
 
     pub(crate) fn point(&self, hovered: Option<f32>) -> Result<()> {

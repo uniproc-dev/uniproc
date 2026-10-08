@@ -3,11 +3,12 @@ use std::rc::Rc;
 
 use windows_reactor::{
     Border, Callback, Color, Component, ComponentContext, CompositionHostEvent, ElementObservation, ElementRef, Grid,
-    PointerEventInfo, View, ViewContext,
+    KeyEventInfo, PointerEventInfo, RoutedCallback, View, ViewContext, VirtualKey,
 };
 
 use crate::layout::Width;
 use crate::model::{RowKey, Source};
+use crate::nav::Step;
 use crate::paint::Look;
 use crate::scene::Scene;
 
@@ -39,9 +40,23 @@ pub enum Msg {
     Moved(f32),
     Left,
     Pressed(f32),
+    Key(Step),
+}
+
+fn step_of(key: VirtualKey) -> Option<Step> {
+    match key {
+        VirtualKey::UP => Some(Step::Up),
+        VirtualKey::DOWN => Some(Step::Down),
+        VirtualKey::PAGE_UP => Some(Step::PageUp),
+        VirtualKey::PAGE_DOWN => Some(Step::PageDown),
+        VirtualKey::HOME => Some(Step::Home),
+        VirtualKey::END => Some(Step::End),
+        _ => None,
+    }
 }
 
 pub struct Painted {
+    keys: RoutedCallback<KeyEventInfo>,
     host: ElementRef<Grid>,
     _observation: ElementObservation,
     scene: Rc<RefCell<Option<Scene>>>,
@@ -110,7 +125,16 @@ impl Component for Painted {
                 }
             }
         });
+        let keyed = cx.sender();
+        let keys = RoutedCallback::new(move |info: KeyEventInfo| match step_of(info.key) {
+            Some(step) => {
+                let _ = keyed.send(Msg::Key(step));
+                true
+            }
+            None => false,
+        });
         Self {
+            keys,
             host,
             _observation: observation,
             scene,
@@ -150,11 +174,26 @@ impl Component for Painted {
                     on_select.call(scene.at(y).map(|at| input.source.key(at)));
                 }
             }
+            Msg::Key(step) => {
+                let source = &*input.source;
+                let current = input.selected.and_then(|key| (0..source.len()).find(|&at| source.key(at) == key));
+                if let Some(at) = scene.step(current, step) {
+                    if let Some(on_select) = &input.on_select {
+                        on_select.call(Some(source.key(at)));
+                    }
+                    if let Err(error) = scene.reveal(at) {
+                        tracing::warn!(%error, "table reveal");
+                    }
+                }
+            }
         }
     }
 
     fn view(&self, _input: &Body, cx: &mut ViewContext<Self>) -> View {
         Border::new()
+            .is_tab_stop(true)
+            .focus_on_pointer_release(true)
+            .on_preview_key_down(self.keys.clone())
             .background(Color::transparent())
             .content(Grid::new().element_ref(&self.host))
             .on_pointer_moved(cx.callback(|event: PointerEventInfo| Msg::Moved(event.y as f32)))
