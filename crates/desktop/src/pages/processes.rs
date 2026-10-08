@@ -92,7 +92,7 @@ mod tests {
         Sort, Terminate, WindowCommand,
     };
     use guinea::prelude::GlobalEventBus;
-    use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
+    use domain::features::agent_link::AgentLinkFeature;
     use domain::features::agents::providers::windows::{SERVICE_DISPLAY_NAME, SERVICE_NAME};
     use domain::features::processes::{ProcessesDeps, ProcessesFeature};
     use domain::features::settings::SettingsFeature;
@@ -804,10 +804,7 @@ mod tests {
         });
         h.feature(crate::test_agent::FakeAgentFeature).unwrap();
         let h = &*h;
-        h.install::<AgentLinkFeature>(&AgentLinkDeps {
-            start_in_process: crate::test_agent::start_in_process,
-        })
-            .unwrap();
+        h.install::<AgentLinkFeature>(&crate::test_agent::agent_link()).unwrap();
         h.install::<SettingsFeature>(&()).unwrap();
         h.install::<ProcessesFeature>(&ProcessesDeps {
             windows: desktop_windows,

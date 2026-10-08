@@ -7,6 +7,7 @@ pub enum InProcess {
     #[default]
     Off,
     Starting,
+    Elevating,
     Running,
     NotElevated,
     Failed,
@@ -17,6 +18,7 @@ pub enum AgentLinkMsg {
     Windows(AgentConnectionState),
     OfferInProcess,
     InProcess(InProcess),
+    Elevated(bool),
 }
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]

@@ -9,6 +9,7 @@ pub struct AgentLinkState {
     pub ever_connected: bool,
     pub in_process_offered: bool,
     pub in_process: InProcess,
+    pub elevated: bool,
 }
 
 impl Default for AgentLinkState {
@@ -18,6 +19,7 @@ impl Default for AgentLinkState {
             ever_connected: false,
             in_process_offered: false,
             in_process: InProcess::Off,
+            elevated: false,
         }
     }
 }
@@ -37,5 +39,6 @@ fn agent_link(this: &mut AgentLinkState, update: AgentLinkMsg) {
         }
         AgentLinkMsg::OfferInProcess => this.in_process_offered = true,
         AgentLinkMsg::InProcess(in_process) => this.in_process = in_process,
+        AgentLinkMsg::Elevated(elevated) => this.elevated = elevated,
     }
 }

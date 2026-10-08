@@ -94,9 +94,13 @@ catches up (Processes resets its rates and asks for the service state).
   delta against a `baseEtag`, unchanged); anything it cannot apply asks for a resync.
   Disk is the agent's file I/O (`fileRead/WriteBytes`), not the block layer.
 - When the service does not answer, the splash offers "Open monitor in process" after 5 s.
-  `agent_link` then runs `uniproc_windows_agent::local::Local` inside uniproc (needs an
-  elevated uniproc, otherwise `NotElevated`) and publishes `WindowsAgentInProcess`: the
-  service actor goes dormant and `agent_link` answers for it.
+  `agent_link` then runs `uniproc_windows_agent::local::Local` inside uniproc and publishes
+  `WindowsAgentInProcess`: the service actor goes dormant and `agent_link` answers for it.
+  `Local` needs an elevated uniproc. Without it the button carries a shield and restarts
+  uniproc through `runas` with `--in-process --after <pid>`, then closes this window; the
+  new copy waits in `main` for that pid to exit (the single-instance lock is the old
+  copy's until then) and starts the monitor at once. A refused UAC prompt leaves things
+  as they were. `AgentLinkDeps::elevation` is that platform side; tests fake it.
 - Actions on processes and services are an RPC: `WindowsActionRequest(action)` answered
   with `ActionOutcome`, asked through `agents::actions::request`. Only `WindowsActions`
   answers. It hears which transport is current — the service (`WindowsTransport::Remote`,

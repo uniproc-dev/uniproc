@@ -286,6 +286,9 @@ iconify = "fluent:settings-24-filled"
 [settings-regular]
 iconify = "fluent:settings-24-regular"
 
+[shield]
+iconify = "fluent:shield-20-regular"
+
 [spinner]
 iconify = "fluent:spinner-ios-20-regular"
 

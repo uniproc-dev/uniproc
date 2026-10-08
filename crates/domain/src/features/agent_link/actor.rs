@@ -10,6 +10,7 @@ use app_contracts::features::agents::{
 };
 use guinea::prelude::*;
 
+use super::elevation::{Elevation, RelaunchError};
 use super::in_process::{InProcessAgent, InProcessStart, InProcessStartError};
 use crate::features::agents::actions::WindowsTransport;
 
@@ -35,6 +36,8 @@ impl Reports {
 
 struct InProcessStarted(Result<Arc<dyn InProcessAgent>, InProcessStartError>);
 
+struct Relaunched(Result<(), RelaunchError>);
+
 struct InProcessReport(Option<WindowsReport>);
 
 struct InProcessMachine(Option<WindowsMachineSample>);
@@ -44,6 +47,8 @@ struct InProcessEvents(WindowsProcessEvents);
 pub struct AgentLinkActor {
     ui_port: Push<AgentLinkState>,
     start_in_process: InProcessStart,
+    elevation: Elevation,
+    elevated: bool,
     update_interval_ms: Field<u64>,
     in_process: Option<Arc<dyn InProcessAgent>>,
     starting: bool,
@@ -61,10 +66,19 @@ impl std::fmt::Debug for AgentLinkActor {
 }
 
 impl AgentLinkActor {
-    pub fn new(ui_port: Push<AgentLinkState>, start_in_process: InProcessStart, update_interval_ms: Field<u64>) -> Self {
+    pub fn new(
+        ui_port: Push<AgentLinkState>,
+        start_in_process: InProcessStart,
+        elevation: Elevation,
+        update_interval_ms: Field<u64>,
+    ) -> Self {
+        let elevated = (elevation.elevated)();
+        ui_port.send(AgentLinkMsg::Elevated(elevated));
         Self {
             ui_port,
             start_in_process,
+            elevation,
+            elevated,
             update_interval_ms,
             in_process: None,
             starting: false,
@@ -86,6 +100,7 @@ actor! {
             WindowsAgentRuntimeEvent,
             StartInProcess,
             InProcessStarted,
+            Relaunched,
             OfferInProcessLater,
             InProcessOfferDue,
             InProcessReport,
@@ -111,10 +126,35 @@ fn start_in_process(this: &mut AgentLinkActor, _msg: StartInProcess, cx: Cx) {
         return;
     }
     this.starting = true;
+    if !this.elevated {
+        this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Elevating));
+        let relaunch = this.elevation.relaunch;
+        cx.spawn_bg(async move { Relaunched(relaunch().await) });
+        return;
+    }
     this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Starting));
     let start = this.start_in_process;
     let update_interval_ms = this.update_interval_ms.clone();
     cx.spawn_bg(async move { InProcessStarted(start(update_interval_ms).await) });
+}
+
+#[handler]
+fn on_relaunched(this: &mut AgentLinkActor, Relaunched(relaunched): Relaunched) {
+    match relaunched {
+        Ok(()) => {
+            tracing::info!("uniproc restarts as administrator to monitor in process");
+            (this.elevation.close)();
+        }
+        Err(RelaunchError::Refused) => {
+            this.starting = false;
+            this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Off));
+        }
+        Err(RelaunchError::Failed(error)) => {
+            this.starting = false;
+            tracing::warn!(%error, "uniproc did not restart as administrator");
+            this.ui_port.send(AgentLinkMsg::InProcess(InProcess::Failed));
+        }
+    }
 }
 
 #[handler]

@@ -96,7 +96,6 @@ mod tests {
     use guinea::core::actor::event_bus::{RpcRequest, RpcResponse};
     use guinea::prelude::GlobalEventBus;
     use guinea::winui::harness::Mounted;
-    use domain::features::agent_link::AgentLinkDeps;
     use domain::features::agents::providers::windows::SERVICE_DISPLAY_NAME;
     use domain::features::agents::settings::AgentSettings;
     use domain::features::system::SystemDeps;
@@ -143,9 +142,7 @@ mod tests {
         })
         .install_application_with(crate::app::with_fakes)
         .unwrap()
-        .provide(AgentLinkDeps {
-                start_in_process: test_agent::start_in_process,
-            })
+        .provide(test_agent::agent_link())
             .provide(SystemDeps {
                 locate: |_| None,
                 launch: |_| {},
@@ -421,45 +418,82 @@ mod tests {
     }
 
     #[guinea::test(iterations = 8, exclusive = "agent")]
-    fn the_monitor_in_process_needs_an_elevated_uniproc(h: &mut Harness) {
+    fn without_admin_rights_the_button_restarts_uniproc_elevated(h: &mut Harness) {
         start(h, false);
+        let h = &*h;
+        let mut page = mount(h);
+        assert!(!page.state::<AgentLinkState>().elevated);
+
+        after(h, &mut page, 5);
+        start_in_process(&mut page);
+
+        assert_eq!(test_agent::relaunches(), 1);
+        assert_eq!(test_agent::in_process_starts(), 0, "the elevated copy starts it, not this one");
+        assert_eq!(test_agent::closes(), 1, "this copy makes way for the elevated one");
+        assert_eq!(in_process(&page), InProcess::Elevating);
+        assert_eq!(in_process_error(&page), None, "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "agent")]
+    fn a_refused_elevation_leaves_uniproc_as_it_was(h: &mut Harness) {
+        start(h, false);
+        test_agent::set_relaunch_refused(true);
         let h = &*h;
         let mut page = mount(h);
 
         after(h, &mut page, 5);
-        assert_eq!(in_process_error(&page), None);
         start_in_process(&mut page);
 
-        assert_eq!(test_agent::in_process_starts(), 1);
-        assert_eq!(in_process(&page), InProcess::NotElevated);
+        assert_eq!(test_agent::relaunches(), 1);
+        assert_eq!(test_agent::closes(), 0);
+        assert_eq!(in_process(&page), InProcess::Off);
+        assert_eq!(in_process_error(&page), None, "{:#?}", page.tree());
         assert!(splash_shown(&page), "{:#?}", page.tree());
-        assert_eq!(
-            in_process_error(&page).as_deref(),
-            Some("Monitoring in process needs Uniproc to run as administrator"),
-            "{:#?}",
-            page.tree()
-        );
 
-        let connects = test_agent::connects();
-        after(h, &mut page, 3);
-        assert_eq!(test_agent::connects(), connects + 1, "the service is still being tried");
-
-        test_agent::set_elevated(true);
         start_in_process(&mut page);
-        assert_eq!(test_agent::in_process_starts(), 2, "the button stays usable after a refusal");
+        assert_eq!(test_agent::relaunches(), 2, "the button stays usable after a refusal");
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "agent")]
+    fn an_elevated_restart_opens_the_monitor_in_process_at_once(h: &mut Harness) {
+        start(h, false);
+        test_agent::set_elevated(true);
+        test_agent::set_asked_at_start(true);
+        let h = &*h;
+        let mut page = mount(h);
+        page.settle();
+
+        assert!(page.state::<AgentLinkState>().elevated);
+        assert_eq!(test_agent::in_process_starts(), 1, "no click and no five-second wait");
         assert_eq!(in_process(&page), InProcess::Running);
         assert!(!splash_shown(&page), "{:#?}", page.tree());
+        assert_eq!(test_agent::relaunches(), 0);
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]
-    fn the_service_still_wins_after_the_monitor_in_process_was_refused(h: &mut Harness) {
+    fn a_copy_asked_to_start_it_but_not_elevated_does_not_restart_again(h: &mut Harness) {
         start(h, false);
+        test_agent::set_asked_at_start(true);
+        let h = &*h;
+        let mut page = mount(h);
+        after(h, &mut page, 1);
+
+        assert_eq!(test_agent::relaunches(), 0);
+        assert_eq!(test_agent::closes(), 0);
+        assert_eq!(test_agent::in_process_starts(), 0);
+        assert_eq!(in_process(&page), InProcess::Off);
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "agent")]
+    fn the_service_still_wins_after_the_elevation_was_refused(h: &mut Harness) {
+        start(h, false);
+        test_agent::set_relaunch_refused(true);
         let h = &*h;
         let mut page = mount(h);
 
         after(h, &mut page, 5);
         start_in_process(&mut page);
-        assert_eq!(in_process(&page), InProcess::NotElevated);
+        assert_eq!(in_process(&page), InProcess::Off);
 
         test_agent::set_up(true);
         after(h, &mut page, 3);

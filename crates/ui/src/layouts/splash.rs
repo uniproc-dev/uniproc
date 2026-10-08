@@ -40,6 +40,7 @@ pub struct SplashProps<'a> {
     pub palette: Palette,
     pub in_process_offered: bool,
     pub in_process: InProcess,
+    pub elevated: bool,
     pub service_trouble: Option<ServiceTrouble<'a>>,
     pub on_start_in_process: Callback<()>,
 }
@@ -100,7 +101,7 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
                     .mark(SplashMark::InProcessError)
                     .into(),
             ),
-            InProcess::Off | InProcess::Starting | InProcess::Running => {}
+            InProcess::Off | InProcess::Starting | InProcess::Elevating | InProcess::Running => {}
         }
         let slow = StackPanel::new()
             .orientation(Orientation::Vertical)
@@ -121,8 +122,14 @@ pub fn splash_view(props: SplashProps<'_>) -> View {
             .content(action_button(
                 SplashMark::OpenInProcess,
                 props.l10n.shell_splash_open_in_process(),
-                Some(icon!(open).size(size::Icon).build_element()),
-                !matches!(props.in_process, InProcess::Starting | InProcess::Running),
+                Some(match props.elevated {
+                    true => icon!(open).size(size::Icon).build_element(),
+                    false => icon!(shield).size(size::Icon).build_element(),
+                }),
+                !matches!(
+                    props.in_process,
+                    InProcess::Starting | InProcess::Elevating | InProcess::Running
+                ),
                 move || start_in_process.call(()),
             ));
         layers.extend([slow.into(), spinner.into(), corner.into()]);

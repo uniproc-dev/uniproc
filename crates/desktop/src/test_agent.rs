@@ -7,7 +7,7 @@ use app_contracts::features::agents::{
     AgentConnectionState, AgentStateRequest, WindowsAction, WindowsAgentInProcess,
     WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsProcessEvents, WindowsReport, WindowsReportMessage,
 };
-use domain::features::agent_link::{InProcessAgent, InProcessStartError};
+use domain::features::agent_link::{AgentLinkDeps, Elevation, InProcessAgent, InProcessStartError, RelaunchError};
 use domain::features::agents::actions;
 use domain::features::agents::actor::{GenericAgentActor, Init, Ping};
 use domain::features::agents::backend::{AgentBackend, Outdated};
@@ -31,6 +31,10 @@ static CONNECTS: AtomicU32 = AtomicU32::new(0);
 static PINGS: AtomicU32 = AtomicU32::new(0);
 static REPORT: std::sync::Mutex<Option<WindowsReport>> = std::sync::Mutex::new(None);
 static ELEVATED: AtomicBool = AtomicBool::new(false);
+static ASKED_AT_START: AtomicBool = AtomicBool::new(false);
+static RELAUNCH_REFUSED: AtomicBool = AtomicBool::new(false);
+static RELAUNCHES: AtomicU32 = AtomicU32::new(0);
+static CLOSES: AtomicU32 = AtomicU32::new(0);
 static IN_PROCESS_STARTS: AtomicU32 = AtomicU32::new(0);
 static IN_PROCESS_REPORTS: AtomicU32 = AtomicU32::new(0);
 static IN_PROCESS_ACTIONS: std::sync::Mutex<Vec<WindowsAction>> = std::sync::Mutex::new(Vec::new());
@@ -44,6 +48,10 @@ pub fn reset(up: bool) {
     PINGS.store(0, Ordering::SeqCst);
     *REPORT.lock().unwrap() = None;
     ELEVATED.store(false, Ordering::SeqCst);
+    ASKED_AT_START.store(false, Ordering::SeqCst);
+    RELAUNCH_REFUSED.store(false, Ordering::SeqCst);
+    RELAUNCHES.store(0, Ordering::SeqCst);
+    CLOSES.store(0, Ordering::SeqCst);
     IN_PROCESS_STARTS.store(0, Ordering::SeqCst);
     IN_PROCESS_REPORTS.store(0, Ordering::SeqCst);
     IN_PROCESS_ACTIONS.lock().unwrap().clear();
@@ -64,6 +72,47 @@ async fn told() -> Option<WindowsProcessEvents> {
 
 pub fn set_elevated(elevated: bool) {
     ELEVATED.store(elevated, Ordering::SeqCst);
+}
+
+pub fn set_asked_at_start(asked: bool) {
+    ASKED_AT_START.store(asked, Ordering::SeqCst);
+}
+
+pub fn set_relaunch_refused(refused: bool) {
+    RELAUNCH_REFUSED.store(refused, Ordering::SeqCst);
+}
+
+pub fn relaunches() -> u32 {
+    RELAUNCHES.load(Ordering::SeqCst)
+}
+
+pub fn closes() -> u32 {
+    CLOSES.load(Ordering::SeqCst)
+}
+
+pub fn elevation() -> Elevation {
+    Elevation {
+        elevated: || ELEVATED.load(Ordering::SeqCst),
+        asked_at_start: || ASKED_AT_START.load(Ordering::SeqCst),
+        relaunch: || {
+            RELAUNCHES.fetch_add(1, Ordering::SeqCst);
+            let refused = RELAUNCH_REFUSED.load(Ordering::SeqCst);
+            Box::pin(async move {
+                guinea::core::executor::random_delay().await;
+                if refused { Err(RelaunchError::Refused) } else { Ok(()) }
+            })
+        },
+        close: || {
+            CLOSES.fetch_add(1, Ordering::SeqCst);
+        },
+    }
+}
+
+pub fn agent_link() -> AgentLinkDeps {
+    AgentLinkDeps {
+        start_in_process,
+        elevation: elevation(),
+    }
 }
 
 pub fn in_process_starts() -> u32 {

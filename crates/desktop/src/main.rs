@@ -32,6 +32,7 @@ fn main() -> anyhow::Result<()> {
         .build();
 
     tracing_init::init()?;
+    domain::features::agent_link::wait_for_the_copy_it_replaces();
 
     run(
         GuineaApp::new().meta(guinea::app_meta!()).application::<app::App>(),

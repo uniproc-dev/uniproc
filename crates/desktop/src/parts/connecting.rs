@@ -39,6 +39,7 @@ impl Page for Connecting {
             palette,
             in_process_offered: link.in_process_offered,
             in_process: link.in_process,
+            elevated: link.elevated,
             service_trouble: trouble(link.windows),
             on_start_in_process: Callback::new(move |()| dispatch.emit(StartInProcess)),
         })

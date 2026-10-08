@@ -43,7 +43,6 @@ mod tests {
         AgentStateRequest, WindowsMachineSample, WindowsMachineStats, WindowsProcessStats, WindowsReport,
     };
     use guinea::core::trace::Point;
-    use domain::features::agent_link::AgentLinkDeps;
     use domain::features::processes::windows_scan::AppWindows;
     use domain::features::processes::ProcessesDeps;
     use guinea::app::Harness;
@@ -71,9 +70,7 @@ mod tests {
         test_agent::reset(true);
         h.install_application_with(crate::app::with_fakes)
             .unwrap()
-            .provide(AgentLinkDeps {
-                start_in_process: test_agent::start_in_process,
-            })
+            .provide(test_agent::agent_link())
             .provide(ProcessesDeps {
                 windows: AppWindows::default,
                 shell: |_| {},

@@ -1,4 +1,9 @@
 #[inline]
+pub unsafe fn CloseHandle(hobject: HANDLE) -> windows_core::BOOL {
+    windows_core::link!("kernel32.dll" "system" fn CloseHandle(hobject : HANDLE) -> windows_core::BOOL);
+    unsafe { CloseHandle(hobject) }
+}
+#[inline]
 pub unsafe fn CoInitializeEx(
     pvreserved: Option<*const core::ffi::c_void>,
     dwcoinit: u32,
@@ -92,6 +97,35 @@ pub unsafe fn GetClassNameW(hwnd: HWND, lpclassname: windows_core::PWSTR, nmaxco
     unsafe { GetClassNameW(hwnd, lpclassname, nmaxcount) }
 }
 #[inline]
+pub unsafe fn GetCurrentProcess() -> HANDLE {
+    windows_core::link!("kernel32.dll" "system" fn GetCurrentProcess() -> HANDLE);
+    unsafe { GetCurrentProcess() }
+}
+#[inline]
+pub unsafe fn GetCurrentProcessId() -> u32 {
+    windows_core::link!("kernel32.dll" "system" fn GetCurrentProcessId() -> u32);
+    unsafe { GetCurrentProcessId() }
+}
+#[inline]
+pub unsafe fn GetTokenInformation(
+    tokenhandle: HANDLE,
+    tokeninformationclass: TOKEN_INFORMATION_CLASS,
+    tokeninformation: Option<*mut core::ffi::c_void>,
+    tokeninformationlength: u32,
+    returnlength: *mut u32,
+) -> windows_core::BOOL {
+    windows_core::link!("advapi32.dll" "system" fn GetTokenInformation(tokenhandle : HANDLE, tokeninformationclass : TOKEN_INFORMATION_CLASS, tokeninformation : *mut core::ffi::c_void, tokeninformationlength : u32, returnlength : *mut u32) -> windows_core::BOOL);
+    unsafe {
+        GetTokenInformation(
+            tokenhandle,
+            tokeninformationclass,
+            tokeninformation.unwrap_or(core::mem::zeroed()) as _,
+            tokeninformationlength,
+            returnlength as _,
+        )
+    }
+}
+#[inline]
 pub unsafe fn GetWindow(hwnd: HWND, ucmd: u32) -> HWND {
     windows_core::link!("user32.dll" "system" fn GetWindow(hwnd : HWND, ucmd : u32) -> HWND);
     unsafe { GetWindow(hwnd, ucmd) }
@@ -124,6 +158,20 @@ pub unsafe fn IsIconic(hwnd: HWND) -> windows_core::BOOL {
 pub unsafe fn IsWindowVisible(hwnd: HWND) -> windows_core::BOOL {
     windows_core::link!("user32.dll" "system" fn IsWindowVisible(hwnd : HWND) -> windows_core::BOOL);
     unsafe { IsWindowVisible(hwnd) }
+}
+#[inline]
+pub unsafe fn OpenProcess(dwdesiredaccess: u32, binherithandle: bool, dwprocessid: u32) -> HANDLE {
+    windows_core::link!("kernel32.dll" "system" fn OpenProcess(dwdesiredaccess : u32, binherithandle : windows_core::BOOL, dwprocessid : u32) -> HANDLE);
+    unsafe { OpenProcess(dwdesiredaccess, binherithandle.into(), dwprocessid) }
+}
+#[inline]
+pub unsafe fn OpenProcessToken(
+    processhandle: HANDLE,
+    desiredaccess: u32,
+    tokenhandle: *mut HANDLE,
+) -> windows_core::BOOL {
+    windows_core::link!("advapi32.dll" "system" fn OpenProcessToken(processhandle : HANDLE, desiredaccess : u32, tokenhandle : *mut HANDLE) -> windows_core::BOOL);
+    unsafe { OpenProcessToken(processhandle, desiredaccess, tokenhandle as _) }
 }
 #[inline]
 pub unsafe fn PostMessageW(
@@ -196,6 +244,11 @@ pub unsafe fn SetForegroundWindow(hwnd: HWND) -> windows_core::BOOL {
     unsafe { SetForegroundWindow(hwnd) }
 }
 #[inline]
+pub unsafe fn ShellExecuteExW(pexecinfo: *mut SHELLEXECUTEINFOW) -> windows_core::BOOL {
+    windows_core::link!("shell32.dll" "system" fn ShellExecuteExW(pexecinfo : *mut SHELLEXECUTEINFOW) -> windows_core::BOOL);
+    unsafe { ShellExecuteExW(pexecinfo as _) }
+}
+#[inline]
 pub unsafe fn ShellExecuteW<P1, P2, P3, P4>(
     hwnd: Option<HWND>,
     lpoperation: P1,
@@ -242,10 +295,16 @@ pub unsafe fn SystemTimeToTzSpecificLocalTime(
         )
     }
 }
+#[inline]
+pub unsafe fn WaitForSingleObject(hhandle: HANDLE, dwmilliseconds: u32) -> u32 {
+    windows_core::link!("kernel32.dll" "system" fn WaitForSingleObject(hhandle : HANDLE, dwmilliseconds : u32) -> u32);
+    unsafe { WaitForSingleObject(hhandle, dwmilliseconds) }
+}
 pub type COINIT = i32;
 pub const COINIT_APARTMENTTHREADED: COINIT = 2;
 pub const DWMWA_CLOAKED: DWMWINDOWATTRIBUTE = 14;
 pub type DWMWINDOWATTRIBUTE = i32;
+pub const ERROR_CANCELLED: i32 = 1223;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct FILETIME {
@@ -254,6 +313,9 @@ pub struct FILETIME {
 }
 pub const GWL_EXSTYLE: i32 = -20;
 pub const GW_OWNER: i32 = 4;
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct HANDLE(pub *mut core::ffi::c_void);
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct HINSTANCE(pub *mut core::ffi::c_void);
@@ -275,11 +337,107 @@ pub struct LPARAM(pub isize);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct LSTATUS(pub i32);
 pub const RRF_RT_REG_SZ: i32 = 2;
+pub const SEE_MASK_NOASYNC: i32 = 256;
+#[repr(C, packed(1))]
+#[cfg(target_arch = "x86")]
+#[derive(Clone, Copy)]
+pub struct SHELLEXECUTEINFOW {
+    pub cbSize: u32,
+    pub fMask: u32,
+    pub hwnd: HWND,
+    pub lpVerb: windows_core::PCWSTR,
+    pub lpFile: windows_core::PCWSTR,
+    pub lpParameters: windows_core::PCWSTR,
+    pub lpDirectory: windows_core::PCWSTR,
+    pub nShow: i32,
+    pub hInstApp: HINSTANCE,
+    pub lpIDList: *mut core::ffi::c_void,
+    pub lpClass: windows_core::PCWSTR,
+    pub hkeyClass: HKEY,
+    pub dwHotKey: u32,
+    pub Anonymous: SHELLEXECUTEINFOW_0,
+    pub hProcess: HANDLE,
+}
+#[cfg(target_arch = "x86")]
+impl Default for SHELLEXECUTEINFOW {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C, packed(1))]
+#[cfg(target_arch = "x86")]
+#[derive(Clone, Copy)]
+pub union SHELLEXECUTEINFOW_0 {
+    pub hIcon: HANDLE,
+    pub hMonitor: HANDLE,
+}
+#[cfg(target_arch = "x86")]
+impl Default for SHELLEXECUTEINFOW_0 {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[cfg(any(
+    target_arch = "aarch64",
+    target_arch = "arm64ec",
+    target_arch = "x86_64"
+))]
+#[derive(Clone, Copy)]
+pub struct SHELLEXECUTEINFOW {
+    pub cbSize: u32,
+    pub fMask: u32,
+    pub hwnd: HWND,
+    pub lpVerb: windows_core::PCWSTR,
+    pub lpFile: windows_core::PCWSTR,
+    pub lpParameters: windows_core::PCWSTR,
+    pub lpDirectory: windows_core::PCWSTR,
+    pub nShow: i32,
+    pub hInstApp: HINSTANCE,
+    pub lpIDList: *mut core::ffi::c_void,
+    pub lpClass: windows_core::PCWSTR,
+    pub hkeyClass: HKEY,
+    pub dwHotKey: u32,
+    pub Anonymous: SHELLEXECUTEINFOW_0,
+    pub hProcess: HANDLE,
+}
+#[cfg(any(
+    target_arch = "aarch64",
+    target_arch = "arm64ec",
+    target_arch = "x86_64"
+))]
+impl Default for SHELLEXECUTEINFOW {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[cfg(any(
+    target_arch = "aarch64",
+    target_arch = "arm64ec",
+    target_arch = "x86_64"
+))]
+#[derive(Clone, Copy)]
+pub union SHELLEXECUTEINFOW_0 {
+    pub hIcon: HANDLE,
+    pub hMonitor: HANDLE,
+}
+#[cfg(any(
+    target_arch = "aarch64",
+    target_arch = "arm64ec",
+    target_arch = "x86_64"
+))]
+impl Default for SHELLEXECUTEINFOW_0 {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
 pub const SHOP_FILEPATH: i32 = 2;
 pub const SW_MAXIMIZE: i32 = 3;
 pub const SW_MINIMIZE: i32 = 6;
 pub const SW_RESTORE: i32 = 9;
 pub const SW_SHOWNORMAL: i32 = 1;
+pub const SYNCHRONIZE: i32 = 1048576;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct SYSTEMTIME {
@@ -308,6 +466,14 @@ impl Default for TIME_ZONE_INFORMATION {
         unsafe { core::mem::zeroed() }
     }
 }
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct TOKEN_ELEVATION {
+    pub TokenIsElevated: u32,
+}
+pub type TOKEN_INFORMATION_CLASS = i32;
+pub const TOKEN_QUERY: i32 = 8;
+pub const TokenElevation: TOKEN_INFORMATION_CLASS = 20;
 pub const WM_CLOSE: i32 = 16;
 pub type WNDENUMPROC =
     Option<unsafe extern "system" fn(param0: HWND, param1: LPARAM) -> windows_core::BOOL>;
