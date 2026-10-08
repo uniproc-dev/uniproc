@@ -66,6 +66,7 @@ fn painted_look(look: Look, palette: Palette) -> table::Look {
         selected: rgba(look.selected),
         plate_inset: (look.inset.0 as f32, look.inset.1 as f32),
         plate_radius: look.radius as f32,
+        thumb: rgba(palette.tertiary_text),
         ..table::Look::default()
     }
 }

@@ -7,6 +7,7 @@ use windows_core::{IUnknown, Interface, Result, HSTRING};
 use windows_numerics::{Vector2, Vector3};
 
 use crate::bindings as c;
+use crate::bar::{self, Bar};
 use crate::icons::Icons;
 use crate::interop::{ICompositionDrawingSurfaceInterop, ICompositorInterop, Point, Size};
 use crate::layout::{self, Band, Lines, Width};
@@ -128,14 +129,18 @@ impl Plate {
         Ok(Self { sprite, brush, geometry })
     }
 
-    fn show(&self, top: f32, width: f32, height: f32, look: &Look, rgba: crate::model::Rgba) -> Result<()> {
-        let (across, down) = look.plate_inset;
+    fn paint(&self, width: f32, height: f32, inset: (f32, f32), radius: f32, rgba: crate::model::Rgba) -> Result<()> {
+        let (across, down) = inset;
         self.brush.SetColor(c::Color { A: rgba.a, R: rgba.r, G: rgba.g, B: rgba.b })?;
-        self.sprite.SetOffset(Vector3::new(0.0, top, 0.0))?;
         self.sprite.SetSize(Vector2::new(width, height))?;
         self.geometry.SetOffset(Vector2::new(across, down))?;
         self.geometry.SetSize(Vector2::new((width - 2.0 * across).max(0.0), (height - 2.0 * down).max(0.0)))?;
-        self.geometry.SetCornerRadius(Vector2::new(look.plate_radius, look.plate_radius))?;
+        self.geometry.SetCornerRadius(Vector2::new(radius, radius))
+    }
+
+    fn show(&self, top: f32, width: f32, height: f32, look: &Look, rgba: crate::model::Rgba) -> Result<()> {
+        self.sprite.SetOffset(Vector3::new(0.0, top, 0.0))?;
+        self.paint(width, height, look.plate_inset, look.plate_radius, rgba)?;
         self.sprite.SetIsVisible(true)
     }
 
@@ -280,6 +285,12 @@ impl Visuals for Painter {
     }
 }
 
+pub(crate) enum BarHit {
+    Thumb(f32),
+    Above,
+    Below,
+}
+
 pub(crate) struct Scene {
     root: c::ContainerVisual,
     tracker: c::InteractionTracker,
@@ -287,6 +298,11 @@ pub(crate) struct Scene {
     shared: Arc<Shared>,
     hover: Plate,
     selection: Plate,
+    thumb: Plate,
+    follow: c::ExpressionAnimation,
+    bar: Option<Bar>,
+    wide: bool,
+    placed: Option<(f32, f32, f32, bool)>,
     rows: Realized<RowVisual>,
     painter: Painter,
     widths: Vec<Width>,
@@ -319,6 +335,11 @@ impl Scene {
         let follow = compositor.CreateExpressionAnimationWithExpression(&HSTRING::from("-tracker.Position"))?;
         follow.SetReferenceParameter(&HSTRING::from("tracker"), &tracker)?;
         content.StartAnimation(&HSTRING::from("Offset"), &follow)?;
+        let thumb = Plate::new(&compositor)?;
+        root.Children()?.InsertAtTop(&thumb.sprite)?;
+        let thumb_follow =
+            compositor.CreateExpressionAnimationWithExpression(&HSTRING::from("Vector3(x, top + tracker.Position.Y * k, 0)"))?;
+        thumb_follow.SetReferenceParameter(&HSTRING::from("tracker"), &tracker)?;
         let text = Text::new(look.fonts, look.font_size)?;
         Ok(Self {
             root,
@@ -327,6 +348,11 @@ impl Scene {
             shared,
             hover,
             selection,
+            thumb,
+            follow: thumb_follow,
+            bar: None,
+            wide: false,
+            placed: None,
             rows: Realized::default(),
             painter: Painter {
                 compositor,
@@ -407,6 +433,7 @@ impl Scene {
         }
         self.shared.hold(layout::band(&self.painter.lines, range, self.height, self.overscan / 2.0));
         self.point(hovered)?;
+        self.place_bar()?;
         let width = self.painter.row_width();
         let look = &self.painter.look;
         match selected.and_then(|key| self.rows.get(key)) {
@@ -420,6 +447,68 @@ impl Scene {
             Some(error) => Err(error),
             None => Ok(()),
         }
+    }
+
+    fn max_position(&self) -> f32 {
+        (self.painter.lines.extent() - self.height).max(0.0)
+    }
+
+    fn place_bar(&mut self) -> Result<()> {
+        let key = (self.painter.lines.extent(), self.height, self.painter.width, self.wide);
+        if self.placed == Some(key) {
+            return Ok(());
+        }
+        self.placed = Some(key);
+        let look = &self.painter.look;
+        let track = self.height - 2.0 * look.bar_margin;
+        self.bar = bar::bar(self.painter.lines.extent(), self.height, track, look.thumb_min);
+        let Some(placed) = self.bar else {
+            return self.thumb.hide();
+        };
+        let width = if self.wide { look.thumb_wide } else { look.thumb_thin };
+        let max = self.max_position();
+        let k = if max > 0.0 { placed.travel / max } else { 0.0 };
+        self.thumb.paint(width, placed.thumb, (0.0, 0.0), width / 2.0, look.thumb)?;
+        self.follow.SetScalarParameter(&HSTRING::from("x"), self.painter.width - width - look.bar_margin)?;
+        self.follow.SetScalarParameter(&HSTRING::from("top"), look.bar_margin)?;
+        self.follow.SetScalarParameter(&HSTRING::from("k"), k)?;
+        self.thumb.sprite.StartAnimation(&HSTRING::from("Offset"), &self.follow)?;
+        self.thumb.sprite.SetIsVisible(true)
+    }
+
+    pub(crate) fn bar_hit(&self, x: f32, y: f32) -> Option<BarHit> {
+        let placed = self.bar?;
+        let look = &self.painter.look;
+        if x < self.painter.width - look.bar_zone {
+            return None;
+        }
+        let top = look.bar_margin + placed.top(self.shared.position(), self.max_position());
+        Some(if y < top {
+            BarHit::Above
+        } else if y > top + placed.thumb {
+            BarHit::Below
+        } else {
+            BarHit::Thumb(y - top)
+        })
+    }
+
+    pub(crate) fn widen_bar(&mut self, wide: bool) -> Result<()> {
+        self.wide = wide;
+        self.place_bar()
+    }
+
+    pub(crate) fn drag_bar(&self, y: f32, grab: f32) -> Result<()> {
+        let Some(placed) = self.bar else {
+            return Ok(());
+        };
+        let position = placed.position(y - self.painter.look.bar_margin - grab, self.max_position());
+        self.tracker.TryUpdatePosition(Vector3::new(0.0, position, 0.0)).map(|_| ())
+    }
+
+    pub(crate) fn page(&self, down: bool) -> Result<()> {
+        let page = if down { self.height } else { -self.height };
+        let position = (self.shared.position() + page).clamp(0.0, self.max_position());
+        self.tracker.TryUpdatePosition(Vector3::new(0.0, position, 0.0)).map(|_| ())
     }
 
     pub(crate) fn step(&self, current: Option<usize>, step: Step) -> Option<usize> {

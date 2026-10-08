@@ -12,6 +12,7 @@ mod paint;
 mod scene;
 mod text;
 
+pub mod bar;
 pub mod layout;
 pub mod model;
 pub mod nav;

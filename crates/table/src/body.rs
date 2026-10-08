@@ -10,7 +10,7 @@ use crate::layout::Width;
 use crate::model::{RowKey, Source};
 use crate::nav::Step;
 use crate::paint::Look;
-use crate::scene::Scene;
+use crate::scene::{BarHit, Scene};
 
 #[derive(Clone)]
 pub struct Body {
@@ -37,9 +37,10 @@ pub fn body(body: Body) -> View {
 
 pub enum Msg {
     Scrolled,
-    Moved(f32),
+    Moved(f32, f32),
     Left,
-    Pressed(f32),
+    Pressed(f32, f32),
+    Released,
     Key(Step),
 }
 
@@ -62,6 +63,7 @@ pub struct Painted {
     scene: Rc<RefCell<Option<Scene>>>,
     input: Rc<RefCell<Body>>,
     hovered: Rc<Cell<Option<f32>>>,
+    grabbed: Option<f32>,
 }
 
 fn frame(scene: &mut Scene, input: &Body, hovered: Option<f32>) {
@@ -140,6 +142,7 @@ impl Component for Painted {
             scene,
             input: shared_input,
             hovered,
+            grabbed: None,
         }
     }
 
@@ -161,19 +164,41 @@ impl Component for Painted {
         let input = self.input.borrow();
         match message {
             Msg::Scrolled => frame(scene, &input, self.hovered.get()),
-            Msg::Moved(y) => {
-                self.hovered.set(Some(y));
-                let _ = scene.point(Some(y));
+            Msg::Moved(x, y) => {
+                if let Some(grab) = self.grabbed {
+                    if let Err(error) = scene.drag_bar(y, grab) {
+                        tracing::warn!(%error, "table drag");
+                    }
+                    return;
+                }
+                let over_bar = scene.bar_hit(x, y).is_some();
+                let hovered = (!over_bar).then_some(y);
+                self.hovered.set(hovered);
+                let _ = scene.widen_bar(over_bar);
+                let _ = scene.point(hovered);
             }
             Msg::Left => {
                 self.hovered.set(None);
                 let _ = scene.point(None);
-            }
-            Msg::Pressed(y) => {
-                if let Some(on_select) = &input.on_select {
-                    on_select.call(scene.at(y).map(|at| input.source.key(at)));
+                if self.grabbed.is_none() {
+                    let _ = scene.widen_bar(false);
                 }
             }
+            Msg::Pressed(x, y) => match scene.bar_hit(x, y) {
+                Some(BarHit::Thumb(grab)) => self.grabbed = Some(grab),
+                Some(BarHit::Above) => {
+                    let _ = scene.page(false);
+                }
+                Some(BarHit::Below) => {
+                    let _ = scene.page(true);
+                }
+                None => {
+                    if let Some(on_select) = &input.on_select {
+                        on_select.call(scene.at(y).map(|at| input.source.key(at)));
+                    }
+                }
+            },
+            Msg::Released => self.grabbed = None,
             Msg::Key(step) => {
                 let source = &*input.source;
                 let current = input.selected.and_then(|key| (0..source.len()).find(|&at| source.key(at) == key));
@@ -196,9 +221,12 @@ impl Component for Painted {
             .on_preview_key_down(self.keys.clone())
             .background(Color::transparent())
             .content(Grid::new().element_ref(&self.host))
-            .on_pointer_moved(cx.callback(|event: PointerEventInfo| Msg::Moved(event.y as f32)))
+            .capture_pointer_on_press(true)
+            .on_pointer_moved(cx.callback(|event: PointerEventInfo| Msg::Moved(event.x as f32, event.y as f32)))
             .on_pointer_exited(cx.callback(|_: PointerEventInfo| Msg::Left))
-            .on_pointer_pressed(cx.callback(|event: PointerEventInfo| Msg::Pressed(event.y as f32)))
+            .on_pointer_pressed(cx.callback(|event: PointerEventInfo| Msg::Pressed(event.x as f32, event.y as f32)))
+            .on_pointer_released(cx.callback(|_: PointerEventInfo| Msg::Released))
+            .on_pointer_capture_lost(cx.callback(|_: ()| Msg::Released))
             .into()
     }
 }

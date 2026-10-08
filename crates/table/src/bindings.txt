@@ -2,7 +2,7 @@ Microsoft::UI::Composition::Compositor::{CreateContainerVisual, CreateSpriteVisu
 Microsoft::UI::Composition::CompositionRoundedRectangleGeometry::{put_CornerRadius, put_Size, put_Offset}
 Microsoft::UI::Composition::CompositionGeometry
 Microsoft::UI::Composition::CompositionObject::StartAnimation
-Microsoft::UI::Composition::CompositionAnimation::SetReferenceParameter
+Microsoft::UI::Composition::CompositionAnimation::{SetReferenceParameter, SetScalarParameter}
 Microsoft::UI::Composition::Visual::{put_Offset, put_Size, put_Clip, put_IsVisible}
 Microsoft::UI::Composition::ContainerVisual::get_Children
 Microsoft::UI::Composition::VisualCollection::{InsertAtTop, InsertAtBottom, Remove}

@@ -25,6 +25,12 @@ pub struct Look {
     pub note_gap: f32,
     pub fonts: &'static [&'static str],
     pub font_size: f32,
+    pub thumb: Rgba,
+    pub thumb_thin: f32,
+    pub thumb_wide: f32,
+    pub thumb_min: f32,
+    pub bar_margin: f32,
+    pub bar_zone: f32,
 }
 
 impl Default for Look {
@@ -47,6 +53,12 @@ impl Default for Look {
             note_gap: 4.0,
             fonts: &["Segoe UI Variable Text", "Segoe UI"],
             font_size: 12.0,
+            thumb: white(139),
+            thumb_thin: 2.0,
+            thumb_wide: 6.0,
+            thumb_min: 24.0,
+            bar_margin: 3.0,
+            bar_zone: 14.0,
         }
     }
 }

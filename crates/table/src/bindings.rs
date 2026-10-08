@@ -64,6 +64,20 @@ impl CompositionAnimation {
             .ok()
         }
     }
+    pub fn SetScalarParameter(
+        &self,
+        key: &windows_core::HSTRING,
+        value: f32,
+    ) -> windows_core::Result<()> {
+        unsafe {
+            (windows_core::Interface::vtable(self).SetScalarParameter)(
+                windows_core::Interface::as_raw(self),
+                core::mem::transmute_copy(key),
+                value,
+            )
+            .ok()
+        }
+    }
     pub fn StartAnimation<P1>(
         &self,
         propertyname: &windows_core::HSTRING,
@@ -1240,6 +1254,21 @@ impl ExpressionAnimation {
             .ok()
         }
     }
+    pub fn SetScalarParameter(
+        &self,
+        key: &windows_core::HSTRING,
+        value: f32,
+    ) -> windows_core::Result<()> {
+        let this = &windows_core::Interface::cast::<ICompositionAnimation>(self)?;
+        unsafe {
+            (windows_core::Interface::vtable(this).SetScalarParameter)(
+                windows_core::Interface::as_raw(this),
+                core::mem::transmute_copy(key),
+                value,
+            )
+            .ok()
+        }
+    }
     pub fn StartAnimation<P1>(
         &self,
         propertyname: &windows_core::HSTRING,
@@ -1320,6 +1349,11 @@ pub struct ICompositionAnimation_Vtbl {
         *mut core::ffi::c_void,
         *mut core::ffi::c_void,
         *mut core::ffi::c_void,
+    ) -> windows_core::HRESULT,
+    pub SetScalarParameter: unsafe extern "system" fn(
+        *mut core::ffi::c_void,
+        *mut core::ffi::c_void,
+        f32,
     ) -> windows_core::HRESULT,
 }
 windows_core::imp::define_interface!(
