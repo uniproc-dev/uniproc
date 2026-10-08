@@ -135,6 +135,23 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]
+    fn a_press_that_leaves_activity_does_not_reach_the_page_it_left(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let mut app = Mounted::routed(h, Route::Activity {}).unwrap();
+        app.settle();
+
+        let left = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            h.publish(app_contracts::features::window::PressedAway);
+            app.navigate(Route::Services {});
+            app.settle();
+        }));
+
+        assert!(left.is_ok(), "a press away that left Activity panicked");
+        assert!(app.is_mounted::<Services>());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "agent")]
     fn processes_come_back_as_they_were_left_and_catch_up_after(h: &mut Harness) {
         start(h);
         let h = &*h;
