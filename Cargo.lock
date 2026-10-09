@@ -207,7 +207,7 @@ name = "app-contracts"
 version = "0.1.0"
 dependencies = [
  "fluent-bundle",
- "fluent-templates 0.14.0",
+ "fluent-templates",
  "guicons",
  "guicons-build",
  "guinea",
@@ -1205,20 +1205,6 @@ dependencies = [
 
 [[package]]
 name = "fluent-template-macros"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6b1dac7e7f07f8a60aa844f616bede13deeffaf24e9e35ae9e4979a7dac4a5c"
-dependencies = [
- "flume 0.11.1",
- "ignore",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
- "unic-langid",
-]
-
-[[package]]
-name = "fluent-template-macros"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f17b7ed5b7108d57ca049e1fa7583d4fadbb71ef0e47a72dc847c1e704f37fb"
@@ -1233,24 +1219,6 @@ dependencies = [
 
 [[package]]
 name = "fluent-templates"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d48ac2b8e7c3a2198fc584af78e674d15dacdede8a6cebb686c844713f7d0ba"
-dependencies = [
- "fluent-bundle",
- "fluent-langneg",
- "fluent-syntax",
- "fluent-template-macros 0.14.0",
- "flume 0.11.1",
- "ignore",
- "intl-memoizer",
- "log",
- "thiserror",
- "unic-langid",
-]
-
-[[package]]
-name = "fluent-templates"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fc3bfc211d9a9210bd7ccba798da57148e5b02c62b98b6cef09d7228f2f232"
@@ -1258,7 +1226,7 @@ dependencies = [
  "fluent-bundle",
  "fluent-langneg",
  "fluent-syntax",
- "fluent-template-macros 0.15.1",
+ "fluent-template-macros",
  "flume 0.11.1",
  "ignore",
  "intl-memoizer",
@@ -1684,7 +1652,7 @@ source = "git+https://github.com/guinea-rs/guinea-plugins?tag=v0.28.0#5ef2608662
 dependencies = [
  "anyhow",
  "fluent-bundle",
- "fluent-templates 0.15.1",
+ "fluent-templates",
  "guinea",
  "guinea-core",
  "guinea-plugin-store",
