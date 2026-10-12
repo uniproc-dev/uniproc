@@ -337,6 +337,14 @@ fn file_name(path: &str) -> &str {
     path.rsplit(['\\', '/']).next().unwrap_or(path)
 }
 
+fn program(command_line: &str) -> &str {
+    let line = command_line.trim_start();
+    match line.strip_prefix('"') {
+        Some(quoted) => quoted.split('"').next().unwrap_or(quoted),
+        None => line.split_whitespace().next().unwrap_or_default(),
+    }
+}
+
 fn admitted(only: Option<Rule>, hidden: &[Rule], has: impl Fn(Rule) -> bool) -> bool {
     only.is_none_or(&has) && !hidden.iter().copied().any(has)
 }
@@ -432,7 +440,7 @@ impl Log {
                     Some(file) => file,
                     None => self
                         .names
-                        .spell(came.command_line.split_whitespace().next().map(file_name).unwrap_or_default()),
+                        .spell(file_name(program(&came.command_line))),
                 };
                 let went = self.ended_mut(came.instance).map_or(Never, |ended| {
                     ended.came = came.at;
@@ -1903,6 +1911,26 @@ mod tests {
         };
         assert_eq!(row.name.as_deref(), Some("OneDrive.exe"));
         assert_eq!(row.lived, Some(2 * HOUR + 45 * Ticks::Minute));
+    }
+
+    #[test]
+    fn a_process_without_a_path_is_named_from_its_quoted_command_line() {
+        let named = |command_line: &str| {
+            let mut log = Log::default();
+            log.record(&[ProcessEvent::Came(ProcessCame {
+                instance: id(20),
+                parent: id(1),
+                at: at(10, 0),
+                image_path: "".into(),
+                command_line: command_line.into(),
+                ..Default::default()
+            })]);
+            only_came(first(&rows(&log))).name.to_string()
+        };
+
+        assert_eq!(named(r#""C:\Program Files\App\app.exe" -x"#), "app.exe");
+        assert_eq!(named(r#""C:\Tools\Tool.exe" --go"#), "Tool.exe");
+        assert_eq!(named(r"C:\bin\tool.exe --run"), "tool.exe");
     }
 
     #[test]
