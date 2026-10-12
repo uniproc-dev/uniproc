@@ -438,6 +438,45 @@ mod tests {
     }
 
     #[guinea::test(iterations = 8, exclusive = "agent")]
+    fn a_lost_connection_lets_go_of_a_feed_that_never_answers(h: &mut Harness) {
+        start(h, true);
+        test_agent::set_silent_events(true);
+        let h = &*h;
+        let mut page = mount(h);
+        assert_eq!(agent(&page), AgentConnectionState::Connected);
+        assert_eq!(test_agent::waiting_for_events(), 1);
+
+        test_agent::set_up(false);
+        after(h, &mut page, 1);
+        assert_ne!(agent(&page), AgentConnectionState::Connected);
+        assert_eq!(test_agent::waiting_for_events(), 0, "nothing waits on the lost connection");
+
+        test_agent::set_up(true);
+        after(h, &mut page, 4);
+        assert_eq!(agent(&page), AgentConnectionState::Connected);
+        assert_eq!(test_agent::waiting_for_events(), 1, "only the new connection's feed waits");
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "agent")]
+    fn a_report_the_service_had_not_sent_yet_is_dropped_with_it(h: &mut Harness) {
+        start(h, true);
+        test_agent::set_elevated(true);
+        test_agent::set_late_reports(true);
+        test_agent::serve(WindowsReport::default());
+        let h = &*h;
+        let mut page = mount(h);
+        assert_eq!(agent(&page), AgentConnectionState::Connected);
+        h.advance(Duration::from_millis(500));
+        page.settle();
+
+        h.publish(RunWindowsAgentInProcess).settle();
+        assert_eq!(in_process(&page), InProcess::Running);
+        after(h, &mut page, 3);
+
+        assert_eq!(test_agent::service_reports(), 0, "nothing from the service once the monitor in process took over");
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "agent")]
     fn without_admin_rights_the_button_restarts_uniproc_elevated(h: &mut Harness) {
         start(h, false);
         let h = &*h;

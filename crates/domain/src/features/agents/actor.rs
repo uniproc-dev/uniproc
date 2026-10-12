@@ -3,9 +3,8 @@ use super::connection::*;
 use amethystate::Field;
 use app_contracts::features::agents::{AgentConnectionState, AgentStateRequest, RunWindowsAgentInProcess};
 use guinea::prelude::*;
+use futures::stream::AbortHandle;
 use std::fmt::Debug;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::{info, warn};
 
 #[derive(Clone, Debug)]
@@ -103,7 +102,7 @@ pub struct GenericAgentActor<B: AgentBackend> {
     connected_at: Option<tokio::time::Instant>,
     source: Source,
     epoch: u64,
-    stream: Option<(u64, Arc<AtomicBool>)>,
+    stream: Option<(u64, Vec<AbortHandle>)>,
     generation: u64,
 }
 
@@ -143,36 +142,33 @@ impl<B: AgentBackend> GenericAgentActor<B> {
         self.close_stream();
         self.generation += 1;
         let generation = self.generation;
-        let open = Arc::new(AtomicBool::new(true));
-        self.stream = Some((generation, open.clone()));
+        let mut feeds = Vec::new();
         for feed in [Feed::Report, Feed::Machine, Feed::ProcessEvents]
             .into_iter()
             .filter(|feed| feed.streams::<B>())
         {
-            let open = open.clone();
-            let updates = futures::stream::unfold(Some(client.clone()), move |client| {
-                let open = open.clone();
-                async move {
-                    let client = client?;
-                    if !open.load(Ordering::Relaxed) {
-                        return None;
-                    }
-                    match feed.scan::<B>(&client).await {
-                        Ok(()) => Some((true, Some(client))),
-                        Err(err) => {
-                            warn!("[{}] The {feed:?} stream ended: {err}", B::NAME);
-                            Some((false, None))
-                        }
+            let updates = futures::stream::unfold(Some(client.clone()), move |client| async move {
+                let client = client?;
+                match feed.scan::<B>(&client).await {
+                    Ok(()) => Some((true, Some(client))),
+                    Err(err) => {
+                        warn!("[{}] The {feed:?} stream ended: {err}", B::NAME);
+                        Some((false, None))
                     }
                 }
             });
+            let (updates, closing) = futures::stream::abortable(updates);
+            feeds.push(closing);
             cx.spawn_source(updates, move |ok| Streamed { generation, ok });
         }
+        self.stream = Some((generation, feeds));
     }
 
     fn close_stream(&mut self) {
-        if let Some((_, open)) = self.stream.take() {
-            open.store(false, Ordering::Relaxed);
+        if let Some((_, feeds)) = self.stream.take() {
+            for feed in feeds {
+                feed.abort();
+            }
         }
     }
 

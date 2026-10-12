@@ -23,12 +23,17 @@ struct Pace;
 impl Pace {
     const Report: Duration = Duration::from_millis(500);
     const SlowPing: Duration = Duration::from_secs(10);
+    const LateReport: Duration = Duration::from_secs(2);
 }
 
 static UP: AtomicBool = AtomicBool::new(false);
 static OUTDATED: AtomicBool = AtomicBool::new(false);
 static DROPS: AtomicBool = AtomicBool::new(false);
 static SLOW_PING: AtomicBool = AtomicBool::new(false);
+static SILENT_EVENTS: AtomicBool = AtomicBool::new(false);
+static WAITING_FOR_EVENTS: AtomicU32 = AtomicU32::new(0);
+static LATE_REPORTS: AtomicBool = AtomicBool::new(false);
+static SERVICE_REPORTS: AtomicU32 = AtomicU32::new(0);
 static CONNECTS: AtomicU32 = AtomicU32::new(0);
 static PINGS: AtomicU32 = AtomicU32::new(0);
 static REPORT: std::sync::Mutex<Option<WindowsReport>> = std::sync::Mutex::new(None);
@@ -48,6 +53,10 @@ pub fn reset(up: bool) {
     OUTDATED.store(false, Ordering::SeqCst);
     DROPS.store(false, Ordering::SeqCst);
     SLOW_PING.store(false, Ordering::SeqCst);
+    SILENT_EVENTS.store(false, Ordering::SeqCst);
+    WAITING_FOR_EVENTS.store(0, Ordering::SeqCst);
+    LATE_REPORTS.store(false, Ordering::SeqCst);
+    SERVICE_REPORTS.store(0, Ordering::SeqCst);
     CONNECTS.store(0, Ordering::SeqCst);
     PINGS.store(0, Ordering::SeqCst);
     *REPORT.lock().unwrap() = None;
@@ -174,6 +183,37 @@ pub fn set_slow_ping(slow: bool) {
     SLOW_PING.store(slow, Ordering::SeqCst);
 }
 
+pub fn set_silent_events(silent: bool) {
+    SILENT_EVENTS.store(silent, Ordering::SeqCst);
+}
+
+pub fn waiting_for_events() -> u32 {
+    WAITING_FOR_EVENTS.load(Ordering::SeqCst)
+}
+
+pub fn set_late_reports(late: bool) {
+    LATE_REPORTS.store(late, Ordering::SeqCst);
+}
+
+pub fn service_reports() -> u32 {
+    SERVICE_REPORTS.load(Ordering::SeqCst)
+}
+
+struct WaitingForEvents;
+
+impl WaitingForEvents {
+    fn new() -> Self {
+        WAITING_FOR_EVENTS.fetch_add(1, Ordering::SeqCst);
+        Self
+    }
+}
+
+impl Drop for WaitingForEvents {
+    fn drop(&mut self) {
+        WAITING_FOR_EVENTS.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 pub fn connects() -> u32 {
     CONNECTS.load(Ordering::SeqCst)
 }
@@ -251,7 +291,14 @@ impl AgentBackend for FakeAgent {
                 if DROPS.load(Ordering::SeqCst) {
                     anyhow::bail!("the agent dropped the watch");
                 }
-                REPORT.lock().unwrap().clone()
+                if LATE_REPORTS.load(Ordering::SeqCst) {
+                    tokio::time::sleep(Pace::LateReport).await;
+                }
+                let report = REPORT.lock().unwrap().clone();
+                if report.is_some() {
+                    SERVICE_REPORTS.fetch_add(1, Ordering::SeqCst);
+                }
+                report
             }
         };
         if let Some(report) = report {
@@ -263,6 +310,10 @@ impl AgentBackend for FakeAgent {
 
     async fn perform_process_events(client: &FakeClient) -> anyhow::Result<()> {
         client.up()?;
+        if SILENT_EVENTS.load(Ordering::SeqCst) {
+            let _waiting = WaitingForEvents::new();
+            std::future::pending::<()>().await;
+        }
         if let Some(events) = told().await {
             GlobalEventBus::publish(events);
         }
