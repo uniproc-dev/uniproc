@@ -53,7 +53,9 @@ fn level(lived: Lived) -> Level {
 fn lived(level: Level) -> Lived {
     match level {
         Level::Below(_) => Lived::Unknown,
-        Level::Value(seconds) => Lived::For((f64::from(seconds) * Ticks::Second as f64).round().max(0.0) as u64),
+        Level::Value(seconds) if seconds <= Look::Shortest => Lived::For(0),
+        Level::Value(seconds) if seconds >= Look::Longest => Lived::For(u64::MAX),
+        Level::Value(seconds) => Lived::For((f64::from(seconds) * Ticks::Second as f64).round() as u64),
         Level::Above(_) => Lived::Running,
     }
 }
@@ -412,6 +414,23 @@ mod tests {
                 longest: Lived::Running,
             })]
         );
+    }
+
+    #[test]
+    fn a_rectangle_dragged_to_the_ends_of_the_scale_takes_the_points_drawn_on_them() {
+        let scatter = scatter(Vec::new());
+        let brushed = ScatterEvent::Brushed(Brushed {
+            x: (NOW - HOUR / 2, NOW - HOUR / 4),
+            y: (Level::Value(Look::Shortest), Level::Value(Look::Longest)),
+        });
+
+        let [Act::Pick(area)] = acts(&brushed, &scatter)[..] else {
+            panic!("{:?}", acts(&brushed, &scatter));
+        };
+        let inside = |lived: Lived| (area.shortest..=area.longest).contains(&lived);
+        assert!(inside(Lived::For(Ticks::Second / 100)), "{area:?}");
+        assert!(inside(Lived::For(2 * HOUR)), "{area:?}");
+        assert!(!inside(Lived::Unknown) && !inside(Lived::Running), "{area:?}");
     }
 
     #[test]
