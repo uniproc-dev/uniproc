@@ -693,7 +693,8 @@ impl Log {
 
     fn ask(&self, filter: &Filter, groups: &[Group]) -> u32 {
         let mut asked = self.asked.borrow_mut();
-        if asked.0 != *filter || asked.1 != groups {
+        let sorts_alike = |a: &Group, b: &Group| (&a.id, a.hue, &a.rules, a.shown) == (&b.id, b.hue, &b.rules, b.shown);
+        if asked.0 != *filter || asked.1.len() != groups.len() || !asked.1.iter().zip(groups).all(|(a, b)| sorts_alike(a, b)) {
             *asked = (filter.clone(), groups.to_vec());
             self.asking.set(self.asking.get() + 1);
         }
@@ -2190,6 +2191,22 @@ mod tests {
         let view = seen(&log, &Filter::default(), &groups, None);
 
         assert_eq!(came_row(&view.rows, 20).hue, Some(Hue::Purple));
+    }
+
+    #[test]
+    fn a_row_is_kept_when_a_group_is_only_renamed() {
+        let mut log = Log::default();
+        log.record(&[came(20, 1, "a.exe", at(10, 0))]);
+        let groups = [group("mine", Hue::Purple, vec![Pick::Exe("a.exe".into())])];
+        let first = seen(&log, &Filter::default(), &groups, None);
+
+        let renamed = [Group {
+            name: "ours".into(),
+            ..groups[0].clone()
+        }];
+        let second = seen(&log, &Filter::default(), &renamed, None);
+
+        assert!(Arc::ptr_eq(&came_row(&first.rows, 20), &came_row(&second.rows, 20)));
     }
 
     #[test]
