@@ -111,6 +111,26 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4, exclusive = "system")]
+    fn a_pinned_tool_that_went_missing_can_still_be_unpinned(h: &mut Harness) {
+        test_system::start(h);
+        let h = &*h;
+        let mut page = mount(h);
+        h.act::<SystemState>(PinTool(SystemTool::Autoruns, true)).settle();
+        page.settle();
+        assert_eq!(favourites(&page), [SystemTool::Autoruns], "{:#?}", page.tree());
+        assert!(
+            page.within(ToolMark(SystemTool::Autoruns)).find(SystemMark::Pin).is_some(),
+            "{:#?}",
+            page.tree()
+        );
+
+        page.within(ToolMark(SystemTool::Autoruns)).click(SystemMark::Pin).settle();
+        page.settle();
+
+        assert_eq!(favourites(&page), [], "{:#?}", page.tree());
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "system")]
     fn the_cross_takes_a_tool_off_the_list(h: &mut Harness) {
         test_system::start(h);
         let h = &*h;

@@ -174,7 +174,7 @@ pub(in crate::pages::system) fn tool_card(
             title,
             description: Some(description),
             trailing: if missing { Trailing::Download } else { Trailing::External },
-            accessory: (!missing).then(|| accessory(state, dispatch, l10n, tool, place)),
+            accessory: (!missing || place == CardPlace::Favourites).then(|| accessory(state, dispatch, l10n, tool, place)),
         },
         palette,
         move || {
