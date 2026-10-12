@@ -22,11 +22,13 @@ struct Pace;
 #[expect(non_upper_case_globals)]
 impl Pace {
     const Report: Duration = Duration::from_millis(500);
+    const SlowPing: Duration = Duration::from_secs(10);
 }
 
 static UP: AtomicBool = AtomicBool::new(false);
 static OUTDATED: AtomicBool = AtomicBool::new(false);
 static DROPS: AtomicBool = AtomicBool::new(false);
+static SLOW_PING: AtomicBool = AtomicBool::new(false);
 static CONNECTS: AtomicU32 = AtomicU32::new(0);
 static PINGS: AtomicU32 = AtomicU32::new(0);
 static REPORT: std::sync::Mutex<Option<WindowsReport>> = std::sync::Mutex::new(None);
@@ -45,6 +47,7 @@ pub fn reset(up: bool) {
     UP.store(up, Ordering::SeqCst);
     OUTDATED.store(false, Ordering::SeqCst);
     DROPS.store(false, Ordering::SeqCst);
+    SLOW_PING.store(false, Ordering::SeqCst);
     CONNECTS.store(0, Ordering::SeqCst);
     PINGS.store(0, Ordering::SeqCst);
     *REPORT.lock().unwrap() = None;
@@ -167,6 +170,10 @@ pub fn set_drops(drops: bool) {
     DROPS.store(drops, Ordering::SeqCst);
 }
 
+pub fn set_slow_ping(slow: bool) {
+    SLOW_PING.store(slow, Ordering::SeqCst);
+}
+
 pub fn connects() -> u32 {
     CONNECTS.load(Ordering::SeqCst)
 }
@@ -227,6 +234,9 @@ impl AgentBackend for FakeAgent {
 
     async fn ping(client: &FakeClient) -> anyhow::Result<i32> {
         PINGS.fetch_add(1, Ordering::SeqCst);
+        if SLOW_PING.load(Ordering::SeqCst) {
+            tokio::time::sleep(Pace::SlowPing).await;
+        }
         client.up().map(|()| 1)
     }
 

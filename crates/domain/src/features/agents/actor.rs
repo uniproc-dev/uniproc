@@ -30,7 +30,10 @@ pub struct RetryTimerElapsed(u64);
 pub struct ConnectionLost;
 
 #[derive(Clone, Debug)]
-pub struct PingResult(pub Option<i32>);
+pub struct PingResult {
+    generation: u64,
+    ms: Option<i32>,
+}
 
 #[derive(Clone, Debug)]
 pub struct Streamed {
@@ -322,20 +325,22 @@ fn ping<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Ping, cx: Cx) {
         return;
     };
     this.ping_in_flight = true;
+    let generation = this.generation;
     cx.spawn_bg(async move {
-        match B::ping(&client).await {
-            Ok(ms) => PingResult(Some(ms)),
+        let ms = match B::ping(&client).await {
+            Ok(ms) => Some(ms),
             Err(err) => {
                 warn!("[{}] Ping failed: {err}", B::NAME);
-                PingResult(None)
+                None
             }
-        }
+        };
+        PingResult { generation, ms }
     });
 }
 
 #[handler]
-fn on_ping_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, PingResult(ms): PingResult, cx: Cx) {
-    if !this.ping_in_flight {
+fn on_ping_result<B: AgentBackend>(this: &mut GenericAgentActor<B>, PingResult { generation, ms }: PingResult, cx: Cx) {
+    if !this.ping_in_flight || generation != this.generation {
         return;
     }
     this.ping_in_flight = false;

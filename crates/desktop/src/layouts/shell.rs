@@ -110,7 +110,7 @@ mod tests {
     use domain::features::activity::ActivityDeps;
     use app_contracts::features::settings::{SettingsState, SidebarChart};
     use app_contracts::features::agents::{
-        ActionOutcome, AgentConnectionState, WindowsAction, WindowsActionRequest, WindowsMachineSample,
+        ActionOutcome, AgentConnectionState, RunWindowsAgentInProcess, WindowsAction, WindowsActionRequest, WindowsMachineSample,
         WindowsMachineStats, WindowsReport, WindowsReportMessage,
     };
 
@@ -415,6 +415,26 @@ mod tests {
             "{:?}",
             test_agent::in_process_actions()
         );
+    }
+
+    #[guinea::test(iterations = 8, exclusive = "agent")]
+    fn a_ping_to_the_lost_service_does_not_end_the_monitor_in_process(h: &mut Harness) {
+        start(h, true);
+        test_agent::set_elevated(true);
+        test_agent::set_slow_ping(true);
+        let h = &*h;
+        let mut page = mount(h);
+        assert_eq!(agent(&page), AgentConnectionState::Connected);
+
+        test_agent::set_up(false);
+        after(h, &mut page, 1);
+        assert_ne!(agent(&page), AgentConnectionState::Connected);
+        h.publish(RunWindowsAgentInProcess).settle();
+        assert_eq!(in_process(&page), InProcess::Running);
+
+        after(h, &mut page, 12);
+        assert_eq!(test_agent::in_process_starts(), 1, "the in-process connection was never lost");
+        assert_eq!(agent(&page), AgentConnectionState::Connected);
     }
 
     #[guinea::test(iterations = 8, exclusive = "agent")]
