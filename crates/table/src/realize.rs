@@ -126,6 +126,7 @@ impl<V> Realized<V> {
             self.changed.resize(columns, fresh);
             let mut any = fresh;
             for column in 0..columns {
+                self.scratch.clear();
                 source.cell(at, column, &mut self.scratch);
                 if self.scratch != row.cells[column] {
                     std::mem::swap(&mut self.scratch, &mut row.cells[column]);
@@ -190,6 +191,45 @@ mod tests {
 
     fn fake(rows: &[(RowKey, [&'static str; 2])]) -> Fake {
         Fake { rows: rows.to_vec() }
+    }
+
+    struct Appending(Fake);
+
+    impl Source for Appending {
+        fn len(&self) -> usize {
+            self.0.len()
+        }
+
+        fn key(&self, at: usize) -> RowKey {
+            self.0.key(at)
+        }
+
+        fn height(&self, at: usize) -> f32 {
+            self.0.height(at)
+        }
+
+        fn columns(&self) -> usize {
+            self.0.columns()
+        }
+
+        fn cell(&self, at: usize, column: usize, out: &mut Cell) {
+            out.text.push_str(self.0.rows[at].1[column]);
+        }
+    }
+
+    #[test]
+    fn a_source_is_handed_an_empty_cell_to_fill() {
+        let source = Appending(fake(&[(1, ["a", "1"]), (2, ["b", "2"])]));
+        let mut realized = Realized::default();
+        let mut recorder = Recorder::default();
+        realized.update(&source, 0..2, &mut recorder);
+        recorder.drawn.clear();
+
+        let again = realized.update(&source, 0..2, &mut recorder);
+
+        assert_eq!(again, Pass::default(), "{:?}", recorder.drawn);
+        let texts = |key| realized.get(key).map(|row| row.cells.iter().map(|cell| cell.text.clone()).collect::<Vec<_>>());
+        assert_eq!(texts(2), Some(vec!["b".to_string(), "2".to_string()]));
     }
 
     #[derive(Default)]
