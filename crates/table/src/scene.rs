@@ -308,6 +308,29 @@ impl Visuals for Painter {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct BarKey {
+    extent: f32,
+    height: f32,
+    width: f32,
+    wide: bool,
+    thumb: crate::model::Rgba,
+    sizes: [f32; 4],
+}
+
+impl BarKey {
+    fn of(extent: f32, height: f32, width: f32, wide: bool, look: &Look) -> Self {
+        Self {
+            extent,
+            height,
+            width,
+            wide,
+            thumb: look.thumb,
+            sizes: [look.thumb_thin, look.thumb_wide, look.thumb_min, look.bar_margin],
+        }
+    }
+}
+
 pub(crate) enum BarHit {
     Thumb(f32),
     Above,
@@ -325,7 +348,7 @@ pub(crate) struct Scene {
     follow: c::ExpressionAnimation,
     bar: Option<Bar>,
     wide: bool,
-    placed: Option<(f32, f32, f32, bool)>,
+    placed: Option<BarKey>,
     rows: Realized<RowVisual>,
     painter: Painter,
     widths: Vec<Width>,
@@ -486,7 +509,7 @@ impl Scene {
     }
 
     fn place_bar(&mut self) -> Result<()> {
-        let key = (self.painter.lines.extent(), self.height, self.painter.width, self.wide);
+        let key = BarKey::of(self.painter.lines.extent(), self.height, self.painter.width, self.wide, &self.painter.look);
         if self.placed == Some(key) {
             return Ok(());
         }
@@ -573,5 +596,21 @@ impl Scene {
             ),
             None => self.hover.hide(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_bar_is_placed_again_when_its_look_changes() {
+        let dark = Look::default();
+        let light = Look {
+            thumb: crate::model::Rgba { r: 0, g: 0, b: 0, a: 114 },
+            ..Look::default()
+        };
+
+        assert_ne!(BarKey::of(400.0, 200.0, 300.0, false, &dark), BarKey::of(400.0, 200.0, 300.0, false, &light));
     }
 }
