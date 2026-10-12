@@ -725,6 +725,27 @@ mod tests {
         assert_eq!(remembered_groups(&stored(h)), [Group::windows_background()]);
     }
 
+    #[guinea::test(iterations = 4)]
+    fn a_group_is_not_renamed_to_nothing(h: &mut Harness) {
+        start(h);
+        let h = &*h;
+        let _page = tool_and_taskhost(h);
+        act(h, NewGroup(Pick::Exe("tool.exe".into())));
+        let id = h.state::<ActivityState>().groups[1].id.clone();
+
+        act(
+            h,
+            RenameGroup {
+                group: id.clone(),
+                name: "  ".into(),
+            },
+        );
+
+        let groups = h.state::<ActivityState>().groups.clone();
+        assert_eq!((groups[1].id.as_str(), groups[1].name.as_str()), (id.as_str(), "tool.exe"));
+        assert_eq!(remembered_groups(&stored(h)), groups);
+    }
+
     fn marked(node: &Node, mark: &str) -> usize {
         usize::from(node.id.as_deref() == Some(mark)) + node.children.iter().map(|child| marked(child, mark)).sum::<usize>()
     }

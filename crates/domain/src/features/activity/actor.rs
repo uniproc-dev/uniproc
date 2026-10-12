@@ -368,6 +368,9 @@ fn drop_rule(this: &mut ActivityActor, DropRule { group, rule }: DropRule, cx: C
 
 #[handler]
 fn rename_group(this: &mut ActivityActor, RenameGroup { group, name }: RenameGroup, cx: Cx) {
+    if name.trim().is_empty() {
+        return;
+    }
     this.regroup(
         |groups| {
             with_group(groups, &group, |group| {
