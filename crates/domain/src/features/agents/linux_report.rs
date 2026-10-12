@@ -132,7 +132,7 @@ impl std::fmt::Display for Resync {
 #[derive(Default)]
 pub struct LinuxReports {
     passports: HashMap<ProcessKey, Passport>,
-    passport_etag: u64,
+    passport_etag: Option<u64>,
     environments: Environments,
     run_times: HashMap<ProcessKey, u64>,
     sampled_at: Option<u64>,
@@ -169,17 +169,23 @@ impl LinuxReports {
     }
 
     fn apply_lists(&mut self, lists: Lists) -> Result<(), Resync> {
+        let held = self.passport_etag;
+        let resync = |base| Resync {
+            held: held.unwrap_or_default(),
+            base,
+        };
         match lists.passports {
-            Passports::Unchanged => {}
+            Passports::Unchanged => {
+                if held != Some(lists.passport_etag) {
+                    return Err(resync(lists.passport_etag));
+                }
+            }
             Passports::Full(passports) => {
                 self.passports = passports.into_iter().map(|p| (p.key, p)).collect();
             }
             Passports::Delta { base_etag, left, upserted } => {
-                if base_etag != self.passport_etag {
-                    return Err(Resync {
-                        held: self.passport_etag,
-                        base: base_etag,
-                    });
+                if held != Some(base_etag) {
+                    return Err(resync(base_etag));
                 }
                 for key in left {
                     self.passports.remove(&key);
@@ -189,7 +195,7 @@ impl LinuxReports {
                 }
             }
         }
-        self.passport_etag = lists.passport_etag;
+        self.passport_etag = Some(lists.passport_etag);
         if let Some(environments) = lists.environments {
             self.environments = environments;
         }
@@ -393,6 +399,38 @@ mod tests {
         ));
 
         assert_eq!(outcome.err(), Some(Resync { held: 10, base: 9 }));
+    }
+
+    #[test]
+    fn unchanged_passports_on_another_etag_ask_for_a_resync() {
+        let mut reports = LinuxReports::default();
+        reports
+            .apply(update(Passports::Full(vec![passport(1, "init")]), 10, 0, vec![]))
+            .unwrap();
+
+        let outcome = reports.apply(update(Passports::Unchanged, 11, SECOND, vec![sample(1, 0)]));
+
+        assert_eq!(outcome.err(), Some(Resync { held: 10, base: 11 }));
+    }
+
+    #[test]
+    fn nothing_but_a_full_list_is_taken_before_the_first_one() {
+        let mut reports = LinuxReports::default();
+
+        let delta = reports.apply(update(
+            Passports::Delta {
+                base_etag: 0,
+                left: vec![],
+                upserted: vec![passport(1, "init")],
+            },
+            1,
+            0,
+            vec![],
+        ));
+        let unchanged = reports.apply(update(Passports::Unchanged, 0, 0, vec![]));
+
+        assert_eq!(delta.err(), Some(Resync { held: 0, base: 0 }));
+        assert_eq!(unchanged.err(), Some(Resync { held: 0, base: 0 }));
     }
 
     #[test]
