@@ -143,11 +143,18 @@ fn paint_cell(session: &DrawingSession<'_>, ink: &mut Ink<'_>, cell: &Cell, left
     let note_width = text.width(cell.weight, &cell.note).unwrap_or(0.0);
     let main_right = (right - note_width - look.note_gap).max(x);
     let drawn = text.draw(session, &line(&cell.text, cell, x, main_right, height), &ink);
-    let note_left = drawn.map_or(main_right, |width| x + width) + look.note_gap;
+    let note_left = note_left(cell.align, x, main_right, drawn) + look.note_gap;
     let note_ink: Brush = session.create_solid_brush(color(look.tone(Tone::Tertiary), dim))?;
     let note = Line { align: crate::model::Align::Start, ..line(&cell.note, cell, note_left, right, height) };
     text.draw(session, &note, &note_ink);
     Ok(())
+}
+
+fn note_left(align: crate::model::Align, left: f32, main_right: f32, drawn: Option<f32>) -> f32 {
+    match (align, drawn) {
+        (crate::model::Align::Start, Some(width)) => left + width,
+        _ => main_right,
+    }
 }
 
 fn line<'a>(text: &'a str, cell: &Cell, left: f32, right: f32, height: f32) -> Line<'a> {
@@ -163,4 +170,17 @@ fn chevron(session: &DrawingSession<'_>, ink: &Brush, x: f32, y: f32, open: bool
     };
     session.draw_line(a, tip, ink, 1.0);
     session.draw_line(b, tip, ink, 1.0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::Align;
+
+    #[test]
+    fn a_note_follows_the_text_it_belongs_to() {
+        assert_eq!(note_left(Align::Start, 12.0, 169.0, Some(40.0)), 52.0);
+        assert_eq!(note_left(Align::End, 12.0, 169.0, Some(40.0)), 169.0);
+        assert_eq!(note_left(Align::End, 12.0, 169.0, None), 169.0);
+    }
 }
