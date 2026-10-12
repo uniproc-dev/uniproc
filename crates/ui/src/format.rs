@@ -34,29 +34,25 @@ impl Decimal {
     const Kilo: f64 = 1000.0;
 }
 
-fn bits_per_second(bits: u64) -> String {
-    let f = bits as f64;
-    if f >= Decimal::Kilo.powi(3) {
-        format!("{:.1} Gbps", f / Decimal::Kilo.powi(3))
-    } else if f >= Decimal::Kilo.powi(2) {
-        format!("{:.1} Mbps", f / Decimal::Kilo.powi(2))
-    } else if f >= Decimal::Kilo {
-        format!("{:.0} Kbps", f / Decimal::Kilo)
-    } else {
-        format!("{bits} bps")
+fn scaled(mut value: f64, base: f64, steps: &[(&str, usize)]) -> String {
+    let mut written = String::new();
+    for (at, &(suffix, decimals)) in steps.iter().enumerate() {
+        written = format!("{value:.decimals$} {suffix}");
+        let shown = written.split(' ').next().and_then(|number| number.parse::<f64>().ok());
+        if at + 1 == steps.len() || shown.is_some_and(|shown| shown < base) {
+            break;
+        }
+        value /= base;
     }
+    written
+}
+
+fn bits_per_second(bits: u64) -> String {
+    scaled(bits as f64, Decimal::Kilo, &[("bps", 0), ("Kbps", 0), ("Mbps", 1), ("Gbps", 1)])
 }
 
 fn bits_bound(bits: u64) -> String {
-    let f = bits as f64;
-    let (value, suffix) = if f >= Decimal::Kilo.powi(3) {
-        (f / Decimal::Kilo.powi(3), "Gbps")
-    } else if f >= Decimal::Kilo.powi(2) {
-        (f / Decimal::Kilo.powi(2), "Mbps")
-    } else {
-        (f / Decimal::Kilo, "Kbps")
-    };
-    format!("{value:.0} {suffix}")
+    scaled(bits as f64 / Decimal::Kilo, Decimal::Kilo, &[("Kbps", 0), ("Mbps", 0), ("Gbps", 0)])
 }
 
 pub fn percent(value: f32) -> String {
@@ -91,15 +87,8 @@ pub fn rate_bound(rate: Rate, v: u64) -> String {
         Rate::Bits => return bits_bound(v.saturating_mul(8)),
     };
     let [kilo, mega, giga] = suffixes(units);
-    let f = v as f64;
-    let (value, suffix) = if f >= Binary::Kib.powi(3) {
-        (f / Binary::Kib.powi(3), giga)
-    } else if f >= Binary::Kib.powi(2) {
-        (f / Binary::Kib.powi(2), mega)
-    } else {
-        (f / Binary::Kib, kilo)
-    };
-    format!("{value:.0} {suffix}/s")
+    let written = scaled(v as f64 / Binary::Kib, Binary::Kib, &[(kilo, 0), (mega, 0), (giga, 0)]);
+    format!("{written}/s")
 }
 
 pub fn clock(at: Clock) -> String {
@@ -108,16 +97,7 @@ pub fn clock(at: Clock) -> String {
 
 pub fn bytes(units: ByteUnits, v: u64) -> String {
     let [kilo, mega, giga] = suffixes(units);
-    let f = v as f64;
-    if f >= Binary::Kib.powi(3) {
-        format!("{:.1} {giga}", f / Binary::Kib.powi(3))
-    } else if f >= Binary::Kib.powi(2) {
-        format!("{:.1} {mega}", f / Binary::Kib.powi(2))
-    } else if f >= Binary::Kib {
-        format!("{:.0} {kilo}", f / Binary::Kib)
-    } else {
-        format!("{v} B")
-    }
+    scaled(v as f64, Binary::Kib, &[("B", 0), (kilo, 0), (mega, 1), (giga, 1)])
 }
 
 #[cfg(test)]
@@ -130,6 +110,17 @@ mod tests {
         assert_eq!(bytes(ByteUnits::Iec, 3 << 30), "3.0 GiB");
         assert_eq!(bytes_per_second(ByteUnits::Windows, 20 << 10), "20 KB/s");
         assert_eq!(bytes(ByteUnits::Iec, 512), "512 B");
+    }
+
+    #[test]
+    fn a_value_that_rounds_up_to_the_next_unit_is_written_in_it() {
+        assert_eq!(bytes(ByteUnits::Windows, (1 << 20) - 1), "1.0 MB");
+        assert_eq!(bytes(ByteUnits::Windows, (1 << 30) - 1), "1.0 GB");
+        assert_eq!(bytes(ByteUnits::Iec, 1023), "1023 B");
+        assert_eq!(rate(Rate::Bits, 124_990), "1.0 Mbps");
+        assert_eq!(rate(Rate::Bits, 124_999_999), "1.0 Gbps");
+        assert_eq!(rate_bound(Rate::Bytes(ByteUnits::Windows), (1 << 20) - 1), "1 MB/s");
+        assert_eq!(rate_bound(Rate::Bits, 124_990), "1 Mbps");
     }
 
     #[test]
