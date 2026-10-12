@@ -56,7 +56,6 @@ impl Trailing {
 pub struct MetricsActor {
     push: Push<MetricsState>,
     totals: Trailing,
-    stats: std::cell::RefCell<crate::push_stats::PushStats<MetricsMsg>>,
 }
 
 impl MetricsActor {
@@ -64,12 +63,10 @@ impl MetricsActor {
         Self {
             push,
             totals: Trailing::default(),
-            stats: std::cell::RefCell::new(crate::push_stats::PushStats::new("metrics")),
         }
     }
 
     fn publish(&self, msg: MetricsMsg) {
-        self.stats.borrow_mut().note(msg.clone());
         self.push.send(msg);
     }
 }

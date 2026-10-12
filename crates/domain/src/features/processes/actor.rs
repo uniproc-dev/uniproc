@@ -59,13 +59,11 @@ pub struct ProcessesActor {
     linux_rates: IoRates,
     windows: fn() -> AppWindows,
     shell: fn(ShellRequest),
-    stats: std::cell::RefCell<crate::push_stats::PushStats<(Rc<[ProcessRow]>, MachineSummary, AgentConnectionState)>>,
 }
 
 impl ProcessesActor {
     pub fn new(push: Push<ProcessesState>, windows: fn() -> AppWindows, shell: fn(ShellRequest)) -> Self {
         Self {
-            stats: std::cell::RefCell::new(crate::push_stats::PushStats::new("processes")),
             push,
             windows,
             shell,
@@ -112,11 +110,6 @@ impl ProcessesActor {
 
     #[instrument(skip_all, level = "debug", fields(rows = self.rows.len()))]
     fn publish_rows(&self) {
-        self.stats.borrow_mut().note((
-            self.rows.clone(),
-            self.machine_summary.clone(),
-            self.agent_state,
-        ));
         self.push.send(ProcessesMsg::SetRows {
             rows: self.rows.clone(),
             machine: self.machine_summary.clone(),

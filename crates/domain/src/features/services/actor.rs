@@ -25,7 +25,6 @@ pub struct ServicesActor {
     sort_column: ServiceColumn,
     descending: bool,
     selected: Option<String>,
-    stats: std::cell::RefCell<crate::push_stats::PushStats<Rc<[ServiceRow]>>>,
 }
 
 impl ServicesActor {
@@ -36,12 +35,10 @@ impl ServicesActor {
             sort_column: ServiceColumn::Name,
             descending: false,
             selected: None,
-            stats: std::cell::RefCell::new(crate::push_stats::PushStats::new("services")),
         }
     }
 
     fn publish_rows(&self) {
-        self.stats.borrow_mut().note(self.rows.clone());
         self.push.send(ServicesMsg::SetRows {
             rows: self.rows.clone(),
         });
