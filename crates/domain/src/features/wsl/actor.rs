@@ -16,22 +16,25 @@ struct CpuSample {
     at: Instant,
 }
 
-fn cpu_percent(previous: Option<CpuSample>, current: CpuSample, cpu_count: u32) -> Option<f32> {
-    let previous = previous?;
-    let cores = cpu_count.max(1) as f64;
+struct Scan;
 
-    let elapsed_ns = current.at.duration_since(previous.at).as_nanos() as f64;
-    if elapsed_ns <= 0.0 {
-        return None;
-    }
+#[expect(non_upper_case_globals)]
+impl Scan {
+    const Timeout: Duration = Duration::from_secs(10);
+}
 
-    let busy_ns = current.busy_ns.checked_sub(previous.busy_ns)? as f64;
-    Some(((busy_ns / (elapsed_ns * cores)) * 100.0).clamp(0.0, 100.0) as f32)
+#[derive(Clone, Debug, serde::Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct RefreshDistros;
+
+enum ScanResult {
+    Distros(Vec<DistroRow>),
+    Failed,
 }
 
 #[derive(Debug)]
 pub struct WslActor {
-    ui_port: Push<WslState>,
+    push: Push<WslState>,
     distros: Rc<[DistroRow]>,
     configured: Field<String>,
     machine: Option<LinuxMachineSummary>,
@@ -41,17 +44,10 @@ pub struct WslActor {
     scanning: bool,
 }
 
-struct Scan;
-
-#[expect(non_upper_case_globals)]
-impl Scan {
-    const Timeout: Duration = Duration::from_secs(10);
-}
-
 impl WslActor {
-    pub fn new(ui_port: Push<WslState>, configured: Field<String>, scan: fn(Duration) -> DistroScan) -> Self {
+    pub fn new(push: Push<WslState>, configured: Field<String>, scan: fn(Duration) -> DistroScan) -> Self {
         Self {
-            ui_port,
+            push,
             distros: Rc::from(Vec::new()),
             configured,
             machine: None,
@@ -71,7 +67,7 @@ impl WslActor {
             return;
         }
         self.published = Some((self.distros.clone(), self.machine.clone()));
-        self.ui_port.send(WslMsg::Set {
+        self.push.send(WslMsg::Set {
             distros: self.distros.clone(),
             machine: self.machine.clone(),
         });
@@ -132,18 +128,13 @@ impl WslActor {
     }
 }
 
-#[derive(Clone, Debug, serde::Deserialize, guinea::Remote)]
-#[remote(action)]
-pub struct RefreshDistros;
-
-enum ScanResult {
-    Distros(Vec<DistroRow>),
-    Failed,
-}
-
 actor! {
     WslActor {
-        handlers { RefreshDistros, ScanResult, RemoteScanResult }
+        handlers {
+            RefreshDistros,
+            ScanResult,
+            RemoteScanResult,
+        }
     }
 }
 
@@ -212,6 +203,19 @@ fn on_remote_scan(this: &mut WslActor, msg: RemoteScanResult) {
     }
     this.apply_presence();
     this.publish();
+}
+
+fn cpu_percent(previous: Option<CpuSample>, current: CpuSample, cpu_count: u32) -> Option<f32> {
+    let previous = previous?;
+    let cores = cpu_count.max(1) as f64;
+
+    let elapsed_ns = current.at.duration_since(previous.at).as_nanos() as f64;
+    if elapsed_ns <= 0.0 {
+        return None;
+    }
+
+    let busy_ns = current.busy_ns.checked_sub(previous.busy_ns)? as f64;
+    Some(((busy_ns / (elapsed_ns * cores)) * 100.0).clamp(0.0, 100.0) as f32)
 }
 
 #[cfg(test)]

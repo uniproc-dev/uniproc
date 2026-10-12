@@ -44,6 +44,9 @@ pub struct ReconnectAfter {
     epoch: u64,
 }
 
+#[derive(Clone, Debug)]
+struct ReconnectDue(u64);
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Source {
     Service,
@@ -242,20 +245,6 @@ actor! {
 }
 
 #[handler]
-fn run_in_process<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: RunWindowsAgentInProcess, cx: Cx) {
-    if this.source == Source::InProcess {
-        return;
-    }
-    info!("[{}] monitoring in process instead of through the service", B::NAME);
-    this.switch_to(Source::InProcess, &cx.detach());
-}
-
-#[handler]
-fn on_state_request<B: AgentBackend>(this: &GenericAgentActor<B>, _msg: AgentStateRequest) {
-    this.publish_state(None);
-}
-
-#[handler]
 fn init<B: AgentBackend>(this: &GenericAgentActor<B>, _msg: Init, cx: Cx) {
     info!("[{}] Actor init", B::NAME);
     this.publish_state(None);
@@ -391,6 +380,23 @@ fn on_retry_elapsed<B: AgentBackend>(this: &mut GenericAgentActor<B>, RetryTimer
 }
 
 #[handler]
+async fn reconnect_after<B: AgentBackend>(
+    ctx: AsyncContext<GenericAgentActor<B>>,
+    ReconnectAfter { rest, epoch }: ReconnectAfter,
+) {
+    if ctx.until_gone(tokio::time::sleep(rest)).await.is_some() {
+        ctx.send(ReconnectDue(epoch));
+    }
+}
+
+#[handler]
+fn reconnect_due<B: AgentBackend>(this: &GenericAgentActor<B>, ReconnectDue(epoch): ReconnectDue, cx: Cx) {
+    if epoch == this.epoch {
+        cx.addr().send(StartConnect);
+    }
+}
+
+#[handler]
 fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: ConnectionLost, cx: Cx) {
     if this.apply(ConnectionEvent::ConnectionLost).is_none() {
         return;
@@ -414,22 +420,16 @@ fn on_connection_lost<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: Co
     }
 }
 
-#[derive(Clone, Debug)]
-struct ReconnectDue(u64);
-
 #[handler]
-async fn reconnect_after<B: AgentBackend>(
-    ctx: AsyncContext<GenericAgentActor<B>>,
-    ReconnectAfter { rest, epoch }: ReconnectAfter,
-) {
-    if ctx.until_gone(tokio::time::sleep(rest)).await.is_some() {
-        ctx.send(ReconnectDue(epoch));
-    }
+fn on_state_request<B: AgentBackend>(this: &GenericAgentActor<B>, _msg: AgentStateRequest) {
+    this.publish_state(None);
 }
 
 #[handler]
-fn reconnect_due<B: AgentBackend>(this: &GenericAgentActor<B>, ReconnectDue(epoch): ReconnectDue, cx: Cx) {
-    if epoch == this.epoch {
-        cx.addr().send(StartConnect);
+fn run_in_process<B: AgentBackend>(this: &mut GenericAgentActor<B>, _msg: RunWindowsAgentInProcess, cx: Cx) {
+    if this.source == Source::InProcess {
+        return;
     }
+    info!("[{}] monitoring in process instead of through the service", B::NAME);
+    this.switch_to(Source::InProcess, &cx.detach());
 }

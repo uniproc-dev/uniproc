@@ -36,15 +36,11 @@ impl Code {
     const NoAnswer: u32 = u32::MAX;
 }
 
-pub fn outcome(code: u32) -> ActionOutcome {
-    match code {
-        Code::Success => ActionOutcome::Done,
-        Code::AccessDenied => ActionOutcome::Denied,
-        Code::InvalidParameter => ActionOutcome::Gone,
-        Code::Busy => ActionOutcome::Busy,
-        Code::NoAnswer => ActionOutcome::NotConnected,
-        other => ActionOutcome::Failed(other),
-    }
+struct Pace;
+
+#[expect(non_upper_case_globals)]
+impl Pace {
+    const Answer: Duration = Duration::from_secs(60);
 }
 
 #[derive(Default)]
@@ -62,7 +58,10 @@ impl std::fmt::Debug for WindowsActions {
 
 actor! {
     WindowsActions {
-        handlers { WindowsTransport, RpcRequest<WindowsActionRequest> }
+        handlers {
+            WindowsTransport,
+            RpcRequest<WindowsActionRequest>,
+        }
     }
 }
 
@@ -82,11 +81,15 @@ fn act(this: &mut WindowsActions, WindowsActionRequest(action): WindowsActionReq
     Reply::later(async move { outcome(transport.act(action).await) })
 }
 
-struct Pace;
-
-#[expect(non_upper_case_globals)]
-impl Pace {
-    const Answer: Duration = Duration::from_secs(60);
+pub fn outcome(code: u32) -> ActionOutcome {
+    match code {
+        Code::Success => ActionOutcome::Done,
+        Code::AccessDenied => ActionOutcome::Denied,
+        Code::InvalidParameter => ActionOutcome::Gone,
+        Code::Busy => ActionOutcome::Busy,
+        Code::NoAnswer => ActionOutcome::NotConnected,
+        other => ActionOutcome::Failed(other),
+    }
 }
 
 pub async fn request(action: WindowsAction) -> ActionOutcome {

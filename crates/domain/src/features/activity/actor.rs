@@ -33,6 +33,12 @@ pub struct Worked {
     hovered: Option<Option<ActivityRow>>,
 }
 
+#[derive(Clone, Debug, Event)]
+pub struct Refresh;
+
+#[derive(Clone, Debug, Event)]
+pub struct Flush;
+
 pub struct ActivityActor {
     push: Push<ActivityState>,
     deps: ActivityDeps,
@@ -149,52 +155,147 @@ impl ActivityActor {
     }
 }
 
-#[derive(Clone, Debug, Event)]
-pub struct Refresh;
-
-#[derive(Clone, Debug, Event)]
-pub struct Flush;
-
 actor! {
     ActivityActor {
         handlers {
-            WindowsProcessEvents, WindowsReportMessage, Refresh, Flush, ShowSpan, ShowCame, ShowWent, NewOnly,
-            ShowSeries, Only, Hide, Unhide, Search, PickArea, ClearArea, Hover, ShowGroup, ShowOther, PutInGroup,
-            NewGroup, AddGroup, DropRule, RenameGroup, RecolorGroup, MoveGroup, DeleteGroup, Worked
+            WindowsProcessEvents,
+            WindowsReportMessage,
+            Refresh,
+            Flush,
+            ShowSpan,
+            ShowCame,
+            ShowWent,
+            NewOnly,
+            ShowSeries,
+            Only,
+            Hide,
+            Unhide,
+            Search,
+            PickArea,
+            ClearArea,
+            Hover,
+            ShowGroup,
+            ShowOther,
+            PutInGroup,
+            NewGroup,
+            AddGroup,
+            DropRule,
+            RenameGroup,
+            RecolorGroup,
+            MoveGroup,
+            DeleteGroup,
+            Worked,
         }
     }
 }
 
-fn with_group(groups: &mut [Group], id: &str, change: impl FnOnce(&mut Group)) {
-    if let Some(group) = groups.iter_mut().find(|group| group.id == id) {
-        change(group);
+#[handler]
+fn on_events(this: &mut ActivityActor, batch: WindowsProcessEvents, cx: Cx) {
+    this.heard.push(Heard::Events(batch));
+    this.stale = true;
+    this.work(&cx.detach());
+}
+
+#[handler]
+fn on_report(this: &mut ActivityActor, msg: WindowsReportMessage, cx: Cx) {
+    if let WindowsReportMessage::Report(report) = msg {
+        this.heard.push(Heard::Running(report));
+        this.work(&cx.detach());
     }
 }
 
-fn take_rule(groups: &mut [Group], rule: &Pick) {
-    for group in groups {
-        group.rules.retain(|kept| kept != rule);
+#[handler]
+fn refresh(this: &mut ActivityActor, _msg: Refresh, cx: Cx) {
+    this.publish(&cx.detach());
+}
+
+#[handler]
+fn flush(this: &mut ActivityActor, _msg: Flush, cx: Cx) {
+    if this.stale {
+        this.publish(&cx.detach());
     }
 }
 
-fn rule_name(rule: &Pick) -> String {
-    match rule {
-        Pick::Exe(name) | Pick::Under(name) | Pick::Folder(name) => name.to_string(),
-    }
+#[handler]
+fn show_span(this: &mut ActivityActor, ShowSpan(span): ShowSpan, cx: Cx) {
+    this.span = span;
+    this.area = None;
+    this.remember();
+    this.push.send(ActivityMsg::Span(span));
+    this.reask(&cx.detach());
 }
 
-fn fresh_id(groups: &[Group]) -> String {
-    (1..)
-        .map(|n| format!("g{n}"))
-        .find(|id| groups.iter().all(|group| group.id != *id))
-        .unwrap_or_default()
+#[handler]
+fn show_came(this: &mut ActivityActor, ShowCame(shown): ShowCame, cx: Cx) {
+    this.refilter(|filter| filter.came = shown, &cx.detach());
 }
 
-fn fresh_hue(groups: &[Group]) -> Hue {
-    Hue::ALL
-        .into_iter()
-        .find(|hue| groups.iter().all(|group| group.hue != *hue))
-        .unwrap_or(Hue::ALL[groups.len() % Hue::ALL.len()])
+#[handler]
+fn show_went(this: &mut ActivityActor, ShowWent(shown): ShowWent, cx: Cx) {
+    this.refilter(|filter| filter.went = shown, &cx.detach());
+}
+
+#[handler]
+fn new_only(this: &mut ActivityActor, NewOnly(only): NewOnly, cx: Cx) {
+    this.refilter(|filter| filter.new_only = only, &cx.detach());
+}
+
+#[handler]
+fn show_series(this: &mut ActivityActor, ShowSeries(shown): ShowSeries, cx: Cx) {
+    this.refilter(|filter| filter.series = shown, &cx.detach());
+}
+
+#[handler]
+fn only(this: &mut ActivityActor, Only(pick): Only, cx: Cx) {
+    this.refilter(|filter| filter.only = pick, &cx.detach());
+}
+
+#[handler]
+fn hide(this: &mut ActivityActor, Hide(pick): Hide, cx: Cx) {
+    this.refilter(
+        |filter| {
+            if filter.only.as_ref() == Some(&pick) {
+                filter.only = None;
+            }
+            if !filter.hidden.contains(&pick) {
+                filter.hidden.push(pick);
+            }
+        },
+        &cx.detach(),
+    );
+}
+
+#[handler]
+fn unhide(this: &mut ActivityActor, Unhide(pick): Unhide, cx: Cx) {
+    this.refilter(|filter| filter.hidden.retain(|hidden| *hidden != pick), &cx.detach());
+}
+
+#[handler]
+fn search(this: &mut ActivityActor, Search(text): Search, cx: Cx) {
+    this.refilter(|filter| filter.text = text, &cx.detach());
+}
+
+#[handler]
+fn pick_area(this: &mut ActivityActor, PickArea(area): PickArea, cx: Cx) {
+    this.area = Some(Area {
+        from: area.from.min(area.to),
+        to: area.from.max(area.to),
+        shortest: area.shortest.min(area.longest),
+        longest: area.shortest.max(area.longest),
+    });
+    this.reask(&cx.detach());
+}
+
+#[handler]
+fn clear_area(this: &mut ActivityActor, _msg: ClearArea, cx: Cx) {
+    this.area = None;
+    this.reask(&cx.detach());
+}
+
+#[handler]
+fn hover(this: &mut ActivityActor, Hover(key): Hover, cx: Cx) {
+    this.hovering = Some(key);
+    this.work(&cx.detach());
 }
 
 #[handler]
@@ -306,33 +407,6 @@ fn delete_group(this: &mut ActivityActor, DeleteGroup(group): DeleteGroup, cx: C
 }
 
 #[handler]
-fn on_events(this: &mut ActivityActor, batch: WindowsProcessEvents, cx: Cx) {
-    this.heard.push(Heard::Events(batch));
-    this.stale = true;
-    this.work(&cx.detach());
-}
-
-#[handler]
-fn flush(this: &mut ActivityActor, _msg: Flush, cx: Cx) {
-    if this.stale {
-        this.publish(&cx.detach());
-    }
-}
-
-#[handler]
-fn on_report(this: &mut ActivityActor, msg: WindowsReportMessage, cx: Cx) {
-    if let WindowsReportMessage::Report(report) = msg {
-        this.heard.push(Heard::Running(report));
-        this.work(&cx.detach());
-    }
-}
-
-#[handler]
-fn refresh(this: &mut ActivityActor, _msg: Refresh, cx: Cx) {
-    this.publish(&cx.detach());
-}
-
-#[handler]
 fn on_worked(this: &mut ActivityActor, Worked { log, view, hovered }: Worked, cx: Cx) {
     this.log = Some(log);
     match view {
@@ -348,84 +422,34 @@ fn on_worked(this: &mut ActivityActor, Worked { log, view, hovered }: Worked, cx
     }
 }
 
-#[handler]
-fn show_span(this: &mut ActivityActor, ShowSpan(span): ShowSpan, cx: Cx) {
-    this.span = span;
-    this.area = None;
-    this.remember();
-    this.push.send(ActivityMsg::Span(span));
-    this.reask(&cx.detach());
+fn with_group(groups: &mut [Group], id: &str, change: impl FnOnce(&mut Group)) {
+    if let Some(group) = groups.iter_mut().find(|group| group.id == id) {
+        change(group);
+    }
 }
 
-#[handler]
-fn show_came(this: &mut ActivityActor, ShowCame(shown): ShowCame, cx: Cx) {
-    this.refilter(|filter| filter.came = shown, &cx.detach());
+fn take_rule(groups: &mut [Group], rule: &Pick) {
+    for group in groups {
+        group.rules.retain(|kept| kept != rule);
+    }
 }
 
-#[handler]
-fn show_went(this: &mut ActivityActor, ShowWent(shown): ShowWent, cx: Cx) {
-    this.refilter(|filter| filter.went = shown, &cx.detach());
+fn rule_name(rule: &Pick) -> String {
+    match rule {
+        Pick::Exe(name) | Pick::Under(name) | Pick::Folder(name) => name.to_string(),
+    }
 }
 
-#[handler]
-fn new_only(this: &mut ActivityActor, NewOnly(only): NewOnly, cx: Cx) {
-    this.refilter(|filter| filter.new_only = only, &cx.detach());
+fn fresh_id(groups: &[Group]) -> String {
+    (1..)
+        .map(|n| format!("g{n}"))
+        .find(|id| groups.iter().all(|group| group.id != *id))
+        .unwrap_or_default()
 }
 
-#[handler]
-fn show_series(this: &mut ActivityActor, ShowSeries(shown): ShowSeries, cx: Cx) {
-    this.refilter(|filter| filter.series = shown, &cx.detach());
-}
-
-#[handler]
-fn only(this: &mut ActivityActor, Only(pick): Only, cx: Cx) {
-    this.refilter(|filter| filter.only = pick, &cx.detach());
-}
-
-#[handler]
-fn hide(this: &mut ActivityActor, Hide(pick): Hide, cx: Cx) {
-    this.refilter(
-        |filter| {
-            if filter.only.as_ref() == Some(&pick) {
-                filter.only = None;
-            }
-            if !filter.hidden.contains(&pick) {
-                filter.hidden.push(pick);
-            }
-        },
-        &cx.detach(),
-    );
-}
-
-#[handler]
-fn unhide(this: &mut ActivityActor, Unhide(pick): Unhide, cx: Cx) {
-    this.refilter(|filter| filter.hidden.retain(|hidden| *hidden != pick), &cx.detach());
-}
-
-#[handler]
-fn search(this: &mut ActivityActor, Search(text): Search, cx: Cx) {
-    this.refilter(|filter| filter.text = text, &cx.detach());
-}
-
-#[handler]
-fn pick_area(this: &mut ActivityActor, PickArea(area): PickArea, cx: Cx) {
-    this.area = Some(Area {
-        from: area.from.min(area.to),
-        to: area.from.max(area.to),
-        shortest: area.shortest.min(area.longest),
-        longest: area.shortest.max(area.longest),
-    });
-    this.reask(&cx.detach());
-}
-
-#[handler]
-fn clear_area(this: &mut ActivityActor, _msg: ClearArea, cx: Cx) {
-    this.area = None;
-    this.reask(&cx.detach());
-}
-
-#[handler]
-fn hover(this: &mut ActivityActor, Hover(key): Hover, cx: Cx) {
-    this.hovering = Some(key);
-    this.work(&cx.detach());
+fn fresh_hue(groups: &[Group]) -> Hue {
+    Hue::ALL
+        .into_iter()
+        .find(|hue| groups.iter().all(|group| group.hue != *hue))
+        .unwrap_or(Hue::ALL[groups.len() % Hue::ALL.len()])
 }

@@ -54,15 +54,15 @@ impl Trailing {
 
 #[derive(Debug)]
 pub struct MetricsActor {
-    ui_port: Push<MetricsState>,
+    push: Push<MetricsState>,
     totals: Trailing,
     stats: std::cell::RefCell<crate::push_stats::PushStats<MetricsMsg>>,
 }
 
 impl MetricsActor {
-    pub fn new(ui_port: Push<MetricsState>) -> Self {
+    pub fn new(push: Push<MetricsState>) -> Self {
         Self {
-            ui_port,
+            push,
             totals: Trailing::default(),
             stats: std::cell::RefCell::new(crate::push_stats::PushStats::new("metrics")),
         }
@@ -70,28 +70,17 @@ impl MetricsActor {
 
     fn publish(&self, msg: MetricsMsg) {
         self.stats.borrow_mut().note(msg.clone());
-        self.ui_port.send(msg);
+        self.push.send(msg);
     }
-}
-
-fn per_second(before: u64, now: u64, elapsed_ms: u64) -> u64 {
-    if elapsed_ms == 0 {
-        return 0;
-    }
-    now.saturating_sub(before).saturating_mul(1_000) / elapsed_ms
 }
 
 actor! {
     MetricsActor {
-        handlers { WindowsReportMessage, WindowsMachineSample }
+        handlers {
+            WindowsReportMessage,
+            WindowsMachineSample,
+        }
     }
-}
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
 }
 
 #[handler]
@@ -145,6 +134,20 @@ fn on_machine_sample(this: &mut MetricsActor, sample: WindowsMachineSample) {
         disk,
         network,
     });
+}
+
+fn per_second(before: u64, now: u64, elapsed_ms: u64) -> u64 {
+    if elapsed_ms == 0 {
+        return 0;
+    }
+    now.saturating_sub(before).saturating_mul(1_000) / elapsed_ms
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]

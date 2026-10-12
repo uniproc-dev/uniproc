@@ -9,26 +9,31 @@ pub struct Refresh;
 
 #[derive(Debug)]
 pub struct SidebarActor {
-    ui_port: Push<SidebarState>,
+    push: Push<SidebarState>,
     settings: SidebarSettings,
 }
 
 impl SidebarActor {
-    pub fn new(ui_port: Push<SidebarState>, settings: SidebarSettings) -> Self {
-        Self { ui_port, settings }
+    pub fn new(push: Push<SidebarState>, settings: SidebarSettings) -> Self {
+        Self { push, settings }
     }
 
     fn publish(&self) {
         let open = self.settings.open().get();
         let width = self.settings.width().get();
         tracing::debug!(open, width, "sidebar publish");
-        self.ui_port.send(SidebarMsg::Set { open, width });
+        self.push.send(SidebarMsg::Set { open, width });
     }
 }
 
 actor! {
     SidebarActor {
-        handlers { Toggle, SetOpen, SetWidth, Refresh }
+        handlers {
+            Toggle,
+            SetOpen,
+            SetWidth,
+            Refresh,
+        }
     }
 }
 

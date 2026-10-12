@@ -25,9 +25,25 @@ use super::wsl_rows::environments_from_scan;
 #[derive(Clone, Debug)]
 pub struct Woke;
 
+pub struct Built {
+    epoch: u64,
+    rows: Vec<ProcessRow>,
+    machine: MachineSummary,
+    rates: IoRates,
+}
+
+pub struct Acted {
+    action: WindowsAction,
+    target: Arc<str>,
+    outcome: ActionOutcome,
+}
+
+const CONSOLE_HOSTS: [&str; 2] = ["conhost.exe", "OpenConsole.exe"];
+const SERVICE_HOST: &str = "svchost.exe";
+
 #[derive(Debug)]
 pub struct ProcessesActor {
-    ui_port: Push<ProcessesState>,
+    push: Push<ProcessesState>,
     rows: Rc<[ProcessRow]>,
     wsl: Rc<[WslEnvironment]>,
     machine_summary: MachineSummary,
@@ -47,10 +63,10 @@ pub struct ProcessesActor {
 }
 
 impl ProcessesActor {
-    pub fn new(ui_port: Push<ProcessesState>, windows: fn() -> AppWindows, shell: fn(ShellRequest)) -> Self {
+    pub fn new(push: Push<ProcessesState>, windows: fn() -> AppWindows, shell: fn(ShellRequest)) -> Self {
         Self {
             stats: std::cell::RefCell::new(crate::push_stats::PushStats::new("processes")),
-            ui_port,
+            push,
             windows,
             shell,
             rows: Rc::from(Vec::new()),
@@ -76,9 +92,9 @@ impl ProcessesActor {
 
     fn select_windows(&mut self, pid: Option<u32>) {
         self.selected = pid;
-        self.ui_port.send(ProcessesMsg::SetSelected(pid));
+        self.push.send(ProcessesMsg::SetSelected(pid));
         if self.selected_linux.take().is_some() {
-            self.ui_port.send(ProcessesMsg::SetSelectedLinux(None));
+            self.push.send(ProcessesMsg::SetSelectedLinux(None));
         }
     }
 
@@ -91,7 +107,7 @@ impl ProcessesActor {
             return;
         }
         self.wsl = Rc::from(environments);
-        self.ui_port.send(ProcessesMsg::SetWsl(self.wsl.clone()));
+        self.push.send(ProcessesMsg::SetWsl(self.wsl.clone()));
     }
 
     #[instrument(skip_all, level = "debug", fields(rows = self.rows.len()))]
@@ -101,7 +117,7 @@ impl ProcessesActor {
             self.machine_summary.clone(),
             self.agent_state,
         ));
-        self.ui_port.send(ProcessesMsg::SetRows {
+        self.push.send(ProcessesMsg::SetRows {
             rows: self.rows.clone(),
             machine: self.machine_summary.clone(),
             agent_state: self.agent_state,
@@ -109,8 +125,204 @@ impl ProcessesActor {
     }
 }
 
-const CONSOLE_HOSTS: [&str; 2] = ["conhost.exe", "OpenConsole.exe"];
-const SERVICE_HOST: &str = "svchost.exe";
+actor! {
+    ProcessesActor {
+        handlers {
+            Sort,
+            Select,
+            SelectLinux,
+            Deselect,
+            Terminate,
+            RunGroupCommand,
+            RunNewTask,
+            RunProcessCommand,
+            RunImageCommand,
+            RunWindowCommand,
+            WindowsReportMessage,
+            Built,
+            RemoteScanResult,
+            PressedAway,
+            Woke,
+            Acted,
+            DismissFailure,
+        }
+    }
+}
+
+#[handler]
+fn sort(this: &mut ProcessesActor, Sort(column): Sort) {
+    if this.sort_column == column {
+        this.descending = !this.descending;
+    } else {
+        this.descending = !column.sorts_ascending_first();
+        this.sort_column = column;
+    }
+    this.push.send(ProcessesMsg::SetSort {
+        column: this.sort_column,
+        descending: this.descending,
+    });
+}
+
+#[handler]
+fn select(this: &mut ProcessesActor, Select(pid): Select) {
+    this.select_windows(Some(pid));
+}
+
+#[handler]
+fn select_linux(this: &mut ProcessesActor, SelectLinux(key): SelectLinux) {
+    if this.selected.take().is_some() {
+        this.push.send(ProcessesMsg::SetSelected(None));
+    }
+    this.selected_linux = Some(key);
+    this.push.send(ProcessesMsg::SetSelectedLinux(this.selected_linux));
+}
+
+#[handler]
+fn deselect(this: &mut ProcessesActor, _msg: Deselect) {
+    this.clear_selection();
+}
+
+#[handler]
+fn terminate(this: &mut ProcessesActor, _msg: Terminate, cx: Cx) {
+    let Some(row) = this.selected_row() else {
+        return;
+    };
+    if !row.takes_actions() {
+        tracing::debug!(pid = row.pid, "a kernel process or the monitor itself is not ended");
+        return;
+    }
+    act(WindowsAction::Kill { pid: row.pid }, row.display_name.clone(), &cx.detach());
+}
+
+#[handler]
+fn run_group_command(this: &mut ProcessesActor, RunGroupCommand { pids, command }: RunGroupCommand, cx: Cx) {
+    let cx = cx.detach();
+    for row in this.rows.iter().filter(|row| pids.contains(&row.pid)) {
+        let pid = row.pid;
+        if !row.takes_actions() {
+            tracing::debug!(pid, ?command, "a kernel process or the monitor itself is left out of its group");
+            continue;
+        }
+        let action = match command {
+            GroupCommand::End => WindowsAction::Kill { pid },
+            GroupCommand::Suspend => WindowsAction::Suspend { pid },
+            GroupCommand::Resume => WindowsAction::Resume { pid },
+        };
+        act(action, row.display_name.clone(), &cx);
+    }
+}
+
+#[handler]
+fn run_new_task(this: &mut ProcessesActor, _msg: RunNewTask) {
+    (this.shell)(ShellRequest::RunNewTask);
+}
+
+#[handler]
+fn run_process_command(this: &mut ProcessesActor, RunProcessCommand(command): RunProcessCommand, cx: Cx) {
+    let Some(row) = this.selected_row() else {
+        return;
+    };
+    let pid = row.pid;
+    let action = match command {
+        ProcessCommand::Suspend => Some(WindowsAction::Suspend { pid }),
+        ProcessCommand::Resume => Some(WindowsAction::Resume { pid }),
+        ProcessCommand::Priority(priority) => Some(WindowsAction::SetPriority { pid, priority }),
+        ProcessCommand::OpenFileLocation | ProcessCommand::Properties | ProcessCommand::SearchOnline => None,
+    };
+    if let Some(action) = action {
+        if row.takes_actions() {
+            act(action, row.display_name.clone(), &cx.detach());
+        } else {
+            tracing::debug!(pid, ?command, "a kernel process or the monitor itself is left alone");
+        }
+        return;
+    }
+    if let Some(request) = image_request(command, &row.exe_path, &row.name) {
+        (this.shell)(request);
+    }
+}
+
+#[handler]
+fn run_image_command(this: &mut ProcessesActor, RunImageCommand { command, exe_path, name }: RunImageCommand) {
+    let exe_path: Arc<str> = Arc::from(exe_path);
+    let name: Arc<str> = Arc::from(name);
+    if let Some(request) = image_request(command, &exe_path, &name) {
+        (this.shell)(request);
+    }
+}
+
+#[handler]
+fn run_window_command(this: &mut ProcessesActor, RunWindowCommand { handle, command }: RunWindowCommand) {
+    (this.shell)(ShellRequest::Window { handle, command });
+}
+
+#[handler]
+fn on_windows_report(this: &mut ProcessesActor, msg: WindowsReportMessage, cx: Cx) {
+    match msg {
+        WindowsReportMessage::Report(report) => build(this, report, &cx.detach()),
+        WindowsReportMessage::Unavailable(state) => {
+            this.epoch += 1;
+            this.pending = None;
+            this.agent_state = state;
+            this.publish_rows();
+        }
+    }
+}
+
+#[handler]
+fn on_built(this: &mut ProcessesActor, Built { epoch, rows, machine, rates }: Built, cx: Cx) {
+    this.building = false;
+    if epoch == this.epoch {
+        this.io_rates = rates;
+        this.agent_state = AgentConnectionState::Connected;
+        this.machine_summary = machine;
+        this.rows = Rc::from(rows);
+        this.publish_rows();
+    }
+    if let Some(report) = this.pending.take() {
+        build(this, report, &cx.detach());
+    }
+}
+
+#[handler]
+fn on_linux_scan(this: &mut ProcessesActor, msg: RemoteScanResult) {
+    let environments = match msg {
+        RemoteScanResult::Scan(scan) => {
+            environments_from_scan(&scan, &mut this.linux_rates, tokio::time::Instant::now())
+        }
+        RemoteScanResult::Unavailable(_) => {
+            this.linux_rates = IoRates::default();
+            Vec::new()
+        }
+    };
+    this.publish_wsl(environments);
+}
+
+#[handler]
+fn on_pressed_away(this: &mut ProcessesActor, _msg: PressedAway) {
+    this.clear_selection();
+}
+
+#[handler]
+fn on_woke(this: &mut ProcessesActor, Woke: Woke) {
+    this.epoch += 1;
+    this.io_rates = IoRates::default();
+    this.linux_rates = IoRates::default();
+}
+
+#[handler]
+fn on_acted(this: &mut ProcessesActor, Acted { action, target, outcome }: Acted) {
+    if outcome == ActionOutcome::Done {
+        return;
+    }
+    tracing::warn!(?action, ?outcome, "the action did not go through");
+    this.push.send(ProcessesMsg::SetFailure(Some(ActionFailure { action, target, outcome })));
+}
+
+#[handler]
+fn dismiss_failure(this: &mut ProcessesActor, _msg: DismissFailure) {
+    this.push.send(ProcessesMsg::SetFailure(None));
+}
 
 fn shown_name(p: &WindowsProcessStats) -> Arc<str> {
     if p.display_name.is_empty() {
@@ -288,33 +500,6 @@ fn details(p: &WindowsProcessStats, gpus: &[WindowsGpu]) -> ProcessDetails {
     }
 }
 
-actor! {
-    ProcessesActor {
-        handlers { Sort, Select, SelectLinux, Deselect, Terminate, RunGroupCommand, RunNewTask, RunProcessCommand, RunImageCommand, RunWindowCommand, WindowsReportMessage, Built, RemoteScanResult, PressedAway, Woke, Acted, DismissFailure }
-    }
-}
-
-#[handler]
-fn on_woke(this: &mut ProcessesActor, Woke: Woke) {
-    this.epoch += 1;
-    this.io_rates = IoRates::default();
-    this.linux_rates = IoRates::default();
-}
-
-#[handler]
-fn on_linux_scan(this: &mut ProcessesActor, msg: RemoteScanResult) {
-    let environments = match msg {
-        RemoteScanResult::Scan(scan) => {
-            environments_from_scan(&scan, &mut this.linux_rates, tokio::time::Instant::now())
-        }
-        RemoteScanResult::Unavailable(_) => {
-            this.linux_rates = IoRates::default();
-            Vec::new()
-        }
-    };
-    this.publish_wsl(environments);
-}
-
 fn machine_summary(report: &WindowsReport) -> MachineSummary {
     let machine = &report.machine;
     MachineSummary {
@@ -327,13 +512,6 @@ fn machine_summary(report: &WindowsReport) -> MachineSummary {
         gpu_memory_used_bytes: machine.gpu_dedicated_used_bytes(),
         ..MachineSummary::default()
     }
-}
-
-pub struct Built {
-    epoch: u64,
-    rows: Vec<ProcessRow>,
-    machine: MachineSummary,
-    rates: IoRates,
 }
 
 fn build(this: &mut ProcessesActor, report: Arc<WindowsReport>, cx: &Cx<ProcessesActor>) {
@@ -357,157 +535,11 @@ fn build(this: &mut ProcessesActor, report: Arc<WindowsReport>, cx: &Cx<Processe
     });
 }
 
-#[handler]
-fn on_windows_report(this: &mut ProcessesActor, msg: WindowsReportMessage, cx: Cx) {
-    match msg {
-        WindowsReportMessage::Report(report) => build(this, report, &cx.detach()),
-        WindowsReportMessage::Unavailable(state) => {
-            this.epoch += 1;
-            this.pending = None;
-            this.agent_state = state;
-            this.publish_rows();
-        }
-    }
-}
-
-#[handler]
-fn on_built(this: &mut ProcessesActor, Built { epoch, rows, machine, rates }: Built, cx: Cx) {
-    this.building = false;
-    if epoch == this.epoch {
-        this.io_rates = rates;
-        this.agent_state = AgentConnectionState::Connected;
-        this.machine_summary = machine;
-        this.rows = Rc::from(rows);
-        this.publish_rows();
-    }
-    if let Some(report) = this.pending.take() {
-        build(this, report, &cx.detach());
-    }
-}
-
-#[handler]
-fn sort(this: &mut ProcessesActor, Sort(column): Sort) {
-    if this.sort_column == column {
-        this.descending = !this.descending;
-    } else {
-        this.descending = !column.sorts_ascending_first();
-        this.sort_column = column;
-    }
-    this.ui_port.send(ProcessesMsg::SetSort {
-        column: this.sort_column,
-        descending: this.descending,
-    });
-}
-
-#[handler]
-fn select(this: &mut ProcessesActor, Select(pid): Select) {
-    this.select_windows(Some(pid));
-}
-
-#[handler]
-fn select_linux(this: &mut ProcessesActor, SelectLinux(key): SelectLinux) {
-    if this.selected.take().is_some() {
-        this.ui_port.send(ProcessesMsg::SetSelected(None));
-    }
-    this.selected_linux = Some(key);
-    this.ui_port.send(ProcessesMsg::SetSelectedLinux(this.selected_linux));
-}
-
-#[handler]
-fn deselect(this: &mut ProcessesActor, _msg: Deselect) {
-    this.clear_selection();
-}
-
-#[handler]
-fn on_pressed_away(this: &mut ProcessesActor, _msg: PressedAway) {
-    this.clear_selection();
-}
-
-#[handler]
-fn run_new_task(this: &mut ProcessesActor, _msg: RunNewTask) {
-    (this.shell)(ShellRequest::RunNewTask);
-}
-
-pub struct Acted {
-    action: WindowsAction,
-    target: Arc<str>,
-    outcome: ActionOutcome,
-}
-
 fn act(action: WindowsAction, target: Arc<str>, cx: &Cx<ProcessesActor>) {
     cx.spawn_bg(async move {
         let outcome = actions::request(action.clone()).await;
         Acted { action, target, outcome }
     });
-}
-
-#[handler]
-fn on_acted(this: &mut ProcessesActor, Acted { action, target, outcome }: Acted) {
-    if outcome == ActionOutcome::Done {
-        return;
-    }
-    tracing::warn!(?action, ?outcome, "the action did not go through");
-    this.ui_port.send(ProcessesMsg::SetFailure(Some(ActionFailure { action, target, outcome })));
-}
-
-#[handler]
-fn dismiss_failure(this: &mut ProcessesActor, _msg: DismissFailure) {
-    this.ui_port.send(ProcessesMsg::SetFailure(None));
-}
-
-#[handler]
-fn terminate(this: &mut ProcessesActor, _msg: Terminate, cx: Cx) {
-    let Some(row) = this.selected_row() else {
-        return;
-    };
-    if !row.takes_actions() {
-        tracing::debug!(pid = row.pid, "a kernel process or the monitor itself is not ended");
-        return;
-    }
-    act(WindowsAction::Kill { pid: row.pid }, row.display_name.clone(), &cx.detach());
-}
-
-#[handler]
-fn run_group_command(this: &mut ProcessesActor, RunGroupCommand { pids, command }: RunGroupCommand, cx: Cx) {
-    let cx = cx.detach();
-    for row in this.rows.iter().filter(|row| pids.contains(&row.pid)) {
-        let pid = row.pid;
-        if !row.takes_actions() {
-            tracing::debug!(pid, ?command, "a kernel process or the monitor itself is left out of its group");
-            continue;
-        }
-        let action = match command {
-            GroupCommand::End => WindowsAction::Kill { pid },
-            GroupCommand::Suspend => WindowsAction::Suspend { pid },
-            GroupCommand::Resume => WindowsAction::Resume { pid },
-        };
-        act(action, row.display_name.clone(), &cx);
-    }
-}
-
-#[handler]
-fn run_process_command(this: &mut ProcessesActor, RunProcessCommand(command): RunProcessCommand, cx: Cx) {
-    let Some(row) = this.selected_row() else {
-        return;
-    };
-    let pid = row.pid;
-    let action = match command {
-        ProcessCommand::Suspend => Some(WindowsAction::Suspend { pid }),
-        ProcessCommand::Resume => Some(WindowsAction::Resume { pid }),
-        ProcessCommand::Priority(priority) => Some(WindowsAction::SetPriority { pid, priority }),
-        ProcessCommand::OpenFileLocation | ProcessCommand::Properties | ProcessCommand::SearchOnline => None,
-    };
-    if let Some(action) = action {
-        if row.takes_actions() {
-            act(action, row.display_name.clone(), &cx.detach());
-        } else {
-            tracing::debug!(pid, ?command, "a kernel process or the monitor itself is left alone");
-        }
-        return;
-    }
-    if let Some(request) = image_request(command, &row.exe_path, &row.name) {
-        (this.shell)(request);
-    }
 }
 
 fn image_request(command: ProcessCommand, exe_path: &Arc<str>, name: &Arc<str>) -> Option<ShellRequest> {
@@ -517,20 +549,6 @@ fn image_request(command: ProcessCommand, exe_path: &Arc<str>, name: &Arc<str>) 
         ProcessCommand::SearchOnline => Some(ShellRequest::SearchOnline(name.clone())),
         _ => None,
     }
-}
-
-#[handler]
-fn run_image_command(this: &mut ProcessesActor, RunImageCommand { command, exe_path, name }: RunImageCommand) {
-    let exe_path: Arc<str> = Arc::from(exe_path);
-    let name: Arc<str> = Arc::from(name);
-    if let Some(request) = image_request(command, &exe_path, &name) {
-        (this.shell)(request);
-    }
-}
-
-#[handler]
-fn run_window_command(this: &mut ProcessesActor, RunWindowCommand { handle, command }: RunWindowCommand) {
-    (this.shell)(ShellRequest::Window { handle, command });
 }
 
 #[cfg(test)]

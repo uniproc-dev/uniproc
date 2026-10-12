@@ -12,41 +12,6 @@ use super::install::SystemDeps;
 use super::settings::{SystemSettings, ToolUse};
 use super::tools;
 
-#[derive(Debug)]
-pub struct SystemActor {
-    ui_port: Push<SystemState>,
-    deps: SystemDeps,
-    settings: SystemSettings,
-}
-
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|since| since.as_millis() as u64)
-        .unwrap_or_default()
-}
-
-pub(super) fn favourites(settings: &SystemSettings) -> (Rc<[SystemTool]>, Rc<[SystemTool]>) {
-    let pinned = favourites::pinned(settings.pinned().entries());
-    let frequent = favourites::frequent(settings.uses().entries(), &pinned, now_ms());
-    (Rc::from(pinned), Rc::from(frequent))
-}
-
-impl SystemActor {
-    pub fn new(ui_port: Push<SystemState>, deps: SystemDeps, settings: SystemSettings) -> Self {
-        Self {
-            ui_port,
-            deps,
-            settings,
-        }
-    }
-
-    fn publish_favourites(&self) {
-        let (pinned, frequent) = favourites(&self.settings);
-        self.ui_port.send(SystemMsg::Favourites { pinned, frequent });
-    }
-}
-
 #[derive(Clone, Debug, serde::Deserialize, guinea::Remote)]
 #[remote(action)]
 pub struct Rescan;
@@ -58,9 +23,39 @@ enum Opened {
     Gone(SystemTool),
 }
 
+#[derive(Debug)]
+pub struct SystemActor {
+    push: Push<SystemState>,
+    deps: SystemDeps,
+    settings: SystemSettings,
+}
+
+impl SystemActor {
+    pub fn new(push: Push<SystemState>, deps: SystemDeps, settings: SystemSettings) -> Self {
+        Self {
+            push,
+            deps,
+            settings,
+        }
+    }
+
+    fn publish_favourites(&self) {
+        let (pinned, frequent) = favourites(&self.settings);
+        self.push.send(SystemMsg::Favourites { pinned, frequent });
+    }
+}
+
 actor! {
     SystemActor {
-        handlers { Rescan, Scanned, OpenTool, Opened, GetTool, PinTool, ForgetTool }
+        handlers {
+            Rescan,
+            Scanned,
+            OpenTool,
+            Opened,
+            GetTool,
+            PinTool,
+            ForgetTool,
+        }
     }
 }
 
@@ -72,7 +67,7 @@ fn rescan(this: &mut SystemActor, _: Rescan, cx: Cx) {
 
 #[handler]
 fn on_scanned(this: &mut SystemActor, Scanned(missing): Scanned) {
-    this.ui_port.send(SystemMsg::Missing(Rc::from(missing)));
+    this.push.send(SystemMsg::Missing(Rc::from(missing)));
 }
 
 #[handler]
@@ -135,4 +130,17 @@ fn forget(this: &mut SystemActor, ForgetTool(tool): ForgetTool) {
     this.settings.pinned().remove(tool.id()).or_warn(format_args!("could not unpin {tool:?}"));
     this.settings.uses().remove(tool.id()).or_warn(format_args!("could not forget the uses of {tool:?}"));
     this.publish_favourites();
+}
+
+pub(super) fn favourites(settings: &SystemSettings) -> (Rc<[SystemTool]>, Rc<[SystemTool]>) {
+    let pinned = favourites::pinned(settings.pinned().entries());
+    let frequent = favourites::frequent(settings.uses().entries(), &pinned, now_ms());
+    (Rc::from(pinned), Rc::from(frequent))
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|since| since.as_millis() as u64)
+        .unwrap_or_default()
 }

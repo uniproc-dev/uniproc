@@ -24,7 +24,7 @@ pub struct InProcessOfferDue;
 struct Relaunched(Result<(), RelaunchError>);
 
 pub struct AgentLinkActor {
-    ui_port: Push<AgentLinkState>,
+    push: Push<AgentLinkState>,
     elevation: Elevation,
     elevated: bool,
     in_process: InProcess,
@@ -42,11 +42,11 @@ impl std::fmt::Debug for AgentLinkActor {
 }
 
 impl AgentLinkActor {
-    pub fn new(ui_port: Push<AgentLinkState>, elevation: Elevation) -> Self {
+    pub fn new(push: Push<AgentLinkState>, elevation: Elevation) -> Self {
         let elevated = (elevation.elevated)();
-        ui_port.send(AgentLinkMsg::Elevated(elevated));
+        push.send(AgentLinkMsg::Elevated(elevated));
         Self {
-            ui_port,
+            push,
             elevation,
             elevated,
             in_process: InProcess::Off,
@@ -56,7 +56,7 @@ impl AgentLinkActor {
 
     fn set(&mut self, in_process: InProcess) {
         self.in_process = in_process;
-        self.ui_port.send(AgentLinkMsg::InProcess(in_process));
+        self.push.send(AgentLinkMsg::InProcess(in_process));
     }
 }
 
@@ -79,7 +79,16 @@ fn on_windows_agent(this: &mut AgentLinkActor, WindowsAgentRuntimeEvent { state,
         return;
     }
     this.last = Some(state);
-    this.ui_port.send(AgentLinkMsg::Windows(state));
+    this.push.send(AgentLinkMsg::Windows(state));
+}
+
+#[handler]
+fn on_in_process(this: &mut AgentLinkActor, started: WindowsAgentInProcess) {
+    this.set(match started {
+        WindowsAgentInProcess::Running => InProcess::Running,
+        WindowsAgentInProcess::NotElevated => InProcess::NotElevated,
+        WindowsAgentInProcess::Failed => InProcess::Failed,
+    });
 }
 
 #[handler]
@@ -95,15 +104,6 @@ fn start_in_process(this: &mut AgentLinkActor, _msg: StartInProcess, cx: Cx) {
     }
     this.set(InProcess::Starting);
     GlobalEventBus::publish(RunWindowsAgentInProcess);
-}
-
-#[handler]
-fn on_in_process(this: &mut AgentLinkActor, started: WindowsAgentInProcess) {
-    this.set(match started {
-        WindowsAgentInProcess::Running => InProcess::Running,
-        WindowsAgentInProcess::NotElevated => InProcess::NotElevated,
-        WindowsAgentInProcess::Failed => InProcess::Failed,
-    });
 }
 
 #[handler]
@@ -131,5 +131,5 @@ async fn offer_in_process_later(ctx: AsyncContext<AgentLinkActor>, _msg: OfferIn
 
 #[handler]
 fn in_process_offer_due(this: &AgentLinkActor, _msg: InProcessOfferDue) {
-    this.ui_port.send(AgentLinkMsg::OfferInProcess);
+    this.push.send(AgentLinkMsg::OfferInProcess);
 }

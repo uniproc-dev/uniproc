@@ -12,9 +12,15 @@ use guinea::prelude::*;
 
 use crate::features::agents::actions;
 
+pub struct Acted {
+    action: WindowsAction,
+    target: Arc<str>,
+    outcome: ActionOutcome,
+}
+
 #[derive(Debug)]
 pub struct ServicesActor {
-    ui_port: Push<ServicesState>,
+    push: Push<ServicesState>,
     rows: Rc<[ServiceRow]>,
     sort_column: ServiceColumn,
     descending: bool,
@@ -23,9 +29,9 @@ pub struct ServicesActor {
 }
 
 impl ServicesActor {
-    pub fn new(ui_port: Push<ServicesState>) -> Self {
+    pub fn new(push: Push<ServicesState>) -> Self {
         Self {
-            ui_port,
+            push,
             rows: Rc::from(Vec::new()),
             sort_column: ServiceColumn::Name,
             descending: false,
@@ -36,7 +42,7 @@ impl ServicesActor {
 
     fn publish_rows(&self) {
         self.stats.borrow_mut().note(self.rows.clone());
-        self.ui_port.send(ServicesMsg::SetRows {
+        self.push.send(ServicesMsg::SetRows {
             rows: self.rows.clone(),
         });
     }
@@ -46,6 +52,104 @@ impl ServicesActor {
         sort_rows(&mut rows, self.sort_column, self.descending);
         self.rows = Rc::from(rows);
     }
+}
+
+actor! {
+    ServicesActor {
+        handlers {
+            Sort,
+            Select,
+            Deselect,
+            Command,
+            WindowsReportMessage,
+            Acted,
+            DismissFailure,
+        }
+    }
+}
+
+#[handler]
+fn sort(this: &mut ServicesActor, Sort(column): Sort) {
+    if this.sort_column == column {
+        this.descending = !this.descending;
+    } else {
+        this.sort_column = column;
+        this.descending = false;
+    }
+    this.resort();
+    this.push.send(ServicesMsg::SetSort {
+        column: this.sort_column,
+        descending: this.descending,
+    });
+    this.publish_rows();
+}
+
+#[handler]
+fn select(this: &mut ServicesActor, Select(name): Select) {
+    this.selected = Some(name.clone());
+    this.push.send(ServicesMsg::SetSelected(Some(name)));
+}
+
+#[handler]
+fn deselect(this: &mut ServicesActor, _msg: Deselect) {
+    this.selected = None;
+    this.push.send(ServicesMsg::SetSelected(None));
+}
+
+#[handler]
+fn command(this: &mut ServicesActor, Command(kind): Command, cx: Cx) {
+    let Some(name) = this.selected.clone() else {
+        return;
+    };
+    let target = this
+        .rows
+        .iter()
+        .find(|row| *row.name == *name)
+        .map_or_else(|| Arc::from(name.as_str()), |row| row.display_name.clone());
+    let action = match kind {
+        ServiceActionKind::Start => WindowsAction::ServiceStart { name },
+        ServiceActionKind::Stop => WindowsAction::ServiceStop { name },
+        ServiceActionKind::Pause => WindowsAction::ServicePause { name },
+        ServiceActionKind::Resume => WindowsAction::ServiceResume { name },
+        ServiceActionKind::Restart => WindowsAction::ServiceRestart { name },
+    };
+    cx.spawn_bg(async move {
+        let outcome = actions::request(action.clone()).await;
+        Acted { action, target, outcome }
+    });
+}
+
+#[handler]
+fn on_windows_report(this: &mut ServicesActor, msg: WindowsReportMessage) {
+    let WindowsReportMessage::Report(report) = msg else {
+        return;
+    };
+    let mut rows: Vec<ServiceRow> = report.services.iter().map(to_row).collect();
+    sort_rows(&mut rows, this.sort_column, this.descending);
+    this.rows = Rc::from(rows);
+
+    if let Some(selected) = &this.selected
+        && !this.rows.iter().any(|r| *r.name == **selected)
+    {
+        this.selected = None;
+        this.push.send(ServicesMsg::SetSelected(None));
+    }
+
+    this.publish_rows();
+}
+
+#[handler]
+fn on_acted(this: &mut ServicesActor, Acted { action, target, outcome }: Acted) {
+    if outcome == ActionOutcome::Done {
+        return;
+    }
+    tracing::warn!(?action, ?outcome, "the action did not go through");
+    this.push.send(ServicesMsg::SetFailure(Some(ActionFailure { action, target, outcome })));
+}
+
+#[handler]
+fn dismiss_failure(this: &mut ServicesActor, _msg: DismissFailure) {
+    this.push.send(ServicesMsg::SetFailure(None));
 }
 
 fn to_row(svc: &WindowsServiceStats) -> ServiceRow {
@@ -75,102 +179,6 @@ fn sort_rows(rows: &mut [ServiceRow], column: ServiceColumn, descending: bool) {
         let ord = ord.then_with(|| a.name.cmp(&b.name));
         if descending { ord.reverse() } else { ord }
     });
-}
-
-actor! {
-    ServicesActor {
-        handlers { Sort, Select, Deselect, Command, WindowsReportMessage, Acted, DismissFailure }
-    }
-}
-
-#[handler]
-fn on_windows_report(this: &mut ServicesActor, msg: WindowsReportMessage) {
-    let WindowsReportMessage::Report(report) = msg else {
-        return;
-    };
-    let mut rows: Vec<ServiceRow> = report.services.iter().map(to_row).collect();
-    sort_rows(&mut rows, this.sort_column, this.descending);
-    this.rows = Rc::from(rows);
-
-    if let Some(selected) = &this.selected
-        && !this.rows.iter().any(|r| *r.name == **selected)
-    {
-        this.selected = None;
-        this.ui_port.send(ServicesMsg::SetSelected(None));
-    }
-
-    this.publish_rows();
-}
-
-#[handler]
-fn sort(this: &mut ServicesActor, Sort(column): Sort) {
-    if this.sort_column == column {
-        this.descending = !this.descending;
-    } else {
-        this.sort_column = column;
-        this.descending = false;
-    }
-    this.resort();
-    this.ui_port.send(ServicesMsg::SetSort {
-        column: this.sort_column,
-        descending: this.descending,
-    });
-    this.publish_rows();
-}
-
-#[handler]
-fn select(this: &mut ServicesActor, Select(name): Select) {
-    this.selected = Some(name.clone());
-    this.ui_port.send(ServicesMsg::SetSelected(Some(name)));
-}
-
-#[handler]
-fn deselect(this: &mut ServicesActor, _msg: Deselect) {
-    this.selected = None;
-    this.ui_port.send(ServicesMsg::SetSelected(None));
-}
-
-pub struct Acted {
-    action: WindowsAction,
-    target: Arc<str>,
-    outcome: ActionOutcome,
-}
-
-#[handler]
-fn command(this: &mut ServicesActor, Command(kind): Command, cx: Cx) {
-    let Some(name) = this.selected.clone() else {
-        return;
-    };
-    let target = this
-        .rows
-        .iter()
-        .find(|row| *row.name == *name)
-        .map_or_else(|| Arc::from(name.as_str()), |row| row.display_name.clone());
-    let action = match kind {
-        ServiceActionKind::Start => WindowsAction::ServiceStart { name },
-        ServiceActionKind::Stop => WindowsAction::ServiceStop { name },
-        ServiceActionKind::Pause => WindowsAction::ServicePause { name },
-        ServiceActionKind::Resume => WindowsAction::ServiceResume { name },
-        ServiceActionKind::Restart => WindowsAction::ServiceRestart { name },
-    };
-    cx.spawn_bg(async move {
-        let outcome = actions::request(action.clone()).await;
-        Acted { action, target, outcome }
-    });
-}
-
-#[handler]
-fn on_acted(this: &mut ServicesActor, Acted { action, target, outcome }: Acted) {
-    if outcome == ActionOutcome::Done {
-        return;
-    }
-    tracing::warn!(?action, ?outcome, "the action did not go through");
-    this.ui_port.send(ServicesMsg::SetFailure(Some(ActionFailure { action, target, outcome })));
-}
-
-#[handler]
-fn dismiss_failure(this: &mut ServicesActor, _msg: DismissFailure) {
-    this.ui_port.send(ServicesMsg::SetFailure(None));
 }
 
 #[cfg(test)]

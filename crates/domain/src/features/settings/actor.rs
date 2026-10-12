@@ -8,18 +8,18 @@ use super::settings::GeneralSettings;
 
 #[derive(Debug)]
 pub struct SettingsActor {
-    ui_port: Push<SettingsState>,
+    push: Push<SettingsState>,
     settings: GeneralSettings,
 }
 
 impl SettingsActor {
-    pub fn new(ui_port: Push<SettingsState>, settings: GeneralSettings) -> Self {
-        Self { ui_port, settings }
+    pub fn new(push: Push<SettingsState>, settings: GeneralSettings) -> Self {
+        Self { push, settings }
     }
 
     fn publish(&self) {
         let state = self.settings.snapshot();
-        self.ui_port.send(SettingsMsg::Set {
+        self.push.send(SettingsMsg::Set {
             theme: state.theme,
             start_page: state.start_page,
             update_interval_ms: state.update_interval_ms,
@@ -31,27 +31,15 @@ impl SettingsActor {
 
 actor! {
     SettingsActor {
-        handlers { SetTheme, SetStartPage, SetUpdateInterval, SetByteUnits, SetNetworkUnits, ShowSidebarChart }
+        handlers {
+            SetTheme,
+            SetStartPage,
+            SetUpdateInterval,
+            SetByteUnits,
+            SetNetworkUnits,
+            ShowSidebarChart,
+        }
     }
-}
-
-#[handler]
-fn show_sidebar_chart(this: &mut SettingsActor, ShowSidebarChart(chart, shown): ShowSidebarChart) {
-    let charts = this.settings.sidebar_charts().with(chart, shown);
-    this.settings.hidden_sidebar_charts().set(charts.hidden_ids());
-    this.publish();
-}
-
-#[handler]
-fn set_byte_units(this: &mut SettingsActor, SetByteUnits(units): SetByteUnits) {
-    this.settings.byte_units().set(units.id().to_string());
-    this.publish();
-}
-
-#[handler]
-fn set_network_units(this: &mut SettingsActor, SetNetworkUnits(units): SetNetworkUnits) {
-    this.settings.network_units().set(units.id().to_string());
-    this.publish();
 }
 
 #[handler]
@@ -76,5 +64,24 @@ fn set_update_interval(this: &mut SettingsActor, SetUpdateInterval(ms): SetUpdat
         return;
     }
     GlobalEventBus::publish(UpdateIntervalChanged(after));
+    this.publish();
+}
+
+#[handler]
+fn set_byte_units(this: &mut SettingsActor, SetByteUnits(units): SetByteUnits) {
+    this.settings.byte_units().set(units.id().to_string());
+    this.publish();
+}
+
+#[handler]
+fn set_network_units(this: &mut SettingsActor, SetNetworkUnits(units): SetNetworkUnits) {
+    this.settings.network_units().set(units.id().to_string());
+    this.publish();
+}
+
+#[handler]
+fn show_sidebar_chart(this: &mut SettingsActor, ShowSidebarChart(chart, shown): ShowSidebarChart) {
+    let charts = this.settings.sidebar_charts().with(chart, shown);
+    this.settings.hidden_sidebar_charts().set(charts.hidden_ids());
     this.publish();
 }
