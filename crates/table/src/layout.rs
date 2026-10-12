@@ -1,8 +1,14 @@
 use std::ops::Range;
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Lines {
     edges: Vec<f32>,
+}
+
+impl Default for Lines {
+    fn default() -> Self {
+        Self { edges: vec![0.0] }
+    }
 }
 
 impl Lines {
@@ -143,6 +149,15 @@ mod tests {
 
     fn lines() -> Lines {
         Lines::new([36.0, 32.0, 32.0, 36.0, 32.0])
+    }
+
+    #[test]
+    fn lines_before_the_first_fill_hold_no_rows() {
+        let lines = Lines::default();
+
+        let read = std::panic::catch_unwind(|| (lines.len(), lines.extent(), lines.at(0.0), lines.span(0.0, 100.0)));
+
+        assert_eq!(read.ok(), Some((0, 0.0, None, 0..0)));
     }
 
     #[test]
