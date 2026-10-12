@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use amethystate::Field;
 use app_contracts::features::agents::RemoteScanResult;
@@ -13,7 +13,7 @@ use super::scanner::DistroScan;
 #[derive(Clone, Copy, Debug)]
 struct CpuSample {
     busy_ns: u64,
-    at: Instant,
+    at_ns: u64,
 }
 
 struct Scan;
@@ -174,7 +174,7 @@ fn on_remote_scan(this: &mut WslActor, msg: RemoteScanResult) {
         RemoteScanResult::Scan(scan) => {
             let sample = CpuSample {
                 busy_ns: scan.machine.busy_ns,
-                at: Instant::now(),
+                at_ns: scan.machine.last_tsc,
             };
             let known_percent = this.machine.as_ref().and_then(|m| m.cpu_percent);
             let percent =
@@ -209,11 +209,7 @@ fn cpu_percent(previous: Option<CpuSample>, current: CpuSample, cpu_count: u32) 
     let previous = previous?;
     let cores = cpu_count.max(1) as f64;
 
-    let elapsed_ns = current.at.duration_since(previous.at).as_nanos() as f64;
-    if elapsed_ns <= 0.0 {
-        return None;
-    }
-
+    let elapsed_ns = current.at_ns.checked_sub(previous.at_ns).filter(|elapsed| *elapsed > 0)? as f64;
     let busy_ns = current.busy_ns.checked_sub(previous.busy_ns)? as f64;
     Some(((busy_ns / (elapsed_ns * cores)) * 100.0).clamp(0.0, 100.0) as f32)
 }
@@ -221,22 +217,22 @@ fn cpu_percent(previous: Option<CpuSample>, current: CpuSample, cpu_count: u32) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
-    fn sample(busy_ns: u64, at: Instant) -> CpuSample {
-        CpuSample { busy_ns, at }
+    const SECOND: u64 = 1_000_000_000;
+
+    fn sample(busy_ns: u64, at_ns: u64) -> CpuSample {
+        CpuSample { busy_ns, at_ns }
     }
 
     #[test]
     fn the_first_report_has_nothing_to_compare_against() {
-        let now = Instant::now();
-        assert_eq!(cpu_percent(None, sample(1_000, now), 4), None);
+        assert_eq!(cpu_percent(None, sample(1_000, SECOND), 4), None);
     }
 
     #[test]
     fn busy_time_is_divided_by_cores() {
-        let start = Instant::now();
-        let later = start + Duration::from_secs(1);
+        let start = 10 * SECOND;
+        let later = start + SECOND;
 
         let all_four_cores = cpu_percent(Some(sample(0, start)), sample(4_000_000_000, later), 4);
         assert!((all_four_cores.unwrap() - 100.0).abs() < 0.5);
@@ -247,8 +243,8 @@ mod tests {
 
     #[test]
     fn a_restarted_agent_counting_from_zero_yields_nothing() {
-        let start = Instant::now();
-        let later = start + Duration::from_secs(1);
+        let start = 10 * SECOND;
+        let later = start + SECOND;
 
         assert_eq!(
             cpu_percent(Some(sample(9_000_000_000, start)), sample(10, later), 4),
@@ -258,8 +254,8 @@ mod tests {
 
     #[test]
     fn a_missing_core_count_is_treated_as_one() {
-        let start = Instant::now();
-        let later = start + Duration::from_secs(1);
+        let start = 10 * SECOND;
+        let later = start + SECOND;
 
         let percent = cpu_percent(Some(sample(0, start)), sample(1_000_000_000, later), 0);
         assert!((percent.unwrap() - 100.0).abs() < 0.5);

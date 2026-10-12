@@ -41,6 +41,7 @@ mod tests {
     use std::cell::Cell;
     use std::time::Duration;
 
+    use app_contracts::features::agents::{LinuxMachineStats, RemoteScan, RemoteScanResult};
     use domain::features::wsl::DistroScan;
     use guinea::app::Harness;
     use guinea_plugin_store::StorePlugin;
@@ -77,5 +78,34 @@ mod tests {
     #[guinea::test(iterations = 4)]
     fn a_wsl_that_answers_is_asked_every_tick(h: &mut Harness) {
         assert!(scans_in_ten_seconds(h, answering) > 1);
+    }
+
+    fn sampled(h: &Harness, busy_ns: u64, at_ns: u64) {
+        h.publish(RemoteScanResult::Scan(RemoteScan {
+            schema_id: "wsl",
+            processes: Vec::new(),
+            machine: LinuxMachineStats {
+                busy_ns,
+                last_tsc: at_ns,
+                cpu_count: 4,
+                ..LinuxMachineStats::default()
+            },
+            environments: Vec::new(),
+            docker_containers: Vec::new(),
+        }))
+        .settle();
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn the_machine_cpu_is_measured_over_the_time_between_the_agents_samples(h: &mut Harness) {
+        h.plugin(StorePlugin::in_memory()).unwrap();
+        h.install::<WslFeature>(&WslDeps { scan: answering }).unwrap();
+        let second = Duration::from_secs(1).as_nanos() as u64;
+
+        sampled(h, 0, 10 * second);
+        sampled(h, second, 11 * second);
+
+        let percent = h.state::<WslState>().machine.as_ref().and_then(|machine| machine.cpu_percent);
+        assert!(percent.is_some_and(|percent| (percent - 25.0).abs() < 0.01), "{percent:?}");
     }
 }

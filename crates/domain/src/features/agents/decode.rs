@@ -224,6 +224,7 @@ fn machine(r: machine_sample::Reader<'_>) -> anyhow::Result<Machine> {
         None
     };
     Ok(Machine {
+        sampled_at: r.get_sampled_at(),
         cpu,
         memory,
         disk,

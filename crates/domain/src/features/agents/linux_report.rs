@@ -104,6 +104,7 @@ pub struct MachineDisk {
 
 #[derive(Clone, Debug, Default)]
 pub struct Machine {
+    pub sampled_at: u64,
     pub cpu: Option<MachineCpu>,
     pub memory: Option<MachineMemory>,
     pub disk: Option<MachineDisk>,
@@ -280,6 +281,7 @@ fn machine(m: &Machine) -> LinuxMachineStats {
         used_kb: memory.total.saturating_sub(memory.available) / Kb::Bytes,
         cached_kb: memory.cached / Kb::Bytes,
         busy_ns: cpu.busy_time * Ticks::Ns,
+        last_tsc: m.sampled_at * Ticks::Ns,
         vsock_rx_bytes: t.vsock_rx,
         vsock_tx_bytes: t.vsock_tx,
         p9_rx_bytes: t.p9_rx,
@@ -494,5 +496,15 @@ mod tests {
         assert_eq!(stats.busy_ns, 300);
         assert_eq!(stats.cpu_count, 8);
         assert_eq!(stats.used_kb, 6 << 10);
+    }
+
+    #[test]
+    fn the_machine_carries_when_the_agent_sampled_it_in_nanoseconds() {
+        let stats = machine(&Machine {
+            sampled_at: 7,
+            ..Machine::default()
+        });
+
+        assert_eq!(stats.last_tsc, 700);
     }
 }
