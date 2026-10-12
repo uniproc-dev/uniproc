@@ -1077,7 +1077,7 @@ fn went_of(log: &Log, groups: &Groups<'_>, ended: &Ended, clock: fn(u64) -> Cloc
     Went {
         key: ended.instance(),
         name: went_name(log, ended),
-        lived: started.map(|start| ended.at - start),
+        lived: started.map(|start| ended.at.saturating_sub(start)),
         exit: log.exit(ended, started, clock),
         hue: groups.hue(log.went_group(groups, ended)),
     }
@@ -1903,6 +1903,25 @@ mod tests {
         };
         assert_eq!(row.name.as_deref(), Some("OneDrive.exe"));
         assert_eq!(row.lived, Some(2 * HOUR + 45 * Ticks::Minute));
+    }
+
+    #[test]
+    fn a_process_that_went_before_it_started_lived_no_time() {
+        let mut log = Log::default();
+        log.record(&[ProcessEvent::Went(ProcessWent {
+            instance: id(30),
+            at: at(10, 0),
+            started_at: Some(at(10, 5)),
+            ..Default::default()
+        })]);
+
+        let found = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| row(&log, &[], id(30), utc)));
+
+        let lived = found.ok().flatten().and_then(|row| match row {
+            ActivityRow::Went(went) => went.lived,
+            _ => None,
+        });
+        assert_eq!(lived, Some(0));
     }
 
     #[test]
