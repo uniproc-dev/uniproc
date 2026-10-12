@@ -74,6 +74,7 @@ pub struct ActivityPage {
     asked: RefCell<Option<(Span, Filter)>>,
     chart: Scatter<ProcessInstance>,
     plotted: RefCell<Option<Rc<Plotted>>>,
+    pressing: RefCell<Option<(Callback<ActivityPageMsg>, Callback<ProcessInstance>)>>,
 }
 
 fn shown(mark: impl Mark, label: String, checked: bool, on_change: impl Fn(bool) + 'static) -> View {
@@ -126,6 +127,19 @@ impl ActivityPage {
                 self.menu = None;
             }
         }
+    }
+
+    fn on_press(&self, forward: &Callback<ActivityPageMsg>) -> Callback<ProcessInstance> {
+        let mut pressing = self.pressing.borrow_mut();
+        if let Some((source, on_press)) = &*pressing
+            && source == forward
+        {
+            return on_press.clone();
+        }
+        let pressed = forward.clone();
+        let on_press = Callback::new(move |row: ProcessInstance| pressed.call(ActivityPageMsg::Press(row)));
+        *pressing = Some((forward.clone(), on_press.clone()));
+        on_press
     }
 
     fn row_menu(
@@ -316,7 +330,8 @@ impl ActivityPage {
                 .into()
         } else {
             let menu = self.row_menu(&placed, &state.groups, l10n, palette, &forward);
-            let (pressed, anchored) = (forward.clone(), forward);
+            let on_press = self.on_press(&forward);
+            let anchored = forward;
             let scroller = ScrollViewer::new()
                 .horizontal_scroll_bar_visibility(ScrollBarVisibility::Disabled)
                 .content(rows(Rows {
@@ -326,7 +341,7 @@ impl ActivityPage {
                     selected: self.selected.get(),
                     l10n: l10n.clone(),
                     palette,
-                    on_press: Callback::new(move |row: ProcessInstance| pressed.call(ActivityPageMsg::Press(row))),
+                    on_press,
                 }));
             let mut layers: Vec<View> = vec![Border::new()
                 .on_pointer_pressed(move |pointer: PointerEventInfo| {
@@ -383,5 +398,44 @@ impl ActivityPage {
             l10n.activity_range(from, to, view.came as i64, view.went as i64)
         };
         page_frame(header, body, status_text(status, palette), palette)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use super::*;
+
+    fn instance(pid: u32) -> ProcessInstance {
+        ProcessInstance { pid, sequence: 1 }
+    }
+
+    #[test]
+    fn a_row_press_is_the_same_callback_on_every_render() {
+        let page = ActivityPage::default();
+        let forward = Callback::new(|_: ActivityPageMsg| {});
+
+        assert_eq!(page.on_press(&forward), page.on_press(&forward));
+    }
+
+    #[test]
+    fn a_row_press_follows_a_new_forward() {
+        let page = ActivityPage::default();
+        let heard = Rc::new(RefCell::new(Vec::new()));
+        let first = page.on_press(&Callback::new(|_: ActivityPageMsg| {}));
+        let kept = heard.clone();
+        let forward = Callback::new(move |message: ActivityPageMsg| {
+            if let ActivityPageMsg::Press(row) = message {
+                kept.borrow_mut().push(row);
+            }
+        });
+
+        let second = page.on_press(&forward);
+        second.call(instance(7));
+
+        assert_ne!(first, second);
+        assert_eq!(*heard.borrow(), vec![instance(7)]);
     }
 }
