@@ -36,13 +36,15 @@ impl Page for Services {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
 
     use app_contracts::features::agents::{
         ActionOutcome, WindowsActionRequest, WindowsReport, WindowsReportMessage, WindowsServiceState,
         WindowsServiceStats,
     };
-    use app_contracts::features::services::Select;
+    use app_contracts::features::services::{Command, Select, ServiceActionKind};
+    use domain::features::agents::providers::windows::{SERVICE_DISPLAY_NAME, SERVICE_NAME};
     use guinea::app::Harness;
     use guinea::prelude::GlobalEventBus;
     use guinea::winui::harness::{Mounted, PropertyId, PropertyValue};
@@ -95,5 +97,41 @@ mod tests {
             tip(&page, PropertyId::Subtitle),
             Some(PropertyValue::String("Another action on it hasn’t finished yet.".into()))
         );
+    }
+
+    #[guinea::test(iterations = 8)]
+    fn uniproc_does_not_stop_its_own_service(h: &mut Harness) {
+        h.plugin(StorePlugin::in_memory())
+            .unwrap()
+            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
+            .unwrap();
+        let h = &*h;
+        let mut page: Mounted<'_, Services> =
+            Mounted::mount_at(h.child(), crate::routes::ServicesParams::default(), Route::Services {}).unwrap();
+        let report = WindowsReport {
+            services: vec![WindowsServiceStats {
+                name: SERVICE_NAME.into(),
+                display_name: SERVICE_DISPLAY_NAME.into(),
+                state: WindowsServiceState::Running,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        h.publish(WindowsReportMessage::Report(Arc::new(report))).settle();
+        let asked = Arc::new(AtomicU32::new(0));
+        let counted = asked.clone();
+        let _service = GlobalEventBus::answer_fn(move |_: WindowsActionRequest| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            ActionOutcome::Done
+        });
+
+        page.settle();
+        page.segment().act::<ServicesState>(Select(SERVICE_NAME.into())).settle();
+        for kind in [ServiceActionKind::Stop, ServiceActionKind::Pause, ServiceActionKind::Restart] {
+            page.segment().act::<ServicesState>(Command(kind)).settle();
+        }
+        page.settle();
+
+        assert_eq!(asked.load(Ordering::SeqCst), 0);
     }
 }

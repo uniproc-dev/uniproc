@@ -9,6 +9,7 @@ use app_contracts::features::services::{
     ServicesState, Sort,
 };
 use guinea::prelude::*;
+use uniproc_windows_agent::api::SERVICE_NAME;
 
 use crate::features::agents::actions;
 
@@ -98,6 +99,10 @@ fn command(this: &mut ServicesActor, Command(kind): Command, cx: Cx) {
     let Some(name) = this.selected.clone() else {
         return;
     };
+    let stops = matches!(kind, ServiceActionKind::Stop | ServiceActionKind::Pause | ServiceActionKind::Restart);
+    if stops && *name == *SERVICE_NAME {
+        return;
+    }
     let target = this
         .rows
         .iter()
