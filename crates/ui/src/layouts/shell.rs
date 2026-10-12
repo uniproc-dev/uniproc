@@ -94,6 +94,10 @@ pub struct ShellProps<'a> {
 }
 
 pub fn shell_view(props: ShellProps<'_>) -> View {
+    let props = ShellProps {
+        width: props.width.clamp(Sidebar::MinWidth, Sidebar::MaxWidth),
+        ..props
+    };
     let title_bar = TitleBar::new()
         .preferred_height(WindowTitleBarHeight::Tall)
         .is_pane_toggle_button_visible(false)

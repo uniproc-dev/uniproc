@@ -95,7 +95,7 @@ mod tests {
     use guinea::app::Harness;
     use guinea::core::actor::event_bus::{RpcRequest, RpcResponse};
     use guinea::prelude::GlobalEventBus;
-    use guinea::winui::harness::Mounted;
+    use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
     use domain::features::agents::providers::windows::SERVICE_DISPLAY_NAME;
     use domain::features::agents::settings::AgentSettings;
     use domain::features::system::SystemDeps;
@@ -586,6 +586,31 @@ mod tests {
     fn open_pane(page: &mut Mounted<'_, Route>) {
         page.dispatch::<SidebarState>().emit(SetOpen(true));
         page.settle();
+    }
+
+    fn of_kind<'n>(node: &'n Node, kind: &str) -> Option<&'n Node> {
+        if node.kind == kind {
+            return Some(node);
+        }
+        node.children.iter().find_map(|child| of_kind(child, kind))
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "agent")]
+    fn a_stored_pane_width_out_of_range_is_drawn_inside_it(h: &mut Harness) {
+        start(h, true);
+        let h = &*h;
+        let mut page = mount(h);
+        open_pane(&mut page);
+
+        page.dispatch::<SidebarState>().emit(SetWidth(5000));
+        page.settle();
+
+        let tree = page.tree();
+        let navigation = of_kind(&tree, "NavigationView").unwrap_or_else(|| panic!("{tree:#?}"));
+        assert_eq!(
+            page.property(navigation.at, PropertyId::OpenPaneLength),
+            Some(&PropertyValue::F64(500.0))
+        );
     }
 
     fn tile_shown(page: &Mounted<'_, Route>, chart: SidebarChart) -> bool {
