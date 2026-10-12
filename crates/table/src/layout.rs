@@ -69,7 +69,7 @@ impl Band {
     };
 
     pub fn holds(self, offset: f32) -> bool {
-        self.below <= offset && offset <= self.above
+        self.below <= offset && offset < self.above
     }
 }
 
@@ -143,6 +143,19 @@ mod tests {
 
     fn lines() -> Lines {
         Lines::new([36.0, 32.0, 32.0, 36.0, 32.0])
+    }
+
+    #[test]
+    fn a_pointed_row_is_let_go_where_the_next_one_starts() {
+        let lines = lines();
+        let band = pointed(&lines, Some(50.0), 0.0);
+        assert_eq!(lines.at(50.0), Some(1));
+        assert!(band.holds(17.9));
+        assert_eq!(lines.at(68.0), Some(2));
+        assert!(!band.holds(18.0));
+        let above = pointed(&lines, Some(50.0), -60.0);
+        assert_eq!(lines.at(0.0), Some(0));
+        assert!(!above.holds(-50.0));
     }
 
     #[test]
