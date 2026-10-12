@@ -161,17 +161,18 @@ fn to_row(svc: &WindowsServiceStats) -> ServiceRow {
     }
 }
 
+fn folded(text: &str) -> impl Iterator<Item = char> + '_ {
+    text.chars().flat_map(char::to_lowercase)
+}
+
 fn sort_rows(rows: &mut [ServiceRow], column: ServiceColumn, descending: bool) {
     rows.sort_by(|a, b| {
         let ord = match column {
             ServiceColumn::Status => a.state.id().cmp(b.state.id()),
             ServiceColumn::Group => a.group.cmp(&b.group),
             ServiceColumn::Pid => a.pid.cmp(&b.pid),
-            ServiceColumn::Name | ServiceColumn::Description => a
-                .name
-                .chars()
-                .flat_map(char::to_lowercase)
-                .cmp(b.name.chars().flat_map(char::to_lowercase)),
+            ServiceColumn::Name => folded(&a.display_name).cmp(folded(&b.display_name)),
+            ServiceColumn::Description => folded(&a.description).cmp(folded(&b.description)),
         };
         let ord = ord.then_with(|| a.name.cmp(&b.name));
         if descending { ord.reverse() } else { ord }
@@ -205,6 +206,23 @@ mod tests {
         sort_rows(&mut rows, ServiceColumn::Name, false);
         assert_eq!(&*rows[0].name, "Alpha");
         assert_eq!(&*rows[1].name, "beta");
+    }
+
+    #[test]
+    fn the_name_column_sorts_by_the_name_it_shows() {
+        let mut rows = vec![
+            ServiceRow {
+                display_name: "Windows Audio".into(),
+                ..row("AudioSrv", WindowsServiceState::Running)
+            },
+            ServiceRow {
+                display_name: "DHCP Client".into(),
+                ..row("Dhcp", WindowsServiceState::Running)
+            },
+        ];
+        sort_rows(&mut rows, ServiceColumn::Name, false);
+        assert_eq!(&*rows[0].display_name, "DHCP Client");
+        assert_eq!(&*rows[1].display_name, "Windows Audio");
     }
 
     #[test]
