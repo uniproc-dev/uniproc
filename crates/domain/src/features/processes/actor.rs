@@ -335,7 +335,10 @@ fn console_owner<'a>(
     by_pid: &HashMap<u32, &'a WindowsProcessStats>,
 ) -> Option<&'a WindowsProcessStats> {
     let Some(clients) = clients.get(&host.pid) else {
-        return by_pid.get(&host.parent_pid).copied();
+        return by_pid
+            .get(&host.parent_pid)
+            .copied()
+            .filter(|parent| host.start_time == 0 || parent.start_time <= host.start_time);
     };
     let is_client = |pid: u32| clients.iter().any(|c| c.pid == pid);
     clients
@@ -577,6 +580,22 @@ mod tests {
         assert_eq!(owner(12), None, "the parent is not in this report");
         assert_eq!(owner(13), None, "only console hosts get an owner");
         assert_eq!(owner(10), None);
+    }
+
+    #[test]
+    fn a_console_host_is_not_owned_by_a_process_that_took_its_parents_pid_later() {
+        let started = |p: WindowsProcessStats, start_time: u64| WindowsProcessStats { start_time, ..p };
+        let report = WindowsReport {
+            processes: vec![
+                started(stats(500, 1234, "conhost.exe", "Console Window Host"), 100),
+                started(stats(1234, 1, "chrome.exe", ""), 200),
+            ],
+            ..WindowsReport::default()
+        };
+
+        let rows = rows_from_report(&report, &AppWindows::default());
+
+        assert_eq!(owned_by(&rows, 500).map(|(name, _)| name), None);
     }
 
     #[test]
