@@ -478,7 +478,7 @@ impl ProcessesPage {
     fn table(
         &self,
         state: &ProcessesState,
-        rows: &[ProcessRow],
+        rows: &Rc<[ProcessRow]>,
         dispatch: &Dispatch,
         l10n: &L10n,
         palette: Palette,

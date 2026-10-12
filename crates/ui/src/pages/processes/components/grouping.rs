@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use amethystate::ReactiveMap;
 use app_contracts::features::agents::EnvironmentKind;
 use app_contracts::features::processes::{
@@ -751,10 +753,8 @@ pub(crate) fn sort_groups(sections: &mut [Section], order: &Order) {
 }
 
 pub(crate) struct GroupsCache {
-    rows_ptr: *const ProcessRow,
-    rows_len: usize,
-    wsl_ptr: *const WslEnvironment,
-    wsl_len: usize,
+    rows: Option<Rc<[ProcessRow]>>,
+    wsl: Option<Rc<[WslEnvironment]>>,
     exited: Vec<u32>,
     selected: Option<u32>,
     kept: Option<SectionId>,
@@ -771,17 +771,19 @@ pub(crate) struct Grouping<'a> {
     pub(crate) order: &'a Order,
     pub(crate) by_type: bool,
     pub(crate) pins: &'a Pins,
-    pub(crate) wsl: &'a [WslEnvironment],
+    pub(crate) wsl: &'a Rc<[WslEnvironment]>,
     pub(crate) section_order: &'a SectionOrder,
+}
+
+fn same<T: ?Sized>(held: &Option<Rc<T>>, now: &Rc<T>) -> bool {
+    held.as_ref().is_some_and(|held| Rc::ptr_eq(held, now))
 }
 
 impl GroupsCache {
     pub(crate) fn empty() -> Self {
         Self {
-            rows_ptr: std::ptr::null(),
-            rows_len: 0,
-            wsl_ptr: std::ptr::null(),
-            wsl_len: 0,
+            rows: None,
+            wsl: None,
             exited: Vec::new(),
             selected: None,
             kept: None,
@@ -795,7 +797,7 @@ impl GroupsCache {
 
     pub(crate) fn get(
         &mut self,
-        rows: &[ProcessRow],
+        rows: &Rc<[ProcessRow]>,
         exited: &[ProcessRow],
         grouping: Grouping<'_>,
     ) -> &mut [Section] {
@@ -808,13 +810,10 @@ impl GroupsCache {
             wsl,
             section_order,
         } = grouping;
-        let rows_ptr = rows.as_ptr();
         let same_exited = self.exited.len() == exited.len()
             && self.exited.iter().zip(exited).all(|(pid, row)| *pid == row.pid);
-        if self.rows_ptr != rows_ptr
-            || self.rows_len != rows.len()
-            || self.wsl_ptr != wsl.as_ptr()
-            || self.wsl_len != wsl.len()
+        if !same(&self.rows, rows)
+            || !same(&self.wsl, wsl)
             || !same_exited
             || self.selected != selected
             || self.kept != kept
@@ -835,10 +834,8 @@ impl GroupsCache {
             self.section_order.clone_from(section_order);
             attach_consoles(&mut self.sections, consoles);
             sort_groups(&mut self.sections, order);
-            self.rows_ptr = rows_ptr;
-            self.rows_len = rows.len();
-            self.wsl_ptr = wsl.as_ptr();
-            self.wsl_len = wsl.len();
+            self.rows = Some(rows.clone());
+            self.wsl = Some(wsl.clone());
             self.exited = exited.iter().map(|row| row.pid).collect();
             self.selected = selected;
             self.kept = kept;
@@ -1894,6 +1891,10 @@ pub(crate) mod tests {
 
     static DEFAULT_ORDER: std::sync::LazyLock<SectionOrder> = std::sync::LazyLock::new(SectionOrder::default);
 
+    fn no_wsl() -> &'static Rc<[WslEnvironment]> {
+        Box::leak(Box::new(Rc::from(Vec::new())))
+    }
+
     fn grouped<'a>(by_type: bool, order: &'a Order, pins: &'a Pins) -> Grouping<'a> {
         Grouping {
             selected: None,
@@ -1901,7 +1902,7 @@ pub(crate) mod tests {
             order,
             by_type,
             pins,
-            wsl: &[],
+            wsl: no_wsl(),
             section_order: &DEFAULT_ORDER,
         }
     }
@@ -1912,7 +1913,7 @@ pub(crate) mod tests {
             .map(|name| (Arc::from(*name), PinnedProcess::default()))
             .collect();
         let mut cache = GroupsCache::empty();
-        cache.get(rows, &[], grouped(by_type, &cpu_order(), &pins));
+        cache.get(&Rc::from(rows), &[], grouped(by_type, &cpu_order(), &pins));
         cache.sections
     }
 
@@ -2116,7 +2117,7 @@ pub(crate) mod tests {
         let pins: Pins = [(Arc::from("agent.exe"), pin)].into_iter().collect();
         let order = cpu_order();
         let mut cache = GroupsCache::empty();
-        cache.get(&[row(10, "notepad.exe")], &[], grouped(true, &order, &pins));
+        cache.get(&Rc::from([row(10, "notepad.exe")]), &[], grouped(true, &order, &pins));
 
         let out = with_open(&cache.sections, &[]);
         let placeholder = out.iter().find(|d| d.absent).unwrap();
@@ -2124,6 +2125,19 @@ pub(crate) mod tests {
         assert_eq!(&*placeholder.row.exe_path, r"C:\tools\agent.exe");
         assert_eq!(&*placeholder.row.display_name, "Build Agent", "it reads as it did while running");
         assert_eq!(&*placeholder.row.name, "agent.exe");
+    }
+
+    #[test]
+    fn new_rows_in_the_old_rows_memory_are_grouped_again() {
+        let pins = Pins::default();
+        let order = cpu_order();
+        let mut cache = GroupsCache::empty();
+        cache.get(&Rc::from([row(10, "notepad.exe")]), &[], grouped(true, &order, &pins));
+
+        let sections = cache.get(&Rc::from([row(10, "calc.exe")]), &[], grouped(true, &order, &pins));
+
+        let names: Vec<&str> = sections.iter().flat_map(|s| &s.groups).map(|g| &*g.leader.name).collect();
+        assert_eq!(names, vec!["calc.exe"]);
     }
 
     #[test]
@@ -2204,7 +2218,7 @@ pub(crate) mod tests {
             let exited: HashSet<u32> = exited_rows.iter().map(|r| r.pid).collect();
             let order = cpu_order();
             let sections = self.cache.get(
-                rows,
+                &Rc::from(rows),
                 &exited_rows,
                 Grouping {
                     selected: pid,
@@ -2212,7 +2226,7 @@ pub(crate) mod tests {
                     order: &order,
                     by_type: true,
                     pins: &self.pins,
-                    wsl: &[],
+                    wsl: no_wsl(),
                     section_order: &DEFAULT_ORDER,
                 },
             );
@@ -2357,7 +2371,8 @@ pub(crate) mod tests {
         let pins = Pins::new();
         let order = cpu_order();
         let mut cache = GroupsCache::empty();
-        cache.get(rows, &[], Grouping { wsl, ..grouped(by_type, &order, &pins) });
+        let wsl = Rc::from(wsl);
+        cache.get(&Rc::from(rows), &[], Grouping { wsl: &wsl, ..grouped(by_type, &order, &pins) });
         cache.sections
     }
 
