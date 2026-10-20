@@ -2,7 +2,7 @@ use app_contracts::features::metrics::MetricsState;
 use app_contracts::features::settings::{SettingsState, ShowSidebarChart};
 use app_contracts::features::sidebar::SidebarState;
 use domain::features::metrics::MetricsFeature;
-use guinea::feature::FeatureInitContext;
+use guinea::feature::Install;
 use guinea::winui::{page, Page, PageCx};
 use guinea_widgets::chart::Chart;
 use ui::theme::{scheme_context, Palette};
@@ -15,10 +15,9 @@ pub struct SidebarCharts {
 
 #[page]
 impl Page for SidebarCharts {
-    type Installs = MetricsFeature;
-
-    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        ctx.install(&())
+    fn install(ctx: &Install) -> anyhow::Result<Self> {
+        ctx.install::<MetricsFeature>(&())?;
+        Ok(Self::default())
     }
 
     fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {

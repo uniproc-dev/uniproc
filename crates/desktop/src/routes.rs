@@ -1,37 +1,44 @@
-use guinea::prelude::*;
+#[derive(Clone, PartialEq, Debug, guinea::Routable)]
+pub enum Route {
+    Processes {},
+    ProcessesSettings {},
+    Activity {},
+    ActivityGroups {},
+    Services {},
+    Wsl {},
+    System {},
+    SystemTools {},
+    Settings {},
+}
 
-use crate::app::App;
-use crate::layouts::{ActivityArea, MainWindow, Overlay, PaneFooter, ProcessesArea, Shell, SystemArea};
-use crate::pages::{
-    Activity, ActivityGroups, Processes, ProcessesSettings, Services, Settings, System, SystemTools, Wsl,
-};
-use crate::parts::{Connecting, SidebarCharts};
+impl Route {
+    pub fn save(&self) -> Option<String> {
+        Some(match self {
+            Self::Processes {} => "Processes",
+            Self::ProcessesSettings {} => "ProcessesSettings",
+            Self::Activity {} => "Activity",
+            Self::ActivityGroups {} => "ActivityGroups",
+            Self::Services {} => "Services",
+            Self::Wsl {} => "Wsl",
+            Self::System {} => "System",
+            Self::SystemTools {} => "SystemTools",
+            Self::Settings {} => "Settings",
+        }.to_owned())
+    }
 
-routes! {
-    Route {
-        app(App) {
-            layout(MainWindow) restorable {
-                layout(Shell) {
-                    part(SidebarCharts) => PaneFooter
-                    part(Connecting) => Overlay
-                    layout(ProcessesArea) keep {
-                        page(Processes)
-                        page(ProcessesSettings)
-                    }
-                    layout(ActivityArea) {
-                        page(Activity)
-                        page(ActivityGroups)
-                    }
-                    page(Services)
-                    page(Wsl)
-                    layout(SystemArea) {
-                        page(System)
-                        page(SystemTools)
-                    }
-                    page(Settings)
-                }
-            }
-        }
+    pub fn restore(saved: &str) -> Option<Self> {
+        Some(match saved {
+            "Processes" => Self::Processes {},
+            "ProcessesSettings" => Self::ProcessesSettings {},
+            "Activity" => Self::Activity {},
+            "ActivityGroups" => Self::ActivityGroups {},
+            "Services" => Self::Services {},
+            "Wsl" => Self::Wsl {},
+            "System" => Self::System {},
+            "SystemTools" => Self::SystemTools {},
+            "Settings" => Self::Settings {},
+            _ => return None,
+        })
     }
 }
 
@@ -42,14 +49,35 @@ mod tests {
     use app_contracts::features::agents::{
         AgentStateRequest, WindowsMachineSample, WindowsMachineStats, WindowsProcessStats, WindowsReport,
     };
-    use guinea::core::trace::Point;
+    use guinea::observability::trace::Point;
     use domain::features::processes::windows_scan::AppWindows;
     use domain::features::processes::ProcessesDeps;
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node};
 
     use super::*;
+    use crate::layouts::ProcessesArea;
+    use crate::pages::{Services, Settings};
     use crate::test_agent;
+
+    #[test]
+    fn saved_routes_round_trip() {
+        for route in [
+            Route::Processes {},
+            Route::ProcessesSettings {},
+            Route::Activity {},
+            Route::ActivityGroups {},
+            Route::Services {},
+            Route::Wsl {},
+            Route::System {},
+            Route::SystemTools {},
+            Route::Settings {},
+        ] {
+            assert_eq!(Route::restore(&route.save().unwrap()), Some(route));
+        }
+        assert_eq!(Route::restore(""), None);
+        assert_eq!(Route::restore("unknown"), None);
+    }
 
     fn serve(name: &str) {
         test_agent::serve(WindowsReport {
@@ -68,13 +96,12 @@ mod tests {
 
     fn start(h: &mut Harness) {
         test_agent::reset(true);
-        h.install_application_with(crate::app::with_fakes)
-            .unwrap()
-            .provide(test_agent::agent_link())
-            .provide(ProcessesDeps {
-                windows: AppWindows::default,
-                shell: |_| {},
-            });
+        h.provide(ProcessesDeps {
+            windows: AppWindows::default,
+            shell: |_| {},
+        });
+        h.app(crate::app::with_fakes).unwrap();
+        h.provide(test_agent::agent_link());
     }
 
     fn sample(clock_100ns: u64) -> WindowsMachineSample {
@@ -89,7 +116,7 @@ mod tests {
         start(h);
         let h = &*h;
         serve("notepad.exe");
-        let mut app = Mounted::routed(h, Route::Services {}).unwrap();
+        let mut app = crate::test_support::mount_application(h, Route::Services {}).unwrap();
         h.advance(Duration::from_secs(1));
         app.settle();
 
@@ -118,7 +145,7 @@ mod tests {
         start(h);
         let h = &*h;
         serve("notepad.exe");
-        let mut app = Mounted::routed(h, Route::Services {}).unwrap();
+        let mut app = crate::test_support::mount_application(h, Route::Services {}).unwrap();
         h.advance(Duration::from_secs(1));
         app.settle();
         serve("calc.exe");
@@ -138,7 +165,7 @@ mod tests {
     fn a_press_that_leaves_activity_does_not_reach_the_page_it_left(h: &mut Harness) {
         start(h);
         let h = &*h;
-        let mut app = Mounted::routed(h, Route::Activity {}).unwrap();
+        let mut app = crate::test_support::mount_application(h, Route::Activity {}).unwrap();
         app.settle();
 
         let left = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -156,7 +183,7 @@ mod tests {
         start(h);
         let h = &*h;
         serve("notepad.exe");
-        let mut app = Mounted::routed(h, Route::Processes {}).unwrap();
+        let mut app = crate::test_support::mount_application(h, Route::Processes {}).unwrap();
         h.advance(Duration::from_secs(1));
         app.settle();
         assert!(listed(&mut app, "notepad.exe"), "{:#?}", app.tree());

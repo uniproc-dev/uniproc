@@ -1,8 +1,4 @@
-use app_contracts::features::agents::{
-    AgentStateRequest, RemoteScanResult, WindowsReportMessage,
-};
 use app_contracts::features::processes::ProcessesState;
-use app_contracts::features::window::PressedAway;
 use guinea::prelude::*;
 
 use super::actor::{ProcessesActor, Woke};
@@ -31,19 +27,15 @@ feature! {
 }
 
 #[installs]
-fn processes(cx: &FeatureInitContext, deps: &ProcessesDeps) -> anyhow::Result<ProcessesFeature> {
-    let deps = *deps;
+fn processes(cx: &Install<ProcessesDeps>) -> anyhow::Result<ProcessesFeature> {
+    let deps = *cx.params();
     let (processes, addr) = cx
         .state::<ProcessesState>()
         .driven_by(move |port| ProcessesActor::new(port, deps.windows, deps.shell));
-    addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
-    addr.subscribe_on::<RemoteScanResult>(Bus::Global);
-    addr.subscribe_on::<PressedAway>(Bus::Global);
 
-    GlobalEventBus::publish(AgentStateRequest);
+    addr.send(Woke);
     cx.on_wake(move || {
         addr.send(Woke);
-        GlobalEventBus::publish(AgentStateRequest);
     });
 
     Ok(ProcessesFeature(processes))

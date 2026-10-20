@@ -1,5 +1,4 @@
 use app_contracts::features::system::SystemState;
-use guinea::feature::FeatureInitContext;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::pages::system::ToolsProps;
 use ui::theme::{scheme_context, Palette};
@@ -14,13 +13,7 @@ pub struct SystemTools {
 
 #[page]
 impl Page for SystemTools {
-    type Params = crate::routes::SystemToolsParams;
-    type Installs = ();
     type Message = bool;
-
-    fn install(_ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        Ok(())
-    }
 
     fn update(&mut self, hovered: bool, _cx: &mut UpdateCx<'_, Self>) {
         self.back_hovered = hovered;
@@ -39,7 +32,7 @@ impl Page for SystemTools {
             palette,
             back_hovered: self.back_hovered,
             on_back_hover,
-            back: Callback::new(move |()| nav.to(Route::System {})),
+            back: Callback::new(move |()| { let _ = nav.to(Route::System {}); }),
         })
     }
 }
@@ -56,7 +49,7 @@ mod tests {
 
     fn mount(h: &Harness) -> Mounted<'_, SystemTools> {
         let mut page =
-            Mounted::mount_at(h.child(), crate::routes::SystemToolsParams::default(), Route::SystemTools {})
+            Mounted::mount_at(h.child(), (), Route::SystemTools {})
                 .unwrap();
         page.settle();
         page
@@ -136,6 +129,6 @@ mod tests {
 
         page.click(SystemMark::Back).settle();
 
-        assert_eq!(page.navigated::<Route>(), [Route::System {}]);
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::System {}));
     }
 }

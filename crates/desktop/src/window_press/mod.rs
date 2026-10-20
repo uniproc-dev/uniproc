@@ -3,9 +3,8 @@ mod bindings;
 
 use std::cell::Cell;
 use std::ffi::c_void;
+use std::rc::Rc;
 
-use app_contracts::features::window::PressedAway;
-use guinea::prelude::GlobalEventBus;
 use guinea::Mark;
 use ui::widgets::selection::SelectionMark;
 use windows_core::imp::{ConstBuffer, DelegateBox};
@@ -18,29 +17,29 @@ use bindings::{
 };
 
 thread_local! {
-    static WATCHING: Cell<bool> = const { Cell::new(false) };
     static ROOT: Cell<usize> = const { Cell::new(0) };
 }
 
-pub fn install() {
-    if WATCHING.replace(true) {
-        return;
-    }
-    match FocusManager::GotFocus(on_focus) {
-        Ok(revoker) => revoker.forget(),
-        Err(err) => tracing::warn!(%err, "could not watch focus to find the window root"),
+pub fn install(publish: impl Fn() + 'static) -> Option<windows_core::EventRevoker> {
+    let publish: Rc<dyn Fn()> = Rc::new(publish);
+    match FocusManager::GotFocus(move |sender, args| on_focus(sender, args, publish.clone())) {
+        Ok(revoker) => Some(revoker),
+        Err(err) => {
+            tracing::warn!(%err, "could not watch focus to find the window root");
+            None
+        }
     }
 }
 
-fn on_focus(_: Ref<IInspectable>, args: Ref<FocusManagerGotFocusEventArgs>) {
-    match listen_at_root(&args) {
+fn on_focus(_: Ref<IInspectable>, args: Ref<FocusManagerGotFocusEventArgs>, publish: Rc<dyn Fn()>) {
+    match listen_at_root(&args, publish) {
         Ok(()) => {}
         Err(err) if err.code().is_ok() => tracing::trace!("the newly focused element has no window root"),
         Err(err) => tracing::warn!(%err, "could not listen to presses on the window root"),
     }
 }
 
-fn listen_at_root(args: &Ref<FocusManagerGotFocusEventArgs>) -> Result<()> {
+fn listen_at_root(args: &Ref<FocusManagerGotFocusEventArgs>, publish: Rc<dyn Fn()>) -> Result<()> {
     let Ok(element) = args.ok()?.NewFocusedElement()?.cast::<UIElement>() else {
         return Ok(());
     };
@@ -49,7 +48,7 @@ fn listen_at_root(args: &Ref<FocusManagerGotFocusEventArgs>) -> Result<()> {
     if ROOT.get() == identity {
         return Ok(());
     }
-    let handler = IInspectable::from(IReference::from(pressed_handler()));
+    let handler = IInspectable::from(IReference::from(pressed_handler(publish)));
     root.AddHandler(&UIElement::PointerPressedEvent()?, &handler, true)?;
     ROOT.set(identity);
     tracing::debug!("listening to presses on the window root");
@@ -75,7 +74,7 @@ impl RuntimeType for PressedHandler {
         .push_slice(b")");
 }
 
-type PressedBox = DelegateBox<PressedHandler, ()>;
+type PressedBox = DelegateBox<PressedHandler, Rc<dyn Fn()>>;
 
 const PRESSED: PressedHandlerVtbl = PressedHandlerVtbl {
     base: IUnknown_Vtbl {
@@ -86,26 +85,27 @@ const PRESSED: PressedHandlerVtbl = PressedHandlerVtbl {
     invoke: invoke_pressed,
 };
 
-fn pressed_handler() -> PressedHandler {
-    let raw = Box::into_raw(Box::new(PressedBox::new(&PRESSED, ())));
+fn pressed_handler(publish: Rc<dyn Fn()>) -> PressedHandler {
+    let raw = Box::into_raw(Box::new(PressedBox::new(&PRESSED, publish)));
     unsafe { PressedHandler::from_raw(raw as *mut c_void) }
 }
 
 unsafe extern "system" fn invoke_pressed(
-    _this: *mut c_void,
+    this: *mut c_void,
     _sender: *mut c_void,
     args: *mut c_void,
 ) -> HRESULT {
     let args = unsafe { PointerRoutedEventArgs::from_raw_borrowed(&args) };
+    let handler = unsafe { &*(this as *const PressedBox) };
     if let Some(args) = args
-        && let Err(err) = on_pressed(args)
+        && let Err(err) = on_pressed(args, handler.invoke.as_ref())
     {
         tracing::warn!(%err, "could not read a window press");
     }
     HRESULT(0)
 }
 
-fn on_pressed(args: &PointerRoutedEventArgs) -> Result<()> {
+fn on_pressed(args: &PointerRoutedEventArgs, publish: &dyn Fn()) -> Result<()> {
     let source = args
         .cast::<RoutedEventArgs>()?
         .OriginalSource()?
@@ -113,7 +113,7 @@ fn on_pressed(args: &PointerRoutedEventArgs) -> Result<()> {
     let away = is_away(automation_ids(source));
     tracing::debug!(away, "window pressed");
     if away {
-        GlobalEventBus::publish(PressedAway);
+        publish();
     }
     Ok(())
 }

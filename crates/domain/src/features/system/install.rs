@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use app_contracts::features::system::SystemState;
 use guinea::prelude::*;
 use guinea_plugin_store::StoreAccess;
+use amethystate::Store;
 
 use super::actor::{favourites, Rescan, SystemActor};
 use super::settings::SystemSettings;
@@ -30,9 +31,9 @@ feature! {
 }
 
 #[installs]
-fn system(cx: &FeatureInitContext, deps: &SystemDeps) -> anyhow::Result<SystemFeature> {
-    let deps = *deps;
-    let settings = cx.settings::<SystemSettings>();
+fn system(cx: &Install<SystemDeps>, store: Store) -> anyhow::Result<SystemFeature> {
+    let deps = *cx.params();
+    let settings = store.try_settings::<SystemSettings>()?;
     let (pinned, frequent) = favourites(&settings);
     let seed = SystemState {
         pinned,

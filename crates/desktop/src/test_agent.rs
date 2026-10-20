@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use amethystate::Field;
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, RunWindowsAgentInProcess, WindowsAction, WindowsAgentInProcess,
+    AgentConnectionState, WindowsAction, WindowsAgentInProcess,
     WindowsAgentRuntimeEvent, WindowsProcessEvents, WindowsReport, WindowsReportMessage,
 };
 use domain::features::agent_link::{AgentLinkDeps, Elevation, RelaunchError};
@@ -116,7 +116,7 @@ pub fn elevation() -> Elevation {
             RELAUNCHES.fetch_add(1, Ordering::SeqCst);
             let refused = RELAUNCH_REFUSED.load(Ordering::SeqCst);
             Box::pin(async move {
-                guinea::core::executor::random_delay().await;
+                guinea::executor::random_delay().await;
                 if refused { Err(RelaunchError::Refused) } else { Ok(()) }
             })
         },
@@ -243,6 +243,7 @@ impl AgentBackend for FakeAgent {
     type ScanMessage = WindowsReportMessage;
 
     const NAME: &'static str = "Fake";
+    const SUPPORTS_IN_PROCESS: bool = true;
     const STREAMS_PROCESS_EVENTS: bool = true;
 
     async fn connect(_timeout: Duration, _update_interval_ms: Field<u64>) -> anyhow::Result<FakeClient> {
@@ -264,8 +265,8 @@ impl AgentBackend for FakeAgent {
         }
     }
 
-    fn in_process_started(started: Result<(), &InProcessError>) {
-        GlobalEventBus::publish(match started {
+    fn in_process_started(started: Result<(), &InProcessError>, cx: &AsyncContext<GenericAgentActor<Self>>) {
+        cx.publish(match started {
             Ok(()) => WindowsAgentInProcess::Running,
             Err(InProcessError::NotElevated) => WindowsAgentInProcess::NotElevated,
             Err(_) => WindowsAgentInProcess::Failed,
@@ -280,7 +281,7 @@ impl AgentBackend for FakeAgent {
         client.up().map(|()| 1)
     }
 
-    async fn perform_scan(client: &FakeClient) -> anyhow::Result<()> {
+    async fn perform_scan(client: &FakeClient, cx: &AsyncContext<GenericAgentActor<Self>>) -> anyhow::Result<()> {
         client.up()?;
         let report = match client.in_process {
             true => {
@@ -302,26 +303,26 @@ impl AgentBackend for FakeAgent {
             }
         };
         if let Some(report) = report {
-            GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(report)));
+            cx.publish(WindowsReportMessage::Report(Arc::new(report)));
         }
         tokio::time::sleep(Pace::Report).await;
         Ok(())
     }
 
-    async fn perform_process_events(client: &FakeClient) -> anyhow::Result<()> {
+    async fn perform_process_events(client: &FakeClient, cx: &AsyncContext<GenericAgentActor<Self>>) -> anyhow::Result<()> {
         client.up()?;
         if SILENT_EVENTS.load(Ordering::SeqCst) {
             let _waiting = WaitingForEvents::new();
             std::future::pending::<()>().await;
         }
         if let Some(events) = told().await {
-            GlobalEventBus::publish(events);
+            cx.publish(events);
         }
         Ok(())
     }
 
-    fn announce(client: Option<&FakeClient>) {
-        GlobalEventBus::publish(match client {
+    fn announce(client: Option<&FakeClient>, cx: &AsyncContext<GenericAgentActor<Self>>) {
+        cx.publish(match client {
             Some(client) => WindowsTransport::Connected(Arc::new(*client)),
             None => WindowsTransport::Lost,
         });
@@ -336,25 +337,20 @@ impl AgentBackend for FakeAgent {
     }
 }
 
-pub struct FakeAgentFeature;
+feature! { pub FakeAgentFeature {} }
 
-impl AppFeature for FakeAgentFeature {
-    type Exports = ();
-
-    fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
-        let settings = app.settings::<AgentSettings>();
-        let general = app.settings::<GeneralSettings>();
+#[installs]
+fn fake_agent(app: &mut FeatureBuilder, store: amethystate::Store) -> anyhow::Result<FakeAgentFeature> {
+        let settings = store.try_settings::<AgentSettings>()?;
+        let general = store.try_settings::<GeneralSettings>()?;
         actions::install(app);
         let addr = app.spawn(GenericAgentActor::<FakeAgent>::new(
             settings.connect_attempt_secs(),
             general.update_interval_ms(),
         ));
 
-        app.every(settings.ping_period(), &addr, || Ping);
-        addr.subscribe_on::<AgentStateRequest>(Bus::Global);
-        addr.subscribe_on::<RunWindowsAgentInProcess>(Bus::Global);
+        app.every(settings.ping_period(), || Ping, addr.clone());
         addr.send(Init);
 
-        Ok(())
-    }
+        Ok(FakeAgentFeature)
 }

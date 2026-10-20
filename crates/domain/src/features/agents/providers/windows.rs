@@ -6,7 +6,7 @@ use crate::features::agents::windows_feed::WindowsFeed;
 use crate::features::settings::settings::GeneralSettings;
 use amethystate::Field;
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, RunWindowsAgentInProcess, WindowsAction, WindowsAgentInProcess,
+    AgentConnectionState, WindowsAction, WindowsAgentInProcess,
     WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsProcessEvents, WindowsReport, WindowsReportMessage,
 };
 use futures::future::BoxFuture;
@@ -105,6 +105,7 @@ impl AgentBackend for WindowsBackend {
     type RuntimeEvent = WindowsAgentRuntimeEvent;
     type ScanMessage = WindowsReportMessage;
     const NAME: &'static str = "Windows";
+    const SUPPORTS_IN_PROCESS: bool = true;
     const STREAMS_MACHINE: bool = true;
     const STREAMS_PROCESS_EVENTS: bool = true;
 
@@ -116,8 +117,8 @@ impl AgentBackend for WindowsBackend {
         WindowsClient::start_in_process(move || Duration::from_millis(update_interval_ms.get())).await
     }
 
-    fn in_process_started(started: Result<(), &InProcessError>) {
-        GlobalEventBus::publish(match started {
+    fn in_process_started(started: Result<(), &InProcessError>, cx: &AsyncContext<GenericAgentActor<Self>>) {
+        cx.publish(match started {
             Ok(()) => WindowsAgentInProcess::Running,
             Err(InProcessError::NotElevated) => WindowsAgentInProcess::NotElevated,
             Err(_) => WindowsAgentInProcess::Failed,
@@ -130,27 +131,27 @@ impl AgentBackend for WindowsBackend {
         Ok(start.elapsed().as_millis() as i32)
     }
 
-    #[instrument(skip(client), level = "debug", err)]
-    async fn perform_scan(client: &Self::Client) -> anyhow::Result<()> {
+    #[instrument(skip(client, cx), level = "debug", err)]
+    async fn perform_scan(client: &Self::Client, cx: &AsyncContext<GenericAgentActor<Self>>) -> anyhow::Result<()> {
         match client.report().await? {
-            Some(report) => GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(report))),
+            Some(report) => cx.publish(WindowsReportMessage::Report(Arc::new(report))),
             None => tracing::debug!("process list kept moving under the metrics, skipping this update"),
         }
         Ok(())
     }
 
-    async fn perform_machine_scan(client: &Self::Client) -> anyhow::Result<()> {
-        GlobalEventBus::publish(client.machine().await?);
+    async fn perform_machine_scan(client: &Self::Client, cx: &AsyncContext<GenericAgentActor<Self>>) -> anyhow::Result<()> {
+        cx.publish(client.machine().await?);
         Ok(())
     }
 
-    async fn perform_process_events(client: &Self::Client) -> anyhow::Result<()> {
-        GlobalEventBus::publish(client.process_events().await?);
+    async fn perform_process_events(client: &Self::Client, cx: &AsyncContext<GenericAgentActor<Self>>) -> anyhow::Result<()> {
+        cx.publish(client.process_events().await?);
         Ok(())
     }
 
-    fn announce(client: Option<&Self::Client>) {
-        GlobalEventBus::publish(match client {
+    fn announce(client: Option<&Self::Client>, cx: &AsyncContext<GenericAgentActor<Self>>) {
+        cx.publish(match client {
             Some(client) => WindowsTransport::Connected(Arc::new(client.clone())),
             None => WindowsTransport::Lost,
         });
@@ -165,18 +166,16 @@ impl AgentBackend for WindowsBackend {
     }
 }
 
-pub fn windows_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
-    let settings = app.settings::<AgentSettings>();
-    let general = app.settings::<GeneralSettings>();
+pub fn windows_agent_feature(app: &mut FeatureBuilder, store: &amethystate::Store) -> anyhow::Result<()> {
+    let settings = store.try_settings::<AgentSettings>()?;
+    let general = store.try_settings::<GeneralSettings>()?;
     let addr = app.spawn(GenericAgentActor::<WindowsBackend>::new(
         settings.connect_attempt_secs(),
         general.update_interval_ms(),
     ));
 
-    app.every(settings.ping_period(), &addr, || Ping).named("windows-agent-ping");
+    app.every(settings.ping_period(), || Ping, addr.clone()).named("windows-agent-ping");
 
-    addr.subscribe_on::<AgentStateRequest>(Bus::Global);
-    addr.subscribe_on::<RunWindowsAgentInProcess>(Bus::Global);
     addr.send(Init);
 
     Ok(())

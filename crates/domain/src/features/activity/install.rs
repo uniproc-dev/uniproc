@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use app_contracts::features::activity::{ActivityState, Clock};
-use app_contracts::features::agents::{WindowsProcessEvents, WindowsReportMessage};
 use guinea::prelude::*;
 use guinea_plugin_store::StoreAccess;
 
@@ -32,37 +31,51 @@ impl Pace {
     const Flush: Duration = Duration::from_millis(250);
 }
 
-pub struct ActivityFeature;
+feature! { pub ActivityFeature { exports { ActivityState } } }
 
-impl AppFeature for ActivityFeature {
-    type Exports = (ActivityState,);
+#[installs]
+fn activity(app: &mut FeatureBuilder, store: amethystate::Store, deps: Option<ActivityDeps>) -> anyhow::Result<ActivityFeature> {
+    let deps = deps.unwrap_or_default();
+    let settings = store.try_settings::<ActivitySettings>()?;
+    let (span, filter) = remembered(&settings);
+    let seed = ActivityState {
+        span,
+        filter,
+        groups: remembered_groups(&settings),
+        ..ActivityState::default()
+    };
+    let (activity, _) = app
+        .state::<ActivityState>()
+        .seed(seed.clone())
+        .driven_by(move |push| ActivityActor::new(push, deps, settings, &seed));
+    Ok(ActivityFeature(activity))
+}
 
-    fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
-        let deps = app.require_or_default::<ActivityDeps>();
-        let settings = app.settings::<ActivitySettings>();
-        let (span, filter) = remembered(&settings);
-        let seed = ActivityState {
-            span,
-            filter,
-            groups: remembered_groups(&settings),
-            ..ActivityState::default()
-        };
-        let (_, addr) = app
-            .state::<ActivityState>()
-            .seed(seed.clone())
-            .driven_by(move |push| ActivityActor::new(push, deps, settings, &seed));
-        addr.subscribe_on::<WindowsProcessEvents>(Bus::Global);
-        addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
-        addr.subscribe_on::<Refresh>(Bus::Global);
-        addr.subscribe_on::<Flush>(Bus::Global);
-        Ok(())
+pub fn watch(cx: &Install) {
+    let clock = cx.spawn(ActivityClock);
+    clock.send(Refresh);
+    cx.every(Pace::Refresh, || Refresh, clock.clone())
+        .named("activity-refresh");
+    cx.every(Pace::Flush, || Flush, clock.clone())
+        .named("activity-flush");
+}
+
+#[derive(Debug)]
+struct ActivityClock;
+
+actor! {
+    ActivityClock {
+        handlers { Refresh, Flush }
+        publishes { Refresh, Flush }
     }
 }
 
-pub fn watch(cx: &FeatureInitContext) {
-    GlobalEventBus::publish(Refresh);
-    cx.repeat(Pace::Refresh, || GlobalEventBus::publish(Refresh))
-        .named("activity-refresh");
-    cx.repeat(Pace::Flush, || GlobalEventBus::publish(Flush))
-        .named("activity-flush");
+#[handler]
+fn refresh(In(_, _, cx): In<ActivityClock, Refresh>) {
+    cx.publish(Refresh);
+}
+
+#[handler]
+fn flush(In(_, _, cx): In<ActivityClock, Flush>) {
+    cx.publish(Flush);
 }

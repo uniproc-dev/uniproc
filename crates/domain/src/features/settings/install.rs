@@ -1,6 +1,7 @@
 use app_contracts::features::settings::SettingsState;
 use guinea::prelude::*;
 use guinea_plugin_store::StoreAccess;
+use amethystate::Store;
 
 use super::actor::SettingsActor;
 use super::settings::GeneralSettings;
@@ -12,8 +13,8 @@ feature! {
 }
 
 #[installs]
-fn settings(cx: &FeatureInitContext) -> anyhow::Result<SettingsFeature> {
-    let settings = cx.settings::<GeneralSettings>();
+fn settings(cx: &Install, store: Store) -> anyhow::Result<SettingsFeature> {
+    let settings = store.try_settings::<GeneralSettings>()?;
     let seed = settings.snapshot();
 
     let (state, _) = cx

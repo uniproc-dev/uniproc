@@ -48,10 +48,10 @@ impl SystemActor {
 actor! {
     SystemActor {
         handlers {
-            Rescan,
+            Rescan => { task Scanned }
             Scanned,
-            OpenTool,
-            Opened,
+            OpenTool => { task Opened }
+            Opened => { task Scanned }
             GetTool,
             PinTool,
             ForgetTool,
@@ -60,20 +60,20 @@ actor! {
 }
 
 #[handler]
-fn rescan(this: &mut SystemActor, _: Rescan, cx: Cx) {
+fn rescan(In(this, _, cx): In<SystemActor, Rescan>) {
     let locate = this.deps.locate;
-    cx.spawn_bg(async move { Scanned(tools::missing(locate)) });
+    cx.task().spawn(async move { Scanned(tools::missing(locate)) });
 }
 
 #[handler]
-fn on_scanned(this: &mut SystemActor, Scanned(missing): Scanned) {
+fn on_scanned(In(this, Scanned(missing), _): In<SystemActor, Scanned>) {
     this.push.send(SystemMsg::Missing(Rc::from(missing)));
 }
 
 #[handler]
-fn open(this: &mut SystemActor, OpenTool(tool): OpenTool, cx: Cx) {
+fn open(In(this, OpenTool(tool), cx): In<SystemActor, OpenTool>) {
     let deps = this.deps;
-    cx.spawn_bg(async move {
+    cx.task().spawn(async move {
         match tools::resolve(tool, deps.locate) {
             Some(launch) => {
                 (deps.launch)(launch);
@@ -85,13 +85,13 @@ fn open(this: &mut SystemActor, OpenTool(tool): OpenTool, cx: Cx) {
 }
 
 #[handler]
-fn on_opened(this: &mut SystemActor, opened: Opened, cx: Cx) {
+fn on_opened(In(this, opened, cx): In<SystemActor, Opened>) {
     let tool = match opened {
         Opened::Launched(tool) => tool,
         Opened::Gone(tool) => {
             tracing::info!(?tool, "system tool is gone, looking again");
             let locate = this.deps.locate;
-            cx.spawn_bg(async move { Scanned(tools::missing(locate)) });
+            cx.task().spawn(async move { Scanned(tools::missing(locate)) });
             return;
         }
     };
@@ -107,14 +107,14 @@ fn on_opened(this: &mut SystemActor, opened: Opened, cx: Cx) {
 }
 
 #[handler]
-fn get(this: &SystemActor, GetTool(tool): GetTool) {
+fn get(In(this, GetTool(tool), _): In<SystemActor, GetTool>) {
     if let Some(page) = tools::download(tool) {
         (this.deps.launch)(page);
     }
 }
 
 #[handler]
-fn pin(this: &mut SystemActor, PinTool(tool, pinned): PinTool) {
+fn pin(In(this, PinTool(tool, pinned), _): In<SystemActor, PinTool>) {
     let pins = this.settings.pinned();
     if pinned {
         let next = pins.entries().map(|(_, order)| order + 1).max().unwrap_or_default();
@@ -126,7 +126,7 @@ fn pin(this: &mut SystemActor, PinTool(tool, pinned): PinTool) {
 }
 
 #[handler]
-fn forget(this: &mut SystemActor, ForgetTool(tool): ForgetTool) {
+fn forget(In(this, ForgetTool(tool), _): In<SystemActor, ForgetTool>) {
     this.settings.pinned().remove(tool.id()).or_warn(format_args!("could not unpin {tool:?}"));
     this.settings.uses().remove(tool.id()).or_warn(format_args!("could not forget the uses of {tool:?}"));
     this.publish_favourites();

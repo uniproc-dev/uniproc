@@ -1,7 +1,7 @@
 use app_contracts::features::settings::SettingsState;
 use app_contracts::features::wsl::WslState;
 use domain::features::wsl::{WslDeps, WslFeature};
-use guinea::feature::FeatureInitContext;
+use guinea::feature::Install;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::pages::wsl::{WslMsg, WslPage};
 use ui::theme::{scheme_context, Palette};
@@ -12,14 +12,11 @@ pub struct Wsl(WslPage);
 
 #[page]
 impl Page for Wsl {
-    const CACHE_STATE_IN_MEMORY: bool = true;
-
-    type Params = crate::routes::WslParams;
-    type Installs = WslFeature;
     type Message = WslMsg;
 
-    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        ctx.install(&ctx.require_or_default::<WslDeps>())
+    fn install(ctx: &Install, deps: Option<WslDeps>) -> anyhow::Result<Self> {
+        ctx.install::<WslFeature>(&deps.unwrap_or_default())?;
+        Ok(Self::default())
     }
 
     fn update(&mut self, message: WslMsg, _cx: &mut UpdateCx<'_, Self>) {
@@ -44,7 +41,6 @@ mod tests {
     use app_contracts::features::agents::{LinuxMachineStats, RemoteScan, RemoteScanResult};
     use domain::features::wsl::DistroScan;
     use guinea::app::Harness;
-    use guinea_plugin_store::StorePlugin;
 
     use super::*;
 
@@ -64,7 +60,7 @@ mod tests {
 
     fn scans_in_ten_seconds(h: &mut Harness, scan: fn(Duration) -> DistroScan) -> u32 {
         SCANS.set(0);
-        h.plugin(StorePlugin::in_memory()).unwrap();
+        crate::test_support::install(h);
         h.install::<WslFeature>(&WslDeps { scan }).unwrap();
         h.advance(Duration::from_secs(10));
         SCANS.get()
@@ -98,7 +94,7 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn the_machine_cpu_is_measured_over_the_time_between_the_agents_samples(h: &mut Harness) {
-        h.plugin(StorePlugin::in_memory()).unwrap();
+        crate::test_support::install(h);
         h.install::<WslFeature>(&WslDeps { scan: answering }).unwrap();
         let second = Duration::from_secs(1).as_nanos() as u64;
 

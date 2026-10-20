@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use app_contracts::features::agent_link::{AgentLinkMsg, AgentLinkState, InProcess, StartInProcess};
 use app_contracts::features::agents::{
-    AgentConnectionState, RunWindowsAgentInProcess, WindowsAgentInProcess, WindowsAgentRuntimeEvent,
+    AgentConnectionState, AgentStateRequest, RunWindowsAgentInProcess, WindowsAgentInProcess, WindowsAgentRuntimeEvent,
 };
 use guinea::prelude::*;
 
@@ -63,18 +63,24 @@ impl AgentLinkActor {
 actor! {
     AgentLinkActor {
         handlers {
-            WindowsAgentRuntimeEvent,
-            WindowsAgentInProcess,
-            StartInProcess,
+            StartInProcess => { task Relaunched }
             Relaunched,
-            OfferInProcessLater,
+            OfferInProcessLater => { task InProcessOfferDue }
             InProcessOfferDue,
+            AgentStateRequest,
         }
+        subscribes { WindowsAgentRuntimeEvent, WindowsAgentInProcess }
+        publishes { RunWindowsAgentInProcess, AgentStateRequest }
     }
 }
 
 #[handler]
-fn on_windows_agent(this: &mut AgentLinkActor, WindowsAgentRuntimeEvent { state, .. }: WindowsAgentRuntimeEvent) {
+fn request_state(In(_, _, cx): In<AgentLinkActor, AgentStateRequest>) {
+    cx.publish(AgentStateRequest);
+}
+
+#[handler]
+fn on_windows_agent(In(this, WindowsAgentRuntimeEvent { state, .. }, _): In<AgentLinkActor, WindowsAgentRuntimeEvent>) {
     if this.last == Some(state) {
         return;
     }
@@ -83,7 +89,7 @@ fn on_windows_agent(this: &mut AgentLinkActor, WindowsAgentRuntimeEvent { state,
 }
 
 #[handler]
-fn on_in_process(this: &mut AgentLinkActor, started: WindowsAgentInProcess) {
+fn on_in_process(In(this, started, _): In<AgentLinkActor, WindowsAgentInProcess>) {
     this.set(match started {
         WindowsAgentInProcess::Running => InProcess::Running,
         WindowsAgentInProcess::NotElevated => InProcess::NotElevated,
@@ -92,22 +98,22 @@ fn on_in_process(this: &mut AgentLinkActor, started: WindowsAgentInProcess) {
 }
 
 #[handler]
-fn start_in_process(this: &mut AgentLinkActor, _msg: StartInProcess, cx: Cx) {
+fn start_in_process(In(this, _, cx): In<AgentLinkActor, StartInProcess>) {
     if matches!(this.in_process, InProcess::Starting | InProcess::Elevating | InProcess::Running) {
         return;
     }
     if !this.elevated {
         this.set(InProcess::Elevating);
         let relaunch = this.elevation.relaunch;
-        cx.spawn_bg(async move { Relaunched(relaunch().await) });
+        cx.task().spawn(async move { Relaunched(relaunch().await) });
         return;
     }
     this.set(InProcess::Starting);
-    GlobalEventBus::publish(RunWindowsAgentInProcess);
+    cx.publish(RunWindowsAgentInProcess);
 }
 
 #[handler]
-fn on_relaunched(this: &mut AgentLinkActor, Relaunched(relaunched): Relaunched) {
+fn on_relaunched(In(this, Relaunched(relaunched), _): In<AgentLinkActor, Relaunched>) {
     match relaunched {
         Ok(()) => {
             tracing::info!("uniproc restarts as administrator to monitor in process");
@@ -122,14 +128,14 @@ fn on_relaunched(this: &mut AgentLinkActor, Relaunched(relaunched): Relaunched) 
 }
 
 #[handler]
-async fn offer_in_process_later(ctx: AsyncContext<AgentLinkActor>, _msg: OfferInProcessLater) {
-    let waited = ctx.until_gone(tokio::time::sleep(Offer::InProcessAfter)).await;
-    if waited.is_some() {
-        ctx.send(InProcessOfferDue);
-    }
+fn offer_in_process_later(In(_, _, cx): In<AgentLinkActor, OfferInProcessLater>) {
+    cx.task().spawn(async {
+        tokio::time::sleep(Offer::InProcessAfter).await;
+        InProcessOfferDue
+    });
 }
 
 #[handler]
-fn in_process_offer_due(this: &AgentLinkActor, _msg: InProcessOfferDue) {
+fn in_process_offer_due(In(this, _, _): In<AgentLinkActor, InProcessOfferDue>) {
     this.push.send(AgentLinkMsg::OfferInProcess);
 }

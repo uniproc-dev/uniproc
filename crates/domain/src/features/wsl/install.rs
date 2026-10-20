@@ -1,7 +1,7 @@
-use app_contracts::features::agents::RemoteScanResult;
 use app_contracts::features::wsl::WslState;
 use guinea::prelude::*;
 use guinea_plugin_store::StoreAccess;
+use amethystate::Store;
 use std::time::Duration;
 
 use super::actor::{RefreshDistros, WslActor};
@@ -30,19 +30,17 @@ feature! {
 }
 
 #[installs]
-fn wsl(cx: &FeatureInitContext, deps: &WslDeps) -> anyhow::Result<WslFeature> {
-    let settings = cx.settings::<AgentSettings>();
+fn wsl(cx: &Install<WslDeps>, store: Store) -> anyhow::Result<WslFeature> {
+    let settings = store.try_settings::<AgentSettings>()?;
     let configured = settings.wsl_distro();
-    let scan = deps.scan;
+    let scan = cx.params().scan;
 
     let (wsl, addr) = cx
         .state::<WslState>()
         .driven_by(move |push| WslActor::new(push, configured, scan));
 
-    cx.every(DISTRO_SCAN_INTERVAL, &addr, || RefreshDistros)
+    cx.every(DISTRO_SCAN_INTERVAL, || RefreshDistros, addr.clone())
         .named("wsl-distro-scan");
-
-    addr.subscribe_on::<RemoteScanResult>(Bus::Global);
 
     addr.send(RefreshDistros);
 

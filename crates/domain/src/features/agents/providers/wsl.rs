@@ -8,7 +8,7 @@ use crate::features::settings::settings::GeneralSettings;
 use amethystate::Field;
 use anyhow::{anyhow, bail};
 use app_contracts::features::agents::{
-    AgentConnectionState, AgentStateRequest, LinuxReport, RemoteScan, RemoteScanResult, WslAgentRuntimeEvent,
+    AgentConnectionState, LinuxReport, RemoteScan, RemoteScanResult, WslAgentRuntimeEvent,
 };
 use futures::StreamExt;
 use futures::channel::{mpsc, oneshot};
@@ -390,10 +390,10 @@ impl AgentBackend for WslBackend {
         }
     }
 
-    #[instrument(skip(client), level = "debug", fields(target = "wsl"), err)]
-    async fn perform_scan(client: &Self::Client) -> anyhow::Result<()> {
+    #[instrument(skip(client, cx), level = "debug", fields(target = "wsl"), err)]
+    async fn perform_scan(client: &Self::Client, cx: &AsyncContext<GenericAgentActor<Self>>) -> anyhow::Result<()> {
         let report = client.report().await?;
-        GlobalEventBus::publish(RemoteScanResult::Scan(RemoteScan {
+        cx.publish(RemoteScanResult::Scan(RemoteScan {
             schema_id: SCHEMA_ID,
             processes: report.processes,
             machine: report.machine,
@@ -412,9 +412,9 @@ impl AgentBackend for WslBackend {
     }
 }
 
-pub fn wsl_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
-    let settings = app.settings::<AgentSettings>();
-    let general = app.settings::<GeneralSettings>();
+pub fn wsl_agent_feature(app: &mut FeatureBuilder, store: &amethystate::Store) -> anyhow::Result<()> {
+    let settings = store.try_settings::<AgentSettings>()?;
+    let general = store.try_settings::<GeneralSettings>()?;
     let (distro, agent_path) = (settings.wsl_distro(), settings.wsl_agent_path());
     set_launch_config(move || (distro.get(), agent_path.get()));
 
@@ -423,9 +423,8 @@ pub fn wsl_agent_feature(app: &mut FeatureBuilder) -> anyhow::Result<()> {
         general.update_interval_ms(),
     ));
 
-    app.every(settings.ping_period(), &addr, || Ping).named("wsl-agent-ping");
+    app.every(settings.ping_period(), || Ping, addr.clone()).named("wsl-agent-ping");
 
-    addr.subscribe_on::<AgentStateRequest>(Bus::Global);
     addr.send(Init);
 
     Ok(())

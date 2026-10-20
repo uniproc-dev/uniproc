@@ -10,6 +10,8 @@ mod routes;
 mod test_agent;
 #[cfg(test)]
 mod test_system;
+#[cfg(test)]
+mod test_support;
 mod tracing_init;
 mod window_press;
 mod xaml_resources;
@@ -18,8 +20,7 @@ mod meta {
     guinea::meta::manifest!();
 }
 
-use guinea::app::GuineaApp;
-use guinea::winui::{Window, run};
+use guinea::winui::run;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -34,9 +35,5 @@ fn main() -> anyhow::Result<()> {
     tracing_init::init()?;
     domain::features::agent_link::wait_for_the_copy_it_replaces();
 
-    run(
-        GuineaApp::new().meta(guinea::app_meta!()).application::<app::App>(),
-        Window::new().title(meta::WINDOW_TITLE),
-        route_memory::restore,
-    )
+    run(app::app)
 }

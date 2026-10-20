@@ -1,5 +1,4 @@
 use app_contracts::features::system::SystemState;
-use guinea::feature::FeatureInitContext;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::theme::{scheme_context, Palette};
 use windows_reactor::{Callback, View};
@@ -11,13 +10,7 @@ pub struct System;
 
 #[page]
 impl Page for System {
-    type Params = crate::routes::SystemParams;
-    type Installs = ();
     type Message = ();
-
-    fn install(_ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        Ok(())
-    }
 
     fn update(&mut self, _message: (), _cx: &mut UpdateCx<'_, Self>) {}
 
@@ -26,7 +19,7 @@ impl Page for System {
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let nav = cx.navigate::<Route>();
-        let open_tools = Callback::new(move |()| nav.to(Route::SystemTools {}));
+        let open_tools = Callback::new(move |()| { let _ = nav.to(Route::SystemTools {}); });
         ui::pages::system::system_view(&state, &dispatch, &l10n, palette, open_tools)
     }
 }
@@ -43,7 +36,7 @@ mod tests {
 
     fn mount(h: &Harness) -> Mounted<'_, System> {
         let mut page =
-            Mounted::mount_at(h.child(), crate::routes::SystemParams::default(), Route::System {}).unwrap();
+            Mounted::mount_at(h.child(), (), Route::System {}).unwrap();
         page.settle();
         page
     }
@@ -75,7 +68,7 @@ mod tests {
 
         page.click(SystemMark::Tools).settle();
 
-        assert_eq!(page.navigated::<Route>(), [Route::SystemTools {}]);
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::SystemTools {}));
     }
 
     #[guinea::test(iterations = 4, exclusive = "system")]

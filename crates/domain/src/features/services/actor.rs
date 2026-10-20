@@ -58,16 +58,16 @@ actor! {
             Sort,
             Select,
             Deselect,
-            Command,
-            WindowsReportMessage,
+            Command => { task Acted }
             Acted,
             DismissFailure,
         }
+        subscribes { WindowsReportMessage }
     }
 }
 
 #[handler]
-fn sort(this: &mut ServicesActor, Sort(column): Sort) {
+fn sort(In(this, Sort(column), _): In<ServicesActor, Sort>) {
     if this.sort_column == column {
         this.descending = !this.descending;
     } else {
@@ -83,19 +83,19 @@ fn sort(this: &mut ServicesActor, Sort(column): Sort) {
 }
 
 #[handler]
-fn select(this: &mut ServicesActor, Select(name): Select) {
+fn select(In(this, Select(name), _): In<ServicesActor, Select>) {
     this.selected = Some(name.clone());
     this.push.send(ServicesMsg::SetSelected(Some(name)));
 }
 
 #[handler]
-fn deselect(this: &mut ServicesActor, _msg: Deselect) {
+fn deselect(In(this, _msg, _): In<ServicesActor, Deselect>) {
     this.selected = None;
     this.push.send(ServicesMsg::SetSelected(None));
 }
 
 #[handler]
-fn command(this: &mut ServicesActor, Command(kind): Command, cx: Cx) {
+fn command(In(this, Command(kind), cx): In<ServicesActor, Command>) {
     let Some(name) = this.selected.clone() else {
         return;
     };
@@ -115,14 +115,15 @@ fn command(this: &mut ServicesActor, Command(kind): Command, cx: Cx) {
         ServiceActionKind::Resume => WindowsAction::ServiceResume { name },
         ServiceActionKind::Restart => WindowsAction::ServiceRestart { name },
     };
-    cx.spawn_bg(async move {
-        let outcome = actions::request(action.clone()).await;
+    let remote = cx.async_ctx();
+    cx.task().spawn(async move {
+        let outcome = actions::request(remote, action.clone()).await;
         Acted { action, target, outcome }
     });
 }
 
 #[handler]
-fn on_windows_report(this: &mut ServicesActor, msg: WindowsReportMessage) {
+fn on_windows_report(In(this, msg, _): In<ServicesActor, WindowsReportMessage>) {
     let WindowsReportMessage::Report(report) = msg else {
         return;
     };
@@ -141,7 +142,7 @@ fn on_windows_report(this: &mut ServicesActor, msg: WindowsReportMessage) {
 }
 
 #[handler]
-fn on_acted(this: &mut ServicesActor, Acted { action, target, outcome }: Acted) {
+fn on_acted(In(this, Acted { action, target, outcome }, _): In<ServicesActor, Acted>) {
     if outcome == ActionOutcome::Done {
         return;
     }
@@ -150,7 +151,7 @@ fn on_acted(this: &mut ServicesActor, Acted { action, target, outcome }: Acted) 
 }
 
 #[handler]
-fn dismiss_failure(this: &mut ServicesActor, _msg: DismissFailure) {
+fn dismiss_failure(In(this, _msg, _): In<ServicesActor, DismissFailure>) {
     this.push.send(ServicesMsg::SetFailure(None));
 }
 

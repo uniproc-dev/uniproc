@@ -1,21 +1,27 @@
 use domain::features::system::{SystemDeps, SystemFeature};
-use guinea::feature::FeatureInitContext;
+use guinea::feature::Install;
 use guinea::winui::{layout, Layout, LayoutCx};
 use windows_reactor::View;
+
+use crate::routes::Route;
+use crate::pages::{System, SystemTools};
 
 #[derive(Default)]
 pub struct SystemArea;
 
 #[layout]
 impl Layout for SystemArea {
-    type Params = crate::routes::SystemAreaParams;
-    type Installs = SystemFeature;
-
-    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        ctx.install(&ctx.require_or_default::<SystemDeps>())
+    fn install(cx: &Install, deps: Option<SystemDeps>) -> anyhow::Result<Self> {
+        cx.install::<SystemFeature>(&deps.unwrap_or_default())?;
+        Ok(Self)
     }
 
     fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
-        cx.outlet()
+        let navigate = cx.navigate::<Route>();
+        cx.outlet(&navigate, |route, cx| match route {
+            Route::System {} => cx.mount::<System>(&()),
+            Route::SystemTools {} => cx.mount::<SystemTools>(&()),
+            _ => unreachable!("route outside SystemArea"),
+        }).into()
     }
 }

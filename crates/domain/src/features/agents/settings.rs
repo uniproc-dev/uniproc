@@ -4,7 +4,7 @@ use std::time::Duration;
 use amethystate::amethystate;
 use amethystate::store::RuleContext;
 use amethystate_guinea::IntoChanging;
-use guinea::timers::Period;
+use guinea::sources::Period;
 
 #[amethystate(prefix = "agents")]
 pub struct AgentSettings {

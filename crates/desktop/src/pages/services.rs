@@ -1,6 +1,6 @@
 use app_contracts::features::services::ServicesState;
 use domain::features::services::ServicesFeature;
-use guinea::feature::FeatureInitContext;
+use guinea::feature::Install;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::pages::services::{ServicesMsg, ServicesPage};
 use ui::theme::{scheme_context, Palette};
@@ -11,14 +11,11 @@ pub struct Services(ServicesPage);
 
 #[page]
 impl Page for Services {
-    const CACHE_STATE_IN_MEMORY: bool = true;
-
-    type Params = crate::routes::ServicesParams;
-    type Installs = ServicesFeature;
     type Message = ServicesMsg;
 
-    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        ctx.install(&())
+    fn install(ctx: &Install) -> anyhow::Result<Self> {
+        ctx.install::<ServicesFeature>(&())?;
+        Ok(Self::default())
     }
 
     fn update(&mut self, message: ServicesMsg, _cx: &mut UpdateCx<'_, Self>) {
@@ -46,10 +43,7 @@ mod tests {
     use app_contracts::features::services::{Command, Select, ServiceActionKind};
     use domain::features::agents::providers::windows::{SERVICE_DISPLAY_NAME, SERVICE_NAME};
     use guinea::app::Harness;
-    use guinea::prelude::GlobalEventBus;
     use guinea::winui::harness::{Mounted, PropertyId, PropertyValue};
-    use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::StorePlugin;
     use ui::pages::services::ServicesMark;
     use ui::widgets::action_failure::ActionFailureMark;
 
@@ -63,13 +57,10 @@ mod tests {
 
     #[guinea::test(iterations = 8)]
     fn a_service_that_will_not_stop_says_why(h: &mut Harness) {
-        h.plugin(StorePlugin::in_memory())
-            .unwrap()
-            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
-            .unwrap();
+        crate::test_support::install(h);
         let h = &*h;
         let mut page =
-            Mounted::mount_at(h.child(), crate::routes::ServicesParams::default(), Route::Services {}).unwrap();
+            Mounted::mount_at(h.child(), (), Route::Services {}).unwrap();
         let report = WindowsReport {
             services: vec![WindowsServiceStats {
                 name: "Audiosrv".into(),
@@ -80,7 +71,7 @@ mod tests {
             ..Default::default()
         };
         h.publish(WindowsReportMessage::Report(Arc::new(report))).settle();
-        let _service = GlobalEventBus::answer_fn(|_: WindowsActionRequest| ActionOutcome::Busy);
+        let _service = h.bus().answer_fn(|_: WindowsActionRequest| ActionOutcome::Busy);
 
         page.settle();
         page.segment().act::<ServicesState>(Select("Audiosrv".into())).settle();
@@ -101,13 +92,10 @@ mod tests {
 
     #[guinea::test(iterations = 8)]
     fn uniproc_does_not_stop_its_own_service(h: &mut Harness) {
-        h.plugin(StorePlugin::in_memory())
-            .unwrap()
-            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
-            .unwrap();
+        crate::test_support::install(h);
         let h = &*h;
         let mut page: Mounted<'_, Services> =
-            Mounted::mount_at(h.child(), crate::routes::ServicesParams::default(), Route::Services {}).unwrap();
+            Mounted::mount_at(h.child(), (), Route::Services {}).unwrap();
         let report = WindowsReport {
             services: vec![WindowsServiceStats {
                 name: SERVICE_NAME.into(),
@@ -120,7 +108,7 @@ mod tests {
         h.publish(WindowsReportMessage::Report(Arc::new(report))).settle();
         let asked = Arc::new(AtomicU32::new(0));
         let counted = asked.clone();
-        let _service = GlobalEventBus::answer_fn(move |_: WindowsActionRequest| {
+        let _service = h.bus().answer_fn(move |_: WindowsActionRequest| {
             counted.fetch_add(1, Ordering::SeqCst);
             ActionOutcome::Done
         });

@@ -73,7 +73,7 @@ impl MetricsActor {
 
 actor! {
     MetricsActor {
-        handlers {
+        subscribes {
             WindowsReportMessage,
             WindowsMachineSample,
         }
@@ -81,7 +81,7 @@ actor! {
 }
 
 #[handler]
-fn on_windows_report(this: &mut MetricsActor, msg: WindowsReportMessage) {
+fn on_windows_report(In(this, msg, _): In<MetricsActor, WindowsReportMessage>) {
     let report = match msg {
         WindowsReportMessage::Report(report) => report,
         WindowsReportMessage::Unavailable(_) => {
@@ -115,7 +115,7 @@ fn on_windows_report(this: &mut MetricsActor, msg: WindowsReportMessage) {
 }
 
 #[handler]
-fn on_machine_sample(this: &mut MetricsActor, sample: WindowsMachineSample) {
+fn on_machine_sample(In(this, sample, _): In<MetricsActor, WindowsMachineSample>) {
     let machine = &sample.machine;
     let totals = Totals {
         clock_100ns: sample.clock_100ns,

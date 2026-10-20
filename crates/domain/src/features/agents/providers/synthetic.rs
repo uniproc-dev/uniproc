@@ -22,9 +22,8 @@ pub fn requested() -> Option<usize> {
     Some(value.parse().unwrap_or(DEFAULT_PROCESSES))
 }
 
-pub fn install(app: &mut FeatureBuilder, processes: usize) -> anyhow::Result<()> {
-    let interval = app.settings::<GeneralSettings>().update_interval();
-    let executables = executables();
+pub fn install(app: &mut FeatureBuilder, processes: usize, store: &amethystate::Store) -> anyhow::Result<()> {
+    let interval = store.try_settings::<GeneralSettings>()?.update_interval();
     let unique = std::env::var_os(UNIQUE_VARIABLE).is_some();
     let jitter: usize = std::env::var(JITTER_VARIABLE)
         .ok()
@@ -32,24 +31,49 @@ pub fn install(app: &mut FeatureBuilder, processes: usize) -> anyhow::Result<()>
         .unwrap_or(0);
     tracing::warn!(processes, unique, jitter, ?interval, "synthetic windows agent: reports are generated");
 
-    let mut tick = 0u64;
-    app.repeat(interval, move || {
-        tick += 1;
-        let count = if tick % 2 == 0 {
-            processes
-        } else {
-            processes.saturating_sub(jitter)
-        };
-        let report = report(&executables, count, unique, tick);
-        GlobalEventBus::publish(WindowsAgentRuntimeEvent {
-            state: AgentConnectionState::Connected,
-            latency_ms: None,
-        });
-        GlobalEventBus::publish(WindowsReportMessage::Report(Arc::new(report)));
-    })
-    .named("synthetic-windows-agent");
-
+    let actor = app.spawn(SyntheticActor {
+        processes,
+        unique,
+        jitter,
+        executables: executables(),
+        tick: 0,
+    });
+    app.every(interval, || Tick, actor.clone()).named("synthetic-windows-agent");
     Ok(())
+}
+
+struct Tick;
+
+#[derive(Debug)]
+struct SyntheticActor {
+    processes: usize,
+    unique: bool,
+    jitter: usize,
+    executables: Vec<Arc<str>>,
+    tick: u64,
+}
+
+actor! {
+    SyntheticActor {
+        handlers { Tick }
+        publishes { WindowsAgentRuntimeEvent, WindowsReportMessage }
+    }
+}
+
+#[handler]
+fn tick(In(this, _, cx): In<SyntheticActor, Tick>) {
+    this.tick += 1;
+    let count = if this.tick % 2 == 0 {
+        this.processes
+    } else {
+        this.processes.saturating_sub(this.jitter)
+    };
+    let report = report(&this.executables, count, this.unique, this.tick);
+    cx.publish(WindowsAgentRuntimeEvent {
+        state: AgentConnectionState::Connected,
+        latency_ms: None,
+    });
+    cx.publish(WindowsReportMessage::Report(Arc::new(report)));
 }
 
 fn executables() -> Vec<Arc<str>> {

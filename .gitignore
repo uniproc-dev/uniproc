@@ -2,6 +2,7 @@
 /.zig-cache
 /.vscode
 /profile.json.gz
+/*.out
 /.idea
 /dhat-heap1.json
 /dhat-heap.json

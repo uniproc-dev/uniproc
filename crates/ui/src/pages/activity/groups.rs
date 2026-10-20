@@ -205,7 +205,7 @@ fn edit(group: &Group, place: Place, dispatch: &Dispatch, l10n: &L10n, palette: 
         let (renamed, id) = (dispatch.clone(), group.id.clone());
         parts.push(keyed(
             "name",
-            TextBox::new(&group.name)
+            TextBox::new().text(&group.name)
                 .mark(ActivityGroupsMark::Name)
                 .width(Layout::NameWidth)
                 .placeholder_text(l10n.activity_groups_name())
@@ -324,7 +324,7 @@ impl ActivityGroupsPage {
             .orientation(Orientation::Horizontal)
             .spacing(space::Control)
             .children((
-                TextBox::new(&self.naming)
+                TextBox::new().text(&self.naming)
                     .mark(ActivityGroupsMark::NewName)
                     .width(Layout::NameWidth)
                     .placeholder_text(l10n.activity_groups_new_name())

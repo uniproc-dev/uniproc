@@ -4,9 +4,8 @@ use std::sync::Mutex;
 use domain::features::system::tools::Launch;
 use domain::features::system::{SystemDeps, SystemFeature};
 use guinea::app::Harness;
-use guinea_plugin_l10n::L10nPlugin;
 use domain::features::system::settings::SystemSettings;
-use guinea_plugin_store::{StoreAccess, StorePlugin};
+use guinea_plugin_store::StoreAccess;
 
 static LAUNCHED: Mutex<Vec<Launch>> = Mutex::new(Vec::new());
 
@@ -37,14 +36,11 @@ pub fn deps() -> SystemDeps {
 }
 
 pub fn stored(h: &Harness) -> SystemSettings {
-    h.segment().settings::<SystemSettings>()
+    crate::test_support::store(h).settings::<SystemSettings>()
 }
 
 pub fn start(h: &mut Harness) {
     LAUNCHED.lock().unwrap().clear();
-    h.plugin(StorePlugin::in_memory())
-        .unwrap()
-        .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
-        .unwrap();
+    crate::test_support::install(h);
     h.install::<SystemFeature>(&deps()).unwrap();
 }

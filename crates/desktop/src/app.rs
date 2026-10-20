@@ -1,50 +1,67 @@
+use amethystate::Store;
 use app_contracts::l10n::L10n;
 use domain::features::activity::ActivityFeature;
 use domain::features::agents::AgentsFeature;
+use domain::features::processes::ProcessesDeps;
 use guinea::prelude::*;
-use guinea_plugin_l10n::L10nPlugin;
-use guinea_plugin_single_instance::SingleInstancePlugin;
+use guinea::winui::Window;
+use guinea_plugin_l10n::{L10nConfig, L10nPlugin};
+use guinea_plugin_single_instance::{SingleInstanceConfig, SingleInstancePlugin};
 use guinea_plugin_store::amethystate::store::OnUnreadable;
-use guinea_plugin_store::StorePlugin;
+use guinea_plugin_store::{StoreConfig, StorePlugin};
 
+use crate::layouts::MainWindow;
 use crate::meta;
 
-app! {
-    pub App {
-        installs { L10nPlugin<L10n>, ActivityFeature }
-    }
-}
-
-#[installs]
-fn app(app: &mut FeatureBuilder) -> anyhow::Result<App> {
-    app.plugin(SingleInstancePlugin::new())?;
-    app.plugin(settings_store(StorePlugin::for_app(meta::APP_NAME, "settings")))?;
-    let l10n = app.plugin(L10nPlugin::<L10n>::new("en"))?;
+pub fn app(app: &mut FeatureBuilder) -> anyhow::Result<Window> {
+    app.provide(ProcessesDeps::default());
+    app.plugin::<SingleInstancePlugin>(SingleInstanceConfig::new(&guinea::app_meta!()))?;
+    let store = install_store(app, settings_store(StoreConfig::for_app(meta::APP_NAME, "settings")))?;
+    app.plugin::<L10nPlugin<L10n>>(L10nConfig::new("en").remembered_in(store.clone()))?;
 
     #[cfg(debug_assertions)]
     if std::env::var_os("UNIPROC_NO_DEVTOOLS").is_none() {
-        app.plugin(guinea_plugin_devtools::DevToolsPlugin::new().launch(true))?;
+        app.plugin::<guinea_plugin_devtools::DevToolsPlugin>(
+            guinea_plugin_devtools::DevToolsConfig::new().for_app(guinea::app_meta!()).launch(true),
+        )?;
     }
 
-    app.feature(AgentsFeature)?;
-    Ok(App(l10n, app.feature(ActivityFeature)?))
+    app.install::<AgentsFeature>()?;
+    app.install::<ActivityFeature>()?;
+    Ok(window(&store))
+}
+
+fn install_store(app: &mut FeatureBuilder, config: StoreConfig) -> anyhow::Result<Store> {
+    let StorePlugin(store, persistence) = app.plugin::<StorePlugin>(config)?;
+    app.provide(store.clone());
+    if let Some(persistence) = persistence {
+        app.provide(persistence);
+    }
+    Ok(store)
+}
+
+fn window(store: &Store) -> Window {
+    Window::of::<MainWindow>()
+        .title(meta::WINDOW_TITLE)
+        .at(crate::route_memory::restore(store))
 }
 
 #[cfg(test)]
-pub fn with_fakes(app: &mut FeatureBuilder) -> anyhow::Result<App> {
-    app.plugin(StorePlugin::in_memory())?;
-    let l10n = app.plugin(L10nPlugin::<L10n>::new("en"))?;
-    app.feature(crate::test_agent::FakeAgentFeature)?;
-    Ok(App(l10n, app.feature(ActivityFeature)?))
+pub fn with_fakes(app: &mut FeatureBuilder) -> anyhow::Result<Window> {
+    let store = install_store(app, StoreConfig::in_memory())?;
+    app.plugin::<L10nPlugin<L10n>>(L10nConfig::new("en").remembered_in(store.clone()))?;
+    app.install::<crate::test_agent::FakeAgentFeature>()?;
+    app.install::<ActivityFeature>()?;
+    Ok(window(&store))
 }
 
-fn settings_store(plugin: StorePlugin) -> StorePlugin {
-    let plugin = plugin
+fn settings_store(config: StoreConfig) -> StoreConfig {
+    let config = config
         .or_in_memory()
         .configure(|store| store.rules(|rules| rules.on_unreadable(OnUnreadable::UseDefault)));
     #[cfg(debug_assertions)]
-    let plugin = plugin.configure(|store| store.rules(|rules| rules.on_undeclared(guinea_plugin_store::amethystate::store::OnUndeclared::Drop)));
-    plugin
+    let config = config.configure(|store| store.rules(|rules| rules.on_undeclared(guinea_plugin_store::amethystate::store::OnUndeclared::Drop)));
+    config
 }
 
 #[cfg(test)]
@@ -52,7 +69,7 @@ mod tests {
     use domain::features::agents::settings::AgentSettings;
     use guinea::app::Harness;
     use guinea_plugin_store::amethystate::store::builder::StoreBuilder;
-    use guinea_plugin_store::{Persistence, StoreAccess, StorePlugin};
+    use guinea_plugin_store::{Persistence, StoreAccess, StoreConfig};
 
     use super::settings_store;
 
@@ -66,12 +83,9 @@ mod tests {
         earlier.close().unwrap();
         drop(earlier);
 
-        h.plugin(settings_store(StorePlugin::at(&at))).unwrap();
+        let store = h.app(|app| super::install_store(app, settings_store(StoreConfig::at(&at)))).unwrap();
 
-        let kept: Vec<String> = h
-            .segment()
-            .store()
-            .unwrap()
+        let kept: Vec<String> = store
             .scan_keys(["agents"])
             .unwrap()
             .iter()
@@ -90,9 +104,9 @@ mod tests {
         earlier.close().unwrap();
         drop(earlier);
 
-        h.plugin(settings_store(StorePlugin::at(&at))).unwrap();
+        h.app(|app| super::install_store(app, settings_store(StoreConfig::at(&at)))).unwrap();
 
-        let opened = h.segment().try_settings::<AgentSettings>().map(|settings| settings.ping_interval_ms().get());
+        let opened = crate::test_support::store(h).try_settings::<AgentSettings>().map(|settings| settings.ping_interval_ms().get());
         assert!(matches!(opened, Ok(2000)), "{opened:?}");
     }
 
@@ -102,11 +116,11 @@ mod tests {
         let at = dir.path().join("settings");
         std::fs::write(at.with_extension("redb"), "{ this never finished").unwrap();
 
-        let installed = h.plugin(settings_store(StorePlugin::at(&at))).map(|_| ());
+        let installed = h.app(|app| super::install_store(app, settings_store(StoreConfig::at(&at)))).map(|_| ());
 
         assert!(installed.is_ok(), "{installed:?}");
-        let in_memory = h.segment().try_require::<Persistence>().map(|persistence| persistence.is_in_memory());
+        let in_memory = h.application_scope().service::<std::sync::Arc<Persistence>>().map(|persistence| persistence.is_in_memory());
         assert_eq!(in_memory, Some(true));
-        assert_eq!(h.segment().settings::<AgentSettings>().ping_interval_ms().get(), 2000);
+        assert_eq!(crate::test_support::store(h).settings::<AgentSettings>().ping_interval_ms().get(), 2000);
     }
 }

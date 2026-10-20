@@ -2,7 +2,7 @@ use app_contracts::features::agent_link::{AgentLinkState, StartInProcess};
 use app_contracts::features::agents::AgentConnectionState;
 use domain::features::agent_link::{AgentLinkDeps, AgentLinkFeature};
 use domain::features::agents::providers::windows::SERVICE_DISPLAY_NAME;
-use guinea::feature::FeatureInitContext;
+use guinea::feature::Install;
 use guinea::winui::{page, Page, PageCx};
 use ui::theme::{scheme_context, Palette};
 use ui::widgets::nothing;
@@ -21,10 +21,9 @@ fn trouble(windows: AgentConnectionState) -> Option<ui::ServiceTrouble<'static>>
 
 #[page]
 impl Page for Connecting {
-    type Installs = AgentLinkFeature;
-
-    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        ctx.install(&ctx.require_or_default::<AgentLinkDeps>())
+    fn install(ctx: &Install, deps: Option<AgentLinkDeps>) -> anyhow::Result<Self> {
+        ctx.install::<AgentLinkFeature>(&deps.unwrap_or_default())?;
+        Ok(Self::default())
     }
 
     fn view(&self, cx: &mut PageCx<'_, '_, Self>) -> View {

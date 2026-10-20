@@ -36,12 +36,12 @@ pub fn init() -> anyhow::Result<()> {
 
     let file = log_path()
         .and_then(|path| File::create(path).ok())
-        .map(|file| guinea::core::trace::json(Mutex::new(file)).with_filter(own(LevelFilter::WARN)));
+        .map(|file| guinea::observability::trace::json(Mutex::new(file)).with_filter(own(LevelFilter::WARN)));
 
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer().with_writer(io::stderr).with_filter(own(LevelFilter::OFF)))
         .with(file)
-        .with(guinea::core::observability::layer().with_filter(observed))
+        .with(guinea::observability::layer().with_filter(observed))
         .try_init()?;
     Ok(())
 }

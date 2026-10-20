@@ -1,7 +1,7 @@
 use amethystate::amethystate;
 use app_contracts::features::settings::StartPage;
 use domain::features::settings::settings::GeneralSettings;
-use guinea::feature::{FeatureInitContext, ScopeContext};
+use amethystate::Store;
 use guinea_plugin_store::StoreAccess;
 
 use crate::routes::Route;
@@ -12,8 +12,8 @@ pub struct RouteSettings {
     last_route: String,
 }
 
-pub fn open(ctx: &FeatureInitContext) -> RouteSettings {
-    ctx.settings::<RouteSettings>()
+pub fn open(store: &Store) -> RouteSettings {
+    store.settings::<RouteSettings>()
 }
 
 pub fn remember(settings: &RouteSettings, route: &Route) {
@@ -33,9 +33,9 @@ pub fn remember(settings: &RouteSettings, route: &Route) {
     settings.last_route().set(saved);
 }
 
-pub fn restore(cx: &ScopeContext) -> Route {
-    let page = cx.settings::<GeneralSettings>().start_page_choice();
-    route_for(page, || Route::restore(&cx.settings::<RouteSettings>().last_route().get()))
+pub fn restore(store: &Store) -> Route {
+    let page = store.settings::<GeneralSettings>().start_page_choice();
+    route_for(page, || Route::restore(&store.settings::<RouteSettings>().last_route().get()))
 }
 
 fn route_for(page: StartPage, last: impl FnOnce() -> Option<Route>) -> Route {

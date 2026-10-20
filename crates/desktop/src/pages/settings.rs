@@ -1,5 +1,4 @@
 use app_contracts::features::settings::SettingsState;
-use guinea::feature::FeatureInitContext;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::theme::{scheme_context, Palette};
 use windows_reactor::View;
@@ -9,13 +8,7 @@ pub struct Settings;
 
 #[page]
 impl Page for Settings {
-    type Params = crate::routes::SettingsParams;
-    type Installs = ();
     type Message = ();
-
-    fn install(_ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        Ok(())
-    }
 
     fn update(&mut self, _message: (), _cx: &mut UpdateCx<'_, Self>) {}
 
@@ -37,27 +30,23 @@ mod tests {
     use domain::features::settings::SettingsFeature;
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, PropertyId, PropertyValue};
-    use guinea_plugin_l10n::L10nPlugin;
     use guinea_plugin_store::amethystate::store::builder::Backend;
-    use guinea_plugin_store::{StoreAccess, StorePlugin};
+    use guinea_plugin_store::StoreAccess;
     use ui::pages::settings::SettingsMark;
 
     use super::*;
 
     fn stored(h: &Harness) -> GeneralSettings {
-        h.segment().settings::<GeneralSettings>()
+        crate::test_support::store(h).settings::<GeneralSettings>()
     }
 
     fn start(h: &mut Harness) {
-        h.plugin(StorePlugin::in_memory())
-            .unwrap()
-            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
-            .unwrap();
+        crate::test_support::install(h);
     }
 
     fn mount(h: &Harness) -> Mounted<'_, Settings> {
         h.install::<SettingsFeature>(&()).unwrap();
-        let mut page = Mounted::mount(h.child(), crate::routes::SettingsParams::default()).unwrap();
+        let mut page = Mounted::mount(h.child(), ()).unwrap();
         page.settle();
         page
     }
@@ -143,7 +132,13 @@ mod tests {
     fn an_interval_edited_out_of_range_in_the_file_is_read_inside_it(h: &mut Harness) {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("settings.json"), r#"{"general":{"update_interval_ms":0}}"#).unwrap();
-        h.plugin(StorePlugin::at(dir.path().join("settings")).backend(Backend::Json)).unwrap();
+        h.app(|app| {
+            let guinea_plugin_store::StorePlugin(store, _) = app.plugin::<guinea_plugin_store::StorePlugin>(
+                guinea_plugin_store::StoreConfig::at(dir.path().join("settings")).backend(Backend::Json)
+            )?;
+            app.provide(store);
+            Ok(())
+        }).unwrap();
 
         assert_eq!(stored(h).update_interval(), UpdateInterval::Min);
     }

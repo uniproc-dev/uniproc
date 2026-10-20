@@ -254,7 +254,7 @@ impl ActivityPage {
             .margin(Thickness::xy(space::Cell, space::Control))
             .children((
                 Border::new().grid_column(0).vertical_alignment(VerticalAlignment::Center).content(where_),
-                TextBox::new(&state.filter.text)
+                TextBox::new().text(&state.filter.text)
                     .mark(ActivityMark::Search)
                     .grid_column(1)
                     .width(SearchBox::Width)

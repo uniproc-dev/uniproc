@@ -1,5 +1,5 @@
 use app_contracts::features::agent_link::{AgentLinkState, StartInProcess};
-use app_contracts::features::agents::{AgentStateRequest, WindowsAgentInProcess, WindowsAgentRuntimeEvent};
+use app_contracts::features::agents::AgentStateRequest;
 use guinea::prelude::*;
 
 use super::actor::{AgentLinkActor, OfferInProcessLater};
@@ -17,19 +17,17 @@ feature! {
 }
 
 #[installs]
-fn agent_link(cx: &FeatureInitContext, deps: &AgentLinkDeps) -> anyhow::Result<AgentLinkFeature> {
-    let AgentLinkDeps { elevation } = *deps;
+fn agent_link(cx: &Install<AgentLinkDeps>) -> anyhow::Result<AgentLinkFeature> {
+    let AgentLinkDeps { elevation } = *cx.params();
     let (link, addr) = cx
         .state::<AgentLinkState>()
         .driven_by(move |port| AgentLinkActor::new(port, elevation));
-    addr.subscribe_on::<WindowsAgentRuntimeEvent>(Bus::Global);
-    addr.subscribe_on::<WindowsAgentInProcess>(Bus::Global);
     addr.send(OfferInProcessLater);
     if (elevation.asked_at_start)() && (elevation.elevated)() {
         addr.send(StartInProcess);
     }
 
-    GlobalEventBus::publish(AgentStateRequest);
+    addr.send(AgentStateRequest);
 
     Ok(AgentLinkFeature(link))
 }

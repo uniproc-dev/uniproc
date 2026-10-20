@@ -1,4 +1,4 @@
-use guinea::feature::FeatureInitContext;
+use guinea::feature::Install;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::pages::processes::{ProcessesSettingsMsg, ProcessesSettingsPage};
 use ui::theme::{scheme_context, Palette};
@@ -12,16 +12,10 @@ pub struct ProcessesSettings(ProcessesSettingsPage);
 
 #[page]
 impl Page for ProcessesSettings {
-    type Params = crate::routes::ProcessesSettingsParams;
-    type Installs = ();
     type Message = ProcessesSettingsMsg;
 
-    fn install(_ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        Ok(())
-    }
-
-    fn init(ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
-        Self(ProcessesSettingsPage::new(open_settings(ctx)))
+    fn install(_ctx: &Install, store: Option<amethystate::Store>) -> anyhow::Result<Self> {
+        Ok(Self(ProcessesSettingsPage::new(open_settings(store.as_ref()))))
     }
 
     fn update(&mut self, message: ProcessesSettingsMsg, _cx: &mut UpdateCx<'_, Self>) {
@@ -33,7 +27,7 @@ impl Page for ProcessesSettings {
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ProcessesSettingsMsg| message);
         let nav = cx.navigate::<Route>();
-        let back = Callback::new(move |()| nav.to(Route::Processes {}));
+        let back = Callback::new(move |()| { let _ = nav.to(Route::Processes {}); });
         self.0.view(&l10n, palette, forward, back)
     }
 }
@@ -45,26 +39,22 @@ mod tests {
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
     use guinea::Mark;
-    use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::{StoreAccess, StorePlugin};
+    use guinea_plugin_store::StoreAccess;
     use ui::pages::processes::{Group, ProcessesSettingsMark, SectionId};
     use windows_reactor::Thickness;
 
     use super::*;
 
     fn stored(h: &Harness) -> Stored {
-        h.segment().settings::<Stored>()
+        crate::test_support::store(h).settings::<Stored>()
     }
 
     fn start(h: &mut Harness) {
-        h.plugin(StorePlugin::in_memory())
-            .unwrap()
-            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
-            .unwrap();
+        crate::test_support::install(h);
     }
 
     fn mount(h: &Harness) -> Mounted<'_, ProcessesSettings> {
-        let params = crate::routes::ProcessesSettingsParams::default();
+        let params = ();
         let mut page = Mounted::mount_at(h.child(), params, Route::ProcessesSettings {}).unwrap();
         page.settle();
         page
@@ -338,6 +328,6 @@ mod tests {
         page.click(ProcessesSettingsMark::Back).settle();
         page.settle();
 
-        assert_eq!(page.navigated::<Route>(), [Route::Processes {}]);
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::Processes {}));
     }
 }

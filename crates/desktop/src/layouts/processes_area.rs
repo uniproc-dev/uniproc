@@ -1,21 +1,27 @@
 use domain::features::processes::{ProcessesDeps, ProcessesFeature};
-use guinea::feature::FeatureInitContext;
+use guinea::feature::Install;
 use guinea::winui::{layout, Layout, LayoutCx};
 use windows_reactor::View;
+
+use crate::routes::Route;
+use crate::pages::{Processes, ProcessesSettings};
 
 #[derive(Default)]
 pub struct ProcessesArea;
 
 #[layout]
 impl Layout for ProcessesArea {
-    type Params = crate::routes::ProcessesAreaParams;
-    type Installs = ProcessesFeature;
-
-    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        ctx.install(&ctx.require_or_default::<ProcessesDeps>())
+    fn install(cx: &Install, deps: ProcessesDeps) -> anyhow::Result<Self> {
+        cx.install::<ProcessesFeature>(&deps)?;
+        Ok(Self)
     }
 
     fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
-        cx.outlet()
+        let navigate = cx.navigate::<Route>();
+        cx.outlet(&navigate, |route, cx| match route {
+            Route::Processes {} => cx.mount::<Processes>(&()),
+            Route::ProcessesSettings {} => cx.mount::<ProcessesSettings>(&()),
+            _ => unreachable!("route outside ProcessesArea"),
+        }).into()
     }
 }

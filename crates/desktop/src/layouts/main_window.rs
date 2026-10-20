@@ -1,7 +1,7 @@
 use app_contracts::features::settings::{AppTheme, SettingsState};
 use domain::features::settings::SettingsFeature;
-use guinea::feature::FeatureInitContext;
-use guinea::winui::{layout, Layout, LayoutCx, UpdateCx, UseRoute};
+use guinea::feature::Install;
+use guinea::winui::{layout, Layout, LayoutCx, UpdateCx};
 use windows_reactor::{ColorScheme, View, WindowBackdrop, WindowTheme, WindowVisuals};
 
 use crate::route_memory;
@@ -38,23 +38,17 @@ fn icon_theme(scheme: ColorScheme) -> guicons::Theme {
 
 #[layout]
 impl Layout for MainWindow {
-    type Params = crate::routes::MainWindowParams;
-    type Installs = SettingsFeature;
     type Message = ColorScheme;
 
-    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        ctx.install(&())
-    }
-
-    fn init(ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
+    fn install(ctx: &Install, store: amethystate::Store) -> anyhow::Result<Self> {
+        ctx.install::<SettingsFeature>(&())?;
         crate::xaml_resources::override_navigation_view_resources();
-        crate::window_press::install();
         let window = Self {
-            routes: Some(route_memory::open(ctx)),
+            routes: Some(route_memory::open(&store)),
             ..Self::default()
         };
         guicons::set_theme(icon_theme(window.scheme));
-        window
+        Ok(window)
     }
 
     fn update(&mut self, scheme: ColorScheme, _cx: &mut UpdateCx<'_, Self>) {
@@ -63,6 +57,10 @@ impl Layout for MainWindow {
     }
 
     fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
+        let bus = cx.bus();
+        cx.use_effect_guard("uniproc::window_press", (), move || {
+            crate::window_press::install(move || bus.publish(app_contracts::features::window::PressedAway))
+        });
         let drawn = self.scheme;
         let on_scheme = cx.on_some(move |scheme: ColorScheme| (scheme != drawn).then_some(scheme));
         cx.on_color_scheme(on_scheme);
@@ -74,15 +72,16 @@ impl Layout for MainWindow {
                 .theme(window_theme(settings.theme)),
         );
 
-        let current = cx.use_route::<Route>();
+        let current = cx.navigate::<Route>().current();
         let routes = self.routes.clone();
         cx.use_effect("uniproc::remember_route", current.clone(), move || {
-            if let Some(routes) = &routes {
-                route_memory::remember(routes, &current);
+            if let (Some(routes), Some(current)) = (&routes, &current) {
+                route_memory::remember(routes, current);
             }
             None
         });
 
-        windows_reactor::provide(ui::theme::scheme_context(), self.scheme, cx.outlet())
+        let shell = cx.mount::<crate::layouts::Shell>(&());
+        windows_reactor::provide(ui::theme::scheme_context(), self.scheme, shell)
     }
 }

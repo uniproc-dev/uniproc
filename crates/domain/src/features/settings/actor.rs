@@ -39,23 +39,24 @@ actor! {
             SetNetworkUnits,
             ShowSidebarChart,
         }
+        publishes { UpdateIntervalChanged }
     }
 }
 
 #[handler]
-fn set_theme(this: &mut SettingsActor, SetTheme(theme): SetTheme) {
+fn set_theme(In(this, SetTheme(theme), _): In<SettingsActor, SetTheme>) {
     this.settings.theme().set(theme.id().to_string());
     this.publish();
 }
 
 #[handler]
-fn set_start_page(this: &mut SettingsActor, SetStartPage(page): SetStartPage) {
+fn set_start_page(In(this, SetStartPage(page), _): In<SettingsActor, SetStartPage>) {
     this.settings.start_page().set(page.id().to_string());
     this.publish();
 }
 
 #[handler]
-fn set_update_interval(this: &mut SettingsActor, SetUpdateInterval(ms): SetUpdateInterval) {
+fn set_update_interval(In(this, SetUpdateInterval(ms), cx): In<SettingsActor, SetUpdateInterval>) {
     let interval = this.settings.update_interval_ms();
     let before = interval.get();
     interval.set(ms);
@@ -63,24 +64,24 @@ fn set_update_interval(this: &mut SettingsActor, SetUpdateInterval(ms): SetUpdat
     if after == before {
         return;
     }
-    GlobalEventBus::publish(UpdateIntervalChanged(after));
+    cx.publish(UpdateIntervalChanged(after));
     this.publish();
 }
 
 #[handler]
-fn set_byte_units(this: &mut SettingsActor, SetByteUnits(units): SetByteUnits) {
+fn set_byte_units(In(this, SetByteUnits(units), _): In<SettingsActor, SetByteUnits>) {
     this.settings.byte_units().set(units.id().to_string());
     this.publish();
 }
 
 #[handler]
-fn set_network_units(this: &mut SettingsActor, SetNetworkUnits(units): SetNetworkUnits) {
+fn set_network_units(In(this, SetNetworkUnits(units), _): In<SettingsActor, SetNetworkUnits>) {
     this.settings.network_units().set(units.id().to_string());
     this.publish();
 }
 
 #[handler]
-fn show_sidebar_chart(this: &mut SettingsActor, ShowSidebarChart(chart, shown): ShowSidebarChart) {
+fn show_sidebar_chart(In(this, ShowSidebarChart(chart, shown), _): In<SettingsActor, ShowSidebarChart>) {
     let charts = this.settings.sidebar_charts().with(chart, shown);
     this.settings.hidden_sidebar_charts().set(charts.hidden_ids());
     this.publish();

@@ -137,7 +137,7 @@ fn state(dots: usize, rows: usize) -> ActivityState {
 }
 
 fn measure(label: &str, page: &ActivityPage, state: &ActivityState, l10n: &L10n, palette: Palette) {
-    let dispatch = Dispatch::default();
+    let dispatch = Dispatch::nowhere();
     let forward = Callback::new(|_: ActivityPageMsg| {});
     let manage = Callback::new(|()| {});
     drop(page.view(state, &dispatch, l10n, palette, forward.clone(), manage.clone()));

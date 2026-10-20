@@ -51,30 +51,38 @@ polish it.
 - **Actions** are `#[derive(guinea::Remote)] #[remote(action)]` structs. The view
   dispatches them; the actor handles them.
 - **The installer** (`#[installs]`) builds the state with `cx.state::<S>().driven_by(..)`,
-  subscribes the actor to the global bus, and starts timers with `cx.every(..)`. Anything
-  long-lived belongs to the scope it was installed in — a dropped handle stops silently.
+  starts timers with `cx.every(..)`. The actor declares bus subscriptions in `subscribes`
+  and publications in `publishes`; its handlers use `In<Actor, Message>` and `cx.task()`.
+  Long-lived work belongs to the installation scope; dropping a source handle does not
+  stop it. The bus belongs to the application tree, not the process.
 - **`<F>Deps`** (`ProcessesDeps`, `WslDeps`, `SystemDeps`, `AgentLinkDeps`) is what the
   installer calls into the platform with. `Default` is the real thing; tests swap fakes.
-  The segment takes it with `ctx.require_or_default::<FDeps>()`. It is not route params.
+  A page or layout receives it as an injected `install` argument and passes it as feature
+  parameters; the installer reads `cx.params()` from `Install<FDeps>`.
+  It is not route params. The settings `Store` is provided by the application and
+  injected explicitly into feature installers.
 - **Where it is installed decides how long it lives.** A page's own state goes in the page
   or in the area layout above it (`ProcessesArea`, `SystemArea`), never in `Shell`: the
-  shell installs only what the shell itself shows (the sidebar). What fills one of the
-  shell's slots is a part with its own feature (`SidebarCharts` → metrics, `Connecting` →
+  shell installs only what the shell itself shows (the sidebar). A separately mounted
+  part has its own feature (`SidebarCharts` → metrics, `Connecting` →
   agent link); window-wide state (settings) is in `MainWindow`. 
-  App-lifetime features implement `AppFeature` and are installed by `#[installs] fn app`
-  in `desktop/src/app.rs` (`agents`, `activity`), with the plugins. One whose state a page reads
-  claims it with `app.state`, lists it in `type Exports`, and goes in `installs` of `app!`.
-  The route tree hangs from `app(App)`.
+  App-lifetime features use `feature!` and a `#[installs]` function taking
+  `&mut FeatureBuilder`. The application function in `desktop/src/app.rs` installs
+  them (`agents`, `activity`) with `app.install::<F>()`, builds plugins with explicit
+  configs, provides their returned services and returns the initial WinUI `Window`.
+  App state is claimed with `app.state` and listed in the feature's `exports`.
 
-Routes are in `desktop/src/routes.rs`. `MainWindow` is the root and is `restorable`: the
+Routes are a `Routable` enum in `desktop/src/routes.rs`. Layouts explicitly mount their
+children and select routes with `cx.outlet`. `MainWindow` is the root; the
 last route survives a restart, see `route_memory.rs`. It owns the window (size, backdrop,
-theme, colour scheme) and holds `Shell`, which draws the title bar and navigation and
-declares two slots, `PaneFooter` and `Overlay`. Parts (`desktop/src/parts/`) fill them
-(`part(X) => Slot`) and redraw on their own: a machine sample redraws `SidebarCharts`, not
-the shell or the page. `ProcessesArea` is `keep`: leaving it
+theme, colour scheme) and holds `Shell`, which draws the title bar and navigation.
+The shell mounts parts (`desktop/src/parts/`) for its footer and overlay. They redraw
+on their own: a machine sample redraws `SidebarCharts`, not the shell or the page.
+`ProcessesArea` is mounted with `.keep()`: leaving it
 puts its scope to sleep instead of tearing it down, so coming back shows the rows at once.
 Asleep, its timers and bus subscriptions are paused; `cx.on_wake` is where a feature
 catches up (Processes resets its rates and asks for the service state).
+Ordinary tasks can finish and deliver replies while asleep; sleep is not cancellation.
 
 ## Agents
 
@@ -85,7 +93,8 @@ catches up (Processes resets its rates and asks for the service state).
   state is `GaveUp`, and attempts continue. A service too old to `watch` is `Outdated`, also
   retried. A connection lost before one window has passed waits out the rest of it.
 - Data is pushed, not polled: once connected the actor runs the backend's streams with
-  `spawn_source`. Reports land on the global bus as `WindowsReportMessage`,
+  `cx.task().pour`. Backend operations receive the actor's `AsyncContext`; reports
+  land on that application's bus as `WindowsReportMessage`,
   `WindowsMachineSample` and `RemoteScanResult`; features subscribe to what they need.
 - Windows: `WindowsFeed` and `windows_report::Reports` turn the service's lists and columns
   into `WindowsReport`. The service runs in session 0 and cannot see user windows; those
@@ -116,7 +125,7 @@ catches up (Processes resets its rates and asks for the service state).
   calls `act` on it through `ActsOnWindows`. Guinea allows
   one answerer per request type and panics on a second; with none, the request fails
   at once without being published. Page tests that act fake the service with
-  `GlobalEventBus::answer_fn`.
+  `h.bus().answer_fn`, keeping the returned subscription for the test's lifetime.
 - Uniproc never offers to end or suspend itself or its service (`ProcessRow::is_monitor`).
 - Process starts and exits are `WindowsProcessEvents` (a history on connect, then live
   batches), keyed by `ProcessInstance` (pid, sequence), from the service's
@@ -199,8 +208,8 @@ migrations or compatibility shims for old local data.
   parallel; a test that touches a fake's statics takes its key: `exclusive = "agent"` for
   `test_agent`, `exclusive = "system"` for `test_system`.
   A page: `h.install::<F>(..)` + `Mounted::mount_at(h.child(), ..)`. The real tree:
-  `h.install_application_with(crate::app::with_fakes)` (in-memory store, fake agent) and
-  `Mounted::routed(h, Route::..)`; read and drive it with `state`, `dispatch`, `route`,
+  `h.app(crate::app::with_fakes)` (in-memory store, fake agent) and
+  `Mounted::from_window(h, window)`; read and drive it with `state`, `dispatch`, `route`,
   `is_mounted`. No probe pages.
 - Fakes: `<F>Deps` through `h.provide(..)`; `test_agent.rs` is a fake Windows agent
   (`FakeAgentFeature`, switches for up, outdated, dropping); `test_system.rs` for the

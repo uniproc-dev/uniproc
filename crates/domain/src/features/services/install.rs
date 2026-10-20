@@ -1,4 +1,3 @@
-use app_contracts::features::agents::WindowsReportMessage;
 use app_contracts::features::services::ServicesState;
 use guinea::prelude::*;
 
@@ -11,9 +10,8 @@ feature! {
 }
 
 #[installs]
-fn services(cx: &FeatureInitContext) -> anyhow::Result<ServicesFeature> {
-    let (services, addr) = cx.state::<ServicesState>().driven_by(ServicesActor::new);
-    addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
+fn services(cx: &Install) -> anyhow::Result<ServicesFeature> {
+    let (services, _) = cx.state::<ServicesState>().driven_by(ServicesActor::new);
 
     Ok(ServicesFeature(services))
 }

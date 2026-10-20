@@ -26,5 +26,9 @@ uuid = { workspace = true }
 windows-core = { workspace = true }
 uniproc-windows-agent = { workspace = true }
 
+[dev-dependencies]
+amethystate = { workspace = true, features = ["memory"] }
+guinea = { workspace = true, features = ["test-utils"] }
+
 [lints]
 workspace = true

@@ -1,4 +1,3 @@
-use app_contracts::features::agents::{WindowsMachineSample, WindowsReportMessage};
 use app_contracts::features::metrics::MetricsState;
 use guinea::prelude::*;
 
@@ -11,9 +10,7 @@ feature! {
 }
 
 #[installs]
-fn metrics(cx: &FeatureInitContext) -> anyhow::Result<MetricsFeature> {
-    let (metrics, addr) = cx.state::<MetricsState>().driven_by(MetricsActor::new);
-    addr.subscribe_on::<WindowsReportMessage>(Bus::Global);
-    addr.subscribe_on::<WindowsMachineSample>(Bus::Global);
+fn metrics(cx: &Install) -> anyhow::Result<MetricsFeature> {
+    let (metrics, _) = cx.state::<MetricsState>().driven_by(MetricsActor::new);
     Ok(MetricsFeature(metrics))
 }

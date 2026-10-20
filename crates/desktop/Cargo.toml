@@ -22,7 +22,6 @@ guinea-plugin-single-instance = { workspace = true }
 guinea-widgets = { workspace = true }
 anyhow = { workspace = true }
 uuid = { workspace = true }
-unic-langid = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

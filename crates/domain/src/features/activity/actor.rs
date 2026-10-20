@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use futures::future::BoxFuture;
 
 use app_contracts::features::activity::{
     ActivityMsg, ActivityRow, ActivityState, ActivityView, AddGroup, Area, ClearArea, DeleteGroup, DropRule, Filter, Group,
@@ -88,10 +89,11 @@ impl ActivityActor {
         remember(&self.settings, self.span, &self.filter).or_warn("could not remember the activity choices");
     }
 
-    fn work(&mut self, cx: &Cx<ActivityActor>) {
-        let Some(mut log) = self.log.take() else {
-            return;
-        };
+    fn work(&mut self) -> Option<BoxFuture<'static, Worked>> {
+        if self.heard.is_empty() && !self.wanted && self.hovering.is_none() {
+            return None;
+        }
+        let mut log = self.log.take()?;
         let heard = std::mem::take(&mut self.heard);
         let asked = self.wanted.then(|| Asked {
             asked: self.asked,
@@ -107,7 +109,7 @@ impl ActivityActor {
         }
         let hover = self.hovering.take().map(|key| (key, self.groups.clone()));
         let clock = self.deps.clock;
-        cx.spawn_bg(async move {
+        Some(Box::pin(async move {
             for heard in heard {
                 match heard {
                     Heard::Events(batch) => log.take(&batch),
@@ -127,131 +129,160 @@ impl ActivityActor {
             });
             let hovered = hover.map(|(key, groups)| key.and_then(|key| row(&log, &groups, key, clock)));
             Worked { log, view, hovered }
-        });
+        }))
     }
 
-    fn publish(&mut self, cx: &Cx<ActivityActor>) {
+    fn publish(&mut self) {
         self.wanted = true;
-        self.work(cx);
     }
 
-    fn reask(&mut self, cx: &Cx<ActivityActor>) {
+    fn reask(&mut self) {
         self.asked += 1;
-        self.publish(cx);
+        self.publish();
     }
 
-    fn regroup(&mut self, change: impl FnOnce(&mut Vec<Group>), cx: &Cx<ActivityActor>) {
+    fn regroup(&mut self, change: impl FnOnce(&mut Vec<Group>)) {
         change(&mut self.groups);
         remember_groups(&self.settings, &self.groups).or_warn("could not keep the activity groups");
         self.push.send(ActivityMsg::Groups(self.groups.clone()));
-        self.reask(cx);
+        self.reask();
     }
 
-    fn refilter(&mut self, change: impl FnOnce(&mut Filter), cx: &Cx<ActivityActor>) {
+    fn refilter(&mut self, change: impl FnOnce(&mut Filter)) {
         change(&mut self.filter);
         self.remember();
         self.push.send(ActivityMsg::Filter(self.filter.clone()));
-        self.reask(cx);
+        self.reask();
     }
 }
 
 actor! {
     ActivityActor {
         handlers {
-            WindowsProcessEvents,
-            WindowsReportMessage,
-            Refresh,
-            Flush,
-            ShowSpan,
-            ShowCame,
-            ShowWent,
-            NewOnly,
-            ShowSeries,
-            Only,
-            Hide,
-            Unhide,
-            Search,
-            PickArea,
-            ClearArea,
-            Hover,
-            ShowGroup,
-            ShowOther,
-            PutInGroup,
-            NewGroup,
-            AddGroup,
-            DropRule,
-            RenameGroup,
-            RecolorGroup,
-            MoveGroup,
-            DeleteGroup,
-            Worked,
+            ShowSpan => { task Worked }
+            ShowCame => { task Worked }
+            ShowWent => { task Worked }
+            NewOnly => { task Worked }
+            ShowSeries => { task Worked }
+            Only => { task Worked }
+            Hide => { task Worked }
+            Unhide => { task Worked }
+            Search => { task Worked }
+            PickArea => { task Worked }
+            ClearArea => { task Worked }
+            Hover => { task Worked }
+            ShowGroup => { task Worked }
+            ShowOther => { task Worked }
+            PutInGroup => { task Worked }
+            NewGroup => { task Worked }
+            AddGroup => { task Worked }
+            DropRule => { task Worked }
+            RenameGroup => { task Worked }
+            RecolorGroup => { task Worked }
+            MoveGroup => { task Worked }
+            DeleteGroup => { task Worked }
+            Worked => { task Worked loop }
+        }
+        subscribes {
+            WindowsProcessEvents => { task Worked }
+            WindowsReportMessage => { task Worked }
+            Refresh => { task Worked }
+            Flush => { task Worked }
         }
     }
 }
 
 #[handler]
-fn on_events(this: &mut ActivityActor, batch: WindowsProcessEvents, cx: Cx) {
+fn on_events(In(this, batch, cx): In<ActivityActor, WindowsProcessEvents>) {
     this.heard.push(Heard::Events(batch));
     this.stale = true;
-    this.work(&cx.detach());
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn on_report(this: &mut ActivityActor, msg: WindowsReportMessage, cx: Cx) {
+fn on_report(In(this, msg, cx): In<ActivityActor, WindowsReportMessage>) {
     if let WindowsReportMessage::Report(report) = msg {
         this.heard.push(Heard::Running(report));
-        this.work(&cx.detach());
+    }
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
     }
 }
 
 #[handler]
-fn refresh(this: &mut ActivityActor, _msg: Refresh, cx: Cx) {
-    this.publish(&cx.detach());
+fn refresh(In(this, _msg, cx): In<ActivityActor, Refresh>) {
+    this.publish();
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn flush(this: &mut ActivityActor, _msg: Flush, cx: Cx) {
+fn flush(In(this, _msg, cx): In<ActivityActor, Flush>) {
     if this.stale {
-        this.publish(&cx.detach());
+        this.publish();
+    }
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
     }
 }
 
 #[handler]
-fn show_span(this: &mut ActivityActor, ShowSpan(span): ShowSpan, cx: Cx) {
+fn show_span(In(this, ShowSpan(span), cx): In<ActivityActor, ShowSpan>) {
     this.span = span;
     this.area = None;
     this.remember();
     this.push.send(ActivityMsg::Span(span));
-    this.reask(&cx.detach());
+    this.reask();
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn show_came(this: &mut ActivityActor, ShowCame(shown): ShowCame, cx: Cx) {
-    this.refilter(|filter| filter.came = shown, &cx.detach());
+fn show_came(In(this, ShowCame(shown), cx): In<ActivityActor, ShowCame>) {
+    this.refilter(|filter| filter.came = shown);
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn show_went(this: &mut ActivityActor, ShowWent(shown): ShowWent, cx: Cx) {
-    this.refilter(|filter| filter.went = shown, &cx.detach());
+fn show_went(In(this, ShowWent(shown), cx): In<ActivityActor, ShowWent>) {
+    this.refilter(|filter| filter.went = shown);
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn new_only(this: &mut ActivityActor, NewOnly(only): NewOnly, cx: Cx) {
-    this.refilter(|filter| filter.new_only = only, &cx.detach());
+fn new_only(In(this, NewOnly(only), cx): In<ActivityActor, NewOnly>) {
+    this.refilter(|filter| filter.new_only = only);
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn show_series(this: &mut ActivityActor, ShowSeries(shown): ShowSeries, cx: Cx) {
-    this.refilter(|filter| filter.series = shown, &cx.detach());
+fn show_series(In(this, ShowSeries(shown), cx): In<ActivityActor, ShowSeries>) {
+    this.refilter(|filter| filter.series = shown);
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn only(this: &mut ActivityActor, Only(pick): Only, cx: Cx) {
-    this.refilter(|filter| filter.only = pick, &cx.detach());
+fn only(In(this, Only(pick), cx): In<ActivityActor, Only>) {
+    this.refilter(|filter| filter.only = pick);
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn hide(this: &mut ActivityActor, Hide(pick): Hide, cx: Cx) {
+fn hide(In(this, Hide(pick), cx): In<ActivityActor, Hide>) {
     this.refilter(
         |filter| {
             if filter.only.as_ref() == Some(&pick) {
@@ -261,66 +292,90 @@ fn hide(this: &mut ActivityActor, Hide(pick): Hide, cx: Cx) {
                 filter.hidden.push(pick);
             }
         },
-        &cx.detach(),
     );
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn unhide(this: &mut ActivityActor, Unhide(pick): Unhide, cx: Cx) {
-    this.refilter(|filter| filter.hidden.retain(|hidden| *hidden != pick), &cx.detach());
+fn unhide(In(this, Unhide(pick), cx): In<ActivityActor, Unhide>) {
+    this.refilter(|filter| filter.hidden.retain(|hidden| *hidden != pick));
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn search(this: &mut ActivityActor, Search(text): Search, cx: Cx) {
-    this.refilter(|filter| filter.text = text, &cx.detach());
+fn search(In(this, Search(text), cx): In<ActivityActor, Search>) {
+    this.refilter(|filter| filter.text = text);
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn pick_area(this: &mut ActivityActor, PickArea(area): PickArea, cx: Cx) {
+fn pick_area(In(this, PickArea(area), cx): In<ActivityActor, PickArea>) {
     this.area = Some(Area {
         from: area.from.min(area.to),
         to: area.from.max(area.to),
         shortest: area.shortest.min(area.longest),
         longest: area.shortest.max(area.longest),
     });
-    this.reask(&cx.detach());
+    this.reask();
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn clear_area(this: &mut ActivityActor, _msg: ClearArea, cx: Cx) {
+fn clear_area(In(this, _msg, cx): In<ActivityActor, ClearArea>) {
     this.area = None;
-    this.reask(&cx.detach());
+    this.reask();
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn hover(this: &mut ActivityActor, Hover(key): Hover, cx: Cx) {
+fn hover(In(this, Hover(key), cx): In<ActivityActor, Hover>) {
     this.hovering = Some(key);
-    this.work(&cx.detach());
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn show_group(this: &mut ActivityActor, ShowGroup { group, shown }: ShowGroup, cx: Cx) {
-    this.regroup(|groups| with_group(groups, &group, |group| group.shown = shown), &cx.detach());
+fn show_group(In(this, ShowGroup { group, shown }, cx): In<ActivityActor, ShowGroup>) {
+    this.regroup(|groups| with_group(groups, &group, |group| group.shown = shown));
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn show_other(this: &mut ActivityActor, ShowOther(shown): ShowOther, cx: Cx) {
-    this.refilter(|filter| filter.other = shown, &cx.detach());
+fn show_other(In(this, ShowOther(shown), cx): In<ActivityActor, ShowOther>) {
+    this.refilter(|filter| filter.other = shown);
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn put_in_group(this: &mut ActivityActor, PutInGroup { group, rule }: PutInGroup, cx: Cx) {
+fn put_in_group(In(this, PutInGroup { group, rule }, cx): In<ActivityActor, PutInGroup>) {
     this.regroup(
         |groups| {
             take_rule(groups, &rule);
             with_group(groups, &group, |group| group.rules.push(rule));
         },
-        &cx.detach(),
     );
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn new_group(this: &mut ActivityActor, NewGroup(rule): NewGroup, cx: Cx) {
+fn new_group(In(this, NewGroup(rule), cx): In<ActivityActor, NewGroup>) {
     this.regroup(
         |groups| {
             take_rule(groups, &rule);
@@ -333,12 +388,14 @@ fn new_group(this: &mut ActivityActor, NewGroup(rule): NewGroup, cx: Cx) {
             };
             groups.push(group);
         },
-        &cx.detach(),
     );
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn add_group(this: &mut ActivityActor, AddGroup(name): AddGroup, cx: Cx) {
+fn add_group(In(this, AddGroup(name), cx): In<ActivityActor, AddGroup>) {
     let name = name.trim().to_string();
     if name.is_empty() {
         return;
@@ -354,20 +411,24 @@ fn add_group(this: &mut ActivityActor, AddGroup(name): AddGroup, cx: Cx) {
             };
             groups.push(group);
         },
-        &cx.detach(),
     );
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn drop_rule(this: &mut ActivityActor, DropRule { group, rule }: DropRule, cx: Cx) {
+fn drop_rule(In(this, DropRule { group, rule }, cx): In<ActivityActor, DropRule>) {
     this.regroup(
         |groups| with_group(groups, &group, |group| group.rules.retain(|kept| *kept != rule)),
-        &cx.detach(),
     );
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn rename_group(this: &mut ActivityActor, RenameGroup { group, name }: RenameGroup, cx: Cx) {
+fn rename_group(In(this, RenameGroup { group, name }, cx): In<ActivityActor, RenameGroup>) {
     if name.trim().is_empty() {
         return;
     }
@@ -379,17 +440,22 @@ fn rename_group(this: &mut ActivityActor, RenameGroup { group, name }: RenameGro
                 }
             })
         },
-        &cx.detach(),
     );
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn recolor_group(this: &mut ActivityActor, RecolorGroup { group, hue }: RecolorGroup, cx: Cx) {
-    this.regroup(|groups| with_group(groups, &group, |group| group.hue = hue), &cx.detach());
+fn recolor_group(In(this, RecolorGroup { group, hue }, cx): In<ActivityActor, RecolorGroup>) {
+    this.regroup(|groups| with_group(groups, &group, |group| group.hue = hue));
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn move_group(this: &mut ActivityActor, MoveGroup { group, up }: MoveGroup, cx: Cx) {
+fn move_group(In(this, MoveGroup { group, up }, cx): In<ActivityActor, MoveGroup>) {
     this.regroup(
         |groups| {
             let Some(at) = groups.iter().position(|kept| kept.id == group) else {
@@ -400,17 +466,22 @@ fn move_group(this: &mut ActivityActor, MoveGroup { group, up }: MoveGroup, cx: 
                 groups.swap(at, to);
             }
         },
-        &cx.detach(),
     );
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn delete_group(this: &mut ActivityActor, DeleteGroup(group): DeleteGroup, cx: Cx) {
-    this.regroup(|groups| groups.retain(|kept| kept.id != group || kept.is_built_in()), &cx.detach());
+fn delete_group(In(this, DeleteGroup(group), cx): In<ActivityActor, DeleteGroup>) {
+    this.regroup(|groups| groups.retain(|kept| kept.id != group || kept.is_built_in()));
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
+    }
 }
 
 #[handler]
-fn on_worked(this: &mut ActivityActor, Worked { log, view, hovered }: Worked, cx: Cx) {
+fn on_worked(In(this, Worked { log, view, hovered }, cx): In<ActivityActor, Worked>) {
     this.log = Some(log);
     match view {
         Some((asked, view)) if asked == this.asked => this.push.send(ActivityMsg::View(Arc::new(view))),
@@ -420,8 +491,8 @@ fn on_worked(this: &mut ActivityActor, Worked { log, view, hovered }: Worked, cx
     if let Some(hovered) = hovered {
         this.push.send(ActivityMsg::Hovered(hovered));
     }
-    if !this.heard.is_empty() || this.wanted || this.hovering.is_some() {
-        this.work(&cx.detach());
+    if let Some(work) = this.work() {
+        cx.task().spawn(work);
     }
 }
 

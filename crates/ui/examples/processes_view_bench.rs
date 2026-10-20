@@ -90,7 +90,7 @@ fn main() {
 
     let l10n = L10n::for_tag("en").expect("english strings");
     let palette = Palette::of(ColorScheme::Dark);
-    let dispatch = Dispatch::default();
+    let dispatch = Dispatch::nowhere();
     let forward = Callback::new(|_: ProcessesMsg| {});
     let open_settings = Callback::new(|()| {});
     let page = ProcessesPage::new(None);

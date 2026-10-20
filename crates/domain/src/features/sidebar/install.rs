@@ -1,6 +1,7 @@
 use app_contracts::features::sidebar::SidebarState;
 use guinea::prelude::*;
 use guinea_plugin_store::StoreAccess;
+use amethystate::Store;
 
 use super::actor::{Refresh, SidebarActor};
 use super::settings::SidebarSettings;
@@ -12,8 +13,8 @@ feature! {
 }
 
 #[installs]
-fn sidebar(cx: &FeatureInitContext) -> anyhow::Result<SidebarFeature> {
-    let settings = cx.settings::<SidebarSettings>();
+fn sidebar(cx: &Install, store: Store) -> anyhow::Result<SidebarFeature> {
+    let settings = store.try_settings::<SidebarSettings>()?;
 
     let seed = SidebarState {
         open: settings.open().get(),

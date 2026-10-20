@@ -1,20 +1,20 @@
 use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarState};
 use domain::features::sidebar::SidebarFeature;
-use guinea::feature::FeatureInitContext;
-use guinea::winui::{layout, Layout, LayoutCx, UpdateCx, UseNavigate};
+use guinea::feature::Install;
+use guinea::winui::{layout, Layout, LayoutCx, UpdateCx};
 use ui::ShellNav;
 use windows_reactor::{Callback, View};
+use std::cell::RefCell;
 
+use crate::layouts::{ActivityArea, ProcessesArea, SystemArea};
+use crate::pages::{Services, Settings, Wsl};
+use crate::parts::{Connecting, SidebarCharts};
 use crate::routes::Route;
 
-#[guinea::slot]
-pub struct PaneFooter;
-
-#[guinea::slot]
-pub struct Overlay;
-
 #[derive(Default)]
-pub struct Shell;
+pub struct Shell {
+    last: RefCell<Vec<Route>>,
+}
 
 pub enum ShellMsg {
     Resize(f64),
@@ -34,12 +34,11 @@ fn nav(route: &Route) -> ShellNav {
 
 #[layout]
 impl Layout for Shell {
-    type Params = crate::routes::ShellParams;
-    type Installs = SidebarFeature;
     type Message = ShellMsg;
 
-    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        ctx.install(&())
+    fn install(cx: &Install) -> anyhow::Result<Self> {
+        cx.install::<SidebarFeature>(&())?;
+        Ok(Self::default())
     }
 
     fn update(&mut self, message: ShellMsg, cx: &mut UpdateCx<'_, Self>) {
@@ -60,25 +59,51 @@ impl Layout for Shell {
     fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
         let (sidebar, _) = cx.read::<SidebarState>();
         let l10n = ui::l10n::use_tr(cx);
-        let navigate = cx.use_navigate::<Route>();
-
-        let children = cx.child_routes::<Route>();
-        let menu = children.iter().map(|child| (nav(&child.route), child.current)).collect();
-        let targets: Vec<(ShellNav, Route)> = children.into_iter().map(|child| (nav(&child.route), child.route)).collect();
+        let navigate = cx.navigate::<Route>();
+        let route = navigate.current();
+        let current = route.as_ref().map(nav);
+        if let Some(route) = route {
+            let mut last = self.last.borrow_mut();
+            last.retain(|saved| nav(saved) != nav(&route));
+            last.push(route);
+        }
+        let targets: Vec<_> = [
+            (ShellNav::Processes, Route::Processes {}),
+            (ShellNav::Activity, Route::Activity {}),
+            (ShellNav::Services, Route::Services {}),
+            (ShellNav::Wsl, Route::Wsl {}),
+            (ShellNav::System, Route::System {}),
+            (ShellNav::Settings, Route::Settings {}),
+        ].into_iter().map(|(item, route)| {
+            let remembered = self.last.borrow().iter().find(|saved| nav(saved) == item).cloned();
+            (item, remembered.unwrap_or(route))
+        }).collect();
+        let menu = targets.iter().map(|(item, _)| (*item, current == Some(*item))).collect();
+        let to = navigate.clone();
         let on_select = Callback::new(move |picked: ShellNav| {
-            if let Some((_, route)) = targets.iter().find(|(nav, _)| *nav == picked) {
-                navigate.to(route.clone());
+            if let Some((_, route)) = targets.iter().find(|(item, _)| *item == picked) {
+                let _ = to.to(route.clone());
             }
         });
+        let pane_footer = cx.mount::<SidebarCharts>(&()).into();
+        let overlay = cx.mount::<Connecting>(&()).into();
+        let content = cx.outlet(&navigate, |route, cx| match route {
+            Route::Processes {} | Route::ProcessesSettings {} => cx.mount::<ProcessesArea>(&()).keep(),
+            Route::Activity {} | Route::ActivityGroups {} => cx.mount::<ActivityArea>(&()),
+            Route::Services {} => cx.mount::<Services>(&()).keep(),
+            Route::Wsl {} => cx.mount::<Wsl>(&()).keep(),
+            Route::System {} | Route::SystemTools {} => cx.mount::<SystemArea>(&()),
+            Route::Settings {} => cx.mount::<Settings>(&()),
+        }).into();
 
         ui::shell_view(ui::ShellProps {
             l10n: &l10n,
             open: sidebar.open,
             width: sidebar.width as f64,
             menu,
-            content: cx.outlet(),
-            pane_footer: cx.slot::<PaneFooter>(),
-            overlay: cx.slot::<Overlay>(),
+            content,
+            pane_footer,
+            overlay,
             on_select,
             on_resize: cx.on(ShellMsg::Resize),
             on_open_changed: cx.on(ShellMsg::OpenChanged),
@@ -88,21 +113,17 @@ impl Layout for Shell {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
-    use std::rc::Rc;
     use std::time::Duration;
 
     use guinea::app::Harness;
-    use guinea::core::actor::event_bus::{RpcRequest, RpcResponse};
-    use guinea::prelude::GlobalEventBus;
     use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
     use domain::features::agents::providers::windows::SERVICE_DISPLAY_NAME;
     use domain::features::agents::settings::AgentSettings;
     use domain::features::system::SystemDeps;
+    use domain::features::processes::{windows_scan::AppWindows, ProcessesDeps};
     use guinea_plugin_store::StoreAccess;
-    use uuid::Uuid;
 
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use app_contracts::features::activity::{ActivityState, Clock, Hover};
     use app_contracts::features::agent_link::{AgentLinkState, InProcess};
@@ -119,7 +140,7 @@ mod tests {
     use crate::test_agent;
 
     fn mount(h: &Harness) -> Mounted<'_, Route> {
-        Mounted::routed(h, Route::Services {}).unwrap()
+        crate::test_support::mount_application(h, Route::Services {}).unwrap()
     }
 
     fn splash_shown(page: &Mounted<'_, Route>) -> bool {
@@ -139,30 +160,32 @@ mod tests {
         h.provide(ActivityDeps {
             now: || 1000 * HOUR + HOUR - TICK,
             clock: |_| Clock::default(),
-        })
-        .install_application_with(crate::app::with_fakes)
-        .unwrap()
-        .provide(test_agent::agent_link())
+        }).provide(ProcessesDeps {
+            windows: AppWindows::default,
+            shell: |_| {},
+        });
+        h.app(crate::app::with_fakes).unwrap();
+        h.provide(test_agent::agent_link())
             .provide(SystemDeps {
                 locate: |_| None,
                 launch: |_| {},
             });
     }
 
-    fn answers_to_a_kill(h: &Harness, page: &mut Mounted<'_, Route>) -> Vec<ActionOutcome> {
-        let answered = Rc::new(RefCell::new(Vec::new()));
-        let heard = answered.clone();
-        let _watch = GlobalEventBus::subscribe_fn(move |RpcResponse { payload, .. }: RpcResponse<ActionOutcome>| {
-            heard.borrow_mut().push(payload)
+    fn answer_to_a_kill(h: &Harness, page: &mut Mounted<'_, Route>) -> ActionOutcome {
+        let scope = h.segment().scope();
+        let answered = Arc::new(Mutex::new(None));
+        let output = answered.clone();
+        guinea::executor::spawn(async move {
+            let response = scope.request(
+                WindowsActionRequest(WindowsAction::Kill { pid: 42 }),
+                Duration::from_secs(5),
+            ).await;
+            *output.lock().unwrap() = Some(response);
         });
-        h.publish(RpcRequest {
-            correlation_id: Uuid::new_v4(),
-            payload: WindowsActionRequest(WindowsAction::Kill { pid: 42 }),
-            chain: Vec::new(),
-        })
-        .settle();
+        h.settled();
         after(h, page, 1);
-        answered.take()
+        answered.lock().unwrap().take().expect("the service answered the request").unwrap()
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]
@@ -171,7 +194,7 @@ mod tests {
         let h = &*h;
         let mut page = mount(h);
 
-        assert_eq!(answers_to_a_kill(h, &mut page), [ActionOutcome::NotConnected]);
+        assert_eq!(answer_to_a_kill(h, &mut page), ActionOutcome::NotConnected);
         assert!(test_agent::in_process_actions().is_empty());
     }
 
@@ -215,7 +238,7 @@ mod tests {
         start(h, true);
         let h = &*h;
         let mut page = mount(h);
-        let interval = h.segment().settings::<AgentSettings>().ping_interval_ms();
+        let interval = crate::test_support::store(h).settings::<AgentSettings>().ping_interval_ms();
         interval.set(60_000);
         after(h, &mut page, 5);
         let before = test_agent::pings();
@@ -261,6 +284,29 @@ mod tests {
         page.settle();
 
         assert_eq!(page.route(), Route::System {});
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "agent")]
+    fn returning_to_a_sidebar_group_restores_its_nested_page(h: &mut Harness) {
+        start(h, true);
+        let h = &*h;
+        let mut page = mount(h);
+
+        for (route, label) in [
+            (Route::ProcessesSettings {}, "Processes"),
+            (Route::ActivityGroups {}, "Activity"),
+            (Route::SystemTools {}, "System"),
+        ] {
+            page.navigate(route.clone());
+            page.settle();
+            page.click_text("Services").settle();
+            page.settle();
+            assert_eq!(page.route(), Route::Services {});
+
+            page.click_text(label).settle();
+            page.settle();
+            assert_eq!(page.route(), route);
+        }
     }
 
     fn unreachable_line(page: &Mounted<'_, Route>) -> Option<String> {
@@ -409,7 +455,7 @@ mod tests {
         after(h, &mut page, 2);
         assert!(test_agent::in_process_reports() >= reports + 3, "the in-process agent reports without a tick");
 
-        assert_eq!(answers_to_a_kill(h, &mut page), [ActionOutcome::Done], "the in-process agent answers, once");
+        assert_eq!(answer_to_a_kill(h, &mut page), ActionOutcome::Done, "the in-process agent answers");
         assert!(
             matches!(test_agent::in_process_actions().as_slice(), [WindowsAction::Kill { pid: 42 }]),
             "{:?}",

@@ -14,21 +14,18 @@ pub mod windows_report;
 use guinea::prelude::*;
 use tracing::info;
 
-pub struct AgentsFeature;
+feature! { pub AgentsFeature {} }
 
-impl AppFeature for AgentsFeature {
-    type Exports = ();
+#[installs]
+fn agents(app: &mut FeatureBuilder, store: amethystate::Store) -> anyhow::Result<AgentsFeature> {
+    info!("Agents feature installed");
 
-    fn install(self, app: &mut FeatureBuilder) -> anyhow::Result<()> {
-        info!("Agents feature installed");
-
-        actions::install(app);
-        providers::wsl::wsl_agent_feature(app)?;
-        match providers::synthetic::requested() {
-            Some(processes) => providers::synthetic::install(app, processes)?,
-            None => providers::windows::windows_agent_feature(app)?,
-        }
-
-        Ok(())
+    actions::install(app);
+    providers::wsl::wsl_agent_feature(app, &store)?;
+    match providers::synthetic::requested() {
+        Some(processes) => providers::synthetic::install(app, processes, &store)?,
+        None => providers::windows::windows_agent_feature(app, &store)?,
     }
+
+    Ok(AgentsFeature)
 }

@@ -1,7 +1,6 @@
 use app_contracts::features::activity::ActivityState;
 use app_contracts::features::window::PressedAway;
-use guinea::feature::FeatureInitContext;
-use guinea::prelude::GlobalEventBus;
+use guinea::feature::Install;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::pages::activity::{ActivityPage, ActivityPageMsg};
 use ui::theme::{scheme_context, Palette};
@@ -14,13 +13,11 @@ pub struct Activity(ActivityPage);
 
 #[page]
 impl Page for Activity {
-    type Params = crate::routes::ActivityParams;
-    type Installs = ();
     type Message = ActivityPageMsg;
 
-    fn install(ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
+    fn install(ctx: &Install) -> anyhow::Result<Self> {
         domain::features::activity::watch(ctx);
-        Ok(())
+        Ok(Self::default())
     }
 
     fn update(&mut self, message: ActivityPageMsg, cx: &mut UpdateCx<'_, Self>) {
@@ -34,13 +31,14 @@ impl Page for Activity {
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ActivityPageMsg| message);
         let away = forward.clone();
+        let bus = cx.bus();
         cx.use_effect_guard("uniproc::activity::menu_closes_on_press_away", (), move || {
-            GlobalEventBus::subscribe_fn(move |_: PressedAway| {
+            bus.subscribe_fn(move |_: PressedAway| {
                 away.call(ActivityPageMsg::MenuDismiss);
             })
         });
         let nav = cx.navigate::<Route>();
-        let manage = Callback::new(move |()| nav.to(Route::ActivityGroups {}));
+        let manage = Callback::new(move |()| { let _ = nav.to(Route::ActivityGroups {}); });
         self.0.view(&state, &dispatch, &l10n, palette, forward, manage)
     }
 }
@@ -63,8 +61,7 @@ mod tests {
     use domain::features::activity::{ActivityDeps, ActivityFeature};
     use guinea::app::Harness;
     use guinea::winui::harness::{Mounted, Node};
-    use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::{StoreAccess, StorePlugin};
+    use guinea_plugin_store::StoreAccess;
     use ui::pages::activity::ActivityMark;
     use ui::widgets::selection::SelectionMark;
 
@@ -88,12 +85,9 @@ mod tests {
     }
 
     fn start_at(h: &mut Harness, now: fn() -> u64) {
-        h.plugin(StorePlugin::in_memory())
-            .unwrap()
-            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
-            .unwrap()
+        crate::test_support::install(h)
             .provide(ActivityDeps { now, clock: utc });
-        h.feature(ActivityFeature).unwrap();
+        h.app(|app| app.install::<ActivityFeature>()).unwrap();
     }
 
     thread_local! {
@@ -107,7 +101,7 @@ mod tests {
 
     fn mount(h: &Harness) -> Mounted<'_, Activity> {
         let mut page =
-            Mounted::mount_at(h.child(), crate::routes::ActivityParams::default(), Route::Activity {}).unwrap();
+            Mounted::mount_at(h.child(), (), Route::Activity {}).unwrap();
         page.settle();
         page
     }
@@ -502,7 +496,7 @@ mod tests {
     }
 
     fn stored(h: &Harness) -> ActivitySettings {
-        h.segment().settings::<ActivitySettings>()
+        crate::test_support::store(h).settings::<ActivitySettings>()
     }
 
     #[guinea::test(iterations = 4)]
@@ -524,10 +518,7 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn the_page_starts_with_what_was_chosen_last_run(h: &mut Harness) {
-        h.plugin(StorePlugin::in_memory())
-            .unwrap()
-            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
-            .unwrap()
+        crate::test_support::install(h)
             .provide(ActivityDeps {
                 now: || BASE + HOUR - SECOND,
                 clock: utc,
@@ -539,7 +530,7 @@ mod tests {
         };
         remember(&stored(h), Span::Quarter, &chosen).unwrap();
 
-        h.feature(ActivityFeature).unwrap();
+        h.app(|app| app.install::<ActivityFeature>()).unwrap();
 
         let state = h.state::<ActivityState>();
         assert_eq!((state.span, &state.filter), (Span::Quarter, &chosen));
@@ -819,7 +810,7 @@ mod tests {
 
         page.click(ActivityMark::ManageGroups).settle();
 
-        assert_eq!(page.navigated::<Route>(), [Route::ActivityGroups {}]);
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::ActivityGroups {}));
     }
 
     #[guinea::test(iterations = 4)]

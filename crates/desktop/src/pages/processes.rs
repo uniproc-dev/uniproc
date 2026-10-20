@@ -2,8 +2,7 @@ use app_contracts::features::processes::ProcessesState;
 use app_contracts::features::settings::SettingsState;
 use app_contracts::features::window::PressedAway;
 use domain::features::processes::settings::ProcessesSettings;
-use guinea::feature::FeatureInitContext;
-use guinea::prelude::GlobalEventBus;
+use guinea::feature::Install;
 use guinea::winui::{page, Page, PageCx, UpdateCx};
 use guinea_plugin_store::StoreAccess;
 use ui::pages::processes::{ProcessesMsg, ProcessesPage, ProcessesSettingsMaps};
@@ -15,8 +14,8 @@ use crate::routes::Route;
 #[derive(Default)]
 pub struct Processes(ProcessesPage);
 
-pub(super) fn open_settings(ctx: &FeatureInitContext) -> Option<ProcessesSettingsMaps> {
-    let settings = ctx.settings::<ProcessesSettings>();
+pub(super) fn open_settings(store: Option<&amethystate::Store>) -> Option<ProcessesSettingsMaps> {
+    let settings = store?.settings::<ProcessesSettings>();
     Some(ProcessesSettingsMaps {
         columns: settings.columns().configs().clone(),
         column_order: settings.columns().order().clone(),
@@ -30,16 +29,10 @@ pub(super) fn open_settings(ctx: &FeatureInitContext) -> Option<ProcessesSetting
 
 #[page]
 impl Page for Processes {
-    type Params = crate::routes::ProcessesParams;
-    type Installs = ();
     type Message = ProcessesMsg;
 
-    fn install(_ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        Ok(())
-    }
-
-    fn init(ctx: &FeatureInitContext, _params: &Self::Params) -> Self {
-        Self(ProcessesPage::new(open_settings(ctx)))
+    fn install(_ctx: &Install, store: Option<amethystate::Store>) -> anyhow::Result<Self> {
+        Ok(Self(ProcessesPage::new(open_settings(store.as_ref()))))
     }
 
     fn update(&mut self, message: ProcessesMsg, _cx: &mut UpdateCx<'_, Self>) {
@@ -52,8 +45,9 @@ impl Page for Processes {
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ProcessesMsg| message);
         let away = forward.clone();
+        let bus = cx.bus();
         cx.use_effect_guard("uniproc::processes::menu_closes_on_press_away", (), move || {
-            GlobalEventBus::subscribe_fn(move |_: PressedAway| {
+            bus.subscribe_fn(move |_: PressedAway| {
                 away.call(ProcessesMsg::MenuDismiss);
             })
         });
@@ -66,7 +60,7 @@ impl Page for Processes {
             None
         });
         let nav = cx.navigate::<Route>();
-        let open_settings = Callback::new(move |()| nav.to(Route::ProcessesSettings {}));
+        let open_settings = Callback::new(move |()| { let _ = nav.to(Route::ProcessesSettings {}); });
         let (settings, _) = cx.read::<SettingsState>();
         let units = settings.units;
         self.0.view(&state, &dispatch, &l10n, palette, forward, open_settings, units)
@@ -91,7 +85,6 @@ mod tests {
         ColumnConfig, Deselect, DismissFailure, PinnedProcess, ProcessColumn, ProcessCommand, ProcessesState, RunProcessCommand,
         Sort, Terminate, WindowCommand,
     };
-    use guinea::prelude::GlobalEventBus;
     use domain::features::agent_link::AgentLinkFeature;
     use domain::features::agents::providers::windows::{SERVICE_DISPLAY_NAME, SERVICE_NAME};
     use domain::features::processes::{ProcessesDeps, ProcessesFeature};
@@ -100,11 +93,9 @@ mod tests {
     use domain::features::processes::shell::ShellRequest;
     use domain::features::processes::windows_scan::AppWindows;
     use guinea::app::Harness;
-    use guinea::core::actor::event_bus::RpcRequest;
+    use guinea::actor::event_bus::RpcRequest;
     use guinea::winui::harness::{Mounted, Node, PropertyId, PropertyValue};
     use ui::widgets::action_failure::ActionFailureMark;
-    use guinea_plugin_l10n::L10nPlugin;
-    use guinea_plugin_store::StorePlugin;
     use app_contracts::features::processes::ProcessCategory;
     use guinea::winui::harness::Drag;
     use ui::pages::processes::ProcessesMark;
@@ -137,10 +128,10 @@ mod tests {
         SHELL.with_borrow(Clone::clone)
     }
 
-    fn fake_service() -> (impl Sized, Rc<std::cell::RefCell<Vec<WindowsAction>>>) {
+    fn fake_service(h: &Harness) -> (impl Sized, Rc<std::cell::RefCell<Vec<WindowsAction>>>) {
         let asked = Rc::new(std::cell::RefCell::new(Vec::new()));
         let heard = asked.clone();
-        let service = GlobalEventBus::answer_fn(move |WindowsActionRequest(action)| {
+        let service = h.bus().answer_fn(move |WindowsActionRequest(action)| {
             heard.borrow_mut().push(action);
             ActionOutcome::Done
         });
@@ -224,16 +215,13 @@ mod tests {
     }
 
     fn stored(h: &Harness) -> ProcessesSettings {
-        h.segment().settings::<ProcessesSettings>()
+        crate::test_support::store(h).settings::<ProcessesSettings>()
     }
 
     fn start(h: &mut Harness) {
         NOTEPAD_WINDOW.set(true);
         SHELL.with_borrow_mut(Vec::clear);
-        h.plugin(StorePlugin::in_memory())
-            .unwrap()
-            .plugin(L10nPlugin::<app_contracts::l10n::L10n>::new("en"))
-            .unwrap()
+        crate::test_support::install(h)
             .provide(ProcessesDeps {
                 windows: desktop_windows,
                 shell: fake_shell,
@@ -247,7 +235,7 @@ mod tests {
             shell: fake_shell,
         })
         .unwrap();
-        let params = crate::routes::ProcessesParams::default();
+        let params = ();
         let mut page = Mounted::mount_at(h.child(), params, Route::Processes {}).unwrap();
         report(h, machine());
         page.settle();
@@ -691,7 +679,7 @@ mod tests {
         page.click(ProcessesMark::OpenSettings).settle();
         page.settle();
 
-        assert_eq!(page.navigated::<Route>(), [Route::ProcessesSettings {}]);
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::ProcessesSettings {}));
     }
 
     #[guinea::test(iterations = 8)]
@@ -699,7 +687,7 @@ mod tests {
         start(h);
         let h = &*h;
         let mut page = mount(h);
-        let (_service, asked) = fake_service();
+        let (_service, asked) = fake_service(h);
 
         select(&mut page, "notepad.exe");
         let end_task = page.click(ProcessesMark::EndTask);
@@ -727,7 +715,7 @@ mod tests {
         start(h);
         let h = &*h;
         let mut page = mount(h);
-        let _service = GlobalEventBus::answer_fn(|_: WindowsActionRequest| ActionOutcome::Denied);
+        let _service = h.bus().answer_fn(|_: WindowsActionRequest| ActionOutcome::Denied);
         assert_eq!(tip(&page, PropertyId::IsOpen), Some(PropertyValue::Bool(false)));
 
         select(&mut page, "notepad.exe");
@@ -802,7 +790,7 @@ mod tests {
             processes: machine(),
             ..Default::default()
         });
-        h.feature(crate::test_agent::FakeAgentFeature).unwrap();
+        h.app(|app| app.install::<crate::test_agent::FakeAgentFeature>()).unwrap();
         let h = &*h;
         h.install::<AgentLinkFeature>(&crate::test_agent::agent_link()).unwrap();
         h.install::<SettingsFeature>(&()).unwrap();
@@ -811,7 +799,7 @@ mod tests {
             shell: fake_shell,
         })
         .unwrap();
-        let params = crate::routes::ProcessesParams::default();
+        let params = ();
         let mut page = Mounted::mount_at(h.child(), params, Route::Processes {}).unwrap();
         let after =|seconds: u64, page: &mut Mounted<'_, Processes>| {
             h.advance(Duration::from_secs(seconds));
@@ -939,7 +927,7 @@ mod tests {
         start(h);
         let h = &*h;
         let mut page = mount(h);
-        let (_service, asked) = fake_service();
+        let (_service, asked) = fake_service(h);
 
         right_click(&mut page, "notepad.exe");
         assert!(menu_open(&page), "{:#?}", page.tree());
@@ -1087,7 +1075,7 @@ mod tests {
         start(h);
         let h = &*h;
         let mut page = mount(h);
-        let (_service, asked) = fake_service();
+        let (_service, asked) = fake_service(h);
 
         right_click(&mut page, "chrome.exe (3)");
         let end = page.find(ProcessesMark::MenuEndGroup).expect("the group menu ends the group");
@@ -1115,7 +1103,7 @@ mod tests {
         start(h);
         let h = &*h;
         let mut page = mount(h);
-        let (_service, asked) = fake_service();
+        let (_service, asked) = fake_service(h);
         let end_label = |page: &mut Mounted<'_, Processes>| {
             let button = page.find(ProcessesMark::EndTask).expect("End task is on the page");
             let mut label = Vec::new();
@@ -1181,7 +1169,7 @@ mod tests {
         let mut page = mount(h);
         report(h, with_notepad(|p| p.state.base_priority = Some(ProcessPriority::Normal)));
         page.settle();
-        let (_service, asked) = fake_service();
+        let (_service, asked) = fake_service(h);
 
         right_click(&mut page, "notepad.exe");
         page.click(ProcessesMark::MenuPriority).settle();
@@ -1216,7 +1204,7 @@ mod tests {
         start(h);
         let h = &*h;
         let mut page = mount(h);
-        let (_service, asked) = fake_service();
+        let (_service, asked) = fake_service(h);
 
         right_click(&mut page, "chrome.exe (3)");
         assert!(page.find(ProcessesMark::MenuResumeGroup).is_none(), "nothing in the group is suspended");
@@ -1300,7 +1288,7 @@ mod tests {
         let mut page = mount(h);
         report(h, with_kernel());
         page.settle();
-        let (_service, asked) = fake_service();
+        let (_service, asked) = fake_service(h);
 
         right_click(&mut page, "System");
         assert_eq!(h.state::<ProcessesState>().selected, Some(KERNEL));
@@ -1339,7 +1327,7 @@ mod tests {
         })))
         .settle();
         page.settle();
-        let (_service, asked) = fake_service();
+        let (_service, asked) = fake_service(h);
 
         for name in ["uniproc.exe", "uniproc-windows-agent.exe"] {
             right_click(&mut page, name);
@@ -1471,7 +1459,7 @@ mod tests {
         page.click(ProcessesMark::MenuMoreColumns).settle();
         page.settle();
         assert!(!menu_open(&page));
-        assert_eq!(page.navigated::<Route>(), [Route::ProcessesSettings {}]);
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::ProcessesSettings {}));
     }
 
     #[guinea::test(iterations = 4)]

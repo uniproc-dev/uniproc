@@ -1,20 +1,20 @@
-use guinea::feature::FeatureInitContext;
 use guinea::winui::{layout, Layout, LayoutCx};
 use windows_reactor::View;
+
+use crate::routes::Route;
+use crate::pages::{Activity, ActivityGroups};
 
 #[derive(Default)]
 pub struct ActivityArea;
 
 #[layout]
 impl Layout for ActivityArea {
-    type Params = crate::routes::ActivityAreaParams;
-    type Installs = ();
-
-    fn install(_ctx: &FeatureInitContext, _params: &Self::Params) -> anyhow::Result<Self::Installs> {
-        Ok(())
-    }
-
     fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
-        cx.outlet()
+        let navigate = cx.navigate::<Route>();
+        cx.outlet(&navigate, |route, cx| match route {
+            Route::Activity {} => cx.mount::<Activity>(&()),
+            Route::ActivityGroups {} => cx.mount::<ActivityGroups>(&()),
+            _ => unreachable!("route outside ActivityArea"),
+        }).into()
     }
 }

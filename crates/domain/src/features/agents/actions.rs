@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use app_contracts::features::agents::{ActionOutcome, WindowsAction, WindowsActionRequest};
 use futures::future::BoxFuture;
-use guinea::core::actor::event_bus::{AsyncBus, RpcRequest};
+use guinea::actor::event_bus::RpcRequest;
 use guinea::prelude::*;
 
 pub trait ActsOnWindows: Send + Sync + 'static {
@@ -58,7 +58,7 @@ impl std::fmt::Debug for WindowsActions {
 
 actor! {
     WindowsActions {
-        handlers {
+        subscribes {
             WindowsTransport,
             RpcRequest<WindowsActionRequest>,
         }
@@ -66,7 +66,7 @@ actor! {
 }
 
 #[handler]
-fn on_transport(this: &mut WindowsActions, transport: WindowsTransport) {
+fn on_transport(In(this, transport, _): In<WindowsActions, WindowsTransport>) {
     this.transport = match transport {
         WindowsTransport::Connected(agent) => Some(agent),
         WindowsTransport::Lost => None,
@@ -74,7 +74,7 @@ fn on_transport(this: &mut WindowsActions, transport: WindowsTransport) {
 }
 
 #[handler]
-fn act(this: &mut WindowsActions, WindowsActionRequest(action): WindowsActionRequest) -> Reply<ActionOutcome> {
+fn act(In(this, WindowsActionRequest(action), _): In<WindowsActions, WindowsActionRequest>) -> Reply<ActionOutcome> {
     let Some(transport) = this.transport.clone() else {
         return Reply::now(ActionOutcome::NotConnected);
     };
@@ -92,14 +92,12 @@ pub fn outcome(code: u32) -> ActionOutcome {
     }
 }
 
-pub async fn request(action: WindowsAction) -> ActionOutcome {
-    AsyncBus::request(WindowsActionRequest(action), Pace::Answer)
+pub async fn request<A: 'static>(cx: AsyncContext<A>, action: WindowsAction) -> ActionOutcome {
+    cx.request(WindowsActionRequest(action), Pace::Answer)
         .await
         .unwrap_or(ActionOutcome::NotConnected)
 }
 
 pub fn install(app: &mut FeatureBuilder) {
-    let addr = app.spawn(WindowsActions::default());
-    addr.subscribe_on::<WindowsTransport>(Bus::Global);
-    addr.subscribe_on::<RpcRequest<WindowsActionRequest>>(Bus::Global);
+    app.spawn(WindowsActions::default());
 }

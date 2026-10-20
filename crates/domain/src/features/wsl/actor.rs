@@ -131,21 +131,21 @@ impl WslActor {
 actor! {
     WslActor {
         handlers {
-            RefreshDistros,
+            RefreshDistros => { task ScanResult }
             ScanResult,
-            RemoteScanResult,
         }
+        subscribes { RemoteScanResult }
     }
 }
 
 #[handler]
-fn handle_refresh(this: &mut WslActor, _: RefreshDistros, cx: Cx) {
+fn handle_refresh(In(this, _, cx): In<WslActor, RefreshDistros>) {
     if this.scanning {
         return;
     }
     this.scanning = true;
     let scan = (this.scan)(Scan::Timeout);
-    cx.spawn_bg(async move {
+    cx.task().spawn(async move {
         match scan.await {
             Ok(distros) => ScanResult::Distros(distros),
             Err(err) => {
@@ -157,7 +157,7 @@ fn handle_refresh(this: &mut WslActor, _: RefreshDistros, cx: Cx) {
 }
 
 #[handler]
-fn on_scan_result(this: &mut WslActor, msg: ScanResult) {
+fn on_scan_result(In(this, msg, _): In<WslActor, ScanResult>) {
     this.scanning = false;
     let ScanResult::Distros(mut distros) = msg else {
         return;
@@ -169,7 +169,7 @@ fn on_scan_result(this: &mut WslActor, msg: ScanResult) {
 }
 
 #[handler]
-fn on_remote_scan(this: &mut WslActor, msg: RemoteScanResult) {
+fn on_remote_scan(In(this, msg, _): In<WslActor, RemoteScanResult>) {
     match msg {
         RemoteScanResult::Scan(scan) => {
             let sample = CpuSample {
@@ -271,24 +271,24 @@ mod tests {
         }
     }
 
-    fn detached_port() -> Push<WslState> {
-        Push::new(guinea::core::scope::ScopeTree::new().scope())
+    fn detached_port(h: &guinea::app::Harness) -> Push<WslState> {
+        Push::new(h.segment().scope())
     }
 
-    fn configured_for(distro: &str, distros: Vec<DistroRow>) -> WslActor {
+    fn configured_for(h: &guinea::app::Harness, distro: &str, distros: Vec<DistroRow>) -> WslActor {
         let configured = Field::new_volatile(["wsl-test", "distro"], distro.to_string());
-        let mut actor = WslActor::new(detached_port(), configured, |_| Box::pin(std::future::pending()));
+        let mut actor = WslActor::new(detached_port(h), configured, |_| Box::pin(std::future::pending()));
         actor.distros = Rc::from(distros);
         actor
     }
 
-    fn actor_with(distros: Vec<DistroRow>) -> WslActor {
-        configured_for("Ubuntu", distros)
+    fn actor_with(h: &guinea::app::Harness, distros: Vec<DistroRow>) -> WslActor {
+        configured_for(h, "Ubuntu", distros)
     }
 
-    #[test]
-    fn with_no_distribution_chosen_the_agent_is_in_the_wsl_default() {
-        let mut actor = configured_for(
+    #[guinea::test]
+    fn with_no_distribution_chosen_the_agent_is_in_the_wsl_default(h: &mut guinea::app::Harness) {
+        let mut actor = configured_for(h,
             "",
             vec![distro("Ubuntu", true), DistroRow { is_default: true, ..distro("Ubuntu-24.04", true) }],
         );
@@ -298,9 +298,9 @@ mod tests {
         assert_eq!(actor.distros[1].agent, AgentPresence::Silent);
     }
 
-    #[test]
-    fn only_the_configured_distribution_is_judged() {
-        let mut actor = actor_with(vec![distro("Ubuntu", true), distro("Debian", true)]);
+    #[guinea::test]
+    fn only_the_configured_distribution_is_judged(h: &mut guinea::app::Harness) {
+        let mut actor = actor_with(h, vec![distro("Ubuntu", true), distro("Debian", true)]);
         actor.apply_presence();
 
         assert_eq!(actor.distros[0].agent, AgentPresence::Silent);
@@ -311,18 +311,18 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_report_makes_the_configured_distribution_answering() {
-        let mut actor = actor_with(vec![distro("Ubuntu", true)]);
+    #[guinea::test]
+    fn a_report_makes_the_configured_distribution_answering(h: &mut guinea::app::Harness) {
+        let mut actor = actor_with(h, vec![distro("Ubuntu", true)]);
         actor.machine = Some(LinuxMachineSummary::default());
         actor.apply_presence();
 
         assert_eq!(actor.distros[0].agent, AgentPresence::Answering);
     }
 
-    #[test]
-    fn losing_the_agent_takes_the_figures_with_it() {
-        let mut actor = actor_with(vec![distro("Ubuntu", true)]);
+    #[guinea::test]
+    fn losing_the_agent_takes_the_figures_with_it(h: &mut guinea::app::Harness) {
+        let mut actor = actor_with(h, vec![distro("Ubuntu", true)]);
         actor.machine = Some(LinuxMachineSummary::default());
         actor.apply_presence();
 
@@ -334,9 +334,9 @@ mod tests {
         assert_eq!(actor.distros[0].metrics, None);
     }
 
-    #[test]
-    fn a_report_that_has_not_arrived_yet_leaves_the_figures_alone() {
-        let mut actor = actor_with(vec![distro("Ubuntu", true)]);
+    #[guinea::test]
+    fn a_report_that_has_not_arrived_yet_leaves_the_figures_alone(h: &mut guinea::app::Harness) {
+        let mut actor = actor_with(h, vec![distro("Ubuntu", true)]);
         actor.machine = Some(LinuxMachineSummary {
             memory_used_bytes: 512,
             ..LinuxMachineSummary::default()
@@ -353,9 +353,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_rescan_carries_the_known_figures_onto_the_new_rows() {
-        let actor = actor_with(vec![DistroRow {
+    #[guinea::test]
+    fn a_rescan_carries_the_known_figures_onto_the_new_rows(h: &mut guinea::app::Harness) {
+        let actor = actor_with(h, vec![DistroRow {
             metrics: Some(LinuxMachineSummary {
                 memory_used_bytes: 512,
                 ..LinuxMachineSummary::default()

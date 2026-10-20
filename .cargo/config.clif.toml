@@ -1,6 +1,0 @@
-[profile.dev]
-codegen-backend = "cranelift"
-
-#[profile.coverage]
-#inherits = "dev"
-#codegen-backend = "llvm"
