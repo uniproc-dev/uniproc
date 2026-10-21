@@ -1,11 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use windows_core::{HSTRING, PWSTR};
-
-use crate::bindings::{GetPackagesByPackageFamily, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS};
-
-use super::appx::{appx_tile_rgba, TILE_SOURCE_SIZE};
 use super::bitmap::RgbaImage;
 use super::trim::fit_content;
 use crate::ICON_SIZE;
@@ -13,12 +8,7 @@ use crate::encode::encode_png;
 
 const BLESS: &str = "UNIPROC_BLESS_ICONS";
 const PREVIEW_SCALE: u32 = 8;
-const PACKAGES: &[(&str, &str)] = &[
-    ("paint", "Microsoft.Paint_8wekyb3d8bbwe"),
-    ("winui-gallery", "Microsoft.WinUI3ControlsGallery_8wekyb3d8bbwe"),
-    ("terminal", "Microsoft.WindowsTerminal_8wekyb3d8bbwe"),
-    ("files", "Files_1y0xx7n9077q4"),
-];
+const FIXTURES: &[&str] = &["square", "wide", "tall", "translucent"];
 
 fn fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures").join("icons")
@@ -77,39 +67,13 @@ fn write_pair(dir: &Path, stem: &str, image: &RgbaImage) {
     fs::write(dir.join(format!("{stem}.x8.png")), png_of(&enlarged(image))).expect("write preview");
 }
 
-fn package_full_name(family: &str) -> Option<String> {
-    let family = HSTRING::from(family);
-    let mut count = 0u32;
-    let mut length = 0u32;
-    let sized = unsafe { GetPackagesByPackageFamily(&family, &mut count, None, &mut length, None) };
-    if sized != ERROR_INSUFFICIENT_BUFFER || count == 0 {
-        return None;
-    }
-
-    let mut names = vec![PWSTR::null(); count as usize];
-    let mut buffer = vec![0u16; length as usize];
-    let filled = unsafe {
-        GetPackagesByPackageFamily(
-            &family,
-            &mut count,
-            Some(names.as_mut_ptr()),
-            &mut length,
-            Some(buffer.as_mut_ptr()),
-        )
-    };
-    if filled != ERROR_SUCCESS {
-        return None;
-    }
-    unsafe { names.first()?.to_string().ok() }
-}
-
 #[test]
 fn fitted_tiles_match_their_goldens() {
     let dir = fixtures();
     let bless = std::env::var_os(BLESS).is_some();
     let mut failures = Vec::new();
 
-    for (name, _) in PACKAGES {
+    for name in FIXTURES {
         let tile_path = dir.join(format!("{name}.tile.png"));
         if !tile_path.exists() {
             failures.push(format!("{name}: no fixture {}", tile_path.display()));
@@ -143,17 +107,35 @@ fn fitted_tiles_match_their_goldens() {
 }
 
 #[test]
-#[ignore = "reads the installed packages; run by hand to refresh the tile fixtures"]
-fn capture_tiles_from_installed_packages() {
+#[ignore = "regenerates deterministic synthetic tile inputs; bless goldens separately"]
+fn generate_neutral_tiles() {
     let dir = fixtures();
     fs::create_dir_all(&dir).expect("create fixture dir");
 
-    for (name, family) in PACKAGES {
-        let full_name = package_full_name(family)
-            .unwrap_or_else(|| panic!("{family} is not installed"));
-        let tile = appx_tile_rgba(&full_name, TILE_SOURCE_SIZE)
-            .unwrap_or_else(|| panic!("no tile for {full_name}"));
+    for name in FIXTURES {
+        let mut tile = RgbaImage {
+            width: 96,
+            height: 96,
+            pixels: vec![0; 96 * 96 * 4],
+        };
+        let (left, top, width, height, opacity) = match *name {
+            "square" => (28, 28, 40, 40, 255),
+            "wide" => (12, 36, 72, 24, 255),
+            "tall" => (38, 8, 20, 80, 255),
+            "translucent" => (20, 24, 56, 48, 144),
+            _ => unreachable!(),
+        };
+        for row in top..top + height {
+            for column in left..left + width {
+                let offset = (row * 96 + column) * 4;
+                let color = if column < left + width / 2 {
+                    [48, 96, 144, opacity]
+                } else {
+                    [176, 112, 64, opacity]
+                };
+                tile.pixels[offset..offset + 4].copy_from_slice(&color);
+            }
+        }
         fs::write(dir.join(format!("{name}.tile.png")), png_of(&tile)).expect("write tile");
-        println!("{name}: {full_name}");
     }
 }
