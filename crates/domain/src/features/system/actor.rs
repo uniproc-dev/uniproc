@@ -15,8 +15,6 @@ use super::tools;
 #[remote(action)]
 pub struct Rescan;
 
-struct Scanned(Vec<SystemTool>);
-
 enum Opened {
     Launched(SystemTool),
     Gone(SystemTool),
@@ -47,10 +45,9 @@ impl SystemActor {
 actor! {
     SystemActor {
         handlers {
-            Rescan => { task Scanned }
-            Scanned,
+            Rescan,
             OpenTool => { task Opened }
-            Opened => { task Scanned }
+            Opened,
             GetTool,
             PinTool,
             ForgetTool,
@@ -61,12 +58,9 @@ actor! {
 #[handler]
 fn rescan(In(this, _, cx): In<SystemActor, Rescan>) {
     let locate = this.deps.locate;
-    cx.task().spawn(async move { Scanned(tools::missing(locate)) });
-}
-
-#[handler]
-fn on_scanned(In(this, Scanned(missing), _): In<SystemActor, Scanned>) {
-    this.push.send(SystemMsg::Missing(Rc::from(missing)));
+    cx.task()
+        .pushing_with(this.push, |missing: Vec<SystemTool>| SystemMsg::Missing(Rc::from(missing)))
+        .spawn(async move { tools::missing(locate) });
 }
 
 #[handler]
@@ -90,7 +84,9 @@ fn on_opened(In(this, opened, cx): In<SystemActor, Opened>) {
         Opened::Gone(tool) => {
             tracing::info!(?tool, "system tool is gone, looking again");
             let locate = this.deps.locate;
-            cx.task().spawn(async move { Scanned(tools::missing(locate)) });
+            cx.task()
+                .pushing_with(this.push, |missing: Vec<SystemTool>| SystemMsg::Missing(Rc::from(missing)))
+                .spawn(async move { tools::missing(locate) });
             return;
         }
     };
