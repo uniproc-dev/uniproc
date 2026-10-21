@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use futures::future::BoxFuture;
+use std::future::Future;
 
 use app_contracts::features::activity::{
     ActivityMsg, ActivityRow, ActivityState, ActivityView, AddGroup, Area, ClearArea, DeleteGroup, DropRule, Filter, Group,
@@ -90,7 +90,7 @@ impl ActivityActor {
         }
     }
 
-    fn work(&mut self) -> Option<BoxFuture<'static, Worked>> {
+    fn work(&mut self) -> Option<impl Future<Output = Worked> + Send + 'static + use<>> {
         if self.heard.is_empty() && !self.wanted && self.hovering.is_none() {
             return None;
         }
@@ -110,7 +110,7 @@ impl ActivityActor {
         }
         let hover = self.hovering.take().map(|key| (key, self.groups.clone()));
         let clock = self.deps.clock;
-        Some(Box::pin(async move {
+        Some(async move {
             for heard in heard {
                 match heard {
                     Heard::Events(batch) => log.take(&batch),
@@ -130,7 +130,7 @@ impl ActivityActor {
             });
             let hovered = hover.map(|(key, groups)| key.and_then(|key| row(&log, &groups, key, clock)));
             Worked { log, view, hovered }
-        }))
+        })
     }
 
     fn publish(&mut self) {
