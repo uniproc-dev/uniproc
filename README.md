@@ -158,3 +158,7 @@ The tests use fakes and do not require installed monitoring services. With the r
 Windows service running, `cargo run --locked -p xtask -- agent-check` checks its
 integration. Add `--wsl` to include the prepared WSL service. These live checks are
 separate from the fake-based tests and use the actual monitoring environment.
+
+Ordinary dev, test, release and bench builds disable debug information. The opt-in
+`dhat` profile keeps line tables for heap profiling; select it explicitly with
+`cargo build --profile dhat -p desktop --features dhat-heap`.
