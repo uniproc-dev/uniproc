@@ -160,5 +160,20 @@ integration. Add `--wsl` to include the prepared WSL service. These live checks 
 separate from the fake-based tests and use the actual monitoring environment.
 
 Ordinary dev, test, release and bench builds disable debug information. The opt-in
-`dhat` profile keeps line tables for heap profiling; select it explicitly with
-`cargo build --profile dhat -p desktop --features dhat-heap`.
+`dhat` profile keeps line tables for heap profiling. If your Cargo configuration
+disables MSVC PDB output with `/DEBUG:NONE`, override it for the profiling command
+and restore the previous flags afterward:
+
+```powershell
+$previousRustflags = $env:RUSTFLAGS
+try {
+    $env:RUSTFLAGS = "$previousRustflags -C link-arg=/DEBUG"
+    cargo build --profile dhat -p desktop --features dhat-heap
+} finally {
+    $env:RUSTFLAGS = $previousRustflags
+}
+```
+
+The override replaces configured Cargo rustflags for this command; retain any
+additional flags your profiling setup needs. Ordinary Windows CI explicitly uses
+`/DEBUG:NONE` and does not depend on the developer's Cargo configuration.

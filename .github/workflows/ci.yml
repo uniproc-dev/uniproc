@@ -15,6 +15,7 @@ permissions:
 
 env:
   RUSTC_WRAPPER: ""
+  RUSTFLAGS: "-C link-arg=/DEBUG:NONE"
 
 jobs:
   windows:
