@@ -3,9 +3,11 @@ use std::rc::Rc;
 
 use app_contracts::features::agents::WindowsServiceState;
 use app_contracts::features::services::{ServiceColumn, ServiceRow};
-use table::model::{Cell, Icon, Tone};
+use windows_reactor::{Grid, GridLength, Thickness, TooltipExt, VerticalAlignment};
 
 use crate::l10n::L10n;
+use crate::theme::{space, Palette};
+use crate::widgets::table_cell;
 use crate::widgets::table::ColumnSpec;
 
 fn state_label(l10n: &L10n, state: WindowsServiceState) -> String {
@@ -38,45 +40,73 @@ fn text_column(
     id: ServiceColumn,
     header: String,
     width: f64,
+    palette: Palette,
     write: impl Fn(&ServiceRow, &mut String) + 'static,
 ) -> Column {
-    ColumnSpec::painted(id, header, width, move |row: &ServiceRow, cell: &mut Cell| {
-        write(row, &mut cell.text);
-        cell.dim = !row.is_running();
+    ColumnSpec::new(id, header, width, move |row: &ServiceRow| {
+        let mut text = String::new();
+        write(row, &mut text);
+        let content = table_cell::cell_text(text.clone()).foreground(palette.primary_text).tooltip(text);
+        table_cell::dimmed(content, !row.is_running())
     })
 }
 
-pub(crate) fn build_columns(l10n: &L10n) -> Vec<Column> {
+pub(crate) fn build_columns(l10n: &L10n, palette: Palette) -> Vec<Column> {
     let labels: Rc<[(WindowsServiceState, String)]> =
         STATES.iter().map(|&state| (state, state_label(l10n, state))).collect();
-    let icon = guicons::icon_data!(gears).svg_bytes().map(Icon::Svg);
     vec![
-        ColumnSpec::painted(ServiceColumn::Name, l10n.services_col_name(), 260.0, move |row: &ServiceRow, cell: &mut Cell| {
-            cell.icon = icon.clone();
-            cell.text.push_str(&row.display_name);
-            cell.dim = !row.is_running();
+        ColumnSpec::new(ServiceColumn::Name, l10n.services_col_name(), 260.0, move |row: &ServiceRow| {
+            let content = Grid::new()
+                .columns([GridLength::Auto, GridLength::Star(1.0)])
+                .vertical_alignment(VerticalAlignment::Center)
+                .children((
+                    table_cell::service_icon(),
+                    table_cell::cell_text(row.display_name.to_string())
+                        .foreground(palette.primary_text)
+                        .grid_column(1)
+                        .margin(Thickness::new(space::Control, 0.0, 0.0, 0.0)),
+                ))
+                .tooltip(row.display_name.as_ref());
+            table_cell::dimmed(content, !row.is_running())
         })
         .sortable(),
-        ColumnSpec::painted(ServiceColumn::Status, l10n.services_col_status(), 90.0, move |row: &ServiceRow, cell: &mut Cell| {
-            if let Some((_, label)) = labels.iter().find(|(state, _)| *state == row.state) {
-                cell.text.push_str(label);
-            }
-            if row.is_running() {
-                cell.tone = Tone::Success;
-            }
-            cell.dim = !row.is_running();
+        ColumnSpec::new(ServiceColumn::Status, l10n.services_col_status(), 90.0, move |row: &ServiceRow| {
+            let label = labels
+                .iter()
+                .find(|(state, _)| *state == row.state)
+                .map(|(_, label)| label.clone())
+                .unwrap_or_default();
+            let color = if row.is_running() { palette.success } else { palette.primary_text };
+            let content = table_cell::cell_text(label.clone()).foreground(color).tooltip(label);
+            table_cell::dimmed(content, !row.is_running())
         })
         .sortable(),
-        text_column(ServiceColumn::Pid, l10n.services_col_pid(), 70.0, |row, text| {
+        text_column(ServiceColumn::Pid, l10n.services_col_pid(), 70.0, palette, |row, text| {
             if row.pid != 0 {
                 let _ = write!(text, "{}", row.pid);
             }
         })
         .sortable(),
-        text_column(ServiceColumn::Group, l10n.services_col_group(), 120.0, |row, text| text.push_str(&row.group))
+        text_column(ServiceColumn::Group, l10n.services_col_group(), 120.0, palette, |row, text| text.push_str(&row.group))
             .sortable(),
-        text_column(ServiceColumn::Description, l10n.services_col_description(), 320.0, |row, text| {
+        text_column(ServiceColumn::Description, l10n.services_col_description(), 320.0, palette, |row, text| {
             text.push_str(&row.description)
         }),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows_reactor::ColorScheme;
+
+    #[test]
+    fn services_keep_native_cells_for_native_scrolling() {
+        let l10n = L10n::new("en".parse().unwrap());
+        for scheme in [ColorScheme::Light, ColorScheme::Dark] {
+            let columns = build_columns(&l10n, Palette::of(scheme));
+            assert!(!columns.is_empty());
+            assert!(columns.iter().all(|column| !column.is_painted()));
+        }
+    }
 }

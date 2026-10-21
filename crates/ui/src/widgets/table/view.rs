@@ -19,6 +19,7 @@ use super::sort::SortState;
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TableMark {
     EmptyArea,
+    Scroll,
 }
 
 pub struct Table<T, C> {
@@ -257,6 +258,7 @@ impl<T: 'static, C: Mark + Clone + PartialEq + 'static> Table<T, C> {
         };
 
         let body = ScrollViewer::new()
+            .mark(TableMark::Scroll)
             .horizontal_scroll_bar_visibility(ScrollBarVisibility::Disabled)
             .grid_row(2)
             .content(content);

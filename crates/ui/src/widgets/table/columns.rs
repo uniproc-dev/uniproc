@@ -147,7 +147,7 @@ impl<T, C: Mark> ColumnSpec<T, C> {
         }
     }
 
-    pub(super) fn is_painted(&self) -> bool {
+    pub(crate) fn is_painted(&self) -> bool {
         matches!(self.cell, CellFn::Paint(_))
     }
 

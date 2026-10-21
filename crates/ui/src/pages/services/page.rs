@@ -87,7 +87,7 @@ impl ServicesPage {
                 let select = dispatch.clone();
                 let sort = dispatch.clone();
 
-                table(rows, build_columns(l10n))
+                table(rows, build_columns(l10n, palette))
                 .key(|row: &ServiceRow| {
                     let mut hasher = DefaultHasher::new();
                     row.name.hash(&mut hasher);

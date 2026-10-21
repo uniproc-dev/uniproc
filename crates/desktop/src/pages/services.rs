@@ -50,6 +50,25 @@ mod tests {
     use super::*;
     use crate::routes::Route;
 
+    #[guinea::test(iterations = 1)]
+    fn services_use_the_native_scroll_viewer(h: &mut Harness) {
+        crate::test_support::install(h);
+        let mut page: Mounted<'_, Services> =
+            Mounted::mount_at(h.child(), (), Route::Services {}).unwrap();
+        h.publish(WindowsReportMessage::Report(Arc::new(WindowsReport {
+            services: vec![WindowsServiceStats {
+                name: "sample-service".into(),
+                display_name: "Sample service".into(),
+                state: WindowsServiceState::Running,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }))).settle();
+        page.settle();
+
+        assert!(page.find(ui::widgets::table::TableMark::Scroll).is_some());
+    }
+
     fn tip(page: &Mounted<'_, Services>, property: PropertyId) -> Option<PropertyValue> {
         let tip = page.find(ActionFailureMark::Tip).expect("the failure tip is on the page");
         page.property(tip, property).cloned()
