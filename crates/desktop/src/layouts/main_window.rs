@@ -61,8 +61,7 @@ impl Layout for MainWindow {
         cx.use_effect_guard("uniproc::window_press", (), move || {
             crate::window_press::install(move || bus.publish(app_contracts::features::window::PressedAway))
         });
-        let drawn = self.scheme;
-        let on_scheme = cx.on_some(move |scheme: ColorScheme| (scheme != drawn).then_some(scheme));
+        let on_scheme = cx.on(|scheme: ColorScheme| scheme);
         cx.on_color_scheme(on_scheme);
         let (settings, _) = cx.read::<SettingsState>();
         cx.window_visuals(
