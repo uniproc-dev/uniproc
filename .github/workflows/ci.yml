@@ -29,6 +29,16 @@ jobs:
           toolchain: 1.99.1
           components: rustfmt
 
+      - name: Verify compiler version
+        shell: pwsh
+        run: |
+          $version = rustc --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output $version
+          if ($version -notmatch '^rustc 1\.99\.1(?:\s|$)') {
+            throw "Expected Rust 1.99.1, got $version"
+          }
+
       - name: Install Cap'n Proto
         run: choco install capnproto --version=1.3.0 --no-progress -y
 
