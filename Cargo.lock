@@ -183,8 +183,6 @@ dependencies = [
  "guinea-plugin-l10n",
  "guinea-plugin-l10n-build",
  "serde",
- "tracing",
- "tracing-subscriber",
  "uuid",
 ]
 

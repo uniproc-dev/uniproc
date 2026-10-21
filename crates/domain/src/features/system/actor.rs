@@ -4,7 +4,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use app_contracts::features::system::{
     ForgetTool, GetTool, OpenTool, PinTool, SystemMsg, SystemState, SystemTool,
 };
-use app_contracts::OrWarn;
 use guinea::prelude::*;
 
 use super::favourites;
@@ -101,8 +100,9 @@ fn on_opened(In(this, opened, cx): In<SystemActor, Opened>) {
         count: before.count.saturating_add(1),
         last_ms: now_ms(),
     };
-    uses.insert(tool.id().to_string(), &now)
-        .or_warn(format_args!("could not count a use of {tool:?}"));
+    if let Err(err) = uses.insert(tool.id().to_string(), &now) {
+        tracing::warn!(?err, ?tool, "could not count a use of the tool");
+    }
     this.publish_favourites();
 }
 
@@ -118,17 +118,25 @@ fn pin(In(this, PinTool(tool, pinned), _): In<SystemActor, PinTool>) {
     let pins = this.settings.pinned();
     if pinned {
         let next = pins.entries().map(|(_, order)| order + 1).max().unwrap_or_default();
-        pins.insert(tool.id().to_string(), &next).or_warn(format_args!("could not pin {tool:?}"));
+        if let Err(err) = pins.insert(tool.id().to_string(), &next) {
+            tracing::warn!(?err, ?tool, "could not pin the tool");
+        }
     } else {
-        pins.remove(tool.id()).or_warn(format_args!("could not unpin {tool:?}"));
+        if let Err(err) = pins.remove(tool.id()) {
+            tracing::warn!(?err, ?tool, "could not unpin the tool");
+        }
     }
     this.publish_favourites();
 }
 
 #[handler]
 fn forget(In(this, ForgetTool(tool), _): In<SystemActor, ForgetTool>) {
-    this.settings.pinned().remove(tool.id()).or_warn(format_args!("could not unpin {tool:?}"));
-    this.settings.uses().remove(tool.id()).or_warn(format_args!("could not forget the uses of {tool:?}"));
+    if let Err(err) = this.settings.pinned().remove(tool.id()) {
+        tracing::warn!(?err, ?tool, "could not unpin the tool");
+    }
+    if let Err(err) = this.settings.uses().remove(tool.id()) {
+        tracing::warn!(?err, ?tool, "could not forget the uses of the tool");
+    }
     this.publish_favourites();
 }
 

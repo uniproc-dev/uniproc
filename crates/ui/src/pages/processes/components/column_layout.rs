@@ -1,6 +1,5 @@
 use amethystate::ReactiveMap;
 use app_contracts::features::processes::{ColumnConfig, ProcessColumn};
-use app_contracts::OrWarn;
 use guinea::Mark;
 use crate::widgets::table::{ColumnOrder, ColumnWidths, Reordered, Resized};
 
@@ -98,9 +97,9 @@ impl ColumnLayout {
             let Some(column) = ProcessColumn::from_mark(name) else {
                 continue;
             };
-            ranks
-                .insert(column.id().to_string(), &(rank as u32))
-                .or_warn(format_args!("could not keep where the {} column goes", column.id()));
+            if let Err(err) = ranks.insert(column.id().to_string(), &(rank as u32)) {
+                tracing::warn!(?err, column = column.id(), "could not keep the column order");
+            }
         }
     }
 
@@ -159,7 +158,9 @@ impl ColumnLayout {
     pub(crate) fn reset(&mut self) {
         self.order = ColumnOrder::default();
         if let Some(ranks) = &self.ranks {
-            ranks.clear().or_warn("could not forget the column order");
+            if let Err(err) = ranks.clear() {
+                tracing::warn!(?err, "could not forget the column order");
+            }
         }
         for column in ProcessColumn::ALL {
             self.show(column, column.default_config().visible);
@@ -197,7 +198,9 @@ impl ColumnLayout {
             return;
         };
         let id = column.id();
-        configs.upsert(id, |_| config).or_warn(format_args!("could not keep how the {id} column looks"));
+        if let Err(err) = configs.upsert(id, |_| config) {
+            tracing::warn!(?err, column = id, "could not keep the column appearance");
+        }
     }
 
     pub(crate) fn columns(&self) -> Vec<ColumnState> {

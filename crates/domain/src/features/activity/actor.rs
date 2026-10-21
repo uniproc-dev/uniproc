@@ -7,7 +7,6 @@ use app_contracts::features::activity::{
     ShowCame, ShowGroup, ShowOther, ShowSeries, ShowSpan, ShowWent, Span, Unhide,
 };
 use app_contracts::features::agents::{ProcessInstance, WindowsProcessEvents, WindowsReport, WindowsReportMessage};
-use app_contracts::OrWarn;
 use guinea::prelude::*;
 
 use super::install::ActivityDeps;
@@ -86,7 +85,9 @@ impl ActivityActor {
     }
 
     fn remember(&self) {
-        remember(&self.settings, self.span, &self.filter).or_warn("could not remember the activity choices");
+        if let Err(err) = remember(&self.settings, self.span, &self.filter) {
+            tracing::warn!(?err, "could not remember the activity choices");
+        }
     }
 
     fn work(&mut self) -> Option<BoxFuture<'static, Worked>> {
@@ -143,7 +144,9 @@ impl ActivityActor {
 
     fn regroup(&mut self, change: impl FnOnce(&mut Vec<Group>)) {
         change(&mut self.groups);
-        remember_groups(&self.settings, &self.groups).or_warn("could not keep the activity groups");
+        if let Err(err) = remember_groups(&self.settings, &self.groups) {
+            tracing::warn!(?err, "could not keep the activity groups");
+        }
         self.push.send(ActivityMsg::Groups(self.groups.clone()));
         self.reask();
     }

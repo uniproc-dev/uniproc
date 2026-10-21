@@ -12,7 +12,6 @@ use app_contracts::features::processes::{
     RunImageCommand, RunWindowCommand, Select, SelectLinux, Sort, Terminate, GroupCommand, RunGroupCommand,
 };
 use app_contracts::features::settings::Units;
-use app_contracts::OrWarn;
 use guicons::icon;
 use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
@@ -173,9 +172,13 @@ fn toggle_key(map: Option<&ReactiveMap<String, bool>>, key: String) {
         return;
     };
     if map.get(&key).unwrap_or(false) {
-        map.remove(&key).or_warn(format_args!("could not open {key} again"));
+        if let Err(err) = map.remove(&key) {
+            tracing::warn!(?err, %key, "could not open the section again");
+        }
     } else {
-        map.insert(key.clone(), &true).or_warn(format_args!("could not keep {key} collapsed"));
+        if let Err(err) = map.insert(key.clone(), &true) {
+            tracing::warn!(?err, %key, "could not keep the section collapsed");
+        }
     }
 }
 
@@ -184,9 +187,13 @@ fn toggle_pin(map: Option<&ReactiveMap<String, PinnedProcess>>, name: String, pi
         return;
     };
     if map.get(&name).is_some() {
-        map.remove(&name).or_warn(format_args!("could not unpin {name}"));
+        if let Err(err) = map.remove(&name) {
+            tracing::warn!(?err, %name, "could not unpin the process");
+        }
     } else {
-        map.insert(name.clone(), &pin).or_warn(format_args!("could not pin {name}"));
+        if let Err(err) = map.insert(name.clone(), &pin) {
+            tracing::warn!(?err, %name, "could not pin the process");
+        }
     }
 }
 
