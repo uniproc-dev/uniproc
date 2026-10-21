@@ -18,9 +18,6 @@ impl Offer {
 #[derive(Clone, Debug)]
 pub struct OfferInProcessLater;
 
-#[derive(Clone, Debug)]
-pub struct InProcessOfferDue;
-
 struct Relaunched(Result<(), RelaunchError>);
 
 pub struct AgentLinkActor {
@@ -65,8 +62,7 @@ actor! {
         handlers {
             StartInProcess => { task Relaunched }
             Relaunched,
-            OfferInProcessLater => { task InProcessOfferDue }
-            InProcessOfferDue,
+            OfferInProcessLater,
             AgentStateRequest,
         }
         subscribes { WindowsAgentRuntimeEvent, WindowsAgentInProcess }
@@ -128,14 +124,9 @@ fn on_relaunched(In(this, Relaunched(relaunched), _): In<AgentLinkActor, Relaunc
 }
 
 #[handler]
-fn offer_in_process_later(In(_, _, cx): In<AgentLinkActor, OfferInProcessLater>) {
-    cx.task().spawn(async {
+fn offer_in_process_later(In(this, _, cx): In<AgentLinkActor, OfferInProcessLater>) {
+    cx.task().pushing(this.push).spawn(async {
         tokio::time::sleep(Offer::InProcessAfter).await;
-        InProcessOfferDue
+        AgentLinkMsg::OfferInProcess
     });
-}
-
-#[handler]
-fn in_process_offer_due(In(this, _, _): In<AgentLinkActor, InProcessOfferDue>) {
-    this.push.send(AgentLinkMsg::OfferInProcess);
 }
