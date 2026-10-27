@@ -14,8 +14,8 @@ pub struct Wsl(WslPage);
 impl Page for Wsl {
     type Message = WslMsg;
 
-    fn install(ctx: &Install, deps: Option<WslDeps>) -> anyhow::Result<Self> {
-        ctx.install::<WslFeature>(&deps.unwrap_or_default())?;
+    fn install(ctx: &Install, deps: WslDeps) -> anyhow::Result<Self> {
+        ctx.install::<WslFeature>(&deps)?;
         Ok(Self::default())
     }
 

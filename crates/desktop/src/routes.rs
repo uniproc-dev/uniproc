@@ -1,41 +1,59 @@
 #[derive(Clone, PartialEq, Debug, guinea::Routable)]
 pub enum Route {
-    Processes {},
-    ProcessesSettings {},
-    Activity {},
-    ActivityGroups {},
+    Processes(ProcessesRoute),
+    Activity(ActivityRoute),
     Services {},
     Wsl {},
-    System {},
-    SystemTools {},
+    System(SystemRoute),
     Settings {},
+}
+
+#[derive(Default, Clone, PartialEq, Debug, guinea::Routable)]
+pub enum ProcessesRoute {
+    #[default]
+    Overview,
+    Settings,
+}
+
+#[derive(Default, Clone, PartialEq, Debug, guinea::Routable)]
+pub enum ActivityRoute {
+    #[default]
+    Overview,
+    Groups,
+}
+
+#[derive(Default, Clone, PartialEq, Debug, guinea::Routable)]
+pub enum SystemRoute {
+    #[default]
+    Overview,
+    Tools,
 }
 
 impl Route {
     pub fn save(&self) -> Option<String> {
         Some(match self {
-            Self::Processes {} => "Processes",
-            Self::ProcessesSettings {} => "ProcessesSettings",
-            Self::Activity {} => "Activity",
-            Self::ActivityGroups {} => "ActivityGroups",
+            Self::Processes(ProcessesRoute::Overview) => "Processes",
+            Self::Processes(ProcessesRoute::Settings) => "ProcessesSettings",
+            Self::Activity(ActivityRoute::Overview) => "Activity",
+            Self::Activity(ActivityRoute::Groups) => "ActivityGroups",
             Self::Services {} => "Services",
             Self::Wsl {} => "Wsl",
-            Self::System {} => "System",
-            Self::SystemTools {} => "SystemTools",
+            Self::System(SystemRoute::Overview) => "System",
+            Self::System(SystemRoute::Tools) => "SystemTools",
             Self::Settings {} => "Settings",
         }.to_owned())
     }
 
     pub fn restore(saved: &str) -> Option<Self> {
         Some(match saved {
-            "Processes" => Self::Processes {},
-            "ProcessesSettings" => Self::ProcessesSettings {},
-            "Activity" => Self::Activity {},
-            "ActivityGroups" => Self::ActivityGroups {},
+            "Processes" => Self::Processes(ProcessesRoute::Overview),
+            "ProcessesSettings" => Self::Processes(ProcessesRoute::Settings),
+            "Activity" => Self::Activity(ActivityRoute::Overview),
+            "ActivityGroups" => Self::Activity(ActivityRoute::Groups),
             "Services" => Self::Services {},
             "Wsl" => Self::Wsl {},
-            "System" => Self::System {},
-            "SystemTools" => Self::SystemTools {},
+            "System" => Self::System(SystemRoute::Overview),
+            "SystemTools" => Self::System(SystemRoute::Tools),
             "Settings" => Self::Settings {},
             _ => return None,
         })
@@ -63,20 +81,37 @@ mod tests {
     #[test]
     fn saved_routes_round_trip() {
         for route in [
-            Route::Processes {},
-            Route::ProcessesSettings {},
-            Route::Activity {},
-            Route::ActivityGroups {},
+            Route::Processes(ProcessesRoute::Overview),
+            Route::Processes(ProcessesRoute::Settings),
+            Route::Activity(ActivityRoute::Overview),
+            Route::Activity(ActivityRoute::Groups),
             Route::Services {},
             Route::Wsl {},
-            Route::System {},
-            Route::SystemTools {},
+            Route::System(SystemRoute::Overview),
+            Route::System(SystemRoute::Tools),
             Route::Settings {},
         ] {
             assert_eq!(Route::restore(&route.save().unwrap()), Some(route));
         }
         assert_eq!(Route::restore(""), None);
         assert_eq!(Route::restore("unknown"), None);
+    }
+
+    #[guinea::test(iterations = 4, exclusive = "agent")]
+    fn nested_deep_links_mount_their_page(h: &mut Harness) {
+        start(h);
+        for route in [
+            Route::Processes(ProcessesRoute::Settings),
+            Route::Activity(ActivityRoute::Groups),
+            Route::System(SystemRoute::Tools),
+        ] {
+            let mut app = crate::test_support::mount_application(h, route.clone()).unwrap();
+            app.settle();
+            assert_eq!(app.route(), route);
+            assert_eq!(app.is_mounted::<crate::pages::ProcessesSettings>(), matches!(route, Route::Processes(_)));
+            assert_eq!(app.is_mounted::<crate::pages::ActivityGroups>(), matches!(route, Route::Activity(_)));
+            assert_eq!(app.is_mounted::<crate::pages::SystemTools>(), matches!(route, Route::System(_)));
+        }
     }
 
     fn serve(name: &str) {
@@ -96,12 +131,14 @@ mod tests {
 
     fn start(h: &mut Harness) {
         test_agent::reset(true);
-        h.provide(ProcessesDeps {
-            windows: AppWindows::default,
-            shell: |_| {},
-        });
-        h.app(crate::app::with_fakes).unwrap();
-        h.provide(test_agent::agent_link());
+        h.app(|app| crate::app::with_fakes(app, crate::platform::PlatformDeps {
+            processes: ProcessesDeps {
+                windows: AppWindows::default,
+                shell: |_| {},
+            },
+            agent_link: test_agent::agent_link(),
+            ..Default::default()
+        })).unwrap();
     }
 
     fn sample(clock_100ns: u64) -> WindowsMachineSample {
@@ -165,7 +202,7 @@ mod tests {
     fn a_press_that_leaves_activity_does_not_reach_the_page_it_left(h: &mut Harness) {
         start(h);
         let h = &*h;
-        let mut app = crate::test_support::mount_application(h, Route::Activity {}).unwrap();
+        let mut app = crate::test_support::mount_application(h, Route::Activity(ActivityRoute::Overview)).unwrap();
         app.settle();
 
         let left = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -183,7 +220,7 @@ mod tests {
         start(h);
         let h = &*h;
         serve("notepad.exe");
-        let mut app = crate::test_support::mount_application(h, Route::Processes {}).unwrap();
+        let mut app = crate::test_support::mount_application(h, Route::Processes(ProcessesRoute::Overview)).unwrap();
         h.advance(Duration::from_secs(1));
         app.settle();
         assert!(listed(&mut app, "notepad.exe"), "{:#?}", app.tree());
@@ -194,7 +231,7 @@ mod tests {
         h.advance(Duration::from_secs(1));
         app.settle();
 
-        let back = app.navigate(Route::Processes {});
+        let back = app.navigate(Route::Processes(ProcessesRoute::Overview));
         assert!(back.chain().published::<AgentStateRequest>(), "{:#?}", back.chain());
         assert!(listed(&mut app, "notepad.exe"), "kept rows show at once: {:#?}", app.tree());
         assert!(!listed(&mut app, "calc.exe"), "a report sent while asleep is not applied");

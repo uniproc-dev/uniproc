@@ -4,7 +4,7 @@ use ui::pages::system::ToolsProps;
 use ui::theme::{scheme_context, Palette};
 use windows_reactor::{Callback, View};
 
-use crate::routes::Route;
+use crate::routes::SystemRoute;
 
 #[derive(Default)]
 pub struct SystemTools {
@@ -24,7 +24,7 @@ impl Page for SystemTools {
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let on_back_hover = cx.on(|hovered: bool| hovered);
-        let nav = cx.navigate::<Route>();
+        let nav = cx.navigate::<SystemRoute>();
         ui::pages::system::tools_view(ToolsProps {
             state: &state,
             dispatch: &dispatch,
@@ -32,7 +32,7 @@ impl Page for SystemTools {
             palette,
             back_hovered: self.back_hovered,
             on_back_hover,
-            back: Callback::new(move |()| { let _ = nav.to(Route::System {}); }),
+            back: Callback::new(move |()| { let _ = nav.to(SystemRoute::Overview); }),
         })
     }
 }
@@ -45,11 +45,12 @@ mod tests {
     use ui::pages::system::{SystemMark, ToolMark};
 
     use super::*;
+    use crate::routes::Route;
     use crate::test_system::{self, launch, launched};
 
     fn mount(h: &Harness) -> Mounted<'_, SystemTools> {
         let mut page =
-            Mounted::mount_at(h.child(), (), Route::SystemTools {})
+            Mounted::mount_at(h.child(), (), Route::System(SystemRoute::Tools))
                 .unwrap();
         page.settle();
         page
@@ -75,7 +76,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "system")]
     fn a_found_tool_opens_and_a_missing_one_is_downloaded(h: &mut Harness) {
-        test_system::start(h);
+        let store = test_system::start(h);
         let h = &*h;
         let mut page = mount(h);
         assert!(has_pin(&page, SystemTool::ProcessExplorer));
@@ -102,14 +103,14 @@ mod tests {
                 launch("ms-settings:startupapps", ""),
             ]
         );
-        let uses = test_system::stored(h).uses().get(SystemTool::ProcessExplorer.id()).unwrap();
+        let uses = test_system::stored(&store).uses().get(SystemTool::ProcessExplorer.id()).unwrap();
         assert_eq!(uses.count, 1);
-        assert!(test_system::stored(h).uses().get(SystemTool::ProcessMonitor.id()).is_none(), "a download is not a use");
+        assert!(test_system::stored(&store).uses().get(SystemTool::ProcessMonitor.id()).is_none(), "a download is not a use");
     }
 
     #[guinea::test(iterations = 4, exclusive = "system")]
     fn a_pin_is_kept(h: &mut Harness) {
-        test_system::start(h);
+        let store = test_system::start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -117,7 +118,7 @@ mod tests {
         page.settle();
 
         assert!(h.state::<SystemState>().is_pinned(SystemTool::DeviceManager));
-        assert!(test_system::stored(h).pinned().get(SystemTool::DeviceManager.id()).is_some());
+        assert!(test_system::stored(&store).pinned().get(SystemTool::DeviceManager.id()).is_some());
         assert!(launched().is_empty(), "pinning does not open the tool");
     }
 
@@ -129,6 +130,6 @@ mod tests {
 
         page.click(SystemMark::Back).settle();
 
-        assert_eq!(page.navigator::<Route>().current(), Some(Route::System {}));
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::System(SystemRoute::Overview)));
     }
 }

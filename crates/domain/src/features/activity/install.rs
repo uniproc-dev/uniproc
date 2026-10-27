@@ -34,8 +34,7 @@ impl Pace {
 feature! { pub ActivityFeature { exports { ActivityState } } }
 
 #[installs]
-fn activity(app: &mut FeatureBuilder, store: amethystate::Store, deps: Option<ActivityDeps>) -> anyhow::Result<ActivityFeature> {
-    let deps = deps.unwrap_or_default();
+fn activity(app: &mut FeatureBuilder, store: amethystate::Store, deps: ActivityDeps) -> anyhow::Result<ActivityFeature> {
     let settings = store.try_settings::<ActivitySettings>()?;
     let (span, filter) = remembered(&settings);
     let seed = ActivityState {

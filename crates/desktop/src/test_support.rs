@@ -5,19 +5,19 @@ use guinea::winui::harness::Mounted;
 use guinea::winui::Window;
 use guinea_plugin_l10n::{L10nConfig, L10nPlugin};
 use guinea_plugin_store::{StoreConfig, StorePlugin};
+use crate::platform::{Platform, PlatformDeps};
 
-pub fn install(h: &mut Harness) -> &mut Harness {
-    h.app(|app| {
-        let StorePlugin(store, _) = app.plugin::<StorePlugin>(StoreConfig::in_memory())?;
-        app.plugin::<L10nPlugin<L10n>>(L10nConfig::new("en").remembered_in(store.clone()))?;
-        app.provide(store);
-        Ok(())
-    }).unwrap();
-    h
+pub fn install(h: &mut Harness) -> Store {
+    install_with(h, PlatformDeps::default())
 }
 
-pub fn store(h: &Harness) -> Store {
-    h.application_scope().service::<Store>().expect("test settings store was not provided")
+pub fn install_with(h: &mut Harness, deps: PlatformDeps) -> Store {
+    h.app(|app| {
+        app.plugin::<Platform>(deps)?;
+        let StorePlugin(store, _) = app.plugin::<StorePlugin>(StoreConfig::in_memory())?;
+        app.plugin::<L10nPlugin<L10n>>(L10nConfig::new("en").remembered_in(store.clone()))?;
+        Ok(store)
+    }).unwrap()
 }
 
 pub fn mount_application(h: &Harness, route: crate::routes::Route) -> anyhow::Result<Mounted<'_, crate::routes::Route>> {

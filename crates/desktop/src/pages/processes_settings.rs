@@ -5,7 +5,7 @@ use ui::theme::{scheme_context, Palette};
 use windows_reactor::{Callback, View};
 
 use super::processes::open_settings;
-use crate::routes::Route;
+use crate::routes::ProcessesRoute;
 
 #[derive(Default)]
 pub struct ProcessesSettings(ProcessesSettingsPage);
@@ -14,8 +14,8 @@ pub struct ProcessesSettings(ProcessesSettingsPage);
 impl Page for ProcessesSettings {
     type Message = ProcessesSettingsMsg;
 
-    fn install(_ctx: &Install, store: Option<amethystate::Store>) -> anyhow::Result<Self> {
-        Ok(Self(ProcessesSettingsPage::new(open_settings(store.as_ref()))))
+    fn install(_ctx: &Install, store: amethystate::Store) -> anyhow::Result<Self> {
+        Ok(Self(ProcessesSettingsPage::new(Some(open_settings(&store)?))))
     }
 
     fn update(&mut self, message: ProcessesSettingsMsg, _cx: &mut UpdateCx<'_, Self>) {
@@ -26,8 +26,8 @@ impl Page for ProcessesSettings {
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ProcessesSettingsMsg| message);
-        let nav = cx.navigate::<Route>();
-        let back = Callback::new(move |()| { let _ = nav.to(Route::Processes {}); });
+        let nav = cx.navigate::<ProcessesRoute>();
+        let back = Callback::new(move |()| { let _ = nav.to(ProcessesRoute::Overview); });
         self.0.view(&l10n, palette, forward, back)
     }
 }
@@ -44,18 +44,19 @@ mod tests {
     use windows_reactor::Thickness;
 
     use super::*;
+    use crate::routes::Route;
 
-    fn stored(h: &Harness) -> Stored {
-        crate::test_support::store(h).settings::<Stored>()
+    fn stored(store: &amethystate::Store) -> Stored {
+        store.try_settings::<Stored>().expect("open test settings")
     }
 
-    fn start(h: &mut Harness) {
-        crate::test_support::install(h);
+    fn start(h: &mut Harness) -> amethystate::Store {
+        crate::test_support::install(h)
     }
 
     fn mount(h: &Harness) -> Mounted<'_, ProcessesSettings> {
         let params = ();
-        let mut page = Mounted::mount_at(h.child(), params, Route::ProcessesSettings {}).unwrap();
+        let mut page = Mounted::mount_at(h.child(), params, Route::Processes(ProcessesRoute::Settings)).unwrap();
         page.settle();
         page
     }
@@ -210,7 +211,7 @@ mod tests {
     #[guinea::test(iterations = 4)]
     fn a_column_moved_down_trades_places_and_stays_there(h: &mut Harness) {
         use ProcessColumn::*;
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -222,7 +223,7 @@ mod tests {
         traded.swap(cpu, cpu + 1);
         assert_eq!(traded[cpu], Memory);
         assert_eq!(columns(&page), names(&traded));
-        let ranks = stored(h).columns().order();
+        let ranks = stored(&store).columns().order();
         assert_eq!(ranks.get("memory"), Some(3));
         assert_eq!(ranks.get("cpu"), Some(4));
     }
@@ -230,7 +231,7 @@ mod tests {
     #[guinea::test(iterations = 4)]
     fn a_column_shown_here_is_kept_shown(h: &mut Harness) {
         use ProcessColumn::*;
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -238,21 +239,21 @@ mod tests {
         page.settle();
 
         assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(true)));
-        let kept = stored(h).columns().configs().get(Pid.id());
+        let kept = stored(&store).columns().configs().get(Pid.id());
         assert!(kept.is_some_and(|config| config.visible));
 
         page.within(Pid).click(ProcessesSettingsMark::Shown).settle();
         page.settle();
 
         assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(false)));
-        let kept = stored(h).columns().configs().get(Pid.id());
+        let kept = stored(&store).columns().configs().get(Pid.id());
         assert!(kept.is_some_and(|config| !config.visible));
     }
 
     #[guinea::test(iterations = 4)]
     fn the_columns_come_back_to_their_defaults(h: &mut Harness) {
         use ProcessColumn::*;
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
         let reset = ProcessesSettingsMark::ResetColumns;
@@ -269,14 +270,14 @@ mod tests {
         assert_eq!(columns(&page), names(&ProcessColumn::ALL));
         assert_eq!(shown(&mut page, Pid), Some(PropertyValue::Bool(false)));
         assert!(!enabled(&mut page, reset, reset));
-        let kept = stored(h);
+        let kept = stored(&store);
         assert_eq!(kept.columns().order().get("cpu"), None);
         assert!(kept.columns().configs().get(Pid.id()).is_some_and(|config| !config.visible));
     }
 
     #[guinea::test(iterations = 4)]
     fn a_section_moves_up_and_the_order_can_be_reset(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
         let services = SectionId::Category(ProcessCategory::WindowsService);
@@ -290,20 +291,20 @@ mod tests {
         let moved = sections(&page);
         let at = |section: SectionId| moved.iter().position(|name| name == section.name());
         assert_eq!(at(services).map(|at| at + 1), at(background), "{moved:?}");
-        let ranks = stored(h).grouping().section_order();
+        let ranks = stored(&store).grouping().section_order();
         assert_eq!(ranks.get(services.name()), at(services).map(|at| at as u32));
 
         page.click(ProcessesSettingsMark::ResetSections).settle();
         page.settle();
 
         assert_eq!(sections(&page), names(&all_sections()));
-        let ranks = stored(h).grouping().section_order();
+        let ranks = stored(&store).grouping().section_order();
         assert_eq!(ranks.get(services.name()), None);
     }
 
     #[guinea::test(iterations = 4)]
     fn memory_is_shown_as_values_until_percents_are_chosen(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
         let choice = |page: &mut Mounted<'_, ProcessesSettings>| {
@@ -316,7 +317,7 @@ mod tests {
         page.settle();
 
         assert_eq!(choice(&mut page), Some(PropertyValue::SelectionIndex(Some(1))));
-        assert!(stored(h).columns().memory_as_percent().get());
+        assert!(stored(&store).columns().memory_as_percent().get());
     }
 
     #[guinea::test(iterations = 4)]
@@ -328,6 +329,6 @@ mod tests {
         page.click(ProcessesSettingsMark::Back).settle();
         page.settle();
 
-        assert_eq!(page.navigator::<Route>().current(), Some(Route::Processes {}));
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::Processes(ProcessesRoute::Overview)));
     }
 }

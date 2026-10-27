@@ -35,12 +35,13 @@ pub fn deps() -> SystemDeps {
     }
 }
 
-pub fn stored(h: &Harness) -> SystemSettings {
-    crate::test_support::store(h).settings::<SystemSettings>()
+pub fn stored(store: &amethystate::Store) -> SystemSettings {
+    store.try_settings::<SystemSettings>().expect("open test settings")
 }
 
-pub fn start(h: &mut Harness) {
+pub fn start(h: &mut Harness) -> amethystate::Store {
     LAUNCHED.lock().unwrap().clear();
-    crate::test_support::install(h);
+    let store = crate::test_support::install(h);
     h.install::<SystemFeature>(&deps()).unwrap();
+    store
 }

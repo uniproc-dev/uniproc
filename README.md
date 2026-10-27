@@ -47,7 +47,7 @@ Clone the application and its Windows service into sibling directories:
 ```powershell
 git clone https://github.com/uniproc-dev/uniproc.git
 git clone https://github.com/uniproc-dev/uniproc-windows-agent.git
-git -C uniproc-windows-agent checkout v0.23.0
+git -C uniproc-windows-agent checkout v0.24.0
 ```
 
 The service checkout must match the `uniproc-windows-agent` dependency's tag or
@@ -109,7 +109,14 @@ In debug builds, set `$env:UNIPROC_NO_DEVTOOLS = '1'` before starting if you do 
 want the separate devtools window. Debug logs are written to `run_desktop.log` in
 the working directory; long-running debug sessions can produce large logs.
 
-If you use devtools, build it from a `guinea-plugins` checkout at `v0.31.0`:
+This development build uses sibling checkouts of `guinea` (0.32.0 with
+Reactor 0.106), `guinea-plugins` (0.32.0, store 0.29.0), and `guicons`
+(0.15.0). `Cargo.toml` explicitly selects these local sources and unifies the
+Guinea and Reactor types through consumer overrides; no vendored sources are
+modified. Amethystate 0.29.0 and Canvas 0.106.0 come from crates.io, and the
+Windows agent comes from the published `v0.24.0` tag.
+
+If you use devtools, build it from the same `guinea-plugins` checkout:
 run `cargo install --locked --path tools/devtools` in that checkout. The application
 launches `GUINEA_DEVTOOLS_BIN`, or `guinea-devtools` from `PATH`; update an older
 installed binary alongside the application.

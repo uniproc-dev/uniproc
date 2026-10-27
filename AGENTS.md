@@ -57,10 +57,12 @@ polish it.
   stop it. The bus belongs to the application tree, not the process.
 - **`<F>Deps`** (`ProcessesDeps`, `WslDeps`, `SystemDeps`, `AgentLinkDeps`) is what the
   installer calls into the platform with. `Default` is the real thing; tests swap fakes.
-  A page or layout receives it as an injected `install` argument and passes it as feature
+  The `Platform` plugin in `desktop/src/platform.rs` declares these values in `provides`;
+  its parameters select real platform functions or test fakes. A page or layout receives
+  its dependency as an injected `install` argument and passes it as feature
   parameters; the installer reads `cx.params()` from `Install<FDeps>`.
-  It is not route params. The settings `Store` is provided by the application and
-  injected explicitly into feature installers.
+  It is not route params. `StorePlugin` automatically publishes the settings `Store`,
+  which is injected explicitly into feature installers. No `provide` or service lookup.
 - **Where it is installed decides how long it lives.** A page's own state goes in the page
   or in the area layout above it (`ProcessesArea`, `SystemArea`), never in `Shell`: the
   shell installs only what the shell itself shows (the sidebar). A separately mounted
@@ -69,7 +71,8 @@ polish it.
   App-lifetime features use `feature!` and a `#[installs]` function taking
   `&mut FeatureBuilder`. The application function in `desktop/src/app.rs` installs
   them (`agents`, `activity`) with `app.install::<F>()`, builds plugins with explicit
-  configs, provides their returned services and returns the initial WinUI `Window`.
+  configs and returns the initial WinUI `Window`. `provides` outputs are published by
+  guinea only after their installer succeeds; use returned values for startup wiring.
   App state is claimed with `app.state` and listed in the feature's `exports`.
 
 Routes are a `Routable` enum in `desktop/src/routes.rs`. Layouts explicitly mount their
@@ -179,6 +182,10 @@ Taskmgr's own resources by `cargo run -p xtask -- l10n-taskmgr`.
 
 ## Settings
 
+Open settings with `StoreAccess::try_settings` and return opening errors from
+installers and startup through `Result`. `Store` is a required dependency;
+do not hide missing settings behind optional injection or use panicking `settings`.
+
 Settings are `#[amethystate(prefix = ..)]` structs per feature, stored by
 `guinea-plugin-store`. There are no users yet: when a key changes, drop the old one; no
 migrations or compatibility shims for old local data.
@@ -208,15 +215,21 @@ migrations or compatibility shims for old local data.
   parallel; a test that touches a fake's statics takes its key: `exclusive = "agent"` for
   `test_agent`, `exclusive = "system"` for `test_system`.
   A page: `h.install::<F>(..)` + `Mounted::mount_at(h.child(), ..)`. The real tree:
-  `h.app(crate::app::with_fakes)` (in-memory store, fake agent) and
+  `h.app(|app| crate::app::with_fakes(app, deps))` (in-memory store, fake agent) and
   `Mounted::from_window(h, window)`; read and drive it with `state`, `dispatch`, `route`,
   `is_mounted`. No probe pages.
-- Fakes: `<F>Deps` through `h.provide(..)`; `test_agent.rs` is a fake Windows agent
+- Fakes: `PlatformDeps` parameters of the same `Platform` plugin as production;
+  `test_support::install_with` installs it with an in-memory store and localisation.
+  Keep the returned `Store` for assertions, rather than looking it up from the harness.
+  `test_agent.rs` is a fake Windows agent
   (`FakeAgentFeature`, switches for up, outdated, dropping); `test_system.rs` for the
   System page.
 - Time is virtual: `h.advance(..)`, then `settle()`.
 - Don't test guinea, the harness or the reactor; don't keep snapshot lists that change with
   every feature.
+- `app::tests::application_declarations_are_valid` checks the linked application graph
+  through `guinea::app::validate_declarations`; harness installation alone does not run
+  this global check. Production and tests share one provider declaration per type.
 
 ## Running
 

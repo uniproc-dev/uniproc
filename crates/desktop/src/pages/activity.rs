@@ -6,7 +6,7 @@ use ui::pages::activity::{ActivityPage, ActivityPageMsg};
 use ui::theme::{scheme_context, Palette};
 use windows_reactor::{Callback, View};
 
-use crate::routes::Route;
+use crate::routes::ActivityRoute;
 
 #[derive(Default)]
 pub struct Activity(ActivityPage);
@@ -37,8 +37,8 @@ impl Page for Activity {
                 away.call(ActivityPageMsg::MenuDismiss);
             })
         });
-        let nav = cx.navigate::<Route>();
-        let manage = Callback::new(move |()| { let _ = nav.to(Route::ActivityGroups {}); });
+        let nav = cx.navigate::<ActivityRoute>();
+        let manage = Callback::new(move |()| { let _ = nav.to(ActivityRoute::Groups); });
         self.0.view(&state, &dispatch, &l10n, palette, forward, manage)
     }
 }
@@ -66,6 +66,7 @@ mod tests {
     use ui::widgets::selection::SelectionMark;
 
     use super::*;
+    use crate::routes::Route;
 
     const SECOND: u64 = 10_000_000;
     const HOUR: u64 = 3600 * SECOND;
@@ -80,14 +81,17 @@ mod tests {
         }
     }
 
-    fn start(h: &mut Harness) {
-        start_at(h, || BASE + HOUR - SECOND);
+    fn start(h: &mut Harness) -> amethystate::Store {
+        start_at(h, || BASE + HOUR - SECOND)
     }
 
-    fn start_at(h: &mut Harness, now: fn() -> u64) {
-        crate::test_support::install(h)
-            .provide(ActivityDeps { now, clock: utc });
+    fn start_at(h: &mut Harness, now: fn() -> u64) -> amethystate::Store {
+        let store = crate::test_support::install_with(h, crate::platform::PlatformDeps {
+            activity: ActivityDeps { now, clock: utc },
+            ..Default::default()
+        });
         h.app(|app| app.install::<ActivityFeature>()).unwrap();
+        store
     }
 
     thread_local! {
@@ -101,7 +105,7 @@ mod tests {
 
     fn mount(h: &Harness) -> Mounted<'_, Activity> {
         let mut page =
-            Mounted::mount_at(h.child(), (), Route::Activity {}).unwrap();
+            Mounted::mount_at(h.child(), (), Route::Activity(ActivityRoute::Overview)).unwrap();
         page.settle();
         page
     }
@@ -495,13 +499,13 @@ mod tests {
         assert!(page.find(ActivityMark::Picked).is_some(), "{:#?}", page.tree());
     }
 
-    fn stored(h: &Harness) -> ActivitySettings {
-        crate::test_support::store(h).settings::<ActivitySettings>()
+    fn stored(store: &amethystate::Store) -> ActivitySettings {
+        store.try_settings::<ActivitySettings>().expect("open test settings")
     }
 
     #[guinea::test(iterations = 4)]
     fn what_is_hidden_on_the_page_is_remembered_for_the_next_run(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
         live(h, &mut page, vec![came(20, 10), came_from(21, 1, r"C:\Other\other.exe", 20)]);
@@ -513,22 +517,24 @@ mod tests {
 
         let shown = h.state::<ActivityState>().filter.clone();
         assert!(!shown.went && shown.hidden.len() == 1, "{shown:#?}");
-        assert_eq!(remembered(&stored(h)), (Span::default(), shown));
+        assert_eq!(remembered(&stored(&store)), (Span::default(), shown));
     }
 
     #[guinea::test(iterations = 4)]
     fn the_page_starts_with_what_was_chosen_last_run(h: &mut Harness) {
-        crate::test_support::install(h)
-            .provide(ActivityDeps {
+        let store = crate::test_support::install_with(h, crate::platform::PlatformDeps {
+            activity: ActivityDeps {
                 now: || BASE + HOUR - SECOND,
                 clock: utc,
-            });
+            },
+            ..Default::default()
+        });
         let chosen = Filter {
             went: false,
             hidden: vec![Pick::Folder(r"c:\other".into())],
             ..Filter::default()
         };
-        remember(&stored(h), Span::Quarter, &chosen).unwrap();
+        remember(&stored(&store), Span::Quarter, &chosen).unwrap();
 
         h.app(|app| app.install::<ActivityFeature>()).unwrap();
 
@@ -538,7 +544,7 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn every_span_is_offered_and_a_picked_one_is_shown_and_remembered(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
         live(h, &mut page, vec![came(20, 10)]);
@@ -558,7 +564,7 @@ mod tests {
         page.click(Span::Day).settle();
         page.settle();
         assert_eq!(h.state::<ActivityState>().span, Span::Day);
-        assert_eq!(remembered(&stored(h)).0, Span::Day);
+        assert_eq!(remembered(&stored(&store)).0, Span::Day);
     }
 
     const TASKHOST: &str = r"C:\Windows\System32\taskhostw.exe";
@@ -607,7 +613,7 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn a_group_switched_off_leaves_the_page_and_stays_off_for_the_next_run(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let _page = tool_and_taskhost(h);
 
@@ -620,24 +626,24 @@ mod tests {
         );
 
         assert_eq!(painted(h), [("tool.exe".into(), None)]);
-        assert!(!remembered_groups(&stored(h))[0].shown);
+        assert!(!remembered_groups(&stored(&store))[0].shown);
     }
 
     #[guinea::test(iterations = 4)]
     fn the_rest_switched_off_leaves_only_grouped_processes_and_is_remembered(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let _page = tool_and_taskhost(h);
 
         act(h, ShowOther(false));
 
         assert_eq!(painted(h), [("taskhostw.exe".into(), Some(Hue::Teal))]);
-        assert!(!remembered(&stored(h)).1.other);
+        assert!(!remembered(&stored(&store)).1.other);
     }
 
     #[guinea::test(iterations = 4)]
     fn a_program_put_in_a_new_group_leaves_the_group_it_was_in(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let _page = tool_and_taskhost(h);
         let tool = Pick::Exe("tool.exe".into());
@@ -660,12 +666,12 @@ mod tests {
         assert_ne!(new.hue, Hue::Teal);
         assert!(!groups[0].rules.contains(&tool), "{groups:#?}");
         assert_eq!(painted(h)[1], ("tool.exe".into(), Some(new.hue)));
-        assert_eq!(remembered_groups(&stored(h)), groups);
+        assert_eq!(remembered_groups(&stored(&store)), groups);
     }
 
     #[guinea::test(iterations = 4)]
     fn a_group_is_renamed_recoloured_moved_emptied_and_deleted_but_the_built_in_one_stays(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let _page = tool_and_taskhost(h);
         let tool = Pick::Exe("tool.exe".into());
@@ -713,12 +719,12 @@ mod tests {
         act(h, DeleteGroup(Group::WINDOWS_BACKGROUND.into()));
         act(h, DeleteGroup(id));
         assert_eq!(h.state::<ActivityState>().groups, [Group::windows_background()]);
-        assert_eq!(remembered_groups(&stored(h)), [Group::windows_background()]);
+        assert_eq!(remembered_groups(&stored(&store)), [Group::windows_background()]);
     }
 
     #[guinea::test(iterations = 4)]
     fn a_group_is_not_renamed_to_nothing(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let _page = tool_and_taskhost(h);
         act(h, NewGroup(Pick::Exe("tool.exe".into())));
@@ -734,7 +740,7 @@ mod tests {
 
         let groups = h.state::<ActivityState>().groups.clone();
         assert_eq!((groups[1].id.as_str(), groups[1].name.as_str()), (id.as_str(), "tool.exe"));
-        assert_eq!(remembered_groups(&stored(h)), groups);
+        assert_eq!(remembered_groups(&stored(&store)), groups);
     }
 
     fn marked(node: &Node, mark: &str) -> usize {
@@ -810,7 +816,7 @@ mod tests {
 
         page.click(ActivityMark::ManageGroups).settle();
 
-        assert_eq!(page.navigator::<Route>().current(), Some(Route::ActivityGroups {}));
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::Activity(ActivityRoute::Groups)));
     }
 
     #[guinea::test(iterations = 4)]

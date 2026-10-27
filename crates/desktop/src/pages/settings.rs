@@ -36,12 +36,12 @@ mod tests {
 
     use super::*;
 
-    fn stored(h: &Harness) -> GeneralSettings {
-        crate::test_support::store(h).settings::<GeneralSettings>()
+    fn stored(store: &amethystate::Store) -> GeneralSettings {
+        store.try_settings::<GeneralSettings>().expect("open test settings")
     }
 
-    fn start(h: &mut Harness) {
-        crate::test_support::install(h);
+    fn start(h: &mut Harness) -> amethystate::Store {
+        crate::test_support::install(h)
     }
 
     fn mount(h: &Harness) -> Mounted<'_, Settings> {
@@ -79,7 +79,7 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn choices_are_shown_and_kept(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -98,7 +98,7 @@ mod tests {
         assert_eq!(value(&page, SettingsMark::ByteUnits, PropertyId::SelectedIndex), PropertyValue::SelectionIndex(Some(1)));
         assert_eq!(value(&page, SettingsMark::NetworkUnits, PropertyId::SelectedIndex), PropertyValue::SelectionIndex(Some(1)));
 
-        let stored = stored(h);
+        let stored = stored(&store);
         assert_eq!(stored.byte_units_choice(), ByteUnits::Iec);
         assert_eq!(stored.network_units_choice(), NetworkUnits::Bytes);
         assert_eq!(stored.theme_choice(), AppTheme::Dark);
@@ -112,7 +112,7 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn a_chart_unticked_here_leaves_the_pane_and_is_kept(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
         for chart in SidebarChart::ALL {
@@ -125,27 +125,26 @@ mod tests {
         assert_eq!(ticked(&page, SidebarChart::Network), PropertyValue::OptionalBool(Some(false)));
         assert_eq!(ticked(&page, SidebarChart::Disk), PropertyValue::OptionalBool(Some(true)));
         assert!(!h.state::<SettingsState>().sidebar_charts.shows(SidebarChart::Network));
-        assert_eq!(stored(h).hidden_sidebar_charts().get(), "network");
+        assert_eq!(stored(&store).hidden_sidebar_charts().get(), "network");
     }
 
     #[guinea::test(iterations = 4)]
     fn an_interval_edited_out_of_range_in_the_file_is_read_inside_it(h: &mut Harness) {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("settings.json"), r#"{"general":{"update_interval_ms":0}}"#).unwrap();
-        h.app(|app| {
+        let store = h.app(|app| {
             let guinea_plugin_store::StorePlugin(store, _) = app.plugin::<guinea_plugin_store::StorePlugin>(
                 guinea_plugin_store::StoreConfig::at(dir.path().join("settings")).backend(Backend::Json)
             )?;
-            app.provide(store);
-            Ok(())
+            Ok(store)
         }).unwrap();
 
-        assert_eq!(stored(h).update_interval(), UpdateInterval::Min);
+        assert_eq!(stored(&store).update_interval(), UpdateInterval::Min);
     }
 
     #[guinea::test(iterations = 4)]
     fn a_new_interval_is_announced_once_and_inside_the_range(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -163,6 +162,6 @@ mod tests {
         let over_again = h.act::<SettingsState>(SetUpdateInterval(9_000));
         over_again.settle();
         assert!(!over_again.chain().published::<UpdateIntervalChanged>(), "out of range lands on the same bound");
-        assert_eq!(stored(h).update_interval_ms().get(), 5_000);
+        assert_eq!(stored(&store).update_interval_ms().get(), 5_000);
     }
 }

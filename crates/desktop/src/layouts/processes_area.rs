@@ -3,7 +3,7 @@ use guinea::feature::Install;
 use guinea::winui::{layout, Layout, LayoutCx};
 use windows_reactor::View;
 
-use crate::routes::Route;
+use crate::routes::ProcessesRoute;
 use crate::pages::{Processes, ProcessesSettings};
 
 #[derive(Default)]
@@ -17,11 +17,10 @@ impl Layout for ProcessesArea {
     }
 
     fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
-        let navigate = cx.navigate::<Route>();
+        let navigate = cx.navigate::<ProcessesRoute>();
         cx.outlet(&navigate, |route, cx| match route {
-            Route::Processes {} => cx.mount::<Processes>(&()),
-            Route::ProcessesSettings {} => cx.mount::<ProcessesSettings>(&()),
-            _ => unreachable!("route outside ProcessesArea"),
+            ProcessesRoute::Overview => cx.mount::<Processes>(&()),
+            ProcessesRoute::Settings => cx.mount::<ProcessesSettings>(&()),
         }).into()
     }
 }

@@ -17,28 +17,28 @@ members = [
 
 [workspace.dependencies]
 # --- guinea ---
-guinea = "0.31.1"
-guinea-meta-build = "0.31.1"
+guinea = "0.32.0"
+guinea-meta-build = "0.32.0"
 
-guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.31.0" }
-guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.31.0" }
-guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.31.0" }
-guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.31.0" }
-guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.31.0" }
-guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", tag = "v0.31.0" }
+guinea-plugin-store = { path = "../guinea-plugins/plugins/store" }
+guinea-plugin-l10n = { path = "../guinea-plugins/plugins/l10n" }
+guinea-plugin-devtools = { path = "../guinea-plugins/plugins/devtools" }
+guinea-plugin-single-instance = { path = "../guinea-plugins/plugins/single-instance" }
+guinea-widgets = { path = "../guinea-plugins/widgets" }
+guinea-plugin-l10n-build = { path = "../guinea-plugins/plugins/l10n-build" }
 
 # --- guicons ---
-guicons = "0.14.1"
-guicons-build = "0.14.1"
+guicons = { path = "../guicons/crates/guicons" }
+guicons-build = { path = "../guicons/crates/guicons-build" }
 
 # --- amethystate ---
-amethystate = "0.28.0"
-amethystate-guinea = "0.28.0"
+amethystate = "0.29.0"
+amethystate-guinea = "0.29.0"
 
 # --- windows-rs ---
-windows-reactor = { package = "windows-reactor-pre", version = "0.105" }
+windows-reactor = { package = "windows-reactor-pre", version = "0.106" }
 windows-reactor-setup = "0.100"
-windows-canvas = { package = "windows-canvas-pre", version = "0.105", features = ["reactor"] }
+windows-canvas = { package = "windows-canvas-pre", version = "0.106", features = ["reactor"] }
 windows-collections = "0.100"
 windows-core = "0.100"
 windows-numerics = "0.100"
@@ -47,7 +47,7 @@ windows-reference = "0.100"
 # --- RPC & protocol ---
 ogurpchik = { git = "https://github.com/uniproc-dev/oguRPChik", tag = "v0.7.2" }
 uniproc-protocol = { git = "https://github.com/uniproc-dev/uniproc-protocol", tag = "v0.18.0" }
-uniproc-windows-agent = { git = "https://github.com/uniproc-dev/uniproc-windows-agent", tag = "v0.23.0", default-features = false }
+uniproc-windows-agent = { git = "https://github.com/uniproc-dev/uniproc-windows-agent", tag = "v0.24.0", default-features = false }
 
 # --- Internal ---
 app-contracts = { path = "crates/app-contracts" }
@@ -80,6 +80,21 @@ hashbrown = "0.17.1"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
+
+[patch.crates-io]
+guinea = { path = "../guinea/crates/guinea" }
+guinea-app = { path = "../guinea/crates/guinea-app" }
+guinea-codegen = { path = "../guinea/crates/guinea-codegen" }
+guinea-core = { path = "../guinea/crates/guinea-core" }
+guinea-macros = { path = "../guinea/crates/guinea-macros" }
+guinea-mark = { path = "../guinea/crates/guinea-mark" }
+guinea-meta = { path = "../guinea/crates/guinea-meta" }
+guinea-meta-build = { path = "../guinea/crates/guinea-meta-build" }
+guinea-router = { path = "../guinea/crates/guinea-router" }
+guinea-trace = { path = "../guinea/crates/guinea-trace" }
+guinea-winui = { path = "../guinea/crates/adapters/guinea-winui" }
+windows-reactor-pre = { path = "../guinea/crates/vendor/windows-reactor-pre" }
+windows-window-pre = { path = "../guinea/crates/vendor/windows-window-pre" }
 
 # --- Profiles ---
 [profile.release]

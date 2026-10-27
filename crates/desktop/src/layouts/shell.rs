@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use crate::layouts::{ActivityArea, ProcessesArea, SystemArea};
 use crate::pages::{Services, Settings, Wsl};
 use crate::parts::{Connecting, SidebarCharts};
-use crate::routes::Route;
+use crate::routes::{Route, ProcessesRoute, ActivityRoute, SystemRoute};
 
 #[derive(Default)]
 pub struct Shell {
@@ -23,11 +23,11 @@ pub enum ShellMsg {
 
 fn nav(route: &Route) -> ShellNav {
     match route {
-        Route::Processes {} | Route::ProcessesSettings {} => ShellNav::Processes,
-        Route::Activity {} | Route::ActivityGroups {} => ShellNav::Activity,
+        Route::Processes(_) => ShellNav::Processes,
+        Route::Activity(_) => ShellNav::Activity,
         Route::Services {} => ShellNav::Services,
         Route::Wsl {} => ShellNav::Wsl,
-        Route::System {} | Route::SystemTools {} => ShellNav::System,
+        Route::System(_) => ShellNav::System,
         Route::Settings {} => ShellNav::Settings,
     }
 }
@@ -68,11 +68,11 @@ impl Layout for Shell {
             last.push(route);
         }
         let targets: Vec<_> = [
-            (ShellNav::Processes, Route::Processes {}),
-            (ShellNav::Activity, Route::Activity {}),
+            (ShellNav::Processes, Route::Processes(ProcessesRoute::Overview)),
+            (ShellNav::Activity, Route::Activity(ActivityRoute::Overview)),
             (ShellNav::Services, Route::Services {}),
             (ShellNav::Wsl, Route::Wsl {}),
-            (ShellNav::System, Route::System {}),
+            (ShellNav::System, Route::System(SystemRoute::Overview)),
             (ShellNav::Settings, Route::Settings {}),
         ].into_iter().map(|(item, route)| {
             let remembered = self.last.borrow().iter().find(|saved| nav(saved) == item).cloned();
@@ -88,11 +88,11 @@ impl Layout for Shell {
         let pane_footer = cx.mount::<SidebarCharts>(&()).into();
         let overlay = cx.mount::<Connecting>(&()).into();
         let content = cx.outlet(&navigate, |route, cx| match route {
-            Route::Processes {} | Route::ProcessesSettings {} => cx.mount::<ProcessesArea>(&()).keep(),
-            Route::Activity {} | Route::ActivityGroups {} => cx.mount::<ActivityArea>(&()),
+            Route::Processes(_) => cx.mount::<ProcessesArea>(&()).keep(),
+            Route::Activity(_) => cx.mount::<ActivityArea>(&()),
             Route::Services {} => cx.mount::<Services>(&()).keep(),
             Route::Wsl {} => cx.mount::<Wsl>(&()).keep(),
-            Route::System {} | Route::SystemTools {} => cx.mount::<SystemArea>(&()),
+            Route::System(_) => cx.mount::<SystemArea>(&()),
             Route::Settings {} => cx.mount::<Settings>(&()),
         }).into();
 
@@ -155,21 +155,24 @@ mod tests {
         page.state::<AgentLinkState>().windows
     }
 
-    fn start(h: &mut Harness, agent_up: bool) {
+    fn start(h: &mut Harness, agent_up: bool) -> amethystate::Store {
         test_agent::reset(agent_up);
-        h.provide(ActivityDeps {
-            now: || 1000 * HOUR + HOUR - TICK,
-            clock: |_| Clock::default(),
-        }).provide(ProcessesDeps {
-            windows: AppWindows::default,
-            shell: |_| {},
-        });
-        h.app(crate::app::with_fakes).unwrap();
-        h.provide(test_agent::agent_link())
-            .provide(SystemDeps {
+        h.app(|app| crate::app::with_fakes(app, crate::platform::PlatformDeps {
+            activity: ActivityDeps {
+                now: || 1000 * HOUR + HOUR - TICK,
+                clock: |_| Clock::default(),
+            },
+            processes: ProcessesDeps {
+                windows: AppWindows::default,
+                shell: |_| {},
+            },
+            agent_link: test_agent::agent_link(),
+            system: SystemDeps {
                 locate: |_| None,
                 launch: |_| {},
-            });
+            },
+            ..Default::default()
+        })).unwrap()
     }
 
     fn answer_to_a_kill(h: &Harness, page: &mut Mounted<'_, Route>) -> ActionOutcome {
@@ -235,10 +238,10 @@ mod tests {
 
     #[guinea::test(iterations = 8, exclusive = "agent")]
     fn a_shorter_ping_interval_takes_effect_at_once(h: &mut Harness) {
-        start(h, true);
+        let store = start(h, true);
         let h = &*h;
         let mut page = mount(h);
-        let interval = crate::test_support::store(h).settings::<AgentSettings>().ping_interval_ms();
+        let interval = store.try_settings::<AgentSettings>().expect("open test settings").ping_interval_ms();
         interval.set(60_000);
         after(h, &mut page, 5);
         let before = test_agent::pings();
@@ -271,7 +274,7 @@ mod tests {
         page.click_text("Activity").settle();
         page.settle();
 
-        assert_eq!(page.route(), Route::Activity {});
+        assert_eq!(page.route(), Route::Activity(ActivityRoute::Overview));
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]
@@ -283,7 +286,7 @@ mod tests {
         page.click_text("System").settle();
         page.settle();
 
-        assert_eq!(page.route(), Route::System {});
+        assert_eq!(page.route(), Route::System(SystemRoute::Overview));
     }
 
     #[guinea::test(iterations = 4, exclusive = "agent")]
@@ -293,9 +296,9 @@ mod tests {
         let mut page = mount(h);
 
         for (route, label) in [
-            (Route::ProcessesSettings {}, "Processes"),
-            (Route::ActivityGroups {}, "Activity"),
-            (Route::SystemTools {}, "System"),
+            (Route::Processes(ProcessesRoute::Settings), "Processes"),
+            (Route::Activity(ActivityRoute::Groups), "Activity"),
+            (Route::System(SystemRoute::Tools), "System"),
         ] {
             page.navigate(route.clone());
             page.settle();

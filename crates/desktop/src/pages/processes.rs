@@ -9,14 +9,14 @@ use ui::pages::processes::{ProcessesMsg, ProcessesPage, ProcessesSettingsMaps};
 use ui::theme::{scheme_context, Palette};
 use windows_reactor::{Callback, View};
 
-use crate::routes::Route;
+use crate::routes::ProcessesRoute;
 
 #[derive(Default)]
 pub struct Processes(ProcessesPage);
 
-pub(super) fn open_settings(store: Option<&amethystate::Store>) -> Option<ProcessesSettingsMaps> {
-    let settings = store?.settings::<ProcessesSettings>();
-    Some(ProcessesSettingsMaps {
+pub(super) fn open_settings(store: &amethystate::Store) -> anyhow::Result<ProcessesSettingsMaps> {
+    let settings = store.try_settings::<ProcessesSettings>()?;
+    Ok(ProcessesSettingsMaps {
         columns: settings.columns().configs().clone(),
         column_order: settings.columns().order().clone(),
         collapsed_sections: settings.grouping().collapsed_sections().clone(),
@@ -31,8 +31,8 @@ pub(super) fn open_settings(store: Option<&amethystate::Store>) -> Option<Proces
 impl Page for Processes {
     type Message = ProcessesMsg;
 
-    fn install(_ctx: &Install, store: Option<amethystate::Store>) -> anyhow::Result<Self> {
-        Ok(Self(ProcessesPage::new(open_settings(store.as_ref()))))
+    fn install(_ctx: &Install, store: amethystate::Store) -> anyhow::Result<Self> {
+        Ok(Self(ProcessesPage::new(Some(open_settings(&store)?))))
     }
 
     fn update(&mut self, message: ProcessesMsg, _cx: &mut UpdateCx<'_, Self>) {
@@ -59,8 +59,8 @@ impl Page for Processes {
             }
             None
         });
-        let nav = cx.navigate::<Route>();
-        let open_settings = Callback::new(move |()| { let _ = nav.to(Route::ProcessesSettings {}); });
+        let nav = cx.navigate::<ProcessesRoute>();
+        let open_settings = Callback::new(move |()| { let _ = nav.to(ProcessesRoute::Settings); });
         let (settings, _) = cx.read::<SettingsState>();
         let units = settings.units;
         self.0.view(&state, &dispatch, &l10n, palette, forward, open_settings, units)
@@ -105,6 +105,7 @@ mod tests {
     use app_contracts::features::window::PressedAway;
 
     use super::*;
+    use crate::routes::Route;
 
     const NOTEPAD: u32 = 10;
     const NOTEPAD_PATH: &str = r"C:\Windows\notepad.exe";
@@ -214,18 +215,28 @@ mod tests {
             .settle();
     }
 
-    fn stored(h: &Harness) -> ProcessesSettings {
-        crate::test_support::store(h).settings::<ProcessesSettings>()
+    fn stored(store: &amethystate::Store) -> ProcessesSettings {
+        store.try_settings::<ProcessesSettings>().expect("open test settings")
     }
 
-    fn start(h: &mut Harness) {
+    #[guinea::test(iterations = 1)]
+    fn unreadable_settings_return_an_error(h: &mut Harness) {
+        let store = crate::test_support::install(h);
+        store.set(["processes", "scan_interval_ms"], &"often").unwrap();
+
+        assert!(open_settings(&store).is_err());
+    }
+
+    fn start(h: &mut Harness) -> amethystate::Store {
         NOTEPAD_WINDOW.set(true);
         SHELL.with_borrow_mut(Vec::clear);
-        crate::test_support::install(h)
-            .provide(ProcessesDeps {
+        crate::test_support::install_with(h, crate::platform::PlatformDeps {
+            processes: ProcessesDeps {
                 windows: desktop_windows,
                 shell: fake_shell,
-            });
+            },
+            ..Default::default()
+        })
     }
 
     fn mount(h: &Harness) -> Mounted<'_, Processes> {
@@ -236,7 +247,7 @@ mod tests {
         })
         .unwrap();
         let params = ();
-        let mut page = Mounted::mount_at(h.child(), params, Route::Processes {}).unwrap();
+        let mut page = Mounted::mount_at(h.child(), params, Route::Processes(ProcessesRoute::Overview)).unwrap();
         report(h, machine());
         page.settle();
         page
@@ -347,7 +358,7 @@ mod tests {
 
     #[guinea::test(iterations = 8)]
     fn the_group_by_type_toggle_drops_the_sections_and_brings_them_back(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
         assert!(!headings(&mut page).is_empty(), "{:?}", labels(&mut page));
@@ -363,7 +374,7 @@ mod tests {
         assert!(flat.contains(&"RuntimeBroker.exe".to_string()), "{flat:?}");
         assert_ne!(h.state::<ProcessesState>().sort_column, ProcessColumn::Name, "the toggle does not sort");
 
-        let kept = || stored(h).grouping().by_type().get();
+        let kept = || stored(&store).grouping().by_type().get();
         assert!(!kept(), "the choice is kept in the settings");
 
         toggle_group_by_type(&mut page);
@@ -679,7 +690,7 @@ mod tests {
         page.click(ProcessesMark::OpenSettings).settle();
         page.settle();
 
-        assert_eq!(page.navigator::<Route>().current(), Some(Route::ProcessesSettings {}));
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::Processes(ProcessesRoute::Settings)));
     }
 
     #[guinea::test(iterations = 8)]
@@ -800,7 +811,7 @@ mod tests {
         })
         .unwrap();
         let params = ();
-        let mut page = Mounted::mount_at(h.child(), params, Route::Processes {}).unwrap();
+        let mut page = Mounted::mount_at(h.child(), params, Route::Processes(ProcessesRoute::Overview)).unwrap();
         let after =|seconds: u64, page: &mut Mounted<'_, Processes>| {
             h.advance(Duration::from_secs(seconds));
             page.settle();
@@ -1398,13 +1409,13 @@ mod tests {
         page.settle();
     }
 
-    fn gpu_shown(h: &Harness) -> Option<bool> {
-        stored(h).columns().configs().get("gpu").map(|config| config.visible)
+    fn gpu_shown(store: &amethystate::Store) -> Option<bool> {
+        stored(store).columns().configs().get("gpu").map(|config| config.visible)
     }
 
-    fn show_in_settings(h: &Harness, column: ProcessColumn) {
+    fn show_in_settings(store: &amethystate::Store, column: ProcessColumn) {
         let config = ColumnConfig { visible: true, ..column.default_config() };
-        stored(h).columns().configs().insert(column.id().to_string(), &config).unwrap();
+        stored(store).columns().configs().insert(column.id().to_string(), &config).unwrap();
     }
 
     struct NameHandle;
@@ -1417,8 +1428,8 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn name_alone_in_the_table_keeps_its_resize_handle(h: &mut Harness) {
-        start(h);
-        let columns = stored(h).columns().configs();
+        let store = start(h);
+        let columns = stored(&store).columns().configs();
         for column in ProcessColumn::ALL.into_iter().filter(|column| *column != ProcessColumn::Name) {
             let hidden = ColumnConfig { visible: false, ..column.default_config() };
             columns.insert(column.id().to_string(), &hidden).unwrap();
@@ -1432,7 +1443,7 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn the_header_menu_holds_the_metrics_and_leads_to_the_rest(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1453,20 +1464,20 @@ mod tests {
 
         page.click(ProcessesMark::MenuColumnGpu).settle();
         page.settle();
-        assert_eq!(gpu_shown(h), Some(false), "the choice is kept in the settings");
+        assert_eq!(gpu_shown(&store), Some(false), "the choice is kept in the settings");
 
         column_menu(&mut page);
         page.click(ProcessesMark::MenuMoreColumns).settle();
         page.settle();
         assert!(!menu_open(&page));
-        assert_eq!(page.navigator::<Route>().current(), Some(Route::ProcessesSettings {}));
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::Processes(ProcessesRoute::Settings)));
     }
 
     #[guinea::test(iterations = 4)]
     fn pid_and_process_name_chosen_in_the_settings_show_in_the_table(h: &mut Harness) {
-        start(h);
-        show_in_settings(h, ProcessColumn::Pid);
-        show_in_settings(h, ProcessColumn::ProcessName);
+        let store = start(h);
+        show_in_settings(&store, ProcessColumn::Pid);
+        show_in_settings(&store, ProcessColumn::ProcessName);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1480,14 +1491,14 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn details_columns_show_the_process_and_what_a_group_shares(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         for column in [
             ProcessColumn::Status,
             ProcessColumn::Publisher,
             ProcessColumn::CommandLine,
             ProcessColumn::Elevated,
         ] {
-            show_in_settings(h, column);
+            show_in_settings(&store, column);
         }
         let h = &*h;
         let mut page = mount(h);
@@ -1541,8 +1552,8 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn sorting_by_pid_starts_with_the_lowest(h: &mut Harness) {
-        start(h);
-        show_in_settings(h, ProcessColumn::Pid);
+        let store = start(h);
+        show_in_settings(&store, ProcessColumn::Pid);
         let h = &*h;
         let mut page = mount(h);
         toggle_group_by_type(&mut page);
@@ -1566,13 +1577,13 @@ mod tests {
         page.settle();
     }
 
-    fn pin_kept(h: &Harness, name: &str) -> Option<PinnedProcess> {
-        stored(h).grouping().pins().get(&name.to_string())
+    fn pin_kept(store: &amethystate::Store, name: &str) -> Option<PinnedProcess> {
+        stored(store).grouping().pins().get(&name.to_string())
     }
 
     #[guinea::test(iterations = 4)]
     fn pinning_from_the_menu_moves_the_process_into_a_pinned_section_on_top(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -1581,7 +1592,7 @@ mod tests {
         assert_eq!(all[..2], ["Pinned (1)".to_string(), "notepad.exe".to_string()], "{all:?}");
         assert_eq!(all.iter().filter(|label| *label == "notepad.exe").count(), 1, "{all:?}");
         assert_eq!(
-            pin_kept(h, "notepad.exe").map(|pin| pin.exe_path),
+            pin_kept(&store, "notepad.exe").map(|pin| pin.exe_path),
             Some(NOTEPAD_PATH.to_string()),
             "the pin is kept in the settings with the path its icon comes from"
         );
@@ -1593,7 +1604,7 @@ mod tests {
 
         let all = labels(&mut page);
         assert!(!all.iter().any(|label| label.starts_with("Pinned")), "{all:?}");
-        assert_eq!(pin_kept(h, "notepad.exe"), None);
+        assert_eq!(pin_kept(&store, "notepad.exe"), None);
     }
 
     #[guinea::test(iterations = 4)]
@@ -1978,7 +1989,7 @@ mod tests {
     #[guinea::test(iterations = 4)]
     fn a_column_dragged_along_the_header_moves_and_stays_there(h: &mut Harness) {
         use ProcessColumn::*;
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
         assert_eq!(shown_columns(&mut page), [Name, Cpu, Memory, Net, Disk, Gpu]);
@@ -1989,7 +2000,7 @@ mod tests {
 
         assert_eq!(shown_columns(&mut page), [Name, Memory, Cpu, Net, Disk, Gpu]);
         assert_eq!(h.state::<ProcessesState>().sort_column, sorted_by, "a drag is not a click on the header");
-        let ranks = stored(h).columns().order();
+        let ranks = stored(&store).columns().order();
         assert_eq!(ranks.get("memory"), Some(1));
         assert_eq!(ranks.get("cpu"), Some(2));
     }
@@ -2013,13 +2024,13 @@ mod tests {
         labels(page).contains(&"notepad.exe".to_string())
     }
 
-    fn kept_rank(h: &Harness, section: ProcessCategory) -> Option<u32> {
-        stored(h).grouping().section_order().get(&section.id().to_string())
+    fn kept_rank(store: &amethystate::Store, section: ProcessCategory) -> Option<u32> {
+        stored(store).grouping().section_order().get(&section.id().to_string())
     }
 
     #[guinea::test(iterations = 4)]
     fn a_section_dragged_below_the_rest_goes_last_and_stays_there(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
         let before = sections(&mut page);
@@ -2032,7 +2043,7 @@ mod tests {
         assert_eq!(after[..after.len() - 1], before[1..], "{after:?}");
         assert!(page.find(ProcessesMark::DropLine).is_none());
         assert!(apps_open(&mut page), "letting go does not fold the section");
-        assert_eq!(kept_rank(h, ProcessCategory::App), Some(6), "the order is kept in the settings");
+        assert_eq!(kept_rank(&store, ProcessCategory::App), Some(6), "the order is kept in the settings");
 
         select(&mut page, &apps);
         assert!(!apps_open(&mut page), "a plain click still folds it");
@@ -2040,7 +2051,7 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn a_nudge_or_a_lost_pointer_moves_nothing(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
         let before = sections(&mut page);
@@ -2055,7 +2066,7 @@ mod tests {
         drag_heading(&mut page, &apps, Drag::by(0.0, 10_000.0).lost());
         assert!(page.find(ProcessesMark::DropLine).is_none(), "a lost pointer shows no gap");
         assert_eq!(sections(&mut page), before);
-        assert_eq!(kept_rank(h, ProcessCategory::App), None);
+        assert_eq!(kept_rank(&store, ProcessCategory::App), None);
 
         select(&mut page, &apps);
         assert!(!apps_open(&mut page), "the next click is a click");
@@ -2063,8 +2074,8 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn a_kept_order_is_there_from_the_start(h: &mut Harness) {
-        start(h);
-        stored(h)
+        let store = start(h);
+        stored(&store)
             .grouping()
             .section_order()
             .insert(ProcessCategory::WindowsKernel.id().to_string(), &0)
@@ -2147,8 +2158,8 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn memory_kept_as_percents_shows_a_share_in_the_header(h: &mut Harness) {
-        start(h);
-        stored(h).columns().memory_as_percent().set(true);
+        let store = start(h);
+        stored(&store).columns().memory_as_percent().set(true);
         let h = &*h;
         let mut page = mount(h);
         memory_report(h);

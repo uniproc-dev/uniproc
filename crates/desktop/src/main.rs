@@ -4,6 +4,7 @@ mod app;
 mod layouts;
 mod pages;
 mod parts;
+mod platform;
 mod route_memory;
 mod routes;
 #[cfg(test)]

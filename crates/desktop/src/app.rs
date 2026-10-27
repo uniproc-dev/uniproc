@@ -2,7 +2,6 @@ use amethystate::Store;
 use app_contracts::l10n::L10n;
 use domain::features::activity::ActivityFeature;
 use domain::features::agents::AgentsFeature;
-use domain::features::processes::ProcessesDeps;
 use guinea::prelude::*;
 use guinea::winui::Window;
 use guinea_plugin_l10n::{L10nConfig, L10nPlugin};
@@ -12,11 +11,12 @@ use guinea_plugin_store::{StoreConfig, StorePlugin};
 
 use crate::layouts::MainWindow;
 use crate::meta;
+use crate::platform::{Platform, PlatformDeps};
 
 pub fn app(app: &mut FeatureBuilder) -> anyhow::Result<Window> {
-    app.provide(ProcessesDeps::default());
+    app.plugin::<Platform>(PlatformDeps::default())?;
     app.plugin::<SingleInstancePlugin>(SingleInstanceConfig::new(&guinea::app_meta!()))?;
-    let store = install_store(app, settings_store(StoreConfig::for_app(meta::APP_NAME, "settings")))?;
+    let StorePlugin(store, _) = install_store(app, settings_store(StoreConfig::for_app(meta::APP_NAME, "settings")))?;
     app.plugin::<L10nPlugin<L10n>>(L10nConfig::new("en").remembered_in(store.clone()))?;
 
     #[cfg(debug_assertions)]
@@ -28,31 +28,27 @@ pub fn app(app: &mut FeatureBuilder) -> anyhow::Result<Window> {
 
     app.install::<AgentsFeature>()?;
     app.install::<ActivityFeature>()?;
-    Ok(window(&store))
+    window(&store)
 }
 
-fn install_store(app: &mut FeatureBuilder, config: StoreConfig) -> anyhow::Result<Store> {
-    let StorePlugin(store, persistence) = app.plugin::<StorePlugin>(config)?;
-    app.provide(store.clone());
-    if let Some(persistence) = persistence {
-        app.provide(persistence);
-    }
-    Ok(store)
+fn install_store(app: &mut FeatureBuilder, config: StoreConfig) -> anyhow::Result<StorePlugin> {
+    app.plugin::<StorePlugin>(config)
 }
 
-fn window(store: &Store) -> Window {
-    Window::of::<MainWindow>()
+fn window(store: &Store) -> anyhow::Result<Window> {
+    Ok(Window::of::<MainWindow>()
         .title(meta::WINDOW_TITLE)
-        .at(crate::route_memory::restore(store))
+        .at(crate::route_memory::restore(store)?))
 }
 
 #[cfg(test)]
-pub fn with_fakes(app: &mut FeatureBuilder) -> anyhow::Result<Window> {
-    let store = install_store(app, StoreConfig::in_memory())?;
+pub fn with_fakes(app: &mut FeatureBuilder, deps: PlatformDeps) -> anyhow::Result<Store> {
+    app.plugin::<Platform>(deps)?;
+    let StorePlugin(store, _) = install_store(app, StoreConfig::in_memory())?;
     app.plugin::<L10nPlugin<L10n>>(L10nConfig::new("en").remembered_in(store.clone()))?;
     app.install::<crate::test_agent::FakeAgentFeature>()?;
     app.install::<ActivityFeature>()?;
-    Ok(window(&store))
+    Ok(store)
 }
 
 fn settings_store(config: StoreConfig) -> StoreConfig {
@@ -69,9 +65,14 @@ mod tests {
     use domain::features::agents::settings::AgentSettings;
     use guinea::app::Harness;
     use guinea_plugin_store::amethystate::store::builder::StoreBuilder;
-    use guinea_plugin_store::{Persistence, StoreAccess, StoreConfig};
+    use guinea_plugin_store::{StoreAccess, StoreConfig, StorePlugin};
 
     use super::settings_store;
+
+    #[test]
+    fn application_declarations_are_valid() {
+        guinea::app::validate_declarations();
+    }
 
     #[guinea::test(iterations = 1)]
     fn a_key_no_setting_declares_any_more_is_dropped_in_a_debug_build(h: &mut Harness) {
@@ -83,7 +84,7 @@ mod tests {
         earlier.close().unwrap();
         drop(earlier);
 
-        let store = h.app(|app| super::install_store(app, settings_store(StoreConfig::at(&at)))).unwrap();
+        let StorePlugin(store, _) = h.app(|app| super::install_store(app, settings_store(StoreConfig::at(&at)))).unwrap();
 
         let kept: Vec<String> = store
             .scan_keys(["agents"])
@@ -104,9 +105,9 @@ mod tests {
         earlier.close().unwrap();
         drop(earlier);
 
-        h.app(|app| super::install_store(app, settings_store(StoreConfig::at(&at)))).unwrap();
+        let StorePlugin(store, _) = h.app(|app| super::install_store(app, settings_store(StoreConfig::at(&at)))).unwrap();
 
-        let opened = crate::test_support::store(h).try_settings::<AgentSettings>().map(|settings| settings.ping_interval_ms().get());
+        let opened = store.try_settings::<AgentSettings>().map(|settings| settings.ping_interval_ms().get());
         assert!(matches!(opened, Ok(2000)), "{opened:?}");
     }
 
@@ -116,11 +117,12 @@ mod tests {
         let at = dir.path().join("settings");
         std::fs::write(at.with_extension("redb"), "{ this never finished").unwrap();
 
-        let installed = h.app(|app| super::install_store(app, settings_store(StoreConfig::at(&at)))).map(|_| ());
+        let installed = h.app(|app| super::install_store(app, settings_store(StoreConfig::at(&at))));
 
-        assert!(installed.is_ok(), "{installed:?}");
-        let in_memory = h.application_scope().service::<std::sync::Arc<Persistence>>().map(|persistence| persistence.is_in_memory());
+        assert!(installed.is_ok(), "{:?}", installed.as_ref().err());
+        let StorePlugin(store, persistence) = installed.unwrap();
+        let in_memory = persistence.map(|persistence| persistence.is_in_memory());
         assert_eq!(in_memory, Some(true));
-        assert_eq!(crate::test_support::store(h).settings::<AgentSettings>().ping_interval_ms().get(), 2000);
+        assert_eq!(store.try_settings::<AgentSettings>().expect("open test settings").ping_interval_ms().get(), 2000);
     }
 }

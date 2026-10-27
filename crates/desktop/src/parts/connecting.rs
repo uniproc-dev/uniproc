@@ -21,8 +21,8 @@ fn trouble(windows: AgentConnectionState) -> Option<ui::ServiceTrouble<'static>>
 
 #[page]
 impl Page for Connecting {
-    fn install(ctx: &Install, deps: Option<AgentLinkDeps>) -> anyhow::Result<Self> {
-        ctx.install::<AgentLinkFeature>(&deps.unwrap_or_default())?;
+    fn install(ctx: &Install, deps: AgentLinkDeps) -> anyhow::Result<Self> {
+        ctx.install::<AgentLinkFeature>(&deps)?;
         Ok(Self::default())
     }
 

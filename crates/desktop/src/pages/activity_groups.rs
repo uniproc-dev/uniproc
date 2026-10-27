@@ -4,7 +4,7 @@ use ui::pages::activity::{ActivityGroupsMsg, ActivityGroupsPage};
 use ui::theme::{scheme_context, Palette};
 use windows_reactor::{Callback, View};
 
-use crate::routes::Route;
+use crate::routes::ActivityRoute;
 
 #[derive(Default)]
 pub struct ActivityGroups(ActivityGroupsPage);
@@ -22,8 +22,8 @@ impl Page for ActivityGroups {
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ActivityGroupsMsg| message);
-        let nav = cx.navigate::<Route>();
-        let back = Callback::new(move |()| { let _ = nav.to(Route::Activity {}); });
+        let nav = cx.navigate::<ActivityRoute>();
+        let back = Callback::new(move |()| { let _ = nav.to(ActivityRoute::Overview); });
         self.0.view(&state, &dispatch, &l10n, palette, forward, back)
     }
 }
@@ -40,29 +40,33 @@ mod tests {
     use windows_reactor::Thickness;
 
     use super::*;
+    use crate::routes::Route;
 
-    fn start(h: &mut Harness) {
-        crate::test_support::install(h)
-            .provide(ActivityDeps {
+    fn start(h: &mut Harness) -> amethystate::Store {
+        let store = crate::test_support::install_with(h, crate::platform::PlatformDeps {
+            activity: ActivityDeps {
                 now: || 0,
                 clock: |_| Clock::default(),
-            });
+            },
+            ..Default::default()
+        });
         h.app(|app| app.install::<ActivityFeature>()).unwrap();
+        store
     }
 
     fn mount(h: &Harness) -> Mounted<'_, ActivityGroups> {
         let mut page = Mounted::mount_at(
             h.child(),
             (),
-            Route::ActivityGroups {},
+            Route::Activity(ActivityRoute::Groups),
         )
         .unwrap();
         page.settle();
         page
     }
 
-    fn stored(h: &Harness) -> ActivitySettings {
-        crate::test_support::store(h).settings::<ActivitySettings>()
+    fn stored(store: &amethystate::Store) -> ActivitySettings {
+        store.try_settings::<ActivitySettings>().expect("open test settings")
     }
 
     fn groups(h: &Harness) -> Vec<Group> {
@@ -146,7 +150,7 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn a_group_named_here_is_added_last_empty_and_kept(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
 
@@ -156,7 +160,7 @@ mod tests {
         let added = groups(h).last().cloned().expect("a group");
         assert_eq!((added.name.as_str(), added.rules.len(), added.shown), ("Build", 0, true));
         assert_ne!(added.hue, groups(h)[0].hue);
-        assert_eq!(remembered_groups(&stored(h)).last().map(|group| group.name.clone()), Some("Build".to_string()));
+        assert_eq!(remembered_groups(&stored(&store)).last().map(|group| group.name.clone()), Some("Build".to_string()));
         assert_eq!(
             page.property(page.find(ActivityGroupsMark::NewName).unwrap(), PropertyId::Text).cloned(),
             Some(PropertyValue::String("".into())),
@@ -180,19 +184,19 @@ mod tests {
 
     #[guinea::test(iterations = 4)]
     fn a_group_switched_off_here_is_off_on_the_page_and_next_run(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let mut page = mount(h);
 
         click(&mut page, ActivityGroupsMark::Shown);
 
         assert!(!groups(h)[0].shown, "{:#?}", groups(h));
-        assert!(!remembered_groups(&stored(h))[0].shown);
+        assert!(!remembered_groups(&stored(&store))[0].shown);
     }
 
     #[guinea::test(iterations = 4)]
     fn a_group_is_moved_recoloured_emptied_and_deleted_from_its_card(h: &mut Harness) {
-        start(h);
+        let store = start(h);
         let h = &*h;
         let tool = Pick::Exe("tool.exe".into());
         h.act::<ActivityState>(NewGroup(tool)).settle();
@@ -217,7 +221,7 @@ mod tests {
 
         click(&mut page, ActivityGroupsMark::Delete);
         assert_eq!(groups(h), [Group::windows_background()]);
-        assert_eq!(remembered_groups(&stored(h)), [Group::windows_background()]);
+        assert_eq!(remembered_groups(&stored(&store)), [Group::windows_background()]);
     }
 
     #[guinea::test(iterations = 4)]
@@ -244,6 +248,6 @@ mod tests {
 
         page.click(ActivityGroupsMark::Back).settle();
 
-        assert_eq!(page.navigator::<Route>().current(), Some(Route::Activity {}));
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::Activity(ActivityRoute::Overview)));
     }
 }

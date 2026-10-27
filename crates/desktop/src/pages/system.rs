@@ -3,7 +3,7 @@ use guinea::winui::{page, Page, PageCx, UpdateCx};
 use ui::theme::{scheme_context, Palette};
 use windows_reactor::{Callback, View};
 
-use crate::routes::Route;
+use crate::routes::SystemRoute;
 
 #[derive(Default)]
 pub struct System;
@@ -18,8 +18,8 @@ impl Page for System {
         let (state, dispatch) = cx.read::<SystemState>();
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
-        let nav = cx.navigate::<Route>();
-        let open_tools = Callback::new(move |()| { let _ = nav.to(Route::SystemTools {}); });
+        let nav = cx.navigate::<SystemRoute>();
+        let open_tools = Callback::new(move |()| { let _ = nav.to(SystemRoute::Tools); });
         ui::pages::system::system_view(&state, &dispatch, &l10n, palette, open_tools)
     }
 }
@@ -32,11 +32,12 @@ mod tests {
     use ui::pages::system::{SystemMark, ToolMark};
 
     use super::*;
+    use crate::routes::Route;
     use crate::test_system::{self, launch, launched};
 
     fn mount(h: &Harness) -> Mounted<'_, System> {
         let mut page =
-            Mounted::mount_at(h.child(), (), Route::System {}).unwrap();
+            Mounted::mount_at(h.child(), (), Route::System(SystemRoute::Overview)).unwrap();
         page.settle();
         page
     }
@@ -68,7 +69,7 @@ mod tests {
 
         page.click(SystemMark::Tools).settle();
 
-        assert_eq!(page.navigator::<Route>().current(), Some(Route::SystemTools {}));
+        assert_eq!(page.navigator::<Route>().current(), Some(Route::System(SystemRoute::Tools)));
     }
 
     #[guinea::test(iterations = 4, exclusive = "system")]
@@ -125,7 +126,7 @@ mod tests {
 
     #[guinea::test(iterations = 4, exclusive = "system")]
     fn the_cross_takes_a_tool_off_the_list(h: &mut Harness) {
-        test_system::start(h);
+        let store = test_system::start(h);
         let h = &*h;
         let mut page = mount(h);
         for tool in [SystemTool::EventViewer, SystemTool::EventViewer, SystemTool::Services] {
@@ -144,7 +145,7 @@ mod tests {
 
         assert_eq!(favourites(&page), [SystemTool::Services]);
         assert_eq!(launched().len(), 3, "the cross opens nothing");
-        let stored = test_system::stored(h);
+        let stored = test_system::stored(&store);
         assert!(stored.pinned().get(SystemTool::ProcessExplorer.id()).is_none());
         assert!(stored.uses().get(SystemTool::EventViewer.id()).is_none());
     }

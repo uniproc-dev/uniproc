@@ -44,7 +44,7 @@ impl Layout for MainWindow {
         ctx.install::<SettingsFeature>(&())?;
         crate::xaml_resources::override_navigation_view_resources();
         let window = Self {
-            routes: Some(route_memory::open(&store)),
+            routes: Some(route_memory::open(&store)?),
             ..Self::default()
         };
         guicons::set_theme(icon_theme(window.scheme));
