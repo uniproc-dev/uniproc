@@ -27,7 +27,11 @@ The checked-in project builds against registry Reactor 0.106.0 with an independe
 
 Times are approximate because the sampler and UI timer run independently. The release control demonstrates partial recovery, not complete native memory accounting. These samples do not distinguish live native allocations from pages retained by Windows allocators/graphics infrastructure.
 
-The same component compiled inside the consumer measured ~102 MiB with either one source/image or one shared source across 27 controls. Distinct sources measured ~446 MiB with `1em` dimensions and ~487 MiB with numeric dimensions. Numeric intrinsic SVG dimensions did not fix the problem.
+The independent registry executable was also tested with one source/image (~101 MiB private) and one shared source across 27 controls (~102 MiB private). Both remained at those levels across the two mount/unmount cycles.
+
+Earlier consumer-example builds measured ~102 MiB with either one source/image or one shared source across 27 controls. Distinct sources measured ~446 MiB with `1em` dimensions and ~487 MiB with numeric dimensions. Numeric intrinsic SVG dimensions did not fix the problem. Absolute values differ between runs; these observations do not establish an exact per-source allocation size.
+
+The tested dependency is the published preview package `windows-reactor-pre 0.106.0`, not an upstream 0.106 release. Its package metadata identifies the source snapshot as microsoft/windows-rs `2c6ce7a`. The direct upstream commit was not separately built.
 
 ## Conclusions and open questions
 

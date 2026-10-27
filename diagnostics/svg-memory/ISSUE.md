@@ -2,13 +2,13 @@
 
 ## Problem
 
-With Reactor 0.106.0, 27 SVG sources containing a single circle, displayed in `Image` controls explicitly sized 20×20, increase process private memory by roughly 418 MiB in a standalone reproduction. Removing the controls does not release that increase while the component still owns the tiny encoded byte arrays. The second mount/unmount does not cause another comparable increase.
+With `windows-reactor-pre 0.106.0`, 27 independent byte allocations containing the same SVG circle, displayed in `Image` controls explicitly sized 20×20, increase process private memory by roughly 418 MiB. Removing the controls does not release that increase while the component still owns the tiny encoded byte arrays. The second mount/unmount does not cause another comparable increase.
 
 This is an excessive memory usage / image-cache retention report, not a claim of a demonstrated unbounded leak. The reproduction does not establish the exact native allocation size, raster dimensions, or which lower layer is responsible.
 
 ## Reproduction
 
-Run the attached standalone Cargo project with `cargo run --locked` on Windows. It requires only `windows-reactor-pre = 0.106.0` and setup 0.100.0; there is no Guinea, Guicons, Canvas, telemetry, process monitoring or application settings.
+Run the attached standalone Cargo project with `cargo run --locked` on Windows. It requires only `windows-reactor-pre = 0.106.0` and setup 0.100.0. This is a preview repackaging, not an upstream version number: its package metadata identifies the microsoft/windows-rs source snapshot as `2c6ce7a`. A direct upstream checkout was not separately built for this report.
 
 The component holds 27 distinct `EncodedImage::new` byte allocations. Each contains the same original SVG circle. It creates images using:
 
@@ -29,23 +29,14 @@ Measured private memory, rounded MiB:
 | --- | ---: | ---: | ---: |
 | Standalone registry 0.106.0, 27 distinct sources | 86 | 503 | 503 |
 | Same standalone, release byte owners on hide | 84 | 502 | 292–293 |
+| Same standalone, one source and one image | ~84 | 101 | 101 |
+| Same standalone, one shared source and 27 images | ~84 | 102 | 102 |
 
-Additional controls with the same component compiled as an example against the consumer's unchanged Reactor 0.106.0 checkout:
-
-| Control | Private memory after mount |
-| --- | ---: |
-| 27 distinct sources, SVG dimensions `1em` | 446 MiB |
-| 27 distinct sources, SVG dimensions `24` | 487 MiB |
-| One source and one image | 102 MiB |
-| One shared source and 27 images | 102 MiB |
-
-The difference between builds/runs is why these are not presented as a precise per-source allocation size. The large increase reproduces independently against the published registry crate.
+The SVG uses `width="1em" height="1em" viewBox="0 0 24 24"`. A separate control using numeric intrinsic dimensions `24` still reproduced the large increase. The attached project exposes this through `SVG_PIXELS=1`.
 
 ## Expected behavior / investigation request
 
 Small fixed-size SVG icons should not add hundreds of MiB of private memory. Please investigate the native SVG decode/rasterization path and the lifetime/budget of cached native image sources. Is an explicit rasterization size required in addition to setting the `Image` dimensions, and should it participate in source caching?
-
-Reactor's native SVG creation path in the consumer checkout creates `SvgImageSource` and calls `SetSourceAsync`; no explicit rasterization dimensions are supplied there. This is a candidate mechanism, not proof of the internal surface dimensions or a proposed patch.
 
 ## Environment
 
@@ -55,5 +46,3 @@ Reactor's native SVG creation path in the consumer checkout creates `SvgImageSou
 - Loaded Microsoft.ui.xaml.dll file version 3.2.3.2608.
 - Loaded NVIDIA user-mode driver nvwgf2umx.dll version 32.0.15.8157.
 - Measurements taken with `Process.PrivateMemorySize64`; working set is not treated as proof of a leak.
-
-No raw application heap profile or system trace is needed to reproduce this issue.
