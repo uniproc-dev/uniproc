@@ -14,6 +14,8 @@ After five seconds the top row displays one SVG source shared between 24, 48, 96
 
 [SVG-ISSUE.md](SVG-ISSUE.md) is the upstream issue draft. [evidence/svg-comparison.png](evidence/svg-comparison.png) shows the measured difference.
 
+[ANTIALIAS.md](ANTIALIAS.md) records a separate native control for harsh edge quality with automatic raster dimensions. Its measurement binary is `svg_antialias_control`; the visual `svg_sizes` example remains unchanged.
+
 ## Virtual list
 
 ```powershell
