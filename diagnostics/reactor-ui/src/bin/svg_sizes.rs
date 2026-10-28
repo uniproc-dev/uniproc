@@ -6,7 +6,6 @@ struct Probe {
     shared: EncodedImage,
     fresh: Vec<EncodedImage>,
     after_update: Vec<EncodedImage>,
-    updates: u32,
 }
 
 fn image(source: &EncodedImage, size: f64) -> View {
@@ -27,17 +26,11 @@ impl Component for Probe {
             shared: EncodedImage::new(SVG.to_vec()),
             fresh: (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect(),
             after_update: Vec::new(),
-            updates: 0,
         }
     }
 
-    fn update(&mut self, _: (), cx: &ComponentContext<Self>) {
-        self.updates += 1;
-        if self.updates == 1 {
-            let _ = cx.sender().send(());
-        } else if self.updates == 2 {
-            self.after_update = (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect();
-        }
+    fn update(&mut self, _: (), _: &ComponentContext<Self>) {
+        self.after_update = (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect();
     }
 
     fn view(&self, _: &(), cx: &mut ViewContext<Self>) -> View {
@@ -76,7 +69,7 @@ impl Component for Probe {
                             .grid_column(i as i32)
                             .children((
                                 TextBlock::new()
-                                    .text(format!("After 2 updates {size}"))
+                                    .text(format!("After update {size}"))
                                     .foreground(Color::rgb(16, 16, 16)),
                                 image(source, *size),
                             ))

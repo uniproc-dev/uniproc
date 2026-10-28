@@ -19,7 +19,7 @@ Each archive contains its own Cargo package, Cargo.lock, README, issue draft and
 cargo run --locked --bin svg_sizes
 ```
 
-The first two rows appear immediately: Shared uses one SVG source at 24, 48, 96 and 192 DIP, and Independent uses separate byte allocations. A third row, After 2 updates, creates and mounts independent sources when the second queued component message is handled. There is no timer, prewarm phase or environment switch. Earlier measurements found blur in both initial rows and a sharper independent source in a five-second delayed-mount control; that timing is different from this two-update control.
+The first two rows appear immediately: Shared uses one SVG source at 24, 48, 96 and 192 DIP, and Independent uses separate byte allocations. A third row, After update, creates and mounts independent sources when the first queued component message is handled. There is no timer, prewarm phase or environment switch. Earlier measurements found blur in both initial rows and a sharper independent source in a five-second delayed-mount control; that timing is different from this new queued-update control.
 
 [SVG-ISSUE.md](SVG-ISSUE.md) is the upstream issue draft. [evidence/svg-comparison.png](evidence/svg-comparison.png) shows the measured difference.
 

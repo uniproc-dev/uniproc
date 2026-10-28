@@ -1,6 +1,6 @@
 # Initial mount changes SVG quality
 
-The measured initial-mount version of svg_sizes mounted both rows immediately. The current visual reproduction retains those rows and adds a third row, After 2 updates, created and mounted by the second queued component message. It has no timer, prewarm stage, environment switch or capture instrumentation. The recorded captures below predate that third row; they do not measure its quality.
+The measured initial-mount version of svg_sizes mounted both rows immediately. The current visual reproduction retains those rows and adds a third row, After update, created and mounted by the first queued component message. It has no timer, prewarm stage, environment switch or capture instrumentation. The recorded captures below predate that third row; they do not measure its quality.
 
 A separate svg_initial_measurement binary uses the same initial image tree and captures all eight Image controls after four seconds. Unlike the visual reproduction, this isolated measurement has a focus button, capture instrumentation and an automatic exit. It requires WINUI_WINMD, like the other native measurements.
 
