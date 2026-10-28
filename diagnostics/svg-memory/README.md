@@ -8,11 +8,13 @@ From this directory:
 cargo run --locked
 ```
 
-The window immediately displays all 27 SVG images. Every image has an explicit width and height of 20. There is no timer or view switching. Close the window after measuring the process.
+The window starts empty. After 5 seconds it displays all 27 SVG images, then hides, shows and hides them at ten-second intervals. Every Image is 20×20. The encoded sources remain owned throughout both cycles. Close the window after the final hide.
 
 Every SVG has explicit intrinsic dimensions 24×24 and a `0 0 24 24` viewBox. The component retains the encoded sources while the window is open. There are no environment switches.
 
-Two fresh short launches of this immediate-display version stabilized at approximately 85 and 87 MiB private memory. The earlier timer-driven version's ~438 MiB result does not reproduce in these runs; that historical behavior is recorded separately.
+The earlier immediate-display control (commit `4469197`) measured approximately 85 and 87 MiB. Those results are historical and do not describe the restored timer-driven version.
+
+A fresh run after restoring the timer measured approximately 84 MiB before the first show and 494 MiB after loading, remaining near 494 MiB after both hides. See RESULTS.md for the separate current and historical measurements.
 
 Measure **private bytes** for the corresponding process, independently of working set. For example, in another PowerShell window:
 

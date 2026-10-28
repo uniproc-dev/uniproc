@@ -1,8 +1,24 @@
 # SVG memory measurements
 
-## Current immediate-display version, 28 October 2026
+## Current restored timer, 28 October 2026
 
-All 27 differently colored SVGs are displayed immediately. Probe owns only its encoded sources; there is no timer, step counter, update handler, placeholder or environment switch. The default Component update implementation is used.
+The program again starts empty, shows all 27 differently colored SVGs after five seconds, then hides, shows and hides the controls at ten-second intervals. The encoded sources remain owned throughout. Intrinsic SVG dimensions are 24×24, Image dimensions 20×20; no environment switches are read.
+
+Fresh verification after restoring the timer:
+
+| Sampling time | State | Private MiB |
+| --- | --- | ---: |
+| 3 s | Initial empty window | 83.58 |
+| 10 s | First show | 493.98 |
+| 20 s | First hide | 493.98 |
+| 30 s | Second show | 493.99 |
+| 42 s | Final hide | 493.97 |
+
+All four transitions completed, the window remained responsive, stderr contained only transition messages, and the diagnostic process closed normally. Build, formatting and Clippy passed. The large memory increase returned with deferred loading. Absolute values differ from earlier runs; they are not an exact per-source allocation estimate.
+
+## Historical immediate-display control, 28 October 2026
+
+Commit `4469197` displayed all 27 differently colored SVGs immediately. Probe owned only its encoded sources; there was no timer, step counter, update handler, placeholder or environment switch. These are historical control measurements, not measurements of the restored timer-driven version.
 
 | Fresh run | Stable private memory | Duration |
 | --- | ---: | ---: |
@@ -13,7 +29,7 @@ Both windows stayed responsive, emitted no stderr errors and were closed normall
 
 ## Historical colored show/hide reproduction, 28 October 2026
 
-The previous version (commit `130ec29`) generated 27 SVG circles with different fill colors, each in its own EncodedImage. Intrinsic dimensions were 24×24, the viewBox was `0 0 24 24`, and every Image was 20×20. The component held all encoded sources throughout two timer-driven show/hide cycles. These measurements are historical; the current program displays every image immediately.
+Commit `130ec29` generated 27 SVG circles with different fill colors, each in its own EncodedImage. Intrinsic dimensions were 24×24, the viewBox was `0 0 24 24`, and every Image was 20×20. The component held all encoded sources throughout two timer-driven show/hide cycles. This timer behavior has now been restored; the measurements below remain the earlier run and are kept separately from the fresh verification.
 
 Fresh run of this version, private memory:
 

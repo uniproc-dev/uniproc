@@ -1,10 +1,10 @@
-# SVG memory investigation: immediate-display control
+# SVG memory increases when sources load after initial display
 
 ## Problem
 
-The current program immediately displays 27 SVG circles with different fill colors in 20×20 Image controls. Two fresh short runs stabilized at approximately 85 and 87 MiB of private memory. This immediate-display version did not reproduce the earlier hundreds-of-MiB result.
+The current program initially displays an empty window, then shows 27 SVG circles with different fill colors in 20×20 Image controls after five seconds. Private memory rises from approximately 84 to 494 MiB. The timer then hides, shows and hides them at ten-second intervals, retaining the encoded sources throughout.
 
-The earlier version first displayed an empty window and loaded these images after a timer; it measured approximately 438 MiB. Those historical measurements are kept separately. The current program is a control for loading order, not a successful reproduction of that high-memory case. The exact initialization condition behind the difference remains unmeasured.
+The earlier immediate-display control (commit `4469197`) stabilized at approximately 85 and 87 MiB, whereas the earlier timer-driven version measured approximately 438 MiB. Fresh verification of the restored timer is recorded separately in RESULTS.md. The exact native initialization condition behind this loading-order difference remains unmeasured.
 
 ## Reproduction
 
@@ -21,20 +21,23 @@ Image::new()
     .source_svg(source.clone())
 ```
 
-All 27 images appear immediately and remain displayed. The encoded sources remain owned by the component throughout the run. There is no timer or show/hide logic.
+After five seconds all 27 images appear; subsequent transitions every ten seconds hide, show and hide the controls. The encoded sources remain owned by the component throughout the run. There are no environment switches.
 
 ## Observations
 
-| Current run | Stable private memory | Observation |
-| --- | ---: | --- |
-| First launch | 85.23 MiB | Responsive, no stderr errors, closed normally |
-| Second launch | 87.06 MiB | Responsive, no stderr errors, closed normally |
+| Current restored-timer run | Private memory |
+| --- | ---: |
+| Initial empty window | 83.58 MiB |
+| First show | 493.98 MiB |
+| First hide | 493.98 MiB |
+| Second show | 493.99 MiB |
+| Final hide | 493.97 MiB |
 
-The runs lasted approximately 12 seconds. Current measurements and historical controls are recorded separately in [RESULTS.md](RESULTS.md). Earlier show/hide and shared-source measurements do not describe the current program.
+Current measurements and historical controls are recorded separately in [RESULTS.md](RESULTS.md). The immediate-display control is historical and does not describe the restored timer-driven executable.
 
 ## Interpretation
 
-Showing all images during initial construction changes the observed memory behavior compared with loading them after the window has already been displayed. Count, distinct SVG content and fixed control dimensions alone are therefore insufficient to reproduce the earlier result. The earlier high-memory measurements cannot be attributed to this simplified executable.
+Showing all images during initial construction changes the observed memory behavior compared with loading them after the window has already been displayed. Count, distinct SVG content and fixed control dimensions alone are therefore insufficient to describe the triggering condition; source-loading timing also matters.
 
 ## Environment
 
