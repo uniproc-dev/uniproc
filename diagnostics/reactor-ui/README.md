@@ -37,7 +37,7 @@ Older checkouts use `crates/tools/reactor-metadata/winmd`. Binding generation wr
 
 The scroll probe focuses its own header button, finds its own ScrollViewer, records ViewChanged offsets, and requests an animated downward ChangeView every second. `SCROLL_STRIDE` selects the increment in DIP; the measured end-of-list runs used 2048. Stop after approximately 24 seconds and compare `OFFSET` records. `ROW_ERROR` checks run only at settled offsets; intermediate compositor transforms and UI-thread offsets need not be synchronized.
 
-The SVG probe exports each Image through RenderTargetBitmap into the working directory after layout settles. Pixel bytes are converted from premultiplied BGRA to straight RGBA before PNG encoding. Only the original SVG test drawing is exported. The probe logs actual control dimensions, DPI scale and native SVG rasterization properties.
+The SVG preview is a visual comparison. The evidence PNGs were exported by an earlier instrumented version through RenderTargetBitmap, with premultiplied BGRA converted to straight RGBA. The current SVG binary has no native capture calls, focus instrumentation or polling timer.
 
 ## Native SVG memory control
 

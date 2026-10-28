@@ -4,14 +4,10 @@ use windows_reactor::*;
 const SVG: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#101010" stroke-width="1"/><circle cx="12" cy="12" r="7" fill="none" stroke="#101010" stroke-width=".7"/><path d="M3 21L21 3M4 6h16M4 9h16M4 15h16M4 18h16" fill="none" stroke="#101010" stroke-width=".35"/></svg>"##;
 
 struct Probe {
-    #[cfg(native_probe)]
-    _focus: windows_core::EventRevoker,
-    focus: ElementRef<Button>,
-    phase: u32,
     shared: EncodedImage,
     fresh: Vec<EncodedImage>,
     ready: bool,
-    timer: Option<ComponentTimer>,
+    _timer: ComponentTimer,
 }
 
 fn image(source: &EncodedImage, size: f64) -> View {
@@ -28,42 +24,18 @@ impl Component for Probe {
 
     fn create(_: &(), cx: &ComponentContext<Self>) -> Self {
         Self {
-            #[cfg(native_probe)]
-            _focus: reactor_ui_repros::probe::install(),
-            focus: ElementRef::new(),
-            phase: 0,
             shared: EncodedImage::new(SVG.to_vec()),
             fresh: (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect(),
             ready: false,
-            timer: Some(cx.set_timeout(Duration::from_secs(5), ())),
+            _timer: cx.set_timeout(Duration::from_secs(5), ()),
         }
     }
 
-    fn update(&mut self, _: (), cx: &ComponentContext<Self>) {
-        self.phase += 1;
+    fn update(&mut self, _: (), _: &ComponentContext<Self>) {
         self.ready = true;
-        if self.phase == 1 {
-            self.timer = cfg!(native_probe).then(|| cx.set_timeout(Duration::from_secs(3), ()));
-            return;
-        }
-        #[cfg(native_probe)]
-        if self.phase == 2 {
-            reactor_ui_repros::probe::capture();
-        }
-        #[cfg(native_probe)]
-        if self.phase > 2 && reactor_ui_repros::probe::poll_captures() {
-            self.timer = None;
-            return;
-        }
-        self.timer = Some(cx.set_timeout(Duration::from_millis(200), ()));
     }
 
     fn view(&self, _: &(), cx: &mut ViewContext<Self>) -> View {
-        let focus = self.focus.clone();
-        cx.use_effect("focus", (), move || {
-            let _ = focus.request_focus();
-            None
-        });
         let sizes = [24.0, 48.0, 96.0, 192.0];
         let content: View = if self.ready {
             let mut cells = vec![
@@ -113,13 +85,7 @@ impl Component for Probe {
             };
             image(&self.shared, size)
         };
-        cx.window_frame(
-            "SVG size reproduction",
-            StackPanel::new().children((
-                Button::new().element_ref(&self.focus).content("SVG probe"),
-                content,
-            )),
-        )
+        cx.window_frame("SVG size reproduction", content)
     }
 }
 

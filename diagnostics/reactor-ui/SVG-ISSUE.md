@@ -21,7 +21,7 @@ Run `cargo run --locked --bin svg_sizes`. After five seconds, compare the shared
 
 ![Shared versus independent source at 192 DIP](evidence/svg-comparison.png)
 
-The images were exported through native RenderTargetBitmap from the two actual Image controls, not reconstructed or resized for the comparison. Both reported actual dimensions 192×192 and rasterization scale 1. The native SvgImageSource RasterizePixelWidth/Height getters returned infinity; these values do not establish the internal bitmap dimensions.
+The images were exported by the earlier instrumented version through native RenderTargetBitmap from the two actual Image controls, not reconstructed or resized for the comparison. That capture instrumentation has been removed from the current preview. Both controls reported actual dimensions 192×192 and rasterization scale 1. The native SvgImageSource RasterizePixelWidth/Height getters returned infinity; these values do not establish the internal bitmap dimensions.
 
 The shared render had 29,984 pixels with partial alpha and no fully opaque pixels. The independent render had 1,410 partially covered and 8,400 fully opaque pixels. This supports the visible loss of detail without relying on a scaled screenshot.
 
