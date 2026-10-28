@@ -41,6 +41,7 @@ impl Component for Probe {
             let mut cells = vec![
                 TextBlock::new()
                     .text("Shared source prewarmed at first size")
+                    .foreground(Color::rgb(16, 16, 16))
                     .into(),
             ];
             for (i, size) in sizes.iter().enumerate() {
@@ -49,7 +50,9 @@ impl Component for Probe {
                         .grid_row(1)
                         .grid_column(i as i32)
                         .children((
-                            TextBlock::new().text(format!("Shared {size}")),
+                            TextBlock::new()
+                                .text(format!("Shared {size}"))
+                                .foreground(Color::rgb(16, 16, 16)),
                             image(&self.shared, *size),
                         ))
                         .into(),
@@ -59,7 +62,9 @@ impl Component for Probe {
                         .grid_row(2)
                         .grid_column(i as i32)
                         .children((
-                            TextBlock::new().text(format!("Independent {size}")),
+                            TextBlock::new()
+                                .text(format!("Independent {size}"))
+                                .foreground(Color::rgb(16, 16, 16)),
                             image(&self.fresh[i], *size),
                         ))
                         .into(),
