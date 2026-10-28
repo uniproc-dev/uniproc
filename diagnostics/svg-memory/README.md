@@ -8,9 +8,11 @@ From this directory:
 cargo run --locked
 ```
 
-The window starts empty, displays 27 SVG images after 5 seconds, removes them after another 10 seconds, displays them again after another 10 seconds, then removes them after another 10 seconds. Every image has an explicit width and height of 20. The program prints each transition to stderr. Close the window after observing the final empty state.
+The window immediately displays all 27 SVG images. Every image has an explicit width and height of 20. There is no timer or view switching. Close the window after measuring the process.
 
-Every SVG has explicit intrinsic dimensions 24×24 and a `0 0 24 24` viewBox. The component retains the encoded sources while the controls are hidden, approximating application-lifetime icon assets. There are no environment switches.
+Every SVG has explicit intrinsic dimensions 24×24 and a `0 0 24 24` viewBox. The component retains the encoded sources while the window is open. There are no environment switches.
+
+Two fresh short launches of this immediate-display version stabilized at approximately 85 and 87 MiB private memory. The earlier timer-driven version's ~438 MiB result does not reproduce in these runs; that historical behavior is recorded separately.
 
 Measure **private bytes** for the corresponding process, independently of working set. For example, in another PowerShell window:
 
@@ -18,4 +20,4 @@ Measure **private bytes** for the corresponding process, independently of workin
 Get-Process svg-memory-repro | Select-Object Id,PrivateMemorySize64,WorkingSet64
 ```
 
-The issue draft is in [ISSUE.md](ISSUE.md). The measurements and their limitations are in [RESULTS.md](RESULTS.md).
+The investigation status is in [ISSUE.md](ISSUE.md). Current and historical measurements are separated in [RESULTS.md](RESULTS.md).

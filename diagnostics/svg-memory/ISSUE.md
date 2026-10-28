@@ -1,10 +1,10 @@
-# Small SVG images retain hundreds of MiB with distinct encoded sources
+# SVG memory investigation: immediate-display control
 
 ## Problem
 
-With `windows-reactor-pre 0.106.0`, 27 SVG circles with different fill colors, displayed in `Image` controls explicitly sized 20×20, increase process private memory from approximately 83 to 438 MiB. Removing the controls does not release that increase while the component still owns the tiny encoded byte arrays.
+The current program immediately displays 27 SVG circles with different fill colors in 20×20 Image controls. Two fresh short runs stabilized at approximately 85 and 87 MiB of private memory. This immediate-display version did not reproduce the earlier hundreds-of-MiB result.
 
-This is an excessive memory usage / image-cache retention report, not a claim of a demonstrated unbounded leak. The reproduction does not establish the exact native allocation size, raster dimensions, or which lower layer is responsible.
+The earlier version first displayed an empty window and loaded these images after a timer; it measured approximately 438 MiB. Those historical measurements are kept separately. The current program is a control for loading order, not a successful reproduction of that high-memory case. The exact initialization condition behind the difference remains unmeasured.
 
 ## Reproduction
 
@@ -21,25 +21,20 @@ Image::new()
     .source_svg(source.clone())
 ```
 
-After 5 seconds the images appear; subsequent transitions every 10 seconds remove, recreate and remove the image controls. The encoded sources remain owned by the component throughout the run.
+All 27 images appear immediately and remain displayed. The encoded sources remain owned by the component throughout the run. There is no timer or show/hide logic.
 
 ## Observations
 
-Fresh measurements of this colored-SVG version, rounded MiB:
+| Current run | Stable private memory | Observation |
+| --- | ---: | --- |
+| First launch | 85.23 MiB | Responsive, no stderr errors, closed normally |
+| Second launch | 87.06 MiB | Responsive, no stderr errors, closed normally |
 
-| State | Private memory |
-| --- | ---: |
-| Initial empty window | 83 |
-| First show | 438 |
-| First hide | 438 |
-| Second show | 438 |
-| Final hide | 438 |
+The runs lasted approximately 12 seconds. Current measurements and historical controls are recorded separately in [RESULTS.md](RESULTS.md). Earlier show/hide and shared-source measurements do not describe the current program.
 
-Current measurements and historical controls are recorded separately in [RESULTS.md](RESULTS.md). Historical identical-content and shared-source measurements do not describe the current program.
+## Interpretation
 
-## Expected behavior / investigation request
-
-Small fixed-size SVG icons should not add hundreds of MiB of private memory. Please investigate the native SVG decode/rasterization path and the lifetime/budget of cached native image sources. Is an explicit rasterization size required in addition to setting the `Image` dimensions, and should it participate in source caching?
+Showing all images during initial construction changes the observed memory behavior compared with loading them after the window has already been displayed. Count, distinct SVG content and fixed control dimensions alone are therefore insufficient to reproduce the earlier result. The earlier high-memory measurements cannot be attributed to this simplified executable.
 
 ## Environment
 

@@ -1,8 +1,19 @@
 # SVG memory measurements
 
-## Current reproduction, 28 October 2026
+## Current immediate-display version, 28 October 2026
 
-The simplified program always generates 27 SVG circles with different fill colors, each in its own EncodedImage. Intrinsic dimensions are 24×24, the viewBox is `0 0 24 24`, and every Image is 20×20. The component holds all encoded sources throughout the two show/hide cycles. No environment switches are read.
+All 27 differently colored SVGs are displayed immediately. Probe owns only its encoded sources; there is no timer, step counter, update handler, placeholder or environment switch. The default Component update implementation is used.
+
+| Fresh run | Stable private memory | Duration |
+| --- | ---: | ---: |
+| First | 85.23 MiB | Approximately 12 s |
+| Second | 87.06 MiB | Approximately 12 s |
+
+Both windows stayed responsive, emitted no stderr errors and were closed normally after measurement. Build, formatting and Clippy passed. The earlier ~438 MiB high-memory result was not reproduced by this immediate-display version. This difference indicates a dependence on when the sources are loaded; it does not establish the exact native initialization mechanism.
+
+## Historical colored show/hide reproduction, 28 October 2026
+
+The previous version (commit `130ec29`) generated 27 SVG circles with different fill colors, each in its own EncodedImage. Intrinsic dimensions were 24×24, the viewBox was `0 0 24 24`, and every Image was 20×20. The component held all encoded sources throughout two timer-driven show/hide cycles. These measurements are historical; the current program displays every image immediately.
 
 Fresh run of this version, private memory:
 
