@@ -1,5 +1,7 @@
 # SVG edge quality: native automatic raster size
 
+Follow-up: [RASTERIZER.md](RASTERIZER.md) shows that explicit 3072×3072 raster output reduced to 192×192 closely matches fixed-footprint bilinear sampling. Strong bitmap reduction can lose edge coverage even when the full-size raster has antialiasing. This narrows the staircase investigation beyond the original automatic-versus-explicit comparison.
+
 Measured on 28 October 2026 with the published Reactor preview used by this workspace. All four images use identical original SVG bytes, 192×192 DIP Image controls and rasterization scale 1.
 
 | Image | Source creation | Partial-alpha pixels | Opaque pixels |

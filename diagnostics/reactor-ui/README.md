@@ -1,5 +1,7 @@
 # Reactor scroll and SVG reproductions
 
+[RASTERIZER.md](RASTERIZER.md) isolates harsh edges during strong native bitmap reduction, with a raster-size sweep and a numerical bilinear-sampling control. This is separate from source-sharing behavior.
+
 Independent Cargo workspace using published `windows-reactor-pre 0.106.0`, a preview repackaging whose package metadata identifies microsoft/windows-rs snapshot `2c6ce7a`. It does not link Uniproc or Guinea. The SVG drawing is original.
 
 The full source revision is `2c6ce7a1edaefb6e585aa3fb112617d1d8211392`, verified against the locally retained upstream snapshot. The experiments use the published preview package, not a separately built direct-upstream dependency.
