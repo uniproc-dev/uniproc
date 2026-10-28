@@ -40,10 +40,13 @@ impl Component for Probe {
     }
 
     fn update(&mut self, message: Message, _: &ComponentContext<Self>) {
-        let sources = (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect();
         match message {
-            Message::Update => self.after_update = sources,
-            Message::AfterDelay => self.after_delay = sources,
+            Message::Update => {
+                self.after_update = (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect();
+            }
+            Message::AfterDelay => {
+                self.after_delay = (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect();
+            }
         }
     }
 
