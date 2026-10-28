@@ -106,18 +106,33 @@ impl Component for Probe {
                             ))
                             .into(),
                     );
+                    cells.push(
+                        StackPanel::new()
+                            .grid_row(4)
+                            .grid_column(i as i32)
+                            .children((
+                                TextBlock::new()
+                                    .text(format!("Reused after 1s {size}"))
+                                    .foreground(Color::rgb(16, 16, 16)),
+                                image(&self.fresh[i], *size),
+                            ))
+                            .into(),
+                    );
                 }
             }
             Grid::new()
                 .width(960.0)
-                .height(900.0)
+                .height(1125.0)
                 .columns([GridLength::Star(1.0); 4])
-                .rows([GridLength::Star(1.0); 4])
+                .rows([GridLength::Star(1.0); 5])
                 .background(Color::rgb(255, 255, 255))
                 .children(cells)
                 .into()
         };
-        cx.window_frame("SVG size reproduction", content)
+        cx.window_frame(
+            "SVG size reproduction",
+            ScrollViewer::new().height(900.0).content(content),
+        )
     }
 }
 

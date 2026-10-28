@@ -17,3 +17,5 @@ The earlier delayed control, for comparison:
 ![Earlier delayed display](evidence/svg-comparison.png)
 
 The current visual reproduction also includes a fourth row, After 1 second: independent SVG sources are created and mounted by a one-shot one-second timer. The existing queued-update row is retained. Earlier pixel measurements predate this fourth row.
+
+A fifth row, Reused after 1s, mounts after the same timer using the existing self.fresh sources from the second row, without creating new source bytes. The five-row grid is now inside a native ScrollViewer so the last row remains accessible; earlier measurements used the previous layout.
