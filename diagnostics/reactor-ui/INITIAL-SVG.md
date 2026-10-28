@@ -10,4 +10,4 @@ In the earlier delayed comparison the independent 192×192 image had 8,400 opaqu
 
 [Immediate comparison](evidence/svg-initial-comparison.png). Earlier evidence is labeled separately in SVG-ISSUE.md.
 
-The current visual reproduction also includes a fourth row, After 5 seconds: independent SVG sources are created and mounted by a one-shot five-second timer. The existing queued-update row is retained. Earlier pixel measurements predate this fourth row.
+The current visual reproduction also includes a fourth row, After 1 second: independent SVG sources are created and mounted by a one-shot one-second timer. The existing queued-update row is retained. Earlier pixel measurements predate this fourth row.

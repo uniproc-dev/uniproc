@@ -16,4 +16,4 @@ The earlier delayed control, for comparison:
 
 ![Earlier delayed display](evidence/svg-comparison.png)
 
-The current visual reproduction also includes a fourth row, After 5 seconds: independent SVG sources are created and mounted by a one-shot five-second timer. The existing queued-update row is retained. Earlier pixel measurements predate this fourth row.
+The current visual reproduction also includes a fourth row, After 1 second: independent SVG sources are created and mounted by a one-shot one-second timer. The existing queued-update row is retained. Earlier pixel measurements predate this fourth row.

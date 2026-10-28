@@ -35,7 +35,7 @@ impl Component for Probe {
             fresh: (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect(),
             after_update: Vec::new(),
             after_delay: Vec::new(),
-            _timer: cx.set_timeout(Duration::from_secs(5), Message::AfterDelay),
+            _timer: cx.set_timeout(Duration::from_secs(1), Message::AfterDelay),
         }
     }
 
@@ -100,7 +100,7 @@ impl Component for Probe {
                             .grid_column(i as i32)
                             .children((
                                 TextBlock::new()
-                                    .text(format!("After 5 seconds {size}"))
+                                    .text(format!("After 1 second {size}"))
                                     .foreground(Color::rgb(16, 16, 16)),
                                 image(source, *size),
                             ))
