@@ -39,6 +39,20 @@ The scroll probe focuses its own header button, finds its own ScrollViewer, reco
 
 The SVG probe exports each Image through RenderTargetBitmap into the working directory after layout settles. Pixel bytes are converted from premultiplied BGRA to straight RGBA before PNG encoding. Only the original SVG test drawing is exported. The probe logs actual control dimensions, DPI scale and native SVG rasterization properties.
 
+## Native SVG memory control
+
+[MEMORY.md](MEMORY.md) records the causal bounds experiment and the real Uniproc comparison. With `WINUI_WINMD` configured, run `cargo run --locked --bin svg_native_memory`.
+
+| Environment | Control |
+| --- | --- |
+| `MEMORY_RASTER=20` | Set physical raster width and height before loading. Unset means native defaults. |
+| `MEMORY_NO_ATTACH=1` | Load native sources without mounting Image controls. |
+| `MEMORY_NO_LOAD=1` | Only activate native sources. |
+| `MEMORY_RELEASE=1` | Drop source owners on every hide and recreate them on the next show. |
+| `MEMORY_CYCLES=6` | Number of show/hide cycles; default two. |
+
+Unset controls from previous runs before comparing. The process prints load outcomes, phase changes and ordinary heap summary counters, then closes its own window when the cycles finish. Sample private memory externally; the heap counters do not cover every allocator in the process.
+
 Build and lint verification:
 
 ```powershell

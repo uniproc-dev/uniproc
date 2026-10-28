@@ -236,3 +236,35 @@ pub mod probe {
         Ok(())
     }
 }
+
+#[cfg(native_probe)]
+pub fn bounded_svg(
+    bytes: &[u8],
+    width: f64,
+    height: f64,
+) -> windows_core::Result<bindings::SvgImageSource> {
+    let source: bindings::SvgImageSource =
+        windows_core::factory::<bindings::SvgImageSource, windows_core::imp::IGenericFactory>()?
+            .ActivateInstance()?;
+    source.SetRasterizePixelWidth(width)?;
+    source.SetRasterizePixelHeight(height)?;
+    let stream: bindings::InMemoryRandomAccessStream = windows_core::factory::<
+        bindings::InMemoryRandomAccessStream,
+        windows_core::imp::IGenericFactory,
+    >()?
+    .ActivateInstance()?;
+    let writer = bindings::DataWriter::CreateDataWriter(&stream.GetOutputStreamAt(0)?)?;
+    writer.WriteBytes(bytes)?;
+    let image = source.clone();
+    writer.StoreAsync()?.when(move |result| {
+        result.unwrap();
+        writer.DetachStream().unwrap();
+        stream.Seek(0).unwrap();
+        image
+            .SetSourceAsync(&stream)
+            .unwrap()
+            .when(|result| eprintln!("BOUNDED_LOAD {result:?}"))
+            .unwrap();
+    })?;
+    Ok(source)
+}

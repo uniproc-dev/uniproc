@@ -10,6 +10,10 @@ Microsoft::UI::Xaml::FrameworkElement::{get_ActualWidth, get_ActualHeight, get_N
 Microsoft::UI::Xaml::Controls::ScrollViewer::{get_VerticalOffset, get_ExtentHeight, get_ViewportHeight, ChangeView, add_ViewChanged, remove_ViewChanged}
 Microsoft::UI::Xaml::Controls::ScrollViewerViewChangedEventArgs::get_IsIntermediate
 Microsoft::UI::Xaml::Controls::Image::get_Source
-Microsoft::UI::Xaml::Media::Imaging::SvgImageSource::{get_RasterizePixelWidth, get_RasterizePixelHeight}
+Microsoft::UI::Xaml::Media::Imaging::SvgImageSource::{get_RasterizePixelWidth, get_RasterizePixelHeight, put_RasterizePixelWidth, put_RasterizePixelHeight, SetSourceAsync}
 Microsoft::UI::Xaml::Media::Imaging::RenderTargetBitmap::{RenderAsync, GetPixelsAsync, get_PixelWidth, get_PixelHeight}
 Windows::Storage::Streams::DataReader::{FromBuffer, ReadBytes}
+Windows::Storage::Streams::InMemoryRandomAccessStream::{GetOutputStreamAt, Seek}
+Windows::Storage::Streams::DataWriter::{CreateDataWriter, WriteBytes, StoreAsync, DetachStream}
+Windows::Win32::GetProcessHeaps
+Windows::Win32::HeapSummary
