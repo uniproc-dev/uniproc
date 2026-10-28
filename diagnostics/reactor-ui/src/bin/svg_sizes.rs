@@ -5,6 +5,7 @@ const SVG: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" width="24" heigh
 struct Probe {
     shared: EncodedImage,
     fresh: Vec<EncodedImage>,
+    after_update: Vec<EncodedImage>,
 }
 
 fn image(source: &EncodedImage, size: f64) -> View {
@@ -19,14 +20,18 @@ impl Component for Probe {
     type Input = ();
     type Message = ();
 
-    fn create(_: &(), _: &ComponentContext<Self>) -> Self {
+    fn create(_: &(), cx: &ComponentContext<Self>) -> Self {
+        let _ = cx.sender().send(());
         Self {
             shared: EncodedImage::new(SVG.to_vec()),
             fresh: (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect(),
+            after_update: Vec::new(),
         }
     }
 
-    fn update(&mut self, _: (), _: &ComponentContext<Self>) {}
+    fn update(&mut self, _: (), _: &ComponentContext<Self>) {
+        self.after_update = (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect();
+    }
 
     fn view(&self, _: &(), cx: &mut ViewContext<Self>) -> View {
         let sizes = [24.0, 48.0, 96.0, 192.0];
@@ -57,12 +62,26 @@ impl Component for Probe {
                         ))
                         .into(),
                 );
+                if let Some(source) = self.after_update.get(i) {
+                    cells.push(
+                        StackPanel::new()
+                            .grid_row(2)
+                            .grid_column(i as i32)
+                            .children((
+                                TextBlock::new()
+                                    .text(format!("After update {size}"))
+                                    .foreground(Color::rgb(16, 16, 16)),
+                                image(source, *size),
+                            ))
+                            .into(),
+                    );
+                }
             }
             Grid::new()
                 .width(960.0)
-                .height(600.0)
+                .height(720.0)
                 .columns([GridLength::Star(1.0); 4])
-                .rows([GridLength::Star(1.0); 2])
+                .rows([GridLength::Star(1.0); 3])
                 .background(Color::rgb(255, 255, 255))
                 .children(cells)
                 .into()
