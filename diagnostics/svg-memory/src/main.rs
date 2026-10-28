@@ -8,24 +8,13 @@ struct Probe {
 }
 
 fn sources() -> Vec<EncodedImage> {
-    let explicit = std::env::var_os("SVG_PIXELS").is_some();
-    let dimension = if explicit { "24" } else { "1em" };
-    let svg = format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{dimension}" height="{dimension}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#ffffff"/></svg>"##
-    );
-    let count = std::env::var("SVG_COUNT")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(27);
-    let source = EncodedImage::new(svg.as_bytes().to_vec());
-    let shared = std::env::var_os("SVG_SHARED").is_some();
-    (0..count)
-        .map(|_| {
-            if shared {
-                source.clone()
-            } else {
-                EncodedImage::new(svg.as_bytes().to_vec())
-            }
+    (0..27)
+        .map(|index| {
+            let color = 0x204060 + index * 0x050307;
+            let svg = format!(
+                r##"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#{color:06x}"/></svg>"##
+            );
+            EncodedImage::new(svg.into_bytes())
         })
         .collect()
 }
@@ -44,13 +33,6 @@ impl Component for Probe {
 
     fn update(&mut self, _: (), cx: &ComponentContext<Self>) {
         self.step += 1;
-        if std::env::var_os("SVG_RELEASE_ON_HIDE").is_some() {
-            if self.step.is_multiple_of(2) {
-                self.sources.clear();
-            } else if self.sources.is_empty() {
-                self.sources = sources();
-            }
-        }
         eprintln!(
             "SVG_PROBE step={} at={:?}",
             self.step,

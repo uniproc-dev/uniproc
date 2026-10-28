@@ -1,6 +1,26 @@
-# Memory investigation, 27 October 2026
+# SVG memory measurements
 
-## Uniproc reproduction
+## Current reproduction, 28 October 2026
+
+The simplified program always generates 27 SVG circles with different fill colors, each in its own EncodedImage. Intrinsic dimensions are 24×24, the viewBox is `0 0 24 24`, and every Image is 20×20. The component holds all encoded sources throughout the two show/hide cycles. No environment switches are read.
+
+Fresh run of this version, private memory:
+
+| Sampling time | State | Private MiB |
+| --- | --- | ---: |
+| 3 s | Initial empty window | 83.23 |
+| 10 s | First show | 437.90 |
+| 20 s | First hide | 437.98 |
+| 30 s | Second show | 437.98 |
+| 42 s | Final hide | 437.98 |
+
+All four timer transitions completed and the window closed normally after measurement. Build, formatting and Clippy checks passed. This confirms that the memory increase also reproduces with different SVG content and explicit numeric intrinsic dimensions. It does not establish unbounded growth.
+
+## Historical measurements, 27 October 2026
+
+All measurements below were collected with the earlier reproduction, before simplification. Its distinct source allocations contained identical white-circle SVG bytes; separate shared-source, intrinsic-dimension and owner-release controls were also run. These are historical controls, not measurements of the current 27 differently colored SVGs. The earlier source is available in commit `92705c5`.
+
+### Uniproc reproduction
 
 The supplied scenario was automated in a real WinUI window: Processes → System overview → Tooling → Processes, twice, at ten-second intervals. Temporary instrumentation used an in-memory settings store, disabled single-instance exclusion and devtools, and generated 500 Windows process rows. WSL was not removed; its connection differed between runs, so the result is an ablation rather than a perfectly isolated allocation trace.
 
@@ -13,9 +33,9 @@ The second run retained the remaining SVGs, card controls and callbacks. This at
 
 The profiled original-icons run allocated 161,098,584 bytes cumulatively, with **4,321,535 live bytes at the global Rust heap peak**, and 505,735 at profiler termination. These cumulative and live quantities must not be interchanged. In the earlier real-agent profile the corresponding values were 1,029,079,425 total, 15,634,631 at the global peak, and 716,429 at termination. The user observed approximately 800 MB in that same earlier profiled process.
 
-## Standalone confirmation
+### Standalone confirmation
 
-The checked-in project builds against registry Reactor 0.106.0 with an independent Cargo.lock. It displays only original circle SVGs and text. At stable samples:
+The earlier standalone project built against registry Reactor 0.106.0 with an independent Cargo.lock. It displayed identical white-circle SVGs and text. At stable samples:
 
 | Time from start | Default distinct sources, private MiB | Release source owners on hide, private MiB |
 | --- | ---: | ---: |
@@ -33,7 +53,7 @@ Earlier consumer-example builds measured ~102 MiB with either one source/image o
 
 The tested dependency is the published preview package `windows-reactor-pre 0.106.0`, not an upstream 0.106 release. Its package metadata identifies the source snapshot as microsoft/windows-rs `2c6ce7a`. The direct upstream commit was not separately built.
 
-## Conclusions and open questions
+### Historical conclusions and open questions
 
 The dominant navigation-related increase reproduces without Uniproc domain code, Guinea, Guicons or agents. It scales with distinct SVG sources and remains cached while encoded source owners remain alive. Application-lifetime static icon bytes make this retention relevant even after a page is unmounted.
 

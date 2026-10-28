@@ -2,7 +2,7 @@
 
 ## Problem
 
-With `windows-reactor-pre 0.106.0`, 27 independent byte allocations containing the same SVG circle, displayed in `Image` controls explicitly sized 20×20, increase process private memory by roughly 418 MiB. Removing the controls does not release that increase while the component still owns the tiny encoded byte arrays. The second mount/unmount does not cause another comparable increase.
+With `windows-reactor-pre 0.106.0`, 27 SVG circles with different fill colors, displayed in `Image` controls explicitly sized 20×20, increase process private memory from approximately 83 to 438 MiB. Removing the controls does not release that increase while the component still owns the tiny encoded byte arrays.
 
 This is an excessive memory usage / image-cache retention report, not a claim of a demonstrated unbounded leak. The reproduction does not establish the exact native allocation size, raster dimensions, or which lower layer is responsible.
 
@@ -12,7 +12,7 @@ Run the attached standalone Cargo project with `cargo run --locked` on Windows. 
 
 Full source revision, verified against the locally retained upstream snapshot: `2c6ce7a1edaefb6e585aa3fb112617d1d8211392`.
 
-The component holds 27 distinct `EncodedImage::new` byte allocations. Each contains the same original SVG circle. It creates images using:
+The component holds 27 distinct `EncodedImage::new` byte allocations. Each contains a circle with a different fill color, explicit intrinsic dimensions 24×24 and viewBox `0 0 24 24`. It creates images using:
 
 ```rust
 Image::new()
@@ -21,20 +21,21 @@ Image::new()
     .source_svg(source.clone())
 ```
 
-After 5 seconds the images appear; subsequent transitions every 10 seconds remove, recreate and remove the image controls. The tiny encoded sources remain owned by the component in the default run.
+After 5 seconds the images appear; subsequent transitions every 10 seconds remove, recreate and remove the image controls. The encoded sources remain owned by the component throughout the run.
 
 ## Observations
 
-Measured private memory, rounded MiB:
+Fresh measurements of this colored-SVG version, rounded MiB:
 
-| Run | Empty window | Images mounted | After unmount |
-| --- | ---: | ---: | ---: |
-| Standalone registry 0.106.0, 27 distinct sources | 86 | 503 | 503 |
-| Same standalone, release byte owners on hide | 84 | 502 | 292–293 |
-| Same standalone, one source and one image | ~84 | 101 | 101 |
-| Same standalone, one shared source and 27 images | ~84 | 102 | 102 |
+| State | Private memory |
+| --- | ---: |
+| Initial empty window | 83 |
+| First show | 438 |
+| First hide | 438 |
+| Second show | 438 |
+| Final hide | 438 |
 
-The SVG uses `width="1em" height="1em" viewBox="0 0 24 24"`. A separate control using numeric intrinsic dimensions `24` still reproduced the large increase. The attached project exposes this through `SVG_PIXELS=1`.
+Current measurements and historical controls are recorded separately in [RESULTS.md](RESULTS.md). Historical identical-content and shared-source measurements do not describe the current program.
 
 ## Expected behavior / investigation request
 
