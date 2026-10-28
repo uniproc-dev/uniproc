@@ -38,7 +38,7 @@ The practical capability demonstrated here is specifying raster dimensions near 
 
 ## Reproduce
 
-For a persistent visual window, run `cargo run --locked --bin svg_raster_preview` with WINUI_WINMD configured. It compares Reactor automatic, native automatic and native raster sizes 24, 96, 192, 384, 768, 1536 and 3072; all Image controls display at 192×192. This visual program has no capture or focus instrumentation and does not close automatically.
+For a persistent visual window, run `cargo run --locked --bin svg_raster_preview` with WINUI_WINMD configured. It compares only Reactor automatic and native raster 192; both Image controls display at 192×192. This visual program has no capture or focus instrumentation and does not close automatically. The broader size sweep remains in the separate measurement binary.
 
 Configure WINUI_WINMD as described in README.md, then run `cargo run --locked --bin svg_raster_measurement`. It loads the comparison after one second, captures after another four seconds and exits after exporting ten PNGs. The final image is 3072×3072; the others are 192×192. This measurement is separate from the interactive svg_sizes reproduction, which remains unchanged.
 

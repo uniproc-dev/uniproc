@@ -19,14 +19,12 @@ mod reproduction {
 
     const SVG: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#101010" stroke-width="1"/><circle cx="12" cy="12" r="7" fill="none" stroke="#101010" stroke-width=".7"/><path d="M3 21L21 3M4 6h16M4 9h16M4 15h16M4 18h16" fill="none" stroke="#101010" stroke-width=".35"/></svg>"##;
 
-    fn native(raster: Option<f64>) -> Result<c::SvgImageSource> {
+    fn native() -> Result<c::SvgImageSource> {
         let source: c::SvgImageSource =
             windows_core::factory::<c::SvgImageSource, windows_core::imp::IGenericFactory>()?
                 .ActivateInstance()?;
-        if let Some(size) = raster {
-            source.SetRasterizePixelWidth(size)?;
-            source.SetRasterizePixelHeight(size)?;
-        }
+        source.SetRasterizePixelWidth(192.0)?;
+        source.SetRasterizePixelHeight(192.0)?;
         let stream: c::InMemoryRandomAccessStream = windows_core::factory::<
             c::InMemoryRandomAccessStream,
             windows_core::imp::IGenericFactory,
@@ -42,7 +40,7 @@ mod reproduction {
             image
                 .SetSourceAsync(&stream)
                 .unwrap()
-                .when(move |result| eprintln!("raster={raster:?}: {result:?}"))
+                .when(|result| eprintln!("raster=192: {result:?}"))
                 .unwrap();
         })?;
         Ok(source)
@@ -63,24 +61,13 @@ mod reproduction {
             Self {
                 reactor: EncodedImage::new(SVG.to_vec()),
                 sources: Vec::new(),
-                refs: (0..8).map(|_| ElementRef::new()).collect(),
+                refs: vec![ElementRef::new()],
                 _timer: cx.set_timeout(Duration::from_secs(1), ()),
             }
         }
 
         fn update(&mut self, _: (), _: &ComponentContext<Self>) {
-            self.sources = [
-                None,
-                Some(24.0),
-                Some(96.0),
-                Some(192.0),
-                Some(384.0),
-                Some(768.0),
-                Some(1536.0),
-                Some(3072.0),
-            ]
-            .map(|size| native(size).unwrap())
-            .into();
+            self.sources = vec![native().unwrap()];
         }
 
         fn view(&self, _: &(), cx: &mut ViewContext<Self>) -> View {
@@ -116,20 +103,10 @@ mod reproduction {
                             .height(192.0)
                             .into()
                     }));
-                    let labels = [
-                        "Reactor auto",
-                        "Native auto",
-                        "Native raster 24",
-                        "Native raster 96",
-                        "Native raster 192",
-                        "Native raster 384",
-                        "Native raster 768",
-                        "Native raster 1536",
-                        "Native raster 3072",
-                    ];
+                    let labels = ["Reactor auto", "Native raster 192"];
                     Grid::new()
-                        .columns([GridLength::Star(1.0); 3])
-                        .rows([GridLength::Star(1.0); 3])
+                        .columns([GridLength::Star(1.0); 2])
+                        .rows([GridLength::Star(1.0); 1])
                         .children(
                             labels
                                 .into_iter()
@@ -138,8 +115,7 @@ mod reproduction {
                                 .map(|(index, (label, image)): (_, (_, View))| {
                                     StackPanel::new()
                                         .width(208.0)
-                                        .grid_row((index / 3) as i32)
-                                        .grid_column((index % 3) as i32)
+                                        .grid_column(index as i32)
                                         .children((
                                             TextBlock::new()
                                                 .text(label)
@@ -155,8 +131,8 @@ mod reproduction {
             cx.window_frame(
                 "SVG raster size comparison",
                 Grid::new()
-                    .width(624.0)
-                    .height(720.0)
+                    .width(416.0)
+                    .height(240.0)
                     .background(Color::rgb(255, 255, 255))
                     .children((content,)),
             )
