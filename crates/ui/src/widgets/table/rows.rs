@@ -9,13 +9,6 @@ use windows_reactor::{
 
 use super::columns::{CellFn, ColumnSpec, Laid, Look};
 
-struct Rows;
-
-#[expect(non_upper_case_globals)]
-impl Rows {
-    const Bucket: usize = 16;
-}
-
 pub(super) enum Pointer {
     Entered,
     Exited,
@@ -29,7 +22,7 @@ pub(super) fn rows_source<T: 'static, C: Mark>(
     span: Option<Range<usize>>,
     look: Look,
 ) -> VirtualSource {
-    let claimed = rows.len().next_multiple_of(Rows::Bucket);
+    let count = rows.len();
     let rows = Rc::new(rows);
     let columns = Rc::new(columns);
     let laid = Rc::new(laid);
@@ -40,8 +33,8 @@ pub(super) fn rows_source<T: 'static, C: Mark>(
     let painted = span.or_else(|| selected.map(|at| at..at + 1));
 
     VirtualSource::new(
-        claimed as u64,
-        claimed,
+        count as u64,
+        count,
         |index| index,
         move |index| match rows.get(index) {
             Some(row) => View::component::<Pointed>(Line {
