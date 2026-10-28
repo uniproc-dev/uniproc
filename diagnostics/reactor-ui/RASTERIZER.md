@@ -38,7 +38,7 @@ The practical capability demonstrated here is specifying raster dimensions near 
 
 ## Reproduce
 
-The current persistent visual window is `cargo run --locked --bin svg_raster_preview`. It now compares only loading drawing.svg through source_file and loading the same file's bytes through source_svg. Both controls display at 192×192, mounted together after one second. No native metadata configuration is required for this binary. It has no capture or focus instrumentation and does not close automatically. The broader native size sweep remains in the separate measurement binary.
+The current persistent visual window is `cargo run --locked --bin svg_raster_preview`. It writes its embedded SVG beside the executable as svg-raster-repro.svg and compares source_file loading with source_svg loading of identical embedded bytes. Both controls display at 192×192, mounted together after one second. No separate SVG asset or native metadata configuration is required for this binary. It has no capture or focus instrumentation and does not close automatically. The broader native size sweep remains in the separate measurement binary.
 
 Configure WINUI_WINMD as described in README.md, then run `cargo run --locked --bin svg_raster_measurement`. It loads the comparison after one second, captures after another four seconds and exits after exporting ten PNGs. The final image is 3072×3072; the others are 192×192. This measurement is separate from the interactive svg_sizes reproduction, which remains unchanged.
 

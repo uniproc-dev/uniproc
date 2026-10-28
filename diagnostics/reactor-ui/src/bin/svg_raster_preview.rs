@@ -1,9 +1,11 @@
+use std::path::PathBuf;
 use std::time::Duration;
 use windows_reactor::*;
 
-const SVG_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/drawing.svg");
+const SVG: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#101010" stroke-width="1"/><circle cx="12" cy="12" r="7" fill="none" stroke="#101010" stroke-width=".7"/><path d="M3 21L21 3M4 6h16M4 9h16M4 15h16M4 18h16" fill="none" stroke="#101010" stroke-width=".35"/></svg>"##;
 
 struct Repro {
+    path: PathBuf,
     bytes: EncodedImage,
     ready: bool,
     _timer: ComponentTimer,
@@ -14,8 +16,13 @@ impl Component for Repro {
     type Message = ();
 
     fn create(_: &(), cx: &ComponentContext<Self>) -> Self {
+        let path = std::env::current_exe()
+            .unwrap()
+            .with_file_name("svg-raster-repro.svg");
+        std::fs::write(&path, SVG).unwrap();
         Self {
-            bytes: EncodedImage::new(std::fs::read(SVG_PATH).unwrap()),
+            path,
+            bytes: EncodedImage::new(SVG.to_vec()),
             ready: false,
             _timer: cx.set_timeout(Duration::from_secs(1), ()),
         }
@@ -35,7 +42,7 @@ impl Component for Repro {
                             .text("From file")
                             .foreground(Color::rgb(16, 16, 16)),
                         Image::new()
-                            .source_file(SVG_PATH)
+                            .source_file(&self.path)
                             .unwrap()
                             .width(192.0)
                             .height(192.0),

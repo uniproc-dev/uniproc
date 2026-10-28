@@ -1,6 +1,6 @@
 # Reactor scroll and SVG reproductions
 
-The current `svg_raster_preview` is a minimal file-versus-memory comparison on the same renderer build. Run `cargo run --locked --bin svg_raster_preview`: From file uses source_file on drawing.svg; From memory reads that file's bytes and uses source_svg. Both Image controls are 192×192 and appear together after one second. This visual program needs no native metadata or capture instrumentation.
+The current `svg_raster_preview` is a minimal file-versus-memory comparison on the same renderer build. Run `cargo run --locked --bin svg_raster_preview`: it writes its embedded SVG to svg-raster-repro.svg beside the executable. From file loads that file through source_file; From memory uses the identical embedded bytes through source_svg. Both Image controls are 192×192 and appear together after one second. This visual program needs no native metadata, capture instrumentation or separate SVG asset in its distribution.
 
 [RASTERIZER.md](RASTERIZER.md) isolates harsh edges during strong native bitmap reduction, with a raster-size sweep and a numerical bilinear-sampling control. This is separate from source-sharing behavior.
 
