@@ -28,6 +28,8 @@ The diagnostic loads one Reactor source and three native sources, captures its o
 
 The separate visual `svg_sizes` reproduction has not been changed or given capture instrumentation.
 
+For a visual window that stays open, use `cargo run --locked --bin svg_antialias_preview` with the same metadata environment. It has four labeled columns and no native capture/focus instrumentation. The independently built [standalone package](attachments/svg-antialias-repro.zip) contains this visual comparison and the [issue draft](ANTIALIAS-ISSUE.md).
+
 [Full images](evidence/antialias-comparison.png). [Edges at 4× nearest-neighbor magnification](evidence/antialias-edges.png); magnification only makes individual output pixels visible.
 
 Verification: the native control builds and runs successfully, all three native loads succeed, and all four captures complete. Explicit native bounds are a diagnostic control, not a production fix. A renderer change still needs size/DPI-aware source handling, including multiple consumers of the same SVG.

@@ -4,6 +4,15 @@ Independent Cargo workspace using published `windows-reactor-pre 0.106.0`, a pre
 
 The full source revision is `2c6ce7a1edaefb6e585aa3fb112617d1d8211392`, verified against the locally retained upstream snapshot. The experiments use the published preview package, not a separately built direct-upstream dependency.
 
+## Prepared issue attachments
+
+| Report | Standalone source archive |
+| --- | --- |
+| [Shared source becomes blurry across sizes](SVG-ISSUE.md) | [svg-shared-size-repro.zip](attachments/svg-shared-size-repro.zip) |
+| [Explicit raster dimensions improve edge quality](ANTIALIAS-ISSUE.md) | [svg-antialias-repro.zip](attachments/svg-antialias-repro.zip) |
+
+Each archive contains its own Cargo package, Cargo.lock, README, issue draft and evidence. Extract into an empty directory. The shared-source package needs only the published dependencies; the native comparison additionally generates bindings from the WinUI metadata directory described in its README. Both packages were independently built, linted and launched; all three native source loads succeeded. No application services or Guinea checkout are required. The drafts have not been published.
+
 ## SVG source shared across sizes
 
 ```powershell
@@ -15,6 +24,8 @@ After five seconds the top row displays one SVG source shared between 24, 48, 96
 [SVG-ISSUE.md](SVG-ISSUE.md) is the upstream issue draft. [evidence/svg-comparison.png](evidence/svg-comparison.png) shows the measured difference.
 
 [ANTIALIAS.md](ANTIALIAS.md) records a separate native control for harsh edge quality with automatic raster dimensions. Its measurement binary is `svg_antialias_control`; the visual `svg_sizes` example remains unchanged.
+
+For a persistent visual comparison of Reactor auto, native auto, native raster 192 and native raster 384, configure `WINUI_WINMD` as below and run `cargo run --locked --bin svg_antialias_preview`. This binary has no capture/focus instrumentation and does not close its window automatically. [ANTIALIAS-ISSUE.md](ANTIALIAS-ISSUE.md) is the separate API request draft, with native behavior and limits of attribution stated explicitly.
 
 ## Virtual list
 

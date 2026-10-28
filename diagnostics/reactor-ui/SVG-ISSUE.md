@@ -2,6 +2,8 @@
 
 ## Reproduction
 
+Attach `svg-shared-size-repro.zip`, extract it and run `cargo run --locked` on Windows. The archive is an independent Cargo package containing only this visual reproduction, its lockfile and evidence; it needs no Guinea checkout or application service. The window remains open for comparison.
+
 The attached standalone `svg_sizes` binary uses published `windows-reactor-pre 0.106.0`, a preview repackaging of microsoft/windows-rs snapshot `2c6ce7a` according to package metadata. A direct upstream checkout was not separately built.
 
 Source revision: `2c6ce7a1edaefb6e585aa3fb112617d1d8211392`.
@@ -15,7 +17,7 @@ Image::new()
     .height(size)
 ```
 
-Run `cargo run --locked --bin svg_sizes`. After five seconds, compare the shared and independent images at 192 DIP. The top row is blurry; the bottom row is sharp. A fresh-process control prewarming the shared source at 192 DIP also reproduced the problem once multiple sizes were displayed together.
+In the full diagnostics workspace, run `cargo run --locked --bin svg_sizes`. After five seconds, compare the shared and independent images at 192 DIP. The top row is blurry; the bottom row retains substantially more detail. A fresh-process control prewarming the shared source at 192 DIP also reproduced the problem once multiple sizes were displayed together.
 
 ## Evidence
 
@@ -28,6 +30,10 @@ The shared render had 29,984 pixels with partial alpha and no fully opaque pixel
 ## Expected behavior
 
 Sharing encoded SVG data across controls should preserve vector image quality at each display size. Please investigate whether native SVG source caching needs rasterization-size awareness or another mechanism for differently sized consumers. The exact native rasterization/cache mechanism has not been established.
+
+The reproduction establishes the problem through Reactor's image API. It does not establish whether a native SvgImageSource shared directly between differently sized Image controls would reproduce the same blur, so ownership of the underlying defect is still open.
+
+A separate report covers harsh edges with automatic native raster sizing even for an independent source. Explicit native raster dimensions improve that second case. Both reports concern SVG raster sizing, but a common internal cause has not been proven; neither control establishes that explicit bounds alone fix the shared-source case.
 
 Creating independent source byte allocations avoids this visual problem in the control, but it is not proposed as an application workaround: a separate reproduction in `../svg-memory` demonstrates substantial native memory cost per distinct source.
 
