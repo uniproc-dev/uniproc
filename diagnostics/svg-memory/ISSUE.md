@@ -2,9 +2,9 @@
 
 ## Problem
 
-The current program initially displays an empty window, then shows 27 SVG circles with different fill colors in 20×20 Image controls after five seconds. Private memory rises from approximately 84 to 494 MiB. The timer then hides, shows and hides them at ten-second intervals, retaining the encoded sources throughout.
+The current program initially displays an empty window, then shows 27 SVG circles with different fill colors in 20×20 Image controls after five seconds. The timer fires only once; the images remain displayed and the encoded sources remain owned until the window closes.
 
-The earlier immediate-display control (commit `4469197`) stabilized at approximately 85 and 87 MiB, whereas the earlier timer-driven version measured approximately 438 MiB. Fresh verification of the restored timer is recorded separately in RESULTS.md. The exact native initialization condition behind this loading-order difference remains unmeasured.
+The earlier immediate-display control (commit `4469197`) stabilized at approximately 85 and 87 MiB, whereas the two-cycle timer version (`1c7b874`) measured approximately 494 MiB. Fresh verification of the single-step timer is recorded separately in RESULTS.md. The exact native initialization condition behind this loading-order difference remains unmeasured.
 
 ## Reproduction
 
@@ -21,19 +21,13 @@ Image::new()
     .source_svg(source.clone())
 ```
 
-After five seconds all 27 images appear; subsequent transitions every ten seconds hide, show and hide the controls. The encoded sources remain owned by the component throughout the run. There are no environment switches.
+After five seconds all 27 images appear and remain displayed. The update handler only sets `shown = true`; it does not schedule further messages. There are no environment switches.
 
 ## Observations
 
-| Current restored-timer run | Private memory |
-| --- | ---: |
-| Initial empty window | 83.58 MiB |
-| First show | 493.98 MiB |
-| First hide | 493.98 MiB |
-| Second show | 493.99 MiB |
-| Final hide | 493.97 MiB |
+The fresh single-step run measured 83.73 MiB before display, 438.74 MiB after the only update, and 438.81 MiB at 21 seconds. The process remained responsive and emitted no stderr errors. No additional timer messages or hide/show transitions were involved.
 
-Current measurements and historical controls are recorded separately in [RESULTS.md](RESULTS.md). The immediate-display control is historical and does not describe the restored timer-driven executable.
+Current single-step measurements and historical controls are recorded separately in [RESULTS.md](RESULTS.md). Immediate-display and repeated hide/show controls are historical and do not describe the current executable.
 
 ## Interpretation
 

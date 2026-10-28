@@ -3,8 +3,8 @@ use windows_reactor::*;
 
 struct Probe {
     sources: Vec<EncodedImage>,
-    step: u32,
-    timer: Option<ComponentTimer>,
+    shown: bool,
+    _timer: ComponentTimer,
 }
 
 fn sources() -> Vec<EncodedImage> {
@@ -26,23 +26,17 @@ impl Component for Probe {
     fn create(_: &(), cx: &ComponentContext<Self>) -> Self {
         Self {
             sources: sources(),
-            step: 0,
-            timer: Some(cx.set_timeout(Duration::from_secs(5), ())),
+            shown: false,
+            _timer: cx.set_timeout(Duration::from_secs(5), ()),
         }
     }
 
-    fn update(&mut self, _: (), cx: &ComponentContext<Self>) {
-        self.step += 1;
-        eprintln!(
-            "SVG_PROBE step={} at={:?}",
-            self.step,
-            std::time::SystemTime::now()
-        );
-        self.timer = (self.step < 4).then(|| cx.set_timeout(Duration::from_secs(10), ()));
+    fn update(&mut self, _: (), _: &ComponentContext<Self>) {
+        self.shown = true;
     }
 
     fn view(&self, _: &(), cx: &mut ViewContext<Self>) -> View {
-        let content: View = if self.step % 2 == 1 {
+        let content: View = if self.shown {
             StackPanel::new()
                 .children(
                     self.sources

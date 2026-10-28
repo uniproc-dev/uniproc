@@ -1,8 +1,21 @@
 # SVG memory measurements
 
-## Current restored timer, 28 October 2026
+## Current single-step timer, 28 October 2026
 
-The program again starts empty, shows all 27 differently colored SVGs after five seconds, then hides, shows and hides the controls at ten-second intervals. The encoded sources remain owned throughout. Intrinsic SVG dimensions are 24×24, Image dimensions 20×20; no environment switches are read.
+One timer fires after five seconds. The update handler only changes `shown` from false to true; it does not schedule another message. All 27 differently colored SVGs remain displayed afterward. Intrinsic dimensions are 24×24 and Image dimensions 20×20; no environment switches are read.
+
+| Sampling time | State | Private MiB |
+| --- | --- | ---: |
+| 3 s | Initial empty window | 83.73 |
+| 10 s | Images displayed after the only update | 438.74 |
+| 16 s | Still displayed, no further updates | 438.74 |
+| 21 s | Still displayed, no further updates | 438.81 |
+
+The process remained responsive, stderr was empty, and the window closed normally after sampling. Build, formatting and Clippy passed. A single deferred display is sufficient to reproduce the large increase; repeated hide/show transitions are not required.
+
+## Historical restored two-cycle timer, 28 October 2026
+
+Commit `1c7b874` started empty, showed all 27 differently colored SVGs after five seconds, then hid, showed and hid the controls at ten-second intervals. These are historical measurements of the two-cycle version, not the current single-step timer. The encoded sources remained owned throughout. Intrinsic SVG dimensions were 24×24, Image dimensions 20×20.
 
 Fresh verification after restoring the timer:
 
