@@ -10,6 +10,8 @@ This is an excessive memory usage / image-cache retention report, not a claim of
 
 Run the attached standalone Cargo project with `cargo run --locked` on Windows. It requires only `windows-reactor-pre = 0.106.0` and setup 0.100.0. This is a preview repackaging, not an upstream version number: its package metadata identifies the microsoft/windows-rs source snapshot as `2c6ce7a`. A direct upstream checkout was not separately built for this report.
 
+Full source revision, verified against the locally retained upstream snapshot: `2c6ce7a1edaefb6e585aa3fb112617d1d8211392`.
+
 The component holds 27 distinct `EncodedImage::new` byte allocations. Each contains the same original SVG circle. It creates images using:
 
 ```rust

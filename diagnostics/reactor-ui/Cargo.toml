@@ -1,0 +1,18 @@
+[package]
+name = "reactor-ui-repros"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+windows-reactor = { package = "windows-reactor-pre", version = "=0.106.0" }
+windows-core = "=0.100.0"
+windows-future = "=0.100.0"
+windows-reference = "=0.100.0"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[build-dependencies]
+windows-reactor-setup = "=0.100.0"
+windows-bindgen = "=0.100.0"
