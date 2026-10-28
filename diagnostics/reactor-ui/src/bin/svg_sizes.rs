@@ -1,3 +1,4 @@
+use std::time::Duration;
 use windows_reactor::*;
 
 const SVG: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><rect x="1" y="1" width="22" height="22" rx="3" fill="none" stroke="#101010" stroke-width="1"/><circle cx="12" cy="12" r="7" fill="none" stroke="#101010" stroke-width=".7"/><path d="M3 21L21 3M4 6h16M4 9h16M4 15h16M4 18h16" fill="none" stroke="#101010" stroke-width=".35"/></svg>"##;
@@ -6,6 +7,13 @@ struct Probe {
     shared: EncodedImage,
     fresh: Vec<EncodedImage>,
     after_update: Vec<EncodedImage>,
+    after_delay: Vec<EncodedImage>,
+    _timer: ComponentTimer,
+}
+
+enum Message {
+    Update,
+    AfterDelay,
 }
 
 fn image(source: &EncodedImage, size: f64) -> View {
@@ -18,19 +26,25 @@ fn image(source: &EncodedImage, size: f64) -> View {
 
 impl Component for Probe {
     type Input = ();
-    type Message = ();
+    type Message = Message;
 
     fn create(_: &(), cx: &ComponentContext<Self>) -> Self {
-        let _ = cx.sender().send(());
+        let _ = cx.sender().send(Message::Update);
         Self {
             shared: EncodedImage::new(SVG.to_vec()),
             fresh: (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect(),
             after_update: Vec::new(),
+            after_delay: Vec::new(),
+            _timer: cx.set_timeout(Duration::from_secs(5), Message::AfterDelay),
         }
     }
 
-    fn update(&mut self, _: (), _: &ComponentContext<Self>) {
-        self.after_update = (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect();
+    fn update(&mut self, message: Message, _: &ComponentContext<Self>) {
+        let sources = (0..4).map(|_| EncodedImage::new(SVG.to_vec())).collect();
+        match message {
+            Message::Update => self.after_update = sources,
+            Message::AfterDelay => self.after_delay = sources,
+        }
     }
 
     fn view(&self, _: &(), cx: &mut ViewContext<Self>) -> View {
@@ -76,12 +90,26 @@ impl Component for Probe {
                             .into(),
                     );
                 }
+                if let Some(source) = self.after_delay.get(i) {
+                    cells.push(
+                        StackPanel::new()
+                            .grid_row(3)
+                            .grid_column(i as i32)
+                            .children((
+                                TextBlock::new()
+                                    .text(format!("After 5 seconds {size}"))
+                                    .foreground(Color::rgb(16, 16, 16)),
+                                image(source, *size),
+                            ))
+                            .into(),
+                    );
+                }
             }
             Grid::new()
                 .width(960.0)
-                .height(720.0)
+                .height(900.0)
                 .columns([GridLength::Star(1.0); 4])
-                .rows([GridLength::Star(1.0); 3])
+                .rows([GridLength::Star(1.0); 4])
                 .background(Color::rgb(255, 255, 255))
                 .children(cells)
                 .into()

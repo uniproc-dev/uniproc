@@ -1,6 +1,6 @@
 # Initial mount changes SVG quality
 
-The measured initial-mount version of svg_sizes mounted both rows immediately. The current visual reproduction retains those rows and adds a third row, After update, created and mounted by the first queued component message. It has no timer, prewarm stage, environment switch or capture instrumentation. The recorded captures below predate that third row; they do not measure its quality.
+The measured initial-mount version of svg_sizes mounted both rows immediately. The current visual reproduction retains those rows and adds a third row, After update, created and mounted by the first queued component message. It has no prewarm stage, environment switch or capture instrumentation. The recorded captures below predate that third row; they do not measure its quality.
 
 A separate svg_initial_measurement binary uses the same initial image tree and captures all eight Image controls after four seconds. Unlike the visual reproduction, this isolated measurement has a focus button, capture instrumentation and an automatic exit. It requires WINUI_WINMD, like the other native measurements.
 
@@ -9,3 +9,5 @@ All controls reported their requested actual size and rasterization scale 1. At 
 In the earlier delayed comparison the independent 192×192 image had 8,400 opaque pixels and 1,410 partially covered pixels. Those earlier captures remain valid for that loading sequence, but do not establish source sharing as the sole cause. The current issue draft and archive describe initial mounting explicitly. Exact decoder dimensions and the internal cause remain unmeasured.
 
 [Immediate comparison](evidence/svg-initial-comparison.png). Earlier evidence is labeled separately in SVG-ISSUE.md.
+
+The current visual reproduction also includes a fourth row, After 5 seconds: independent SVG sources are created and mounted by a one-shot five-second timer. The existing queued-update row is retained. Earlier pixel measurements predate this fourth row.
