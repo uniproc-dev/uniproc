@@ -1,8 +1,21 @@
 # SVG memory measurements
 
-## Current single-step timer, 28 October 2026
+## Current timerless queued update, 28 October 2026
 
-One timer fires after five seconds. The update handler only changes `shown` from false to true; it does not schedule another message. All 27 differently colored SVGs remain displayed afterward. Intrinsic dimensions are 24×24 and Image dimensions 20×20; no environment switches are read.
+The component starts with `shown = false`. Its constructor queues one message with `cx.sender().send(())`, and the update handler only sets `shown = true`. All 27 differently colored SVGs are then displayed and retained. No timer, delay, rescheduling, hide/show cycle or environment switch is used.
+
+| Sampling time | Private MiB |
+| --- | ---: |
+| 3 s | 439.11 |
+| 6 s | 439.11 |
+| 10 s | 439.11 |
+| 12 s | 439.11 |
+
+The process remained responsive, stderr was empty and the window closed normally after measurement. Build, formatting and Clippy passed. A timer is not required for this high-memory case: one queued state update is sufficient. The exact native initialization condition remains unmeasured.
+
+## Historical single-step timer, 28 October 2026
+
+Commit `351d3ff` used one timer firing after five seconds. The update handler only changed `shown` from false to true without scheduling another message. All 27 differently colored SVGs remained displayed afterward. These are historical timer measurements, not measurements of the current timerless executable.
 
 | Sampling time | State | Private MiB |
 | --- | --- | ---: |

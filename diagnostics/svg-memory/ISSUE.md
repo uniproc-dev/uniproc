@@ -1,10 +1,10 @@
-# SVG memory increases when sources load after initial display
+# SVG memory increases when sources appear through a queued component update
 
 ## Problem
 
-The current program initially displays an empty window, then shows 27 SVG circles with different fill colors in 20×20 Image controls after five seconds. The timer fires only once; the images remain displayed and the encoded sources remain owned until the window closes.
+The current component starts with `shown = false` and immediately queues a single message from `create`. Its update handler sets `shown = true`, adding 27 SVG circles with different fill colors in 20×20 Image controls. There is no timer; the images remain displayed and their encoded sources remain owned until the window closes.
 
-The earlier immediate-display control (commit `4469197`) stabilized at approximately 85 and 87 MiB, whereas the two-cycle timer version (`1c7b874`) measured approximately 494 MiB. Fresh verification of the single-step timer is recorded separately in RESULTS.md. The exact native initialization condition behind this loading-order difference remains unmeasured.
+The earlier unconditional immediate-display control (commit `4469197`, no component update) stabilized at approximately 85 and 87 MiB. The current queued-update version stabilizes at approximately 439 MiB. The exact native initialization condition behind this difference remains unmeasured.
 
 ## Reproduction
 
@@ -21,13 +21,13 @@ Image::new()
     .source_svg(source.clone())
 ```
 
-After five seconds all 27 images appear and remain displayed. The update handler only sets `shown = true`; it does not schedule further messages. There are no environment switches.
+The constructor uses `let _ = cx.sender().send(())`. The update handler only sets `shown = true` and schedules nothing further. There are no environment switches.
 
 ## Observations
 
-The fresh single-step run measured 83.73 MiB before display, 438.74 MiB after the only update, and 438.81 MiB at 21 seconds. The process remained responsive and emitted no stderr errors. No additional timer messages or hide/show transitions were involved.
+The fresh timerless run measured 439.11 MiB at 3, 6, 10 and 12 seconds. The process remained responsive, emitted no stderr errors and closed normally after sampling. No timer messages or hide/show transitions were involved.
 
-Current single-step measurements and historical controls are recorded separately in [RESULTS.md](RESULTS.md). Immediate-display and repeated hide/show controls are historical and do not describe the current executable.
+Current queued-update measurements and historical controls are recorded separately in [RESULTS.md](RESULTS.md). Unconditional immediate display and earlier timer variants are historical controls.
 
 ## Interpretation
 

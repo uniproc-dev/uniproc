@@ -1,10 +1,8 @@
-use std::time::Duration;
 use windows_reactor::*;
 
 struct Probe {
     sources: Vec<EncodedImage>,
     shown: bool,
-    _timer: ComponentTimer,
 }
 
 fn sources() -> Vec<EncodedImage> {
@@ -24,10 +22,10 @@ impl Component for Probe {
     type Message = ();
 
     fn create(_: &(), cx: &ComponentContext<Self>) -> Self {
+        let _ = cx.sender().send(());
         Self {
             sources: sources(),
             shown: false,
-            _timer: cx.set_timeout(Duration::from_secs(5), ()),
         }
     }
 

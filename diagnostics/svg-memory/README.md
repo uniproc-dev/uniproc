@@ -8,15 +8,13 @@ From this directory:
 cargo run --locked
 ```
 
-The window starts empty. A single timer displays all 27 SVG images after 5 seconds; they remain on screen until the window is closed. Every Image is 20×20. There is no timer rescheduling or hide/show cycle.
+The component starts with `shown = false`. Its constructor immediately queues one message with `cx.sender().send(())`; the update handler sets `shown = true` and displays all 27 SVG images. They remain on screen until the window closes. Every Image is 20×20. No timer or hide/show cycle is involved.
 
 Every SVG has explicit intrinsic dimensions 24×24 and a `0 0 24 24` viewBox. The component retains the encoded sources while the window is open. There are no environment switches.
 
-The earlier immediate-display control (commit `4469197`) measured approximately 85 and 87 MiB. Those results are historical and do not describe the restored timer-driven version.
+The earlier unconditional immediate-display control (commit `4469197`, with no state update) measured approximately 85 and 87 MiB. Those results are historical and do not describe this queued-update version.
 
-The previous two-cycle timer version (commit `1c7b874`) measured approximately 84 MiB before display and 494 MiB after loading. Current single-step and historical measurements are separated in RESULTS.md.
-
-The current single-step run measured approximately 84 MiB before display and 439 MiB after the one update, remaining near 439 MiB at 21 seconds.
+The current timerless queued-update run stabilized at approximately 439 MiB through 12 seconds. Current and historical measurements, including earlier timer controls, are separated in RESULTS.md.
 
 Measure **private bytes** for the corresponding process, independently of working set. For example, in another PowerShell window:
 
