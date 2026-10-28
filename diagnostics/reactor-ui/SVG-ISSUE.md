@@ -1,40 +1,17 @@
-# A shared SVG source becomes blurry when used by Image controls of different sizes
+# SVG images appear blurry when mounted initially
 
-## Reproduction
+In windows-reactor, SVG images displayed in the initial component view appear blurry at larger sizes. This affects both clones of a shared EncodedImage and independent allocations containing identical SVG bytes.
 
-Attach `svg-shared-size-repro.zip`, extract it and run `cargo run --locked` on Windows. The archive is an independent Cargo package containing only this visual reproduction, its lockfile and evidence; it needs no Guinea checkout or application service. The window remains open for comparison.
+The reproduction immediately displays two rows of images at 24, 48, 96 and 192. The top row shares one EncodedImage; the bottom row uses independent allocations. Both 192×192 images are blurry.
 
-The attached standalone `svg_sizes` binary uses published `windows-reactor-pre 0.106.0`, a preview repackaging of microsoft/windows-rs snapshot `2c6ce7a` according to package metadata. A direct upstream checkout was not separately built.
+An earlier control mounted the comparison after a five-second delay. In that control, the independent 192×192 image retained substantially more detail, while the shared source remained blurry. Source sharing alone therefore does not explain the behavior; initial mounting also changes the result. The internal decode dimensions and cause have not been established.
 
-Source revision: `2c6ce7a1edaefb6e585aa3fb112617d1d8211392`.
+What determines SVG raster resolution here, and how should SVG sources be used to retain detail at the Image's display size?
 
-The component creates one `EncodedImage` for an original SVG drawing, then passes clones to four `Image` controls sized 24, 48, 96 and 192 DIP. A comparison row uses the same SVG bytes in four independent allocations. All controls have explicit width and height. No application framework or icon library is involved.
+The attached svg-shared-size-repro.zip contains the full immediate-display reproduction. Extract and run `cargo run --locked`.
 
-```rust
-Image::new()
-    .source_svg(shared.clone())
-    .width(size)
-    .height(size)
-```
+![Immediate display: both sources are blurry](evidence/svg-initial-comparison.png)
 
-In the full diagnostics workspace, run `cargo run --locked --bin svg_sizes`. After five seconds, compare the shared and independent images at 192 DIP. The top row is blurry; the bottom row retains substantially more detail. A fresh-process control prewarming the shared source at 192 DIP also reproduced the problem once multiple sizes were displayed together.
+The earlier delayed control, for comparison:
 
-## Evidence
-
-![Shared versus independent source at 192 DIP](evidence/svg-comparison.png)
-
-The images were exported by the earlier instrumented version through native RenderTargetBitmap from the two actual Image controls, not reconstructed or resized for the comparison. That capture instrumentation has been removed from the current preview. Both controls reported actual dimensions 192×192 and rasterization scale 1. The native SvgImageSource RasterizePixelWidth/Height getters returned infinity; these values do not establish the internal bitmap dimensions.
-
-The shared render had 29,984 pixels with partial alpha and no fully opaque pixels. The independent render had 1,410 partially covered and 8,400 fully opaque pixels. This supports the visible loss of detail without relying on a scaled screenshot.
-
-## Expected behavior
-
-Sharing encoded SVG data across controls should preserve vector image quality at each display size. Please investigate whether native SVG source caching needs rasterization-size awareness or another mechanism for differently sized consumers. The exact native rasterization/cache mechanism has not been established.
-
-The reproduction establishes the problem through Reactor's image API. It does not establish whether a native SvgImageSource shared directly between differently sized Image controls would reproduce the same blur, so ownership of the underlying defect is still open.
-
-A separate report covers harsh edges with automatic native raster sizing even for an independent source. Explicit native raster dimensions improve that second case. Both reports concern SVG raster sizing, but a common internal cause has not been proven; neither control establishes that explicit bounds alone fix the shared-source case.
-
-Creating independent source byte allocations avoids this visual problem in the control, but it is not proposed as an application workaround: a separate reproduction in `../svg-memory` demonstrates substantial native memory cost per distinct source.
-
-Environment: Windows 11 build 26300 x64; Microsoft.ui.xaml.dll file version 3.2.3.2608; scale 1; NVIDIA nvwgf2umx.dll 32.0.15.8157; Rust 1.99.1.
+![Earlier delayed display](evidence/svg-comparison.png)

@@ -19,7 +19,7 @@ Each archive contains its own Cargo package, Cargo.lock, README, issue draft and
 cargo run --locked --bin svg_sizes
 ```
 
-After five seconds the top row displays one SVG source shared between 24, 48, 96 and 192 DIP images. The bottom row displays independent byte allocations of the same SVG, one per image. Compare the two 192 DIP images. Set `SVG_LARGE_FIRST=1` in a fresh process to prewarm the shared source at 192 instead of 24.
+Both rows appear immediately. The top row shares one SVG source between 24, 48, 96 and 192 DIP images. The bottom row uses independent byte allocations. In this initial-mount variant both 192 DIP images are blurry. There is no prewarm phase, timer or environment switch. The earlier delayed-mount variant made the independent source sharper, so source sharing alone does not explain the artifact.
 
 [SVG-ISSUE.md](SVG-ISSUE.md) is the upstream issue draft. [evidence/svg-comparison.png](evidence/svg-comparison.png) shows the measured difference.
 
