@@ -1,0 +1,13 @@
+[package]
+name = "services-flyout-scratchpad"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+windows-reactor = { package = "windows-reactor-pre", version = "=0.106.0" }
+
+[build-dependencies]
+windows-reactor-setup = "=0.100.0"
