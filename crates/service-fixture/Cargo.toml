@@ -1,0 +1,13 @@
+[package]
+name = "service-fixture"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "uniproc-service-fixture"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+windows-service = "0.8.0"

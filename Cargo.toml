@@ -12,6 +12,7 @@ members = [
     "crates/domain",
     "crates/ui",
     "crates/xtask",
+    "crates/service-fixture",
 ]
 
 [workspace.dependencies]

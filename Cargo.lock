@@ -1125,6 +1125,7 @@ dependencies = [
  "guinea-plugin-single-instance",
  "guinea-plugin-store",
  "guinea-widgets",
+ "service-fixture",
  "tempfile",
  "tokio",
  "tracing",
@@ -4123,6 +4124,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "service-fixture"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "windows-service",
+]
+
+[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5546,6 +5555,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44873a1ef61c85d5e2991db91fe656cfcf0731097e00dff1ac860f1cb3b752a0"
 dependencies = [
  "windows-link 0.100.0",
+]
+
+[[package]]
+name = "windows-service"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "857224b3b211c6f3616921f081ee54721ee3ad2ace2fac6a6337e032f7b4dcf2"
+dependencies = [
+ "bitflags 2.13.2",
+ "widestring",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

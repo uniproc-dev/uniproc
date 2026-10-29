@@ -30,6 +30,7 @@ we show the right thing.
 | `context` | Icon and metadata extraction from executables, packages and windows. |
 | `desktop` | The binary: routes, layouts, page wiring, tracing, test fakes. |
 | `xtask` | Dev tasks. |
+| `service-fixture` | Dev-only neutral SCM service for Services action e2e and manual checks. |
 
 `desktop` → `ui` → `app-contracts` ← `domain`. `ui` never depends on `domain`.
 
@@ -243,6 +244,17 @@ migrations or compatibility shims for old local data.
   running. `cargo ragent` waits for a manually started service, then runs the app.
 - `cargo run -p xtask -- agent-check [--wsl]` runs `domain/examples/agent_e2e.rs` against the
   live agents.
+- `cargo run -p xtask -- test-service install` creates `Uniproc.UiTest`: a stopped,
+  Manual, LocalService fixture with no background work. `test-service remove` removes
+  only that fixture after checking its executable. Both require administrator rights.
+  The executable is deployed in `%ProgramData%\Uniproc\ServiceFixture`; LocalService
+  receives read/execute only on that fixture directory and executable.
+- `cargo run -p xtask -- services-e2e` requires administrator rights and the real Windows
+  monitor. It builds the fixture and runs the ignored `services_scm_e2e` harness test:
+  Start, Restart and Stop go through ServicesActor, WindowsActions and real IPC to SCM;
+  SCM state/PID and returned report metadata are checked. Real IPC uses a separate
+  wall-clock runtime; the harness receives completed real results. Each run creates a
+  unique temporary service and removes it with an owning guard, including on panic.
 - Logs: plain text on stderr, and one JSON object per line in `run_desktop.log` (`ts`,
   `level`, `target`, `cause`, fields), recreated on every start. Debug builds write it in
   the working directory; release builds in `%LOCALAPPDATA%\<app name>\logs\`.

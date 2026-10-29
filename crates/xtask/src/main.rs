@@ -12,16 +12,48 @@ fn main() -> anyhow::Result<()> {
     match args.first().map(|s| s.as_str()) {
         Some("run") => run(),
         Some("agent-check") => agent_check(&args[1..]),
+        Some("test-service") => test_service(&args[1..]),
+        Some("services-e2e") => services_e2e(),
         Some("l10n-taskmgr") => l10n_taskmgr(&args[1..]),
         Some("bindings") => win32_bindings::run(&workspace_root()?),
         Some("winui-bindings") => winui_bindings::run(&args[1..], &workspace_root()?),
         _ => {
             eprintln!(
-                "Usage: cargo run -p xtask -- <run|agent-check [--wsl]|l10n-taskmgr [<dir with <locale>\\Taskmgr.exe.mui>]|bindings|winui-bindings <WinUI winmd dir>>"
+                "Usage: cargo run -p xtask -- <run|agent-check [--wsl]|test-service install|test-service remove|services-e2e|l10n-taskmgr [<dir with <locale>\\Taskmgr.exe.mui>]|bindings|winui-bindings <WinUI winmd dir>>"
             );
             std::process::exit(1);
         }
     }
+}
+
+fn build_service_fixture(root: &Path) -> anyhow::Result<PathBuf> {
+    let status = Command::new("cargo").args(["build", "--locked", "-p", "service-fixture", "--bin", "uniproc-service-fixture"])
+        .current_dir(root).status()?;
+    anyhow::ensure!(status.success(), "service fixture build failed: {status}");
+    let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from).unwrap_or_else(|| root.join("target"));
+    let target = if target.is_absolute() { target } else { root.join(target) };
+    Ok(target.join("debug/uniproc-service-fixture.exe"))
+}
+
+fn test_service(args: &[String]) -> anyhow::Result<()> {
+    let action = args.first().map(String::as_str).unwrap_or("");
+    anyhow::ensure!(matches!(action, "install" | "remove") && args.len() == 1, "Usage: xtask test-service <install|remove>");
+    let root = workspace_root()?;
+    let exe = build_service_fixture(&root)?;
+    let status = Command::new(exe).arg(action).current_dir(root).status()?;
+    anyhow::ensure!(status.success(), "test service {action} failed: {status}");
+    Ok(())
+}
+
+fn services_e2e() -> anyhow::Result<()> {
+    anyhow::ensure!(agent_running(), "start the real Windows monitor before services-e2e");
+    let root = workspace_root()?;
+    let exe = build_service_fixture(&root)?;
+    let status = Command::new("cargo")
+        .args(["test", "--locked", "-p", "desktop", "services_scm_e2e", "--", "--ignored", "--nocapture", "--test-threads=1"])
+        .env("UNIPROC_SERVICE_FIXTURE_EXE", exe).current_dir(root).status()?;
+    anyhow::ensure!(status.success(), "services-e2e failed: {status}");
+    Ok(())
 }
 
 fn l10n_taskmgr(args: &[String]) -> anyhow::Result<()> {

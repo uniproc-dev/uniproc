@@ -13,6 +13,8 @@ mod test_agent;
 mod test_system;
 #[cfg(test)]
 mod test_support;
+#[cfg(test)]
+mod services_e2e;
 mod tracing_init;
 mod window_press;
 mod xaml_resources;

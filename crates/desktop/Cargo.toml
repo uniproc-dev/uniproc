@@ -35,6 +35,7 @@ dhat = { version = "0.3", optional = true }
 dhat-heap = ["dep:dhat"]
 
 [dev-dependencies]
+service-fixture = { path = "../service-fixture" }
 guinea = { workspace = true, features = ["harness"] }
 guinea-plugin-store = { workspace = true, features = ["test-utils"] }
 futures = { workspace = true }
