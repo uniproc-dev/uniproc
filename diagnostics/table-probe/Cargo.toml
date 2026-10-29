@@ -1,0 +1,27 @@
+[package]
+name = "table-metrics-probe"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "table-probe-layout"
+path = "src/main.rs"
+
+[workspace]
+
+[dependencies]
+windows-reactor = { package = "windows-reactor-pre", path = "../../../guinea/crates/vendor/windows-reactor-pre" }
+windows-canvas = { package = "windows-canvas-pre", path = "../../../guinea/crates/vendor/windows-canvas-pre", features = ["reactor"] }
+windows-core = "=0.100.0"
+windows-future = "=0.100.0"
+windows-reference = "=0.100.0"
+serde_json = "1"
+
+[build-dependencies]
+windows-reactor-setup = "=0.100.0"
+windows-bindgen = "=0.100.0"
+
+[profile.dev]
+opt-level = 2
+debug = 0
