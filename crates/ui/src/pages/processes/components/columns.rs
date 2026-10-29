@@ -33,7 +33,6 @@ struct Header;
 #[expect(non_upper_case_globals)]
 impl Header {
     const Padding: f64 = 8.0;
-    const Height: f64 = 36.0;
 }
 
 struct Chevron;
@@ -268,7 +267,7 @@ fn selection_bar_for(height: f64, band: Highlight) -> View {
 
 fn header_frame() -> Grid {
     Grid::new()
-        .height(Header::Height)
+        .height(size::TableHeader)
 }
 
 fn with_column_menu(menu: &Callback<()>, header: impl Into<View>) -> View {

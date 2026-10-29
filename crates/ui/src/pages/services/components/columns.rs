@@ -3,10 +3,10 @@ use std::rc::Rc;
 
 use app_contracts::features::agents::WindowsServiceState;
 use app_contracts::features::services::{ServiceColumn, ServiceRow};
-use windows_reactor::{Grid, GridLength, Thickness, TooltipExt, VerticalAlignment};
+use windows_reactor::{Grid, GridLength, Thickness, TooltipExt, VerticalAlignment, View};
 
 use crate::l10n::L10n;
-use crate::theme::{space, Palette};
+use crate::theme::{size, space, Palette};
 use crate::widgets::table_cell;
 use crate::widgets::table::ColumnSpec;
 
@@ -36,6 +36,17 @@ const STATES: [WindowsServiceState; 8] = [
 
 type Column = ColumnSpec<ServiceRow, ServiceColumn>;
 
+fn column(id: ServiceColumn, label: String, width: f64, palette: Palette, cell: impl Fn(&ServiceRow) -> View + 'static) -> Column {
+    ColumnSpec::new_with_header(id, move || {
+        Grid::new()
+            .height(size::TableHeader)
+            .children((table_cell::cell_text(label.clone())
+                .foreground(palette.tertiary_text)
+                .vertical_alignment(VerticalAlignment::Bottom),))
+            .into()
+    }, width, cell)
+}
+
 fn text_column(
     id: ServiceColumn,
     header: String,
@@ -43,7 +54,7 @@ fn text_column(
     palette: Palette,
     write: impl Fn(&ServiceRow, &mut String) + 'static,
 ) -> Column {
-    ColumnSpec::new(id, header, width, move |row: &ServiceRow| {
+    column(id, header, width, palette, move |row: &ServiceRow| {
         let mut text = String::new();
         write(row, &mut text);
         let content = table_cell::cell_text(text.clone()).foreground(palette.primary_text).tooltip(text);
@@ -55,7 +66,7 @@ pub(crate) fn build_columns(l10n: &L10n, palette: Palette) -> Vec<Column> {
     let labels: Rc<[(WindowsServiceState, String)]> =
         STATES.iter().map(|&state| (state, state_label(l10n, state))).collect();
     vec![
-        ColumnSpec::new(ServiceColumn::Name, l10n.services_col_name(), 260.0, move |row: &ServiceRow| {
+        column(ServiceColumn::Name, l10n.services_col_name(), 260.0, palette, move |row: &ServiceRow| {
             let content = Grid::new()
                 .columns([GridLength::Auto, GridLength::Star(1.0)])
                 .vertical_alignment(VerticalAlignment::Center)
@@ -70,7 +81,7 @@ pub(crate) fn build_columns(l10n: &L10n, palette: Palette) -> Vec<Column> {
             table_cell::dimmed(content, !row.is_running())
         })
         .sortable(),
-        ColumnSpec::new(ServiceColumn::Status, l10n.services_col_status(), 90.0, move |row: &ServiceRow| {
+        column(ServiceColumn::Status, l10n.services_col_status(), 90.0, palette, move |row: &ServiceRow| {
             let label = labels
                 .iter()
                 .find(|(state, _)| *state == row.state)

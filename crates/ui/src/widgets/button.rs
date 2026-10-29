@@ -1,11 +1,20 @@
 use guinea::winui::MarkExt;
 use guinea::Mark;
 use windows_reactor::{
-    Border, Button, ButtonStyle, Orientation, ResourceOverrides, StackPanel, Thickness, View,
+    Border, Button, ButtonStyle, Orientation, ResourceOverrides, StackPanel, Thickness, VerticalAlignment, View,
 };
 
-use crate::theme::{opacity, space};
+use crate::theme::{opacity, space, Palette};
 use crate::widgets::text::text;
+
+pub fn command_divider(palette: Palette) -> Border {
+    Border::new()
+        .width(1.0)
+        .height(20.0)
+        .margin(Thickness::xy(space::Control, 0.0))
+        .vertical_alignment(VerticalAlignment::Center)
+        .background(palette.divider_stroke)
+}
 
 pub fn command_button(
     mark: impl Mark,

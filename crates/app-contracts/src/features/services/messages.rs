@@ -32,3 +32,11 @@ pub struct Deselect;
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]
 #[remote(action)]
 pub struct Command(pub ServiceActionKind);
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct RunNewTask;
+
+#[derive(Clone, Debug, Deserialize, guinea::Remote)]
+#[remote(action)]
+pub struct OpenServices;

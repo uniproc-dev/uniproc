@@ -50,6 +50,34 @@ mod tests {
     use super::*;
     use crate::routes::Route;
 
+    #[guinea::test(iterations = 1, exclusive = "services-toolbar")]
+    fn toolbar_launches_a_task_and_the_services_console(h: &mut Harness) {
+        static TASKS: AtomicU32 = AtomicU32::new(0);
+        static CONSOLES: AtomicU32 = AtomicU32::new(0);
+        TASKS.store(0, Ordering::SeqCst);
+        CONSOLES.store(0, Ordering::SeqCst);
+        let mut deps = crate::platform::PlatformDeps::default();
+        deps.processes.shell = |request| {
+            assert_eq!(request, domain::features::processes::shell::ShellRequest::RunNewTask);
+            TASKS.fetch_add(1, Ordering::SeqCst);
+        };
+        deps.system.launch = |launch| {
+            assert_eq!(launch, domain::features::system::tools::Launch {
+                file: "services.msc".into(),
+                args: String::new(),
+            });
+            CONSOLES.fetch_add(1, Ordering::SeqCst);
+        };
+        crate::test_support::install_with(h, deps);
+        let mut page: Mounted<'_, Services> =
+            Mounted::mount_at(h.child(), (), Route::Services {}).unwrap();
+        page.settle();
+        page.click(ServicesMark::RunNewTask).settle();
+        page.click(ServicesMark::OpenServices).settle();
+        assert_eq!(TASKS.load(Ordering::SeqCst), 1);
+        assert_eq!(CONSOLES.load(Ordering::SeqCst), 1);
+    }
+
     #[guinea::test(iterations = 1)]
     fn services_use_the_native_scroll_viewer(h: &mut Harness) {
         crate::test_support::install(h);

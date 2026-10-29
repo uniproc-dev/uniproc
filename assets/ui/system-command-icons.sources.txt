@@ -1,0 +1,9 @@
+The command glyphs were identified in TaskManagerApp/ServicesPage.xbf,
+embedded in C:/Windows/SystemResources/Windows.UI.TaskManager/Windows.UI.TaskManager.pri.
+Taskmgr.exe file version: 10.0.26100.9549.
+PRI SHA256: 8b92b0058e2faaa3b0831338130ddb5446e382a19b1891d6506c61eb88410f92.
+
+SVG contours exported from C:/Windows/Fonts/SegoeIcons.ttf (Segoe Fluent Icons):
+new-task.svg: U+EFDA, DocumentManagement, TaskManager_RunNewTaskButton.
+open-services.svg: U+E7C5, BrowsePhotos, ServicesPage_OpenServicesAppButton.
+service-restart.svg: U+E777, UpdateRestore, ServicesPage_RestartButton.

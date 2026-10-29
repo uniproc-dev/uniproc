@@ -17,7 +17,7 @@ use guinea::prelude::{Dispatch, Load};
 use guinea::winui::MarkExt;
 use crate::widgets::table::{table, Look, Reordered, Resized, SortState};
 use windows_reactor::{
-    Border, Callback, Grid, GridLength, PointerEventInfo, Orientation, StackPanel, Thickness, VerticalAlignment,
+    Border, Callback, Grid, GridLength, PointerEventInfo, Orientation, StackPanel, VerticalAlignment,
     View,
 };
 
@@ -35,19 +35,10 @@ use super::marks::ProcessesMark;
 use crate::l10n::L10n;
 use crate::theme::{radius, size, space, Palette};
 use crate::widgets::action_failure::action_failure;
-use crate::widgets::button::{command_button, icon_button};
+use crate::widgets::button::{command_button, command_divider, icon_button};
 use crate::widgets::page::{loading, page_frame, page_title};
 use crate::widgets::selection::SelectionMark;
 use crate::widgets::text::text;
-
-struct Header;
-
-#[expect(non_upper_case_globals)]
-impl Header {
-    const DividerWidth: f64 = 1.0;
-    const DividerHeight: f64 = 20.0;
-    const CommandIcon: f64 = 18.0;
-}
 
 pub struct ProcessesSettingsMaps {
     pub columns: ReactiveMap<String, ColumnConfig>,
@@ -423,27 +414,21 @@ impl ProcessesPage {
                 Border::new().grid_column(2).content(command_button(
                     ProcessesMark::RunNewTask,
                     l10n.processes_run_new_task(),
-                    Some(icon!(new_task).size(Header::CommandIcon).build_element()),
+                    Some(icon!(new_task).size(size::CommandIcon).build_element()),
                     true,
                     move || run_new_task.emit(RunNewTask),
                 )),
-                Border::new()
-                    .grid_column(3)
-                    .width(Header::DividerWidth)
-                    .height(Header::DividerHeight)
-                    .margin(Thickness::xy(space::Control, 0.0))
-                    .vertical_alignment(VerticalAlignment::Center)
-                    .background(palette.divider_stroke),
+                command_divider(palette).grid_column(3),
                 Border::new().mark(SelectionMark::Keeper).grid_column(4).content(command_button(
                     ProcessesMark::EndTask,
                     end_label,
-                    Some(icon!(prohibited).size(Header::CommandIcon).build_element()),
+                    Some(icon!(prohibited).size(size::CommandIcon).build_element()),
                     end_enabled,
                     end,
                 )),
                 Border::new().grid_column(5).content(icon_button(
                     ProcessesMark::OpenSettings,
-                    icon!(more_horizontal).size(Header::CommandIcon).build_element(),
+                    icon!(more_horizontal).size(size::CommandIcon).build_element(),
                     move || {
                         open_settings.call(());
                     },

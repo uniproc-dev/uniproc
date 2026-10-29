@@ -229,6 +229,12 @@ iconify = "fluent:subtract-24-regular"
 [new-task]
 file = "new-task.svg"
 
+[service-restart]
+file = "service-restart.svg"
+
+[open-services]
+file = "open-services.svg"
+
 [open]
 iconify = "fluent:open-20-regular"
 

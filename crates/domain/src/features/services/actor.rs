@@ -6,12 +6,14 @@ use app_contracts::features::agents::{
 };
 use app_contracts::features::services::{
     Command, Deselect, DismissFailure, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesMsg,
-    ServicesState, Sort,
+    ServicesState, Sort, RunNewTask, OpenServices,
 };
 use guinea::prelude::*;
 use uniproc_windows_agent::api::SERVICE_NAME;
 
 use crate::features::agents::actions;
+use crate::features::processes::shell::ShellRequest;
+use crate::features::system::tools::Launch;
 
 pub struct Acted {
     action: WindowsAction,
@@ -26,16 +28,20 @@ pub struct ServicesActor {
     sort_column: ServiceColumn,
     descending: bool,
     selected: Option<String>,
+    shell: fn(ShellRequest),
+    launch: fn(Launch),
 }
 
 impl ServicesActor {
-    pub fn new(push: Push<ServicesState>) -> Self {
+    pub fn new(push: Push<ServicesState>, shell: fn(ShellRequest), launch: fn(Launch)) -> Self {
         Self {
             push,
             rows: Rc::from(Vec::new()),
             sort_column: ServiceColumn::Name,
             descending: false,
             selected: None,
+            shell,
+            launch,
         }
     }
 
@@ -61,9 +67,21 @@ actor! {
             Command => { task Acted }
             Acted,
             DismissFailure,
+            RunNewTask,
+            OpenServices,
         }
         subscribes { WindowsReportMessage }
     }
+}
+
+#[handler]
+fn run_new_task(In(this, _, _): In<ServicesActor, RunNewTask>) {
+    (this.shell)(ShellRequest::RunNewTask);
+}
+
+#[handler]
+fn open_services(In(this, _, _): In<ServicesActor, OpenServices>) {
+    (this.launch)(Launch { file: "services.msc".into(), args: String::new() });
 }
 
 #[handler]
