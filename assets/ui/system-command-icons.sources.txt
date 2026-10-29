@@ -8,5 +8,7 @@ new-task.svg: U+EFDA, DocumentManagement, TaskManager_RunNewTaskButton.
 open-services.svg: U+E7C5, BrowsePhotos, ServicesPage_OpenServicesAppButton.
 service-restart.svg: U+E777, UpdateRestore, ServicesPage_RestartButton.
 
-Keep each glyph's 2048-unit em square, centered in an 18-unit region of a
-24-unit SVG viewBox, matching the neighboring Fluent toolbar icons' padding.
+All SVG canvases are 24 units square. Restart keeps its 2048-unit em square
+centered in an 18-unit region. The more detailed Run new task and Open Services
+contours occupy a centered 20-unit region; their transforms are baked into
+path coordinates.
