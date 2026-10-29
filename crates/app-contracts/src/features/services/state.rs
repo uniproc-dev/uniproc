@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use super::messages::ServicesMsg;
 use crate::features::agents::ActionFailure;
-use super::model::{ServiceColumn, ServiceRow};
+use super::model::{ServiceColumn, ServiceRow, ServiceOperation};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ServicesState {
@@ -12,6 +12,7 @@ pub struct ServicesState {
     pub sort_column: ServiceColumn,
     pub descending: bool,
     pub failure: Option<ActionFailure>,
+    pub operations: Rc<[ServiceOperation]>,
 }
 
 impl Default for ServicesState {
@@ -22,6 +23,7 @@ impl Default for ServicesState {
             sort_column: ServiceColumn::Name,
             descending: false,
             failure: None,
+            operations: Rc::from([]),
         }
     }
 }
@@ -46,5 +48,6 @@ fn services(this: &mut ServicesState, update: ServicesMsg) {
             this.descending = descending;
         }
         ServicesMsg::SetFailure(failure) => this.failure = failure,
+        ServicesMsg::SetOperations(operations) => this.operations = operations,
     }
 }

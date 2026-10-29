@@ -7,3 +7,4 @@ pub use marks::{ServicesMark, ServicesSettingsMark};
 pub use components::column_layout::ServicesSettingsMaps;
 pub use settings::{ServicesSettingsMsg, ServicesSettingsPage};
 pub use page::{ServicesMsg, ServicesPage};
+pub use components::operations::{operations, OperationsProps};
