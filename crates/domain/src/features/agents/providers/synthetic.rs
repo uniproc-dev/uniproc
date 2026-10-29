@@ -151,6 +151,7 @@ fn report(executables: &[Arc<str>], processes: usize, unique: bool, tick: u64) -
             load_group: format!("Group{}", index % 7).into(),
             description: format!("Generated service number {index} for measurements").into(),
             image_path: executables[index % executables.len()].clone(),
+            ..Default::default()
         })
         .collect();
 

@@ -37,6 +37,11 @@ we show the right thing.
 polish it.
 
 Tables use native Views through ItemsRepeater and ScrollViewer in `ui::widgets::table`.
+Services columns are catalogued by `ServiceColumn::ALL` with stable ids and default
+visibility and widths. The overview and settings page use that same catalogue;
+`ServicesSettings` persists visibility, widths and order. `ServicesArea` owns the feature
+across both routes. Service startup type, account and control capabilities come from
+the Windows service, never from SCM calls made by the UI.
 
 ## A feature
 

@@ -6,7 +6,7 @@ use app_contracts::features::agents::{
     Architecture, DpiAwareness, ExtendedCfg, GpuEngineId, GpuEngineKind, IoPriority, Isolation, Mitigations,
     ProcessPriority, ProcessRunState, SignatureStatus, StackProtection, UacVirtualization, WindowsAction,
     WindowsGpu, WindowsGpuEngine, WindowsMachineStats, WindowsProcessStats, WindowsProcessorStats, WindowsReport,
-    WindowsServiceState, WindowsServiceStats,
+    WindowsServiceState, WindowsServiceStats, WindowsServiceStartType,
 };
 use uniproc_windows_agent::api::{self, MachineMetric, MachineMetrics, MetricSpec, ProcessMetrics};
 
@@ -558,6 +558,18 @@ fn service(s: &api::ServiceStats) -> WindowsServiceStats {
         load_group: Arc::from(s.load_group.as_str()),
         description: Arc::from(s.description.as_str()),
         image_path: Arc::from(s.image_path.as_str()),
+        startup_type: match s.startup_type {
+            api::ServiceStartType::Unknown => WindowsServiceStartType::Unknown,
+            api::ServiceStartType::Boot => WindowsServiceStartType::Boot,
+            api::ServiceStartType::System => WindowsServiceStartType::System,
+            api::ServiceStartType::Automatic => WindowsServiceStartType::Automatic,
+            api::ServiceStartType::Manual => WindowsServiceStartType::Manual,
+            api::ServiceStartType::Disabled => WindowsServiceStartType::Disabled,
+        },
+        delayed_auto: s.delayed_auto,
+        account: Arc::from(s.account.as_str()),
+        service_type: s.service_type,
+        accepted_controls: s.accepted_controls,
     }
 }
 
@@ -620,6 +632,23 @@ pub fn code(result: anyhow::Result<api::CommandResult>) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn service_configuration_reaches_the_report() {
+        let row = service(&api::ServiceStats {
+            startup_type: api::ServiceStartType::Automatic,
+            delayed_auto: true,
+            account: "NT AUTHORITY\\LocalService".into(),
+            service_type: 0x20,
+            accepted_controls: 1,
+            ..Default::default()
+        });
+        assert_eq!(row.startup_type, WindowsServiceStartType::Automatic);
+        assert!(row.delayed_auto);
+        assert_eq!(&*row.account, "NT AUTHORITY\\LocalService");
+        assert_eq!(row.service_type, 0x20);
+        assert_eq!(row.accepted_controls, 1);
+    }
 
     fn sequence(pid: u32) -> u64 {
         u64::from(pid) * 10

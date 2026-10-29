@@ -1,29 +1,33 @@
 use std::sync::Arc;
 
 use app_contracts::features::services::{
-    Command, DismissFailure, OpenServices, RunNewTask, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesState, Sort,
+    Command, Deselect, DismissFailure, OpenServices, RunNewTask, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesState, Sort,
 };
 use guinea::prelude::{Dispatch, Load};
-use crate::widgets::table::{table, ColumnWidths, Look, Resized, SortState};
+use crate::widgets::table::{table, Look, Reordered, Resized, SortState};
 use guicons::icon;
-use windows_reactor::{Callback, Grid, GridLength, Orientation, StackPanel, View};
+use windows_reactor::{Border, Callback, Grid, GridLength, Orientation, StackPanel, View};
+use guinea::winui::MarkExt;
 
 use super::components::columns::build_columns;
+use super::components::column_layout::{ColumnLayout, ServicesSettingsMaps};
 use super::marks::ServicesMark;
 use crate::l10n::L10n;
 use crate::theme::{radius, size, space, Palette};
 use crate::widgets::action_failure::action_failure;
-use crate::widgets::button::{command_button, command_divider};
+use crate::widgets::button::{command_button, command_divider, icon_button};
+use crate::widgets::selection::SelectionMark;
 use crate::widgets::page::{loading, page_frame, page_title, status_text};
 use crate::widgets::text::text;
 
 pub enum ServicesMsg {
     Resized(Resized),
+    Reordered(Reordered),
 }
 
 #[derive(Default)]
 pub struct ServicesPage {
-    widths: ColumnWidths,
+    layout: ColumnLayout,
 }
 
 fn command(dispatch: &Dispatch, kind: ServiceActionKind) -> impl Fn() + 'static {
@@ -32,9 +36,14 @@ fn command(dispatch: &Dispatch, kind: ServiceActionKind) -> impl Fn() + 'static 
 }
 
 impl ServicesPage {
+    pub fn new(settings: ServicesSettingsMaps) -> Self {
+        Self { layout: ColumnLayout::new(Some(settings)) }
+    }
+
     pub fn update(&mut self, message: ServicesMsg) {
         match message {
-            ServicesMsg::Resized(drag) => self.widths.apply(drag),
+            ServicesMsg::Resized(drag) => self.layout.resize(drag),
+            ServicesMsg::Reordered(moved) => self.layout.reorder(moved),
         }
     }
 
@@ -45,8 +54,11 @@ impl ServicesPage {
         l10n: &L10n,
         palette: Palette,
         forward: Callback<ServicesMsg>,
+        open_settings: Callback<()>,
     ) -> View {
-        let has_selection = state.selected.is_some();
+        let selected = state.rows().iter().find(|row| Some(row.name.as_ref()) == state.selected.as_deref());
+        let can_start = selected.is_some_and(ServiceRow::can_start);
+        let can_stop = selected.is_some_and(ServiceRow::can_stop);
 
         let run = dispatch.clone();
         let open = dispatch.clone();
@@ -62,27 +74,27 @@ impl ServicesPage {
                     move || run.emit(RunNewTask),
                 ),
                 command_divider(palette),
-                command_button(
+                Border::new().mark(SelectionMark::Keeper).content(command_button(
                     ServicesMark::Start,
                     l10n.services_start(),
-                    Some(icon!(play).size(size::CommandIcon).build_element()),
-                    has_selection,
+                    Some(icon!(play, color = if can_start { palette.success } else { palette.disabled_text }).size(size::CommandIcon).build_element()),
+                    can_start,
                     command(dispatch, ServiceActionKind::Start),
-                ),
-                command_button(
+                )),
+                Border::new().mark(SelectionMark::Keeper).content(command_button(
                     ServicesMark::Stop,
                     l10n.services_stop(),
-                    Some(icon!(stop).size(size::CommandIcon).build_element()),
-                    has_selection,
+                    Some(icon!(stop, color = if can_stop { palette.critical } else { palette.disabled_text }).size(size::CommandIcon).build_element()),
+                    can_stop,
                     command(dispatch, ServiceActionKind::Stop),
-                ),
-                command_button(
+                )),
+                Border::new().mark(SelectionMark::Keeper).content(command_button(
                     ServicesMark::Restart,
                     l10n.services_restart(),
-                    Some(icon!(service_restart).size(size::CommandIcon).build_element()),
-                    has_selection,
+                    Some(icon!(service_restart, color = if can_stop { palette.caution } else { palette.disabled_text }).size(size::CommandIcon).build_element()),
+                    can_stop,
                     command(dispatch, ServiceActionKind::Restart),
-                ),
+                )),
                 command_divider(palette),
                 command_button(
                     ServicesMark::OpenServices,
@@ -91,6 +103,9 @@ impl ServicesPage {
                     true,
                     move || open.emit(OpenServices),
                 ),
+                icon_button(ServicesMark::OpenSettings,
+                    icon!(more_horizontal).size(size::CommandIcon).build_element(),
+                    move || open_settings.call(())),
             ));
         let header = Grid::new()
             .columns([GridLength::Auto, GridLength::Star(1.0), GridLength::Auto])
@@ -106,8 +121,10 @@ impl ServicesPage {
                 let names: Vec<Arc<str>> = rows.iter().map(|r| r.name.clone()).collect();
                 let select = dispatch.clone();
                 let sort = dispatch.clone();
+                let resized = forward.clone();
+                let reordered = forward.clone();
 
-                table(rows, build_columns(l10n, palette))
+                let table = table(rows, build_columns(l10n, palette, &self.layout, state.selected.as_deref()))
                 .look(Look {
                     row_height: size::ProcessRow,
                     hovered: palette.row_hovered,
@@ -118,9 +135,11 @@ impl ServicesPage {
                     rule: palette.divider_stroke,
                 })
                 .corner_radius(radius::Card)
-                .widths(&self.widths)
+                .widths(self.layout.widths())
+                .order(&self.layout.order())
+                .on_reorder(move |moved: Reordered| reordered.call(ServicesMsg::Reordered(moved)))
                 .on_resize(move |drag: Resized| {
-                    forward.call(ServicesMsg::Resized(drag));
+                    resized.call(ServicesMsg::Resized(drag));
                 })
                 .sort(
                     SortState {
@@ -137,9 +156,12 @@ impl ServicesPage {
                 .selection(selected, move |at: Option<usize>| {
                     if let Some(name) = at.and_then(|at| names.get(at)) {
                         select.emit(Select(name.to_string()));
+                    } else {
+                        select.emit(Deselect);
                     }
                 })
-                .build()
+                .build();
+                Grid::new().mark(SelectionMark::Keeper).children((table,)).into()
             }
             Load::Failed(err) => text(l10n.services_failed(err.to_string())).into(),
             _ => loading(),

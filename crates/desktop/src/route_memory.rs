@@ -46,7 +46,7 @@ fn route_for(page: StartPage, last: impl FnOnce() -> Option<Route>) -> Route {
     match page {
         StartPage::LastOpened => last().unwrap_or(Route::Processes(ProcessesRoute::Overview)),
         StartPage::Processes => Route::Processes(ProcessesRoute::Overview),
-        StartPage::Services => Route::Services {},
+        StartPage::Services => Route::Services(crate::routes::ServicesRoute::Overview),
         StartPage::Wsl => Route::Wsl {},
     }
 }
@@ -68,7 +68,7 @@ mod tests {
     #[test]
     fn a_chosen_start_page_wins_over_the_last_one() {
         let last = || Some(Route::Wsl {});
-        assert!(matches!(route_for(StartPage::Services, last), Route::Services {}));
+        assert!(matches!(route_for(StartPage::Services, last), Route::Services(crate::routes::ServicesRoute::Overview)));
         assert!(matches!(route_for(StartPage::LastOpened, last), Route::Wsl {}));
         assert!(matches!(route_for(StartPage::LastOpened, || None), Route::Processes(ProcessesRoute::Overview)));
     }

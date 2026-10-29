@@ -2,10 +2,17 @@
 pub enum Route {
     Processes(ProcessesRoute),
     Activity(ActivityRoute),
-    Services {},
+    Services(ServicesRoute),
     Wsl {},
     System(SystemRoute),
     Settings {},
+}
+
+#[derive(Default, Clone, PartialEq, Debug, guinea::Routable)]
+pub enum ServicesRoute {
+    #[default]
+    Overview,
+    Settings,
 }
 
 #[derive(Default, Clone, PartialEq, Debug, guinea::Routable)]
@@ -36,7 +43,8 @@ impl Route {
             Self::Processes(ProcessesRoute::Settings) => "ProcessesSettings",
             Self::Activity(ActivityRoute::Overview) => "Activity",
             Self::Activity(ActivityRoute::Groups) => "ActivityGroups",
-            Self::Services {} => "Services",
+            Self::Services(ServicesRoute::Overview) => "Services",
+            Self::Services(ServicesRoute::Settings) => "ServicesSettings",
             Self::Wsl {} => "Wsl",
             Self::System(SystemRoute::Overview) => "System",
             Self::System(SystemRoute::Tools) => "SystemTools",
@@ -50,7 +58,8 @@ impl Route {
             "ProcessesSettings" => Self::Processes(ProcessesRoute::Settings),
             "Activity" => Self::Activity(ActivityRoute::Overview),
             "ActivityGroups" => Self::Activity(ActivityRoute::Groups),
-            "Services" => Self::Services {},
+            "Services" => Self::Services(ServicesRoute::Overview),
+            "ServicesSettings" => Self::Services(ServicesRoute::Settings),
             "Wsl" => Self::Wsl {},
             "System" => Self::System(SystemRoute::Overview),
             "SystemTools" => Self::System(SystemRoute::Tools),
@@ -85,7 +94,8 @@ mod tests {
             Route::Processes(ProcessesRoute::Settings),
             Route::Activity(ActivityRoute::Overview),
             Route::Activity(ActivityRoute::Groups),
-            Route::Services {},
+            Route::Services(crate::routes::ServicesRoute::Overview),
+            Route::Services(ServicesRoute::Settings),
             Route::Wsl {},
             Route::System(SystemRoute::Overview),
             Route::System(SystemRoute::Tools),
@@ -104,6 +114,7 @@ mod tests {
             Route::Processes(ProcessesRoute::Settings),
             Route::Activity(ActivityRoute::Groups),
             Route::System(SystemRoute::Tools),
+            Route::Services(ServicesRoute::Settings),
         ] {
             let mut app = crate::test_support::mount_application(h, route.clone()).unwrap();
             app.settle();
@@ -111,6 +122,7 @@ mod tests {
             assert_eq!(app.is_mounted::<crate::pages::ProcessesSettings>(), matches!(route, Route::Processes(_)));
             assert_eq!(app.is_mounted::<crate::pages::ActivityGroups>(), matches!(route, Route::Activity(_)));
             assert_eq!(app.is_mounted::<crate::pages::SystemTools>(), matches!(route, Route::System(_)));
+            assert_eq!(app.is_mounted::<crate::pages::ServicesSettings>(), matches!(route, Route::Services(_)));
         }
     }
 
@@ -153,7 +165,7 @@ mod tests {
         start(h);
         let h = &*h;
         serve("notepad.exe");
-        let mut app = crate::test_support::mount_application(h, Route::Services {}).unwrap();
+        let mut app = crate::test_support::mount_application(h, Route::Services(crate::routes::ServicesRoute::Overview)).unwrap();
         h.advance(Duration::from_secs(1));
         app.settle();
 
@@ -182,7 +194,7 @@ mod tests {
         start(h);
         let h = &*h;
         serve("notepad.exe");
-        let mut app = crate::test_support::mount_application(h, Route::Services {}).unwrap();
+        let mut app = crate::test_support::mount_application(h, Route::Services(crate::routes::ServicesRoute::Overview)).unwrap();
         h.advance(Duration::from_secs(1));
         app.settle();
         serve("calc.exe");
@@ -207,7 +219,7 @@ mod tests {
 
         let left = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             h.publish(app_contracts::features::window::PressedAway);
-            app.navigate(Route::Services {});
+            app.navigate(Route::Services(crate::routes::ServicesRoute::Overview));
             app.settle();
         }));
 
@@ -225,7 +237,7 @@ mod tests {
         app.settle();
         assert!(listed(&mut app, "notepad.exe"), "{:#?}", app.tree());
 
-        app.navigate(Route::Services {});
+        app.navigate(Route::Services(crate::routes::ServicesRoute::Overview));
         assert!(!app.is_mounted::<ProcessesArea>());
         serve("calc.exe");
         h.advance(Duration::from_secs(1));

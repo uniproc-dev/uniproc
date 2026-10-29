@@ -14,6 +14,7 @@ use uniproc_windows_agent::api::SERVICE_NAME;
 use crate::features::agents::actions;
 use crate::features::processes::shell::ShellRequest;
 use crate::features::system::tools::Launch;
+use app_contracts::features::window::PressedAway;
 
 pub struct Acted {
     action: WindowsAction,
@@ -70,8 +71,14 @@ actor! {
             RunNewTask,
             OpenServices,
         }
-        subscribes { WindowsReportMessage }
+        subscribes { WindowsReportMessage, PressedAway }
     }
+}
+
+#[handler]
+fn on_pressed_away(In(this, _, _): In<ServicesActor, PressedAway>) {
+    this.selected = None;
+    this.push.send(ServicesMsg::SetSelected(None));
 }
 
 #[handler]
@@ -182,6 +189,11 @@ fn to_row(svc: &WindowsServiceStats) -> ServiceRow {
         group: svc.load_group.clone(),
         description: svc.description.clone(),
         image_path: svc.image_path.clone(),
+        startup_type: svc.startup_type,
+        delayed_auto: svc.delayed_auto,
+        account: svc.account.clone(),
+        service_type: svc.service_type,
+        accepted_controls: svc.accepted_controls,
     }
 }
 
@@ -197,6 +209,11 @@ fn sort_rows(rows: &mut [ServiceRow], column: ServiceColumn, descending: bool) {
             ServiceColumn::Pid => a.pid.cmp(&b.pid),
             ServiceColumn::Name => folded(&a.display_name).cmp(folded(&b.display_name)),
             ServiceColumn::Description => folded(&a.description).cmp(folded(&b.description)),
+            ServiceColumn::ServiceName => folded(&a.name).cmp(folded(&b.name)),
+            ServiceColumn::ImagePath => folded(&a.image_path).cmp(folded(&b.image_path)),
+            ServiceColumn::StartupType => (a.startup_type as u8, a.delayed_auto).cmp(&(b.startup_type as u8, b.delayed_auto)),
+            ServiceColumn::Account => folded(&a.account).cmp(folded(&b.account)),
+            ServiceColumn::ServiceType => a.service_type.cmp(&b.service_type),
         };
         let ord = ord.then_with(|| a.name.cmp(&b.name));
         if descending { ord.reverse() } else { ord }
@@ -218,6 +235,11 @@ mod tests {
             group: "".into(),
             description: "".into(),
             image_path: "".into(),
+            startup_type: Default::default(),
+            delayed_auto: false,
+            account: "".into(),
+            service_type: 0,
+            accepted_controls: 0,
         }
     }
 
@@ -257,5 +279,23 @@ mod tests {
         ];
         sort_rows(&mut rows, ServiceColumn::Status, false);
         assert_eq!(rows[0].state, WindowsServiceState::Paused);
+    }
+
+    #[test]
+    fn controls_follow_status_and_keep_old_peer_support() {
+        let mut service = row("sample", WindowsServiceState::Stopped);
+        assert!(service.can_start());
+        assert!(!service.can_stop());
+        service.startup_type = app_contracts::features::agents::WindowsServiceStartType::Disabled;
+        assert!(!service.can_start());
+        service.state = WindowsServiceState::Running;
+        assert!(service.can_stop());
+        service.service_type = 0x10;
+        assert!(!service.can_stop());
+        service.accepted_controls = 1;
+        assert!(service.can_stop());
+        service.state = WindowsServiceState::StopPending;
+        assert!(!service.can_start());
+        assert!(!service.can_stop());
     }
 }

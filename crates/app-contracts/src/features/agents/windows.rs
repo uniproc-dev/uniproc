@@ -337,6 +337,22 @@ pub struct WindowsServiceStats {
     pub load_group: Arc<str>,
     pub description: Arc<str>,
     pub image_path: Arc<str>,
+    pub startup_type: WindowsServiceStartType,
+    pub delayed_auto: bool,
+    pub account: Arc<str>,
+    pub service_type: u32,
+    pub accepted_controls: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
+pub enum WindowsServiceStartType {
+    #[default]
+    Unknown,
+    Boot,
+    System,
+    Automatic,
+    Manual,
+    Disabled,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]

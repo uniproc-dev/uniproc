@@ -3,6 +3,18 @@ pub enum SelectionMark {
     Keeper,
 }
 
+pub fn selection_indicator() -> windows_reactor::Border {
+    use windows_reactor::{Border, HorizontalAlignment, ThemeBrush, Thickness, VerticalAlignment};
+    Border::new()
+        .width(3.0)
+        .height(16.0)
+        .corner_radius(2.0)
+        .background(ThemeBrush::Accent)
+        .horizontal_alignment(HorizontalAlignment::Left)
+        .vertical_alignment(VerticalAlignment::Center)
+        .margin(Thickness::new(5.0, 0.0, 0.0, 0.0))
+}
+
 pub fn keep_place<T, K: PartialEq>(
     items: &mut Vec<T>,
     key: K,

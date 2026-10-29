@@ -6,8 +6,8 @@ use ui::ShellNav;
 use windows_reactor::{Callback, View};
 use std::cell::RefCell;
 
-use crate::layouts::{ActivityArea, ProcessesArea, SystemArea};
-use crate::pages::{Services, Settings, Wsl};
+use crate::layouts::{ActivityArea, ProcessesArea, ServicesArea, SystemArea};
+use crate::pages::{Settings, Wsl};
 use crate::parts::{Connecting, SidebarCharts};
 use crate::routes::{Route, ProcessesRoute, ActivityRoute, SystemRoute};
 
@@ -25,7 +25,7 @@ fn nav(route: &Route) -> ShellNav {
     match route {
         Route::Processes(_) => ShellNav::Processes,
         Route::Activity(_) => ShellNav::Activity,
-        Route::Services {} => ShellNav::Services,
+        Route::Services(_) => ShellNav::Services,
         Route::Wsl {} => ShellNav::Wsl,
         Route::System(_) => ShellNav::System,
         Route::Settings {} => ShellNav::Settings,
@@ -70,7 +70,7 @@ impl Layout for Shell {
         let targets: Vec<_> = [
             (ShellNav::Processes, Route::Processes(ProcessesRoute::Overview)),
             (ShellNav::Activity, Route::Activity(ActivityRoute::Overview)),
-            (ShellNav::Services, Route::Services {}),
+            (ShellNav::Services, Route::Services(crate::routes::ServicesRoute::Overview)),
             (ShellNav::Wsl, Route::Wsl {}),
             (ShellNav::System, Route::System(SystemRoute::Overview)),
             (ShellNav::Settings, Route::Settings {}),
@@ -90,7 +90,7 @@ impl Layout for Shell {
         let content = cx.outlet(&navigate, |route, cx| match route {
             Route::Processes(_) => cx.mount::<ProcessesArea>(&()).keep(),
             Route::Activity(_) => cx.mount::<ActivityArea>(&()),
-            Route::Services {} => cx.mount::<Services>(&()).keep(),
+            Route::Services(_) => cx.mount::<ServicesArea>(&()).keep(),
             Route::Wsl {} => cx.mount::<Wsl>(&()).keep(),
             Route::System(_) => cx.mount::<SystemArea>(&()),
             Route::Settings {} => cx.mount::<Settings>(&()),
@@ -140,7 +140,7 @@ mod tests {
     use crate::test_agent;
 
     fn mount(h: &Harness) -> Mounted<'_, Route> {
-        crate::test_support::mount_application(h, Route::Services {}).unwrap()
+        crate::test_support::mount_application(h, Route::Services(crate::routes::ServicesRoute::Overview)).unwrap()
     }
 
     fn splash_shown(page: &Mounted<'_, Route>) -> bool {
@@ -304,7 +304,7 @@ mod tests {
             page.settle();
             page.click_text("Services").settle();
             page.settle();
-            assert_eq!(page.route(), Route::Services {});
+            assert_eq!(page.route(), Route::Services(crate::routes::ServicesRoute::Overview));
 
             page.click_text(label).settle();
             page.settle();

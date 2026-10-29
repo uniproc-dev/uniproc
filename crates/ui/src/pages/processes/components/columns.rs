@@ -119,15 +119,7 @@ fn chevron_slot(content: Option<View>, on_press: Option<Callback<()>>, height: f
 }
 
 fn selection_bar() -> View {
-    Border::new()
-        .width(SelectionBar::Width)
-        .height(SelectionBar::Height)
-        .corner_radius(SelectionBar::Radius)
-        .background(ThemeBrush::Accent)
-        .horizontal_alignment(HorizontalAlignment::Left)
-        .vertical_alignment(VerticalAlignment::Center)
-        .margin(Thickness::new(SelectionBar::Inset, 0.0, 0.0, 0.0))
-        .into()
+    crate::widgets::selection::selection_indicator().into()
 }
 
 fn group_count(count: usize, l10n: &L10n, palette: Palette) -> View {
