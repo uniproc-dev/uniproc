@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use app_contracts::features::agents::{WindowsServiceState, WindowsServiceStartType};
 use app_contracts::features::services::{ServiceColumn, ServiceRow};
-use windows_reactor::{Border, Callback, Color, Grid, GridLength, HorizontalAlignment, PointerEventInfo, Thickness, TooltipExt, VerticalAlignment, View};
+use windows_reactor::{keyed, Border, Callback, Color, Grid, GridLength, HorizontalAlignment, PointerEventInfo, Thickness, TooltipExt, VerticalAlignment, View};
 use guicons::icon;
 use guinea::winui::MarkExt;
 use super::column_layout::ColumnLayout;
@@ -11,7 +11,7 @@ use crate::pages::services::ServicesMark;
 use crate::widgets::selection::selection_indicator;
 
 use crate::l10n::L10n;
-use crate::theme::{size, space, Palette};
+use crate::theme::{opacity, size, space, Palette};
 use crate::widgets::table_cell;
 use crate::widgets::table::ColumnSpec;
 
@@ -114,12 +114,12 @@ pub(crate) fn build_columns(l10n: &L10n, palette: Palette, layout: &ColumnLayout
                                 .margin(Thickness::new(space::Control, 0.0, 0.0, 0.0)),
                         ))
                         .tooltip(row.display_name.as_ref());
-                    let content = table_cell::dimmed(content, !row.is_running());
-                    let mut layers = vec![content];
+                    let content = Border::new().opacity(if row.is_running() { 1.0 } else { opacity::Stopped }).content(content);
+                    let mut layers = vec![keyed("content", content)];
                     if selected.as_deref() == Some(row.name.as_ref()) {
-                        layers.push(selection_indicator().mark(ServicesMark::SelectedIndicator).into());
+                        layers.push(keyed("selection", selection_indicator().opacity(1.0).mark(ServicesMark::SelectedIndicator)));
                     }
-                    Grid::new().height(size::ProcessRow).children(layers).into()
+                    Grid::new().height(size::ProcessRow).keyed_children(layers).into()
                 }).flush()
             }
             ServiceColumn::Status => {
