@@ -10,4 +10,6 @@ Select a service and press Start, Stop or Restart. A flyout panel opens automati
 
 The floating surface uses native WinUI controls in the window's overlay grid, not a modal dialog or a WinUI Flyout attachment. This lets the experiment open automatically and stay open while selecting rows. It currently allows one operation at a time.
 
+Opening and collapsing use native opacity and translation transitions (180/200 ms, 24 px). The panel stays mounted until the closing transition finishes, then leaves the visual tree. Reopening during closing reverses the transition. Dismiss removes the completed operation after the closing transition. There is no per-frame application timer.
+
 Checkpoint and wait-hint values are simulated and available under Details. They are not a completion percentage; the progress bar is indeterminate. Slow mode deliberately stops advancing checkpoints for eight seconds. This is a UX prototype, not a verification of SCM reporting or action delivery.

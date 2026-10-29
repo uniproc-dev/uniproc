@@ -66,8 +66,10 @@ struct Scratchpad {
     scenario: Scenario,
     operation: Option<Operation>,
     expanded: bool,
+    panel_mounted: bool,
     details: bool,
     timer: Option<ComponentTimer>,
+    animation_timer: Option<ComponentTimer>,
 }
 
 enum Message {
@@ -78,6 +80,9 @@ enum Message {
     Toggle,
     Details,
     Dismiss,
+    Reveal,
+    Dismissed,
+    Hidden,
 }
 
 fn text(value: impl AsRef<str>) -> TextBlock {
@@ -104,8 +109,10 @@ impl Component for Scratchpad {
             scenario: Scenario::Normal,
             operation: None,
             expanded: false,
+            panel_mounted: false,
             details: false,
             timer: None,
+            animation_timer: None,
         }
     }
 
@@ -113,12 +120,39 @@ impl Component for Scratchpad {
         match message {
             Message::Select(row) => self.selected = row,
             Message::Scenario(scenario) => self.scenario = scenario,
-            Message::Toggle => self.expanded = !self.expanded,
+            Message::Toggle => {
+                self.animation_timer = None;
+                if self.expanded {
+                    self.expanded = false;
+                    self.animation_timer =
+                        Some(cx.set_timeout(Duration::from_millis(220), Message::Hidden));
+                } else if self.panel_mounted {
+                    self.expanded = true;
+                } else {
+                    self.panel_mounted = true;
+                    self.animation_timer =
+                        Some(cx.set_timeout(Duration::from_millis(32), Message::Reveal));
+                }
+            }
+            Message::Hidden => {
+                self.animation_timer = None;
+                self.panel_mounted = false;
+            }
+            Message::Reveal => {
+                self.animation_timer = None;
+                self.expanded = true;
+            }
+            Message::Dismissed => {
+                self.animation_timer = None;
+                self.operation = None;
+                self.panel_mounted = false;
+            }
             Message::Details => self.details = !self.details,
             Message::Dismiss => {
                 if self.operation.as_ref().is_some_and(|op| !op.busy()) {
-                    self.operation = None;
                     self.expanded = false;
+                    self.animation_timer =
+                        Some(cx.set_timeout(Duration::from_millis(220), Message::Dismissed));
                 }
             }
             Message::Begin(command) => {
@@ -140,7 +174,10 @@ impl Component for Scratchpad {
                     checkpoint: 1,
                     waiting_from: Phase::Stopping,
                 });
-                self.expanded = true;
+                self.expanded = false;
+                self.panel_mounted = true;
+                self.animation_timer =
+                    Some(cx.set_timeout(Duration::from_millis(32), Message::Reveal));
                 self.timer = Some(cx.set_timeout(Duration::from_secs(1), Message::Step));
             }
             Message::Step => {
@@ -279,7 +316,7 @@ impl Component for Scratchpad {
                     .on_click(cx.callback(|_| Message::Toggle)),
             ));
         let mut layers = vec![base.into()];
-        if let Some(op) = self.operation.as_ref().filter(|_| self.expanded) {
+        if let Some(op) = self.operation.as_ref().filter(|_| self.panel_mounted) {
             let mut content: Vec<View> = vec![
                 text(format!("{} {}", op.command.label(), self.names[op.row]))
                     .text_wrapping(TextWrapping::Wrap)
@@ -330,6 +367,10 @@ impl Component for Scratchpad {
             );
             layers.push(
                 Border::new()
+                    .opacity(if self.expanded { 1.0 } else { 0.0 })
+                    .translation(0.0, if self.expanded { 0.0 } else { 24.0 })
+                    .opacity_transition(Duration::from_millis(180))
+                    .translation_transition(Duration::from_millis(200))
                     .padding(20.0)
                     .corner_radius(CornerRadius::new(8.0, 8.0, 0.0, 0.0))
                     .background(ThemeBrush::SolidBackground)
