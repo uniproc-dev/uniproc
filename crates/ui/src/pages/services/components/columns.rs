@@ -47,6 +47,7 @@ fn column(id: ServiceColumn, label: String, width: f64, palette: Palette, cell: 
             .height(size::TableHeader)
             .children((table_cell::cell_text(label.clone())
                 .foreground(palette.tertiary_text)
+                .margin(Thickness::new(if id == ServiceColumn::Name { space::Cell } else { 0.0 }, 0.0, 0.0, 0.0))
                 .vertical_alignment(VerticalAlignment::Bottom),))
             .into()
     }, width, cell)
@@ -119,7 +120,7 @@ pub(crate) fn build_columns(l10n: &L10n, palette: Palette, layout: &ColumnLayout
                         layers.push(selection_indicator().mark(ServicesMark::SelectedIndicator).into());
                     }
                     Grid::new().height(size::ProcessRow).children(layers).into()
-                })
+                }).flush()
             }
             ServiceColumn::Status => {
                 let labels = labels.clone();
