@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::cell::RefCell;
 
 use app_contracts::features::services::{
     Command, Deselect, DismissFailure, OpenServices, RunNewTask, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesState, Sort,
@@ -17,7 +18,7 @@ use crate::l10n::L10n;
 use crate::theme::{radius, size, space, Palette};
 use crate::widgets::action_failure::action_failure;
 use crate::widgets::button::{command_button, command_divider, icon_button};
-use crate::widgets::selection::SelectionMark;
+use crate::widgets::selection::{keep_place, SelectionMark};
 use crate::widgets::page::{loading, page_frame, page_title, status_text};
 use crate::widgets::text::text;
 
@@ -35,6 +36,7 @@ pub struct ServicesPage {
     layout: ColumnLayout,
     menu: Option<(f64, f64)>,
     pending_menu: bool,
+    kept_place: RefCell<Option<(Arc<str>, usize)>>,
 }
 
 fn command(dispatch: &Dispatch, kind: ServiceActionKind) -> impl Fn() + 'static {
@@ -130,7 +132,12 @@ impl ServicesPage {
 
         let body = match &state.rows {
             Load::Ready(rows) => {
-                let rows: Vec<ServiceRow> = rows.to_vec();
+                let mut rows: Vec<ServiceRow> = rows.to_vec();
+                let previous = self.kept_place.borrow_mut().take();
+                let pinned = state.selected.as_deref().and_then(|name| {
+                    keep_place(&mut rows, Arc::from(name), |row| row.name.as_ref() == name, previous)
+                });
+                *self.kept_place.borrow_mut() = pinned;
                 let selected = state
                     .selected
                     .as_deref()

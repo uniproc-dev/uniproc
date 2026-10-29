@@ -71,6 +71,33 @@ mod tests {
     }
 
     #[guinea::test(iterations = 4)]
+    fn selected_service_keeps_its_slot_while_its_data_changes(h: &mut Harness) {
+        crate::test_support::install(h);
+        h.install::<ServicesFeature>(&()).unwrap();
+        let mut page: Mounted<'_, Services> = Mounted::mount_at(h.child(), (), Route::Services(ServicesRoute::Overview)).unwrap();
+        let report = |beta: &str| WindowsReport { services: vec![
+            WindowsServiceStats { name: "alpha".into(), display_name: "Alpha".into(), ..Default::default() },
+            WindowsServiceStats { name: "beta".into(), display_name: beta.into(), ..Default::default() },
+            WindowsServiceStats { name: "gamma".into(), display_name: "Gamma".into(), ..Default::default() },
+        ], ..Default::default() };
+        h.publish(WindowsReportMessage::Report(Arc::new(report("Beta")))).settle();
+        page.segment().act::<ServicesState>(Select("beta".into())).settle();
+        page.settle();
+        assert_eq!(page.items().iter().position(selected_indicator), Some(1));
+        h.publish(WindowsReportMessage::Report(Arc::new(report("Aardvark")))).settle();
+        page.settle();
+        let items = page.items();
+        assert_eq!(items.iter().position(selected_indicator), Some(1));
+        fn says(node: &Node, text: &str) -> bool {
+            node.text.as_deref() == Some(text) || node.children.iter().any(|child| says(child, text))
+        }
+        assert!(says(&items[1], "Aardvark"));
+        h.publish(app_contracts::features::window::PressedAway).settle();
+        page.settle();
+        assert!(says(&page.items()[0], "Aardvark"));
+    }
+
+    #[guinea::test(iterations = 4)]
     fn column_menu_persists_visibility_and_dismisses_on_press_away(h: &mut Harness) {
         use app_contracts::features::services::ServiceColumn;
         let store = crate::test_support::install(h);
