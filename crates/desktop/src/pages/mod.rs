@@ -3,7 +3,6 @@ mod activity_groups;
 mod processes;
 mod processes_settings;
 mod services;
-mod service_operations;
 mod services_settings;
 mod settings;
 mod system;

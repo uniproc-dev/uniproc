@@ -91,9 +91,3 @@ pub enum ServiceActionKind {
     Resume,
     Restart,
 }
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct ServiceOperation {
-    pub name: Arc<str>,
-    pub display_name: Arc<str>,
-}

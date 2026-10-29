@@ -10,7 +10,6 @@ use app_contracts::features::agents::{
     WindowsAgentRuntimeEvent, WindowsMachineSample, WindowsProcessEvents, WindowsReport, WindowsReportMessage,
 };
 use futures::future::BoxFuture;
-use futures::StreamExt;
 use guinea::prelude::*;
 use guinea_plugin_store::StoreAccess;
 use std::sync::Arc;
@@ -83,29 +82,7 @@ impl WindowsClient {
     }
 
     pub async fn act(&self, action: WindowsAction) -> u32 {
-        use uniproc_windows_agent::api::ServiceState;
-        let restarting = matches!(&action, WindowsAction::ServiceRestart { .. });
-        let (name, desired) = match &action {
-            WindowsAction::ServiceStart { name } | WindowsAction::ServiceResume { name } | WindowsAction::ServiceRestart { name } => (name.clone(), ServiceState::Running),
-            WindowsAction::ServiceStop { name } => (name.clone(), ServiceState::Stopped),
-            WindowsAction::ServicePause { name } => (name.clone(), ServiceState::Paused),
-            _ => return self.feed.act(action).await,
-        };
-        tokio::time::timeout(Duration::from_secs(55), async {
-            let mut watch = match self.feed.agent().watch_service(&name).await {
-                Ok(watch) => watch,
-                Err(error) => {
-                    tracing::warn!(%name, %error, "could not follow service operation");
-                    return u32::MAX;
-                }
-            };
-            if watch.next().await.is_none() {
-                return u32::MAX;
-            }
-            let code = self.feed.act(action).await;
-            if code != 0 { return code; }
-            service_result(watch, desired, restarting).await
-        }).await.unwrap_or(1460)
+        self.feed.act(action).await
     }
 
     pub async fn process_events(&self) -> anyhow::Result<WindowsProcessEvents> {
@@ -113,57 +90,10 @@ impl WindowsClient {
     }
 }
 
-async fn service_result(
-    mut watch: futures::stream::BoxStream<'static, uniproc_windows_agent::api::ServiceStatus>,
-    desired: uniproc_windows_agent::api::ServiceState,
-    restarting: bool,
-) -> u32 {
-    use uniproc_windows_agent::api::ServiceState;
-    let mut saw_start = false;
-    while let Some(status) = watch.next().await {
-        saw_start |= status.state == ServiceState::StartPending;
-        if status.state == desired { return 0; }
-        if status.state == ServiceState::Stopped && desired != ServiceState::Stopped && (!restarting || saw_start) {
-            return if status.exit_code == 0 { 1067 } else { status.exit_code };
-        }
-    }
-    u32::MAX
-}
-
-#[cfg(test)]
-mod service_operation_tests {
-    use super::*;
-    use uniproc_windows_agent::api::{ServiceState, ServiceStatus};
-
-    fn statuses(states: &[ServiceState]) -> futures::stream::BoxStream<'static, ServiceStatus> {
-        futures::stream::iter(states.iter().copied().map(|state| ServiceStatus { state, ..Default::default() }).collect::<Vec<_>>()).boxed()
-    }
-
-    #[tokio::test]
-    async fn restart_waits_through_stopped_and_start_pending() {
-        assert_eq!(service_result(statuses(&[ServiceState::StopPending, ServiceState::Stopped, ServiceState::StartPending, ServiceState::Running]), ServiceState::Running, true).await, 0);
-        assert_eq!(service_result(statuses(&[ServiceState::StopPending, ServiceState::Stopped]), ServiceState::Running, true).await, u32::MAX);
-    }
-
-    #[tokio::test]
-    async fn a_service_that_stops_during_start_is_a_failure() {
-        assert_eq!(service_result(statuses(&[ServiceState::StartPending, ServiceState::Stopped]), ServiceState::Running, false).await, 1067);
-        assert_eq!(service_result(statuses(&[ServiceState::StartPending, ServiceState::Stopped]), ServiceState::Running, true).await, 1067);
-        let failed = futures::stream::iter([ServiceStatus { state: ServiceState::Stopped, exit_code: 5, ..Default::default() }]).boxed();
-        assert_eq!(service_result(failed, ServiceState::Running, false).await, 5);
-    }
-
-    #[tokio::test]
-    async fn stop_completes_only_after_the_stopped_status() {
-        assert_eq!(service_result(statuses(&[ServiceState::StopPending]), ServiceState::Stopped, false).await, u32::MAX);
-        assert_eq!(service_result(statuses(&[ServiceState::StopPending, ServiceState::Stopped]), ServiceState::Stopped, false).await, 0);
-    }
-}
-
 impl ActsOnWindows for WindowsClient {
     fn act(&self, action: WindowsAction) -> BoxFuture<'static, u32> {
         let client = self.clone();
-        Box::pin(async move { client.act(action).await })
+        Box::pin(async move { client.feed.act(action).await })
     }
 }
 

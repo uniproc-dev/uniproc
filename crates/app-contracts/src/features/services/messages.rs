@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use serde::Deserialize;
 
-use super::model::{ServiceActionKind, ServiceColumn, ServiceRow, ServiceOperation};
+use super::model::{ServiceActionKind, ServiceColumn, ServiceRow};
 use crate::features::agents::ActionFailure;
 
 #[derive(Clone)]
@@ -11,7 +11,6 @@ pub enum ServicesMsg {
     SetSelected(Option<String>),
     SetSort { column: ServiceColumn, descending: bool },
     SetFailure(Option<ActionFailure>),
-    SetOperations(Rc<[ServiceOperation]>),
 }
 
 #[derive(Clone, Debug, Deserialize, guinea::Remote)]

@@ -73,12 +73,10 @@ impl ServicesPage {
         palette: Palette,
         forward: Callback<ServicesMsg>,
         open_settings: Callback<()>,
-        operations: View,
     ) -> View {
         let selected = state.rows().iter().find(|row| Some(row.name.as_ref()) == state.selected.as_deref());
-        let busy = state.selected.as_ref().is_some_and(|name| state.operations.iter().any(|op| op.name.as_ref() == name));
-        let can_start = !busy && selected.is_some_and(ServiceRow::can_start);
-        let can_stop = !busy && selected.is_some_and(ServiceRow::can_stop);
+        let can_start = selected.is_some_and(ServiceRow::can_start);
+        let can_stop = selected.is_some_and(ServiceRow::can_stop);
 
         let run = dispatch.clone();
         let open = dispatch.clone();
@@ -219,7 +217,6 @@ impl ServicesPage {
                     palette,
                 ),
                 action_failure(state.failure.as_ref(), l10n, move || dismiss.emit(DismissFailure)),
-                operations,
             ))
             .into()
     }
