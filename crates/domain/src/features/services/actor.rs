@@ -7,6 +7,7 @@ use app_contracts::features::agents::{
 use app_contracts::features::services::{
     Command, Deselect, DismissFailure, Select, ServiceActionKind, ServiceColumn, ServiceRow, ServicesMsg,
     ServicesState, Sort, RunNewTask, OpenServices,
+    ServiceOperation,
 };
 use guinea::prelude::*;
 use uniproc_windows_agent::api::SERVICE_NAME;
@@ -17,6 +18,7 @@ use crate::features::system::tools::Launch;
 use app_contracts::features::window::PressedAway;
 
 pub struct Acted {
+    name: String,
     action: WindowsAction,
     target: Arc<str>,
     outcome: ActionOutcome,
@@ -29,6 +31,7 @@ pub struct ServicesActor {
     sort_column: ServiceColumn,
     descending: bool,
     selected: Option<String>,
+    operations: Vec<ServiceOperation>,
     shell: fn(ShellRequest),
     launch: fn(Launch),
 }
@@ -41,6 +44,7 @@ impl ServicesActor {
             sort_column: ServiceColumn::Name,
             descending: false,
             selected: None,
+            operations: Vec::new(),
             shell,
             launch,
         }
@@ -50,6 +54,10 @@ impl ServicesActor {
         self.push.send(ServicesMsg::SetRows {
             rows: self.rows.clone(),
         });
+    }
+
+    fn publish_operations(&self) {
+        self.push.send(ServicesMsg::SetOperations(self.operations.clone().into()));
     }
 
     fn resort(&mut self) {
@@ -124,6 +132,9 @@ fn command(In(this, Command(kind), cx): In<ServicesActor, Command>) {
     let Some(name) = this.selected.clone() else {
         return;
     };
+    if this.operations.iter().any(|op| op.name.as_ref() == name) {
+        return;
+    }
     let stops = matches!(kind, ServiceActionKind::Stop | ServiceActionKind::Pause | ServiceActionKind::Restart);
     if stops && *name == *SERVICE_NAME {
         return;
@@ -134,16 +145,18 @@ fn command(In(this, Command(kind), cx): In<ServicesActor, Command>) {
         .find(|row| *row.name == *name)
         .map_or_else(|| Arc::from(name.as_str()), |row| row.display_name.clone());
     let action = match kind {
-        ServiceActionKind::Start => WindowsAction::ServiceStart { name },
-        ServiceActionKind::Stop => WindowsAction::ServiceStop { name },
-        ServiceActionKind::Pause => WindowsAction::ServicePause { name },
-        ServiceActionKind::Resume => WindowsAction::ServiceResume { name },
-        ServiceActionKind::Restart => WindowsAction::ServiceRestart { name },
+        ServiceActionKind::Start => WindowsAction::ServiceStart { name: name.clone() },
+        ServiceActionKind::Stop => WindowsAction::ServiceStop { name: name.clone() },
+        ServiceActionKind::Pause => WindowsAction::ServicePause { name: name.clone() },
+        ServiceActionKind::Resume => WindowsAction::ServiceResume { name: name.clone() },
+        ServiceActionKind::Restart => WindowsAction::ServiceRestart { name: name.clone() },
     };
+    this.operations.push(ServiceOperation { name: name.clone().into(), display_name: target.clone() });
+    this.publish_operations();
     let remote = cx.async_ctx();
     cx.task().spawn(async move {
         let outcome = actions::request(remote, action.clone()).await;
-        Acted { action, target, outcome }
+        Acted { name, action, target, outcome }
     });
 }
 
@@ -167,7 +180,9 @@ fn on_windows_report(In(this, msg, _): In<ServicesActor, WindowsReportMessage>) 
 }
 
 #[handler]
-fn on_acted(In(this, Acted { action, target, outcome }, _): In<ServicesActor, Acted>) {
+fn on_acted(In(this, Acted { name, action, target, outcome }, _): In<ServicesActor, Acted>) {
+    this.operations.retain(|op| op.name.as_ref() != name);
+    this.publish_operations();
     if outcome == ActionOutcome::Done {
         return;
     }

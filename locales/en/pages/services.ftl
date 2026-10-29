@@ -30,3 +30,5 @@ services-failed = Failed to load services: { $error }
 services-status = Services: { $count }
 
 services-state-unknown = Unknown
+services-operations-collapse = Collapse service operations
+services-operations-expand = Expand service operations

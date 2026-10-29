@@ -11,6 +11,11 @@ pub enum ServicesMark {
     Start,
     Stop,
     Restart,
+    Operations,
+    OperationsToggle,
+    OperationsScroll,
+    Operation,
+    OperationIndicator,
 }
 
 #[derive(guinea::Mark, Clone, Copy, PartialEq, Eq, Debug)]

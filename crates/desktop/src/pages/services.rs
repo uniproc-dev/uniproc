@@ -41,7 +41,11 @@ impl Page for Services {
         });
         let nav = cx.navigate::<ServicesRoute>();
         let settings = windows_reactor::Callback::new(move |()| { let _ = nav.to(ServicesRoute::Settings); });
-        self.0.view(&state, &dispatch, &l10n, palette, forward, settings)
+        let operations = windows_reactor::component::<super::service_operations::ServiceOperations>("services-operations", ui::pages::services::OperationsProps {
+            operations: state.operations.clone(), palette,
+            collapse: l10n.services_operations_collapse(), expand: l10n.services_operations_expand(),
+        }).into();
+        self.0.view(&state, &dispatch, &l10n, palette, forward, settings, operations)
     }
 }
 
@@ -68,6 +72,74 @@ mod tests {
     fn selected_indicator(node: &Node) -> bool {
         node.id.as_deref() == Some(guinea::Mark::name(&ServicesMark::SelectedIndicator))
             || node.children.iter().any(selected_indicator)
+    }
+
+    #[derive(Default)]
+    struct PendingServiceActions(std::sync::Mutex<Vec<futures::channel::oneshot::Sender<u32>>>);
+
+    impl domain::features::agents::actions::ActsOnWindows for PendingServiceActions {
+        fn act(&self, _: app_contracts::features::agents::WindowsAction) -> futures::future::BoxFuture<'static, u32> {
+            let (send, recv) = futures::channel::oneshot::channel();
+            self.0.lock().unwrap().push(send);
+            Box::pin(async move { recv.await.unwrap_or(u32::MAX) })
+        }
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn service_operations_follow_commands_and_the_panel_closes_when_empty(h: &mut Harness) {
+        use domain::features::agents::actions::{self, WindowsTransport};
+        use std::time::Duration;
+        crate::test_support::install(h);
+        h.app(|app| { actions::install(app); Ok(()) }).unwrap();
+        h.install::<ServicesFeature>(&()).unwrap();
+        let transport = Arc::new(PendingServiceActions::default());
+        h.publish(WindowsTransport::Connected(transport.clone())).settle();
+        h.publish(WindowsReportMessage::Report(Arc::new(WindowsReport {
+            services: (0..4).map(|i| WindowsServiceStats { name: format!("sample-{i}").into(), display_name: format!("Sample {i}").into(), state: WindowsServiceState::Running, ..Default::default() }).collect(),
+            ..Default::default()
+        }))).settle();
+        let mut page: Mounted<'_, Services> = Mounted::mount_at(h.child(), (), Route::Services(ServicesRoute::Overview)).unwrap();
+        assert!(page.find(ServicesMark::Operations).is_none());
+        let dispatch = h.dispatch::<ServicesState>();
+        for i in 0..4 {
+            dispatch.emit(Select(format!("sample-{i}")));
+            h.settled();
+            dispatch.emit(Command(ServiceActionKind::Stop));
+            h.settled();
+            assert_eq!(h.state::<ServicesState>().operations.len(), i + 1, "pending operations: {:?}", *h.state::<ServicesState>());
+        }
+        dispatch.emit(Command(ServiceActionKind::Restart));
+        h.settled();
+        assert_eq!(transport.0.lock().unwrap().len(), 4);
+        assert_eq!(h.state::<ServicesState>().operations.len(), 4);
+        h.advance(Duration::from_millis(40));
+        h.settled();
+        page.settle();
+        assert!(page.find(ServicesMark::OperationsToggle).is_some());
+        let scroll = page.find(ServicesMark::OperationsScroll).unwrap();
+        assert_eq!(page.property(scroll, PropertyId::MaxHeight), Some(&PropertyValue::F64(132.0)));
+        page.segment().act::<ServicesState>(Select("sample-0".into())).settle();
+        assert_eq!(h.state::<ServicesState>().operations.len(), 4);
+        page.click(ServicesMark::OperationsToggle).settle();
+        page.settle();
+        assert!(page.find(ServicesMark::OperationsScroll).is_none());
+        assert!(page.find(ServicesMark::OperationsToggle).is_some());
+        page.click(ServicesMark::OperationsToggle).settle();
+        page.settle();
+        assert!(page.find(ServicesMark::OperationsScroll).is_some());
+        transport.0.lock().unwrap().remove(0).send(0).unwrap();
+        h.settled(); page.settle();
+        assert_eq!(h.state::<ServicesState>().operations.len(), 3);
+        for send in transport.0.lock().unwrap().drain(..) { send.send(5).unwrap(); }
+        h.settled(); page.settle();
+        assert!(h.state::<ServicesState>().operations.is_empty());
+        assert!(h.state::<ServicesState>().failure.is_some());
+        h.advance(Duration::from_millis(250));
+        h.settled();
+        page.settle();
+        if let Some(panel) = page.find(ServicesMark::Operations) {
+            assert_eq!(page.property(panel, PropertyId::Opacity), Some(&PropertyValue::F64(0.0)));
+        }
     }
 
     #[guinea::test(iterations = 4)]
