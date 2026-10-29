@@ -4399,19 +4399,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "table"
-version = "0.1.0"
-dependencies = [
- "tracing",
- "windows-canvas-pre",
- "windows-collections",
- "windows-core",
- "windows-numerics",
- "windows-reactor-pre",
- "windows-reactor-setup",
-]
-
-[[package]]
 name = "tempfile"
 version = "3.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4738,7 +4725,6 @@ dependencies = [
  "guinea",
  "guinea-plugin-l10n",
  "guinea-widgets",
- "table",
  "tracing",
  "uuid",
  "windows-canvas-pre",

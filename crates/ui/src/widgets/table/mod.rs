@@ -1,6 +1,5 @@
 mod columns;
 mod header;
-mod painted;
 mod rows;
 mod sort;
 mod view;

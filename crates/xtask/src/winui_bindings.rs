@@ -1,16 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-#[derive(Clone, Copy)]
-enum Shape {
-    Whole,
-    Minimal,
-}
-
-const TARGETS: [(&str, &str, Shape); 2] = [
-    ("crates/desktop/src/window_press/bindings.txt", "crates/desktop/src/window_press/bindings.rs", Shape::Minimal),
-    ("crates/table/src/bindings.txt", "crates/table/src/bindings.rs", Shape::Whole),
-];
+const TARGETS: [(&str, &str); 1] = [(
+    "crates/desktop/src/window_press/bindings.txt",
+    "crates/desktop/src/window_press/bindings.rs",
+)];
 const REACTOR: &str = "windows-reactor-pre";
 
 pub fn run(args: &[String], workspace_root: &Path) -> anyhow::Result<()> {
@@ -22,17 +16,15 @@ pub fn run(args: &[String], workspace_root: &Path) -> anyhow::Result<()> {
         ),
     };
     anyhow::ensure!(winmd.is_dir(), "no WinUI metadata at {}", winmd.display());
-    for (filter, output, shape) in TARGETS {
+    for (filter, output) in TARGETS {
         let mut builder = windows_bindgen::builder();
         builder
             .input(&winmd)
             .input_default()
             .output(workspace_root.join(output))
             .flat()
+            .minimal()
             .filter_file(workspace_root.join(filter));
-        if let Shape::Minimal = shape {
-            builder.minimal();
-        }
         builder.write();
         println!("{output}");
     }

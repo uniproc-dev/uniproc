@@ -10,7 +10,6 @@ members = [
     "crates/context",
     "crates/desktop",
     "crates/domain",
-    "crates/table",
     "crates/ui",
     "crates/xtask",
 ]
@@ -41,7 +40,6 @@ windows-reactor-setup = "0.100"
 windows-canvas = { package = "windows-canvas-pre", version = "0.106", features = ["reactor"] }
 windows-collections = "0.100"
 windows-core = "0.100"
-windows-numerics = "0.100"
 windows-reference = "0.100"
 
 # --- RPC & protocol ---
@@ -53,7 +51,6 @@ uniproc-windows-agent = { git = "https://github.com/uniproc-dev/uniproc-windows-
 app-contracts = { path = "crates/app-contracts" }
 context = { path = "crates/context" }
 domain = { path = "crates/domain" }
-table = { path = "crates/table" }
 ui = { path = "crates/ui" }
 
 capnp = "0.27"

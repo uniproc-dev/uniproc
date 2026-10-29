@@ -1,4 +1,3 @@
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
 use app_contracts::features::services::{
@@ -88,12 +87,6 @@ impl ServicesPage {
                 let sort = dispatch.clone();
 
                 table(rows, build_columns(l10n, palette))
-                .key(|row: &ServiceRow| {
-                    let mut hasher = DefaultHasher::new();
-                    row.name.hash(&mut hasher);
-                    hasher.finish()
-                })
-                .palette(palette)
                 .widths(&self.widths)
                 .on_resize(move |drag: Resized| {
                     forward.call(ServicesMsg::Resized(drag));

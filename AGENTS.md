@@ -28,7 +28,6 @@ we show the right thing.
 | `domain` | Behaviour. One module per feature: actor, installer, settings, platform code. |
 | `ui` | Views. Pages, widgets, theme, formatting. Reads state, dispatches actions. |
 | `context` | Icon and metadata extraction from executables, packages and windows. |
-| `table` | The painted table: layout, row surfaces on a composition host, scrolling, UIA. |
 | `desktop` | The binary: routes, layouts, page wiring, tracing, test fakes. |
 | `xtask` | Dev tasks. |
 
@@ -36,6 +35,8 @@ we show the right thing.
 
 `desktop` is scaffolding and will be rewritten once guinea settles; keep it working, do not
 polish it.
+
+Tables use native Views through ItemsRepeater and ScrollViewer in `ui::widgets::table`.
 
 ## A feature
 
@@ -199,8 +200,8 @@ migrations or compatibility shims for old local data.
 - App metadata — `desktop/build.rs`, from `app.toml`.
 - `<crate>/src/bindings.rs` in `context`, `domain`, `ui`, `xtask` — `cargo run -p xtask --
   bindings`, from `bindings.txt` next to it; an xtask test fails when one is out of date.
-- `desktop/src/window_press/bindings.rs` and `table/src/bindings.rs` — `cargo run -p xtask --
-  winui-bindings <winmd dir>`, from `bindings.txt` next to each. The WinUI metadata is
+- `desktop/src/window_press/bindings.rs` — `cargo run -p xtask --
+  winui-bindings <winmd dir>`, from `bindings.txt` next to it. The WinUI metadata is
   `crates/tools/reactor-metadata/winmd` of a windows-rs checkout at the commit
   `windows-reactor-pre` was published from; without the argument the command names that
   commit. That commit is not always on GitHub; the last upstream commit to change the

@@ -94,19 +94,3 @@ pub(crate) fn build_columns(l10n: &L10n, palette: Palette) -> Vec<Column> {
         }),
     ]
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use windows_reactor::ColorScheme;
-
-    #[test]
-    fn services_keep_native_cells_for_native_scrolling() {
-        let l10n = L10n::new("en".parse().unwrap());
-        for scheme in [ColorScheme::Light, ColorScheme::Dark] {
-            let columns = build_columns(&l10n, Palette::of(scheme));
-            assert!(!columns.is_empty());
-            assert!(columns.iter().all(|column| !column.is_painted()));
-        }
-    }
-}
