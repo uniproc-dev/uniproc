@@ -5,6 +5,7 @@ services-open-services = Open Services
 services-col-service-name = Service name
 services-col-image-path = Command line
 services-settings-title = Settings
+services-menu-more-columns = More columns
 services-settings-columns = Columns
 services-settings-columns-description = Choose which columns appear, and change their order. Name stays first.
 services-settings-columns-reset = Restore column visibility, widths and order

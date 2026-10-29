@@ -34,6 +34,11 @@ impl Page for Services {
         let l10n = ui::l10n::use_tr(cx);
         let palette = Palette::of(cx.use_context(scheme_context()));
         let forward = cx.on(|message: ServicesMsg| message);
+        let away = forward.clone();
+        let bus = cx.bus();
+        cx.use_effect_guard("uniproc::services::menu_closes_on_press_away", (), move || {
+            bus.subscribe_fn(move |_: app_contracts::features::window::PressedAway| away.call(ServicesMsg::MenuDismiss))
+        });
         let nav = cx.navigate::<ServicesRoute>();
         let settings = windows_reactor::Callback::new(move |()| { let _ = nav.to(ServicesRoute::Settings); });
         self.0.view(&state, &dispatch, &l10n, palette, forward, settings)
@@ -63,6 +68,49 @@ mod tests {
     fn selected_indicator(node: &Node) -> bool {
         node.id.as_deref() == Some(guinea::Mark::name(&ServicesMark::SelectedIndicator))
             || node.children.iter().any(selected_indicator)
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn column_menu_persists_visibility_and_dismisses_on_press_away(h: &mut Harness) {
+        use app_contracts::features::services::ServiceColumn;
+        let store = crate::test_support::install(h);
+        h.install::<ServicesFeature>(&()).unwrap();
+        let settings = store.try_settings::<ServicesSettings>().unwrap();
+        let mut page: Mounted<'_, Services> = Mounted::mount_at(h.child(), (), Route::Services(ServicesRoute::Overview)).unwrap();
+        h.publish(WindowsReportMessage::Report(Arc::new(WindowsReport::default()))).settle();
+        page.settle();
+        page.send(ServicesMsg::ColumnMenu);
+        page.send(ServicesMsg::MenuAnchor { x: 40.0, y: 10.0 });
+        page.settle();
+        assert!(page.find(ServicesMark::Menu).is_some());
+        let name = page.within(ServicesMark::Menu).find(ServiceColumn::Name).unwrap();
+        assert_eq!(page.property(name, PropertyId::IsEnabled), Some(&PropertyValue::Bool(false)));
+        page.within(ServicesMark::Menu).click(ServiceColumn::ImagePath).settle();
+        page.settle();
+        assert!(settings.columns().get(ServiceColumn::ImagePath.id()).unwrap().visible);
+        assert!(page.find(ServicesMark::Menu).is_none());
+        assert!(page.find(ServiceColumn::ImagePath).is_some());
+        page.send(ServicesMsg::ColumnMenu);
+        page.send(ServicesMsg::MenuAnchor { x: 80.0, y: 10.0 });
+        page.settle();
+        h.publish(app_contracts::features::window::PressedAway).settle();
+        page.settle();
+        assert!(page.find(ServicesMark::Menu).is_none());
+    }
+
+    #[guinea::test(iterations = 4)]
+    fn sort_indicator_follows_the_sorted_column(h: &mut Harness) {
+        use app_contracts::features::services::ServiceColumn;
+        crate::test_support::install(h);
+        h.install::<ServicesFeature>(&()).unwrap();
+        let mut page: Mounted<'_, Services> = Mounted::mount_at(h.child(), (), Route::Services(ServicesRoute::Overview)).unwrap();
+        h.publish(WindowsReportMessage::Report(Arc::new(WindowsReport::default()))).settle();
+        page.settle();
+        assert!(page.within(ServiceColumn::Name).find(ServicesMark::SortIndicator).is_some());
+        page.click(ServiceColumn::Status).settle();
+        page.settle();
+        assert!(page.within(ServiceColumn::Status).find(ServicesMark::SortIndicator).is_some());
+        assert!(page.within(ServiceColumn::Name).find(ServicesMark::SortIndicator).is_none());
     }
 
     #[guinea::test(iterations = 4)]

@@ -6,10 +6,11 @@ use app_contracts::features::services::{
 use guinea::prelude::{Dispatch, Load};
 use crate::widgets::table::{table, Look, Reordered, Resized, SortState};
 use guicons::icon;
-use windows_reactor::{Border, Callback, Grid, GridLength, Orientation, StackPanel, View};
+use windows_reactor::{Border, Callback, Grid, GridLength, Orientation, PointerEventInfo, StackPanel, View};
 use guinea::winui::MarkExt;
 
-use super::components::columns::build_columns;
+use super::components::columns::{build_columns, Heading};
+use super::components::context_menu::context_menu;
 use super::components::column_layout::{ColumnLayout, ServicesSettingsMaps};
 use super::marks::ServicesMark;
 use crate::l10n::L10n;
@@ -23,11 +24,17 @@ use crate::widgets::text::text;
 pub enum ServicesMsg {
     Resized(Resized),
     Reordered(Reordered),
+    ColumnMenu,
+    MenuAnchor { x: f64, y: f64 },
+    MenuDismiss,
+    ToggleColumn(ServiceColumn),
 }
 
 #[derive(Default)]
 pub struct ServicesPage {
     layout: ColumnLayout,
+    menu: Option<(f64, f64)>,
+    pending_menu: bool,
 }
 
 fn command(dispatch: &Dispatch, kind: ServiceActionKind) -> impl Fn() + 'static {
@@ -37,13 +44,22 @@ fn command(dispatch: &Dispatch, kind: ServiceActionKind) -> impl Fn() + 'static 
 
 impl ServicesPage {
     pub fn new(settings: ServicesSettingsMaps) -> Self {
-        Self { layout: ColumnLayout::new(Some(settings)) }
+        Self { layout: ColumnLayout::new(Some(settings)), ..Default::default() }
     }
 
     pub fn update(&mut self, message: ServicesMsg) {
         match message {
             ServicesMsg::Resized(drag) => self.layout.resize(drag),
             ServicesMsg::Reordered(moved) => self.layout.reorder(moved),
+            ServicesMsg::ColumnMenu => {
+                self.pending_menu = true;
+            }
+            ServicesMsg::MenuAnchor { x, y } => {
+                if self.pending_menu { self.menu = Some((x, y)); self.pending_menu = false; }
+                else { self.menu = None; }
+            }
+            ServicesMsg::MenuDismiss => { self.menu = None; self.pending_menu = false; }
+            ServicesMsg::ToggleColumn(column) => self.layout.show(column, !self.layout.config(column).visible),
         }
     }
 
@@ -62,6 +78,7 @@ impl ServicesPage {
 
         let run = dispatch.clone();
         let open = dispatch.clone();
+        let settings = open_settings.clone();
         let commands = StackPanel::new()
             .orientation(Orientation::Horizontal)
             .grid_column(2)
@@ -105,7 +122,7 @@ impl ServicesPage {
                 ),
                 icon_button(ServicesMark::OpenSettings,
                     icon!(more_horizontal).size(size::CommandIcon).build_element(),
-                    move || open_settings.call(())),
+                    move || settings.call(())),
             ));
         let header = Grid::new()
             .columns([GridLength::Auto, GridLength::Star(1.0), GridLength::Auto])
@@ -123,8 +140,12 @@ impl ServicesPage {
                 let sort = dispatch.clone();
                 let resized = forward.clone();
                 let reordered = forward.clone();
+                let menu = forward.clone();
 
-                let table = table(rows, build_columns(l10n, palette, &self.layout, state.selected.as_deref()))
+                let table = table(rows, build_columns(l10n, palette, &self.layout, state.selected.as_deref(), Heading {
+                    column: state.sort_column, descending: state.descending,
+                    menu: Callback::new(move |()| menu.call(ServicesMsg::ColumnMenu)),
+                }))
                 .look(Look {
                     row_height: size::ProcessRow,
                     hovered: palette.row_hovered,
@@ -148,11 +169,7 @@ impl ServicesPage {
                     },
                     move |column: ServiceColumn| sort.emit(Sort(column)),
                 )
-                .sort_indicator(|descending| Some(if descending {
-                    icon!(chevron_down_regular).size(10.0).build_element()
-                } else {
-                    icon!(chevron_up_regular).size(10.0).build_element()
-                }))
+                .sort_indicator(|_| None)
                 .selection(selected, move |at: Option<usize>| {
                     if let Some(name) = at.and_then(|at| names.get(at)) {
                         select.emit(Select(name.to_string()));
@@ -161,7 +178,23 @@ impl ServicesPage {
                     }
                 })
                 .build();
-                Grid::new().mark(SelectionMark::Keeper).children((table,)).into()
+                let pressed = forward.clone();
+                let mut layers: Vec<View> = vec![Border::new().on_pointer_pressed(Callback::new(move |pointer: PointerEventInfo| {
+                    if pointer.is_right_button_pressed {
+                        pressed.call(ServicesMsg::MenuAnchor { x: pointer.x, y: pointer.y });
+                    } else { pressed.call(ServicesMsg::MenuDismiss); }
+                })).content(table).into()];
+                if let Some(anchor) = self.menu {
+                    let selected = forward.clone();
+                    let dismiss = forward.clone();
+                    layers.push(context_menu(anchor, &self.layout, l10n, palette,
+                        Callback::new(move |column| {
+                            if let Some(column) = column { selected.call(ServicesMsg::ToggleColumn(column)); }
+                            else { open_settings.call(()); }
+                            selected.call(ServicesMsg::MenuDismiss);
+                        }), Callback::new(move |()| dismiss.call(ServicesMsg::MenuDismiss))));
+                }
+                Grid::new().mark(SelectionMark::Keeper).children(layers).into()
             }
             Load::Failed(err) => text(l10n.services_failed(err.to_string())).into(),
             _ => loading(),

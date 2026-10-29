@@ -3,7 +3,8 @@ use std::rc::Rc;
 
 use app_contracts::features::agents::{WindowsServiceState, WindowsServiceStartType};
 use app_contracts::features::services::{ServiceColumn, ServiceRow};
-use windows_reactor::{Grid, GridLength, Thickness, TooltipExt, VerticalAlignment, View};
+use windows_reactor::{Border, Callback, Color, Grid, GridLength, HorizontalAlignment, PointerEventInfo, Thickness, TooltipExt, VerticalAlignment, View};
+use guicons::icon;
 use guinea::winui::MarkExt;
 use super::column_layout::ColumnLayout;
 use crate::pages::services::ServicesMark;
@@ -81,7 +82,13 @@ pub(crate) fn column_label(l10n: &L10n, column: ServiceColumn) -> String {
     }
 }
 
-pub(crate) fn build_columns(l10n: &L10n, palette: Palette, layout: &ColumnLayout, selected: Option<&str>) -> Vec<Column> {
+pub(crate) struct Heading {
+    pub column: ServiceColumn,
+    pub descending: bool,
+    pub menu: Callback<()>,
+}
+
+pub(crate) fn build_columns(l10n: &L10n, palette: Palette, layout: &ColumnLayout, selected: Option<&str>, heading: Heading) -> Vec<Column> {
     let labels: Rc<[(WindowsServiceState, String)]> =
         STATES.iter().map(|&state| (state, state_label(l10n, state))).collect();
     let selected = selected.map(str::to_owned);
@@ -160,6 +167,27 @@ pub(crate) fn build_columns(l10n: &L10n, palette: Palette, layout: &ColumnLayout
                 _ => {}
             }),
         };
-        Some(column.sortable())
+        let mut column = column.sortable();
+        let base = column.header.clone();
+        let menu = heading.menu.clone();
+        let sorted = (id == heading.column).then_some(heading.descending);
+        column.header = Rc::new(move || {
+            let mut layers = vec![base()];
+            if let Some(descending) = sorted {
+                let icon = if descending { icon!(chevron_down_regular) } else { icon!(chevron_up_regular) };
+                layers.push(Border::new().mark(ServicesMark::SortIndicator)
+                    .horizontal_alignment(HorizontalAlignment::Center)
+                    .vertical_alignment(VerticalAlignment::Top)
+                    .margin(Thickness::new(0.0, -space::Control, 0.0, 0.0))
+                    .content(icon.size(10.0).build_element()).into());
+            }
+            let menu = menu.clone();
+            Border::new().background(Color::transparent())
+                .on_pointer_pressed(Callback::new(move |pointer: PointerEventInfo| {
+                    if pointer.is_right_button_pressed { menu.call(()); }
+                }))
+                .content(Grid::new().height(size::TableHeader).children(layers)).into()
+        });
+        Some(column)
     }).collect()
 }
