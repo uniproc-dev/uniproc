@@ -1,5 +1,7 @@
 # Results: metric updates with process reordering
 
+Follow-up: [NATIVE.md](NATIVE.md) compares process identity with rank-slot presentation and identifies the actual native configuration already used by Uniproc. The process-keyed baseline below is an experimental configuration, not a measurement of the current production table. Its DirectWrite advantage should not be generalized to the existing native slot-based path.
+
 Measured 29 October 2026. The primary result is phase 3: all metric values change and the table is sorted each tick. Every mode uses native ItemsRepeater and ScrollViewer, the same stable process keys, 32-DIP rows and the same viewport. The ranked phase does not scroll.
 
 ## Primary workload

@@ -1,6 +1,6 @@
 use windows_reactor::{
-    Border, Color, Grid, HorizontalAlignment, TextBlock, TextTrimming, TextWrapping, Thickness, VerticalAlignment,
-    View,
+    keyed, Border, Color, Grid, HorizontalAlignment, TextBlock, TextTrimming, TextWrapping, Thickness,
+    VerticalAlignment, View,
 };
 
 use guicons::icon;
@@ -107,23 +107,23 @@ pub fn metric_cell(metric: Metric, palette: Palette) -> View {
         value
     };
 
-    let mut layers: Vec<View> = Vec::new();
+    let mut layers = Vec::new();
     if let Some(heat) = metric.heat.filter(|heat| heat.alpha() > 0) {
-        layers.push(
+        layers.push(keyed(
+            "heat",
             Border::new()
                 .background(Color {
                     a: heat.alpha(),
                     ..heat.color
                 })
                 .corner_radius(radius::Control)
-                .margin(Thickness::uniform(space::Compact))
-                .into(),
-        );
+                .margin(Thickness::uniform(space::Compact)),
+        ));
     }
-    layers.push(value.into());
+    layers.push(keyed("value", value));
 
     Grid::new()
         .height(metric.height)
-        .children(layers)
+        .keyed_children(layers)
         .into()
 }

@@ -1,4 +1,5 @@
 use std::cell::{Cell as Flag, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 use windows_canvas::{
@@ -40,6 +41,7 @@ thread_local! {
 #[derive(Clone, PartialEq)]
 struct Data {
     index: usize,
+    slot: usize,
     values: [u64; 4],
     mode: String,
 }
@@ -142,6 +144,59 @@ impl Component for Row {
                 .element_ref(&self.image)
                 .width(480.0)
                 .height(32.0)
+                .into()
+        } else if data.mode.starts_with("heat") {
+            Grid::new()
+                .columns([GridLength::Star(1.0); 4])
+                .children(
+                    data.values
+                        .iter()
+                        .enumerate()
+                        .map(|(column, value)| {
+                            let text: View = TextBlock::new()
+                                .automation_id(format!("metric-{}-{column}", data.slot))
+                                .font_family("Consolas")
+                                .font_size(14.0)
+                                .text(format!("{value:>10}"))
+                                .foreground(Color::rgb(0, 0, 0))
+                                .into();
+                            let heat: View = Border::new()
+                                .background(Color {
+                                    a: 80,
+                                    r: 40,
+                                    g: 140,
+                                    b: 220,
+                                })
+                                .margin(Thickness::uniform(4.0))
+                                .corner_radius(4.0)
+                                .into();
+                            let visible = value.is_multiple_of(2);
+                            if data.mode == "heat_keyed" {
+                                let mut children = Vec::new();
+                                if visible {
+                                    children.push(keyed("heat", heat));
+                                }
+                                children.push(keyed("text", text));
+                                Grid::new()
+                                    .grid_column(column as i32)
+                                    .height(32.0)
+                                    .keyed_children(children)
+                                    .into()
+                            } else {
+                                let mut children = Vec::new();
+                                if visible {
+                                    children.push(heat);
+                                }
+                                children.push(text);
+                                Grid::new()
+                                    .grid_column(column as i32)
+                                    .height(32.0)
+                                    .children(children)
+                                    .into()
+                            }
+                        })
+                        .collect::<Vec<View>>(),
+                )
                 .into()
         } else if data.mode == "joined" {
             TextBlock::new()
@@ -253,6 +308,27 @@ fn memory() -> usize {
     }
 }
 
+fn native_texts() -> HashMap<String, windows_core::IUnknown> {
+    fn walk(node: &c::DependencyObject, found: &mut HashMap<String, windows_core::IUnknown>) {
+        let id = c::AutomationProperties::GetAutomationId(node)
+            .unwrap()
+            .to_string();
+        if id.starts_with("metric-") && node.cast::<c::TextBlock>().is_ok() {
+            found.insert(id, node.cast().unwrap());
+        }
+        for i in 0..c::VisualTreeHelper::GetChildrenCount(node).unwrap() {
+            walk(&c::VisualTreeHelper::GetChild(node, i).unwrap(), found);
+        }
+    }
+    let mut found = HashMap::new();
+    ROOT.with_borrow(|root| {
+        if let Some(root) = root {
+            walk(&root.cast().unwrap(), &mut found);
+        }
+    });
+    found
+}
+
 struct Probe {
     _focus: windows_core::EventRevoker,
     focus: ElementRef<Button>,
@@ -260,6 +336,9 @@ struct Probe {
     rows: Rc<Vec<[u64; 4]>>,
     order: Rc<Vec<usize>>,
     mixing: String,
+    identity: String,
+    verify: bool,
+    native_before: HashMap<String, windows_core::IUnknown>,
     moved: u64,
     displacement: u64,
     mode: String,
@@ -279,12 +358,39 @@ struct Probe {
 
 impl Probe {
     fn report(&self) {
+        let reuse = if self.verify && self.phase == 3 {
+            let current = native_texts();
+            let correct = current
+                .iter()
+                .filter(|(id, object)| {
+                    let mut parts = id.split('-').skip(1);
+                    let slot: usize = parts.next().unwrap().parse().unwrap();
+                    let column: usize = parts.next().unwrap().parse().unwrap();
+                    object
+                        .cast::<c::TextBlock>()
+                        .and_then(|text| text.Text())
+                        .is_ok_and(|text| {
+                            text.to_string().trim().parse::<u64>().ok()
+                                == Some(self.rows[self.order[slot]][column])
+                        })
+                })
+                .count();
+            Some(
+                serde_json::json!({"before":self.native_before.len(),"after":current.len(),
+                "correct_values":correct,
+                "reused":current.iter().filter(|(id,object)|self.native_before.get(*id)==Some(*object)).count()}),
+            )
+        } else {
+            None
+        };
         let mut delays = self.delays.clone();
         delays.sort_by(f64::total_cmp);
         STATS.with_borrow(|s| eprintln!("RESULT {}", serde_json::json!({
             "mode":self.mode,"rows":self.rows.len(),"period_ms":self.period,"phase":self.phase,
             "ticks":self.tick-self.phase_tick,
             "mixing":self.mixing,"moved_positions":self.moved,"rank_distance":self.displacement,
+            "identity":self.identity,
+            "native_identity_check":reuse,
             "elapsed_s":self.phase_start.elapsed().as_secs_f64(),"cpu_ms":(cpu()-self.cpu_start) as f64/10000.0,
             "private_mib":memory() as f64/1048576.0,"creates":s.creates,"drops":s.drops,"inputs":s.inputs,"views":s.views,
             "draws":s.draws,"draw_us":s.draw_us,"builds":s.builds,"model_us":self.model_us,
@@ -326,6 +432,9 @@ impl Component for Probe {
             rows: Rc::new(vec![[0; 4]; count]),
             order: Rc::new((0..count).collect()),
             mixing: std::env::var("MIX").unwrap_or_else(|_| "mild".into()),
+            identity: std::env::var("IDENTITY").unwrap_or_else(|_| "process".into()),
+            verify: std::env::var_os("VERIFY").is_some(),
+            native_before: HashMap::new(),
             moved: 0,
             displacement: 0,
             mode: std::env::var("MODE").unwrap_or_else(|_| "native".into()),
@@ -364,6 +473,9 @@ impl Component for Probe {
             4
         };
         if phase != self.phase {
+            if phase == 2 && self.verify {
+                self.native_before = native_texts();
+            }
             self.report();
             self.phase = phase;
             self.phase_start = now;
@@ -435,17 +547,19 @@ impl Component for Probe {
                 let rows = self.rows.clone();
                 let order = self.order.clone();
                 let keys = order.clone();
+                let slots = self.identity == "slot";
                 let mode = self.mode.clone();
                 *cached = Some((
                     self.tick,
                     VirtualSource::new(
-                        self.tick,
+                        if slots { 0 } else { self.tick },
                         rows.len(),
-                        move |i| keys[i],
+                        move |i| if slots { i } else { keys[i] },
                         move |i| {
                             STATS.with_borrow_mut(|s| s.builds += 1);
                             View::component::<Row>(Data {
                                 index: order[i],
+                                slot: i,
                                 values: rows[order[i]],
                                 mode: mode.clone(),
                             })

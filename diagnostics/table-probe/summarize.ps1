@@ -13,11 +13,12 @@ $records = @(Get-ChildItem -LiteralPath $LogDirectory -Filter '*.log' | ForEach-
 })
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $records | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'measurements.json') -Encoding utf8
-$summary = $records | Where-Object { $_.phase -eq 3 } | Group-Object mode,rows,period_ms,mixing | ForEach-Object {
+$summary = $records | Where-Object { $_.phase -eq 3 -and -not $_.native_identity_check } | Group-Object mode,rows,period_ms,mixing,identity | ForEach-Object {
     $group = $_.Group
     $sample = $group[0]
     [pscustomobject]@{
         Mode = $sample.mode
+        Identity = $sample.identity
         Rows = $sample.rows
         PeriodMs = $sample.period_ms
         Mix = $sample.mixing

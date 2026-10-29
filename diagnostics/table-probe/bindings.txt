@@ -2,6 +2,8 @@ Microsoft::UI::Xaml::Input::FocusManager::{add_GotFocus, remove_GotFocus}
 Microsoft::UI::Xaml::Input::FocusManagerGotFocusEventArgs::get_NewFocusedElement
 Microsoft::UI::Xaml::UIElement::get_XamlRoot
 Microsoft::UI::Xaml::XamlRoot::get_Content
+Microsoft::UI::Xaml::Automation::AutomationProperties::GetAutomationId
+Microsoft::UI::Xaml::Controls::TextBlock::get_Text
 Microsoft::UI::Xaml::Media::VisualTreeHelper::{GetChildrenCount, GetChild}
 Microsoft::UI::Xaml::Controls::ScrollViewer::{ChangeView, get_ExtentHeight, get_ViewportHeight, get_VerticalOffset}
 Windows::Win32::{GetCurrentProcess, GetProcessTimes, GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS_EX}

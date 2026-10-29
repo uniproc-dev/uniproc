@@ -1,6 +1,8 @@
 # Virtual metric rows
 
-This standalone probe compares numeric metric views inside the same native ItemsRepeater and ScrollViewer. It does not implement table scrolling, row selection, hit testing or a custom table renderer. Production code is unchanged.
+[NATIVE.md](NATIVE.md) contains the follow-up for the fully native production path: stable rank presenters and keyed heat/text children. It supersedes using the initial process-keyed baseline to assess Uniproc's native table. run.ps1 now defaults to native cells and slot identity; use -Identity process to repeat the original comparison.
+
+This standalone probe compares numeric metric views inside the same native ItemsRepeater and ScrollViewer. It does not implement table scrolling, row selection, hit testing or a custom table renderer. The subsequent production change only keys the native heat/value layers in metric_cell, as documented in NATIVE.md.
 
 The primary workload changes all four metrics of every process each tick and then changes process order, with stable process IDs as VirtualSource keys. The fixed-order updating phase is a control, not the primary conclusion. Synthetic process names and IDs remain stable. There are no service calls, icon extraction, grouping or process-start events in this workload.
 

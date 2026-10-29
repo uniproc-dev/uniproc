@@ -1,10 +1,12 @@
 param(
     [string]$Executable = "$PSScriptRoot/../../target/table-probe-build/debug/table-probe-layout.exe",
     [string]$OutputDirectory = "$PSScriptRoot/../../target/table-probe-results/manual",
-    [ValidateSet('native','positioned','dwrite','joined')][string[]]$Modes = @('native','positioned','dwrite','joined'),
+    [ValidateSet('native','positioned','dwrite','joined','heat','heat_keyed')][string[]]$Modes = @('native'),
     [int]$Rows = 2000,
     [int]$Period = 500,
     [ValidateSet('mild','shuffle')][string]$Mix = 'mild',
+    [ValidateSet('process','slot')][string]$Identity = 'slot',
+    [switch]$Verify,
     [int]$Repeats = 2
 )
 $ErrorActionPreference = 'Stop'
@@ -17,7 +19,9 @@ foreach ($repeat in 1..$Repeats) {
         $env:ROWS = [string]$Rows
         $env:PERIOD = [string]$Period
         $env:MIX = $Mix
-        $log = Join-Path $probeOutput "$mode-$Rows-$Period-$Mix-$repeat.log"
+        $env:IDENTITY = $Identity
+        if ($Verify) { $env:VERIFY = '1' } else { Remove-Item Env:VERIFY -ErrorAction SilentlyContinue }
+        $log = Join-Path $probeOutput "$mode-$Rows-$Period-$Mix-$Identity-$repeat.log"
         $probeProcess = Start-Process -FilePath $probeExecutable -WorkingDirectory $PSScriptRoot -RedirectStandardError $log -PassThru
         if (-not $probeProcess.WaitForExit(40000)) {
             $probeProcess.CloseMainWindow() | Out-Null
