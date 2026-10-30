@@ -7,7 +7,7 @@ publish = false
 [workspace]
 
 [dependencies]
-windows-reactor = { package = "windows-reactor-pre", version = "=0.106.0" }
+windows-reactor = { package = "windows-reactor-pre", version = "=0.107.0" }
 
 [build-dependencies]
 windows-reactor-setup = "=0.100.0"

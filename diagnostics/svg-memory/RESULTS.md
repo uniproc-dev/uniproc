@@ -115,3 +115,9 @@ The exact native allocation mechanism, actual rasterization dimensions, and the 
 An initial broad WPR recording lost 448,552 events and was not used for quantitative attribution. A later heap-snapshot recording had no reported loss, but did not cover the navigation reproduction. Neither trace is sufficient to assert a native call-stack diagnosis. Raw traces, profiles and machine-specific paths are excluded from this directory.
 
 Temporary production instrumentation and icon ablation were removed after the experiments. No vendor source was modified.
+
+## Registry renderer 0.107 follow-up
+
+The original queued-update reproduction was built against the published windows-reactor 0.107 package without changing its Rust source. During a 15-second live run (30 half-second process samples), private memory settled at 86.55 MiB and working set at 94.23 MiB; the window remained responsive. These are process memory samples, not a DHAT allocation attribution or proof against every possible leak.
+
+The existing shared-size reproduction was also copied unchanged into a temporary standalone project using that same registry renderer. In the captured view, Shared 192, Independent 192 and After update 192 appeared equally sharp. This is a visual check of the displayed cases, not a quantitative comparison of every delayed variant or every scale factor. No library or production source was altered for either check.
