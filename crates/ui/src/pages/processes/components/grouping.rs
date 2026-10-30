@@ -725,32 +725,111 @@ fn caseless(a: &str, b: &str) -> Ordering {
     a.chars().flat_map(char::to_lowercase).cmp(b.chars().flat_map(char::to_lowercase))
 }
 
-fn compare_rows(order: &Order, a: &ProcessRow, b: &ProcessRow) -> Ordering {
-    let primary = compare_by(order.column, a, b);
-    let primary = if order.descending { primary.reverse() } else { primary };
+fn compare_rows(
+    order: &Order,
+    a: &ProcessRow,
+    b: &ProcessRow,
+    cpu_a: Option<i64>,
+    cpu_b: Option<i64>,
+) -> Ordering {
+    let primary = if order.column == ProcessColumn::Cpu {
+        cpu_a.cmp(&cpu_b)
+    } else {
+        compare_by(order.column, a, b)
+    };
+    let primary = if order.descending {
+        primary.reverse()
+    } else {
+        primary
+    };
     primary
         .then_with(|| compare_by(ProcessColumn::Name, a, b))
         .then_with(|| a.name.cmp(&b.name))
         .then_with(|| a.pid.cmp(&b.pid))
 }
 
-pub(crate) fn sort_groups(sections: &mut [Section], order: &Order) {
-    for section in sections {
-        section
-            .groups
-            .sort_by(|a, b| compare_rows(order, &a.leader, &b.leader));
-        for group in &mut section.groups {
-            group.members.sort_by(|a, b| compare_rows(order, a, b));
+#[derive(Hash, PartialEq, Eq)]
+enum CpuIdentity {
+    Group(GroupKey),
+    Process(u32, Arc<str>),
+    Environment(u64),
+    Wsl(u64, u32),
+}
+
+#[derive(Default)]
+struct CpuSort {
+    active: HashMap<CpuIdentity, bool>,
+}
+
+impl CpuSort {
+    fn sort<T>(
+        &mut self,
+        next: &mut HashMap<CpuIdentity, bool>,
+        rows: &mut [T],
+        order: &Order,
+        row: impl Fn(&T) -> &ProcessRow,
+        identity: impl Fn(&T) -> CpuIdentity,
+    ) {
+        for item in rows.iter() {
+            let key = identity(item);
+            let cpu = row(item).cpu_percent;
+            let active = match self.active.get(&key) {
+                Some(true) => cpu >= 0.2,
+                Some(false) => cpu >= 0.4,
+                None => cpu >= 0.3,
+            };
+            next.insert(key, active);
         }
-        section
-            .environments
-            .sort_by(|a, b| compare_rows(order, &a.leader, &b.leader));
+        let cpu = |item: &T| {
+            sorted_cpu(row(item)).map(|value| if next[&identity(item)] { value } else { 0 })
+        };
+        rows.sort_by(|a, b| compare_rows(order, row(a), row(b), cpu(a), cpu(b)));
+    }
+}
+
+#[cfg(test)]
+fn sort_groups(sections: &mut [Section], order: &Order) {
+    sort_groups_with_cpu(sections, order, &mut CpuSort::default());
+}
+
+fn sort_groups_with_cpu(sections: &mut [Section], order: &Order, cpu: &mut CpuSort) {
+    let mut next = HashMap::new();
+    for section in sections {
+        cpu.sort(
+            &mut next,
+            &mut section.groups,
+            order,
+            |g| &g.leader,
+            |g| CpuIdentity::Group(group_key(&g.leader)),
+        );
+        for group in &mut section.groups {
+            cpu.sort(
+                &mut next,
+                &mut group.members,
+                order,
+                |r| r,
+                |r| CpuIdentity::Process(r.pid, r.name.clone()),
+            );
+        }
+        cpu.sort(
+            &mut next,
+            &mut section.environments,
+            order,
+            |e| &e.leader,
+            |e| CpuIdentity::Environment(e.pid_ns),
+        );
         for environment in &mut section.environments {
-            environment
-                .processes
-                .sort_by(|a, b| compare_rows(order, &a.row, &b.row).then(a.global_pid.cmp(&b.global_pid)));
+            let ns = environment.pid_ns;
+            cpu.sort(
+                &mut next,
+                &mut environment.processes,
+                order,
+                |p| &p.row,
+                |p| CpuIdentity::Wsl(ns, p.global_pid),
+            );
         }
     }
+    cpu.active = next;
 }
 
 pub(crate) struct GroupsCache {
@@ -764,6 +843,7 @@ pub(crate) struct GroupsCache {
     pins: Pins,
     section_order: SectionOrder,
     sections: Vec<Section>,
+    cpu: CpuSort,
 }
 
 pub(crate) struct Grouping<'a> {
@@ -793,6 +873,7 @@ impl GroupsCache {
             pins: Pins::new(),
             section_order: SectionOrder::default(),
             sections: Vec::new(),
+            cpu: CpuSort::default(),
         }
     }
 
@@ -834,7 +915,7 @@ impl GroupsCache {
             self.pins.clone_from(pins);
             self.section_order.clone_from(section_order);
             attach_consoles(&mut self.sections, consoles);
-            sort_groups(&mut self.sections, order);
+            sort_groups_with_cpu(&mut self.sections, order, &mut self.cpu);
             self.rows = Some(rows.clone());
             self.wsl = Some(wsl.clone());
             self.exited = exited.iter().map(|row| row.pid).collect();
@@ -1651,6 +1732,37 @@ pub(crate) mod tests {
         let mut sections = split_by_category(group_by_name(&[a, b], None));
         sort_groups(&mut sections, &cpu_order());
         assert_eq!(group_pids(&sections), vec![1, 2]);
+    }
+
+    #[test]
+    fn cpu_sort_hysteresis_keeps_low_activity_stable_without_changing_samples() {
+        let mut cpu = CpuSort::default();
+        for (percent, expected) in [
+            (0.1, vec![1, 2]),
+            (0.29, vec![1, 2]),
+            (0.31, vec![1, 2]),
+            (0.4, vec![2, 1]),
+            (0.3, vec![2, 1]),
+            (0.2, vec![2, 1]),
+            (0.19, vec![1, 2]),
+            (0.39, vec![1, 2]),
+        ] {
+            let mut a = row(1, "alpha");
+            a.cpu_percent = 0.0;
+            let mut b = row(2, "beta");
+            b.cpu_percent = percent;
+            let mut sections = split_by_category(group_by_name(&[b, a], None));
+            sort_groups_with_cpu(&mut sections, &cpu_order(), &mut cpu);
+            assert_eq!(group_pids(&sections), expected, "CPU {percent}");
+            let beta = sections
+                .iter()
+                .flat_map(|s| &s.groups)
+                .find(|g| g.leader.pid == 2)
+                .unwrap();
+            assert_eq!(beta.leader.cpu_percent, percent);
+        }
+        sort_groups_with_cpu(&mut [], &cpu_order(), &mut cpu);
+        assert!(cpu.active.is_empty());
     }
 
     #[test]
