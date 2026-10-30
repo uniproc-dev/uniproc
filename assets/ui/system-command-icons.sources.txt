@@ -8,7 +8,9 @@ new-task.svg: U+EFDA, DocumentManagement, TaskManager_RunNewTaskButton.
 open-services.svg: U+E7C5, BrowsePhotos, ServicesPage_OpenServicesAppButton.
 service-restart.svg: U+E777, UpdateRestore, ServicesPage_RestartButton.
 
-All SVG canvases are 24 units square. Restart keeps its 2048-unit em square
-centered in an 18-unit region. The more detailed Run new task and Open Services
-contours occupy a centered 20-unit region; their transforms are baked into
-path coordinates.
+Run new task preserves the original 2048-unit em square at 16 units,
+with a 1-unit inset in an 18-unit canvas matching the toolbar slot.
+Its straight edges align to whole pixels at the requested 18 DIP size.
+Open Services uses a 24-unit canvas and a centered 20-unit contour with
+transforms baked into path coordinates. Restart uses a 24-unit canvas
+with its 2048-unit em square centered in an 18-unit region.
