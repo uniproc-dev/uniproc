@@ -20,12 +20,12 @@ members = [
 guinea = "0.33.0"
 guinea-meta-build = "0.33.0"
 
-guinea-plugin-store = { path = "../guinea-plugins/plugins/store" }
-guinea-plugin-l10n = { path = "../guinea-plugins/plugins/l10n" }
-guinea-plugin-devtools = { path = "../guinea-plugins/plugins/devtools" }
-guinea-plugin-single-instance = { path = "../guinea-plugins/plugins/single-instance" }
-guinea-widgets = { path = "../guinea-plugins/widgets" }
-guinea-plugin-l10n-build = { path = "../guinea-plugins/plugins/l10n-build" }
+guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
+guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
+guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
+guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
+guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
+guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
 
 # --- guicons ---
 guicons = "0.16.0"

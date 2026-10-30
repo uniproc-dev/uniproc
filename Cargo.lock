@@ -2181,6 +2181,7 @@ dependencies = [
 [[package]]
 name = "guinea-devtools-protocol"
 version = "0.33.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=332a922bb84a68a03d4ec81dad0a08ebda0beae8#332a922bb84a68a03d4ec81dad0a08ebda0beae8"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -2246,6 +2247,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-devtools"
 version = "0.33.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=332a922bb84a68a03d4ec81dad0a08ebda0beae8#332a922bb84a68a03d4ec81dad0a08ebda0beae8"
 dependencies = [
  "anyhow",
  "capnp",
@@ -2263,6 +2265,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-l10n"
 version = "0.33.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=332a922bb84a68a03d4ec81dad0a08ebda0beae8#332a922bb84a68a03d4ec81dad0a08ebda0beae8"
 dependencies = [
  "anyhow",
  "fluent-bundle",
@@ -2276,6 +2279,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-l10n-build"
 version = "0.33.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=332a922bb84a68a03d4ec81dad0a08ebda0beae8#332a922bb84a68a03d4ec81dad0a08ebda0beae8"
 dependencies = [
  "fluent-syntax",
  "proc-macro2",
@@ -2287,6 +2291,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-single-instance"
 version = "0.33.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=332a922bb84a68a03d4ec81dad0a08ebda0beae8#332a922bb84a68a03d4ec81dad0a08ebda0beae8"
 dependencies = [
  "anyhow",
  "guinea",
@@ -2296,6 +2301,7 @@ dependencies = [
 [[package]]
 name = "guinea-plugin-store"
 version = "0.29.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=332a922bb84a68a03d4ec81dad0a08ebda0beae8#332a922bb84a68a03d4ec81dad0a08ebda0beae8"
 dependencies = [
  "amethystate",
  "anyhow",
@@ -2331,6 +2337,7 @@ dependencies = [
 [[package]]
 name = "guinea-widgets"
 version = "0.33.0"
+source = "git+https://github.com/guinea-rs/guinea-plugins?rev=332a922bb84a68a03d4ec81dad0a08ebda0beae8#332a922bb84a68a03d4ec81dad0a08ebda0beae8"
 dependencies = [
  "guinea-mark",
  "tracing",
