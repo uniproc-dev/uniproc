@@ -28,8 +28,8 @@ guinea-widgets = { path = "../guinea-plugins/widgets" }
 guinea-plugin-l10n-build = { path = "../guinea-plugins/plugins/l10n-build" }
 
 # --- guicons ---
-guicons = { path = "../guicons/crates/guicons" }
-guicons-build = { path = "../guicons/crates/guicons-build" }
+guicons = "0.16.0"
+guicons-build = "0.16.0"
 
 # --- amethystate ---
 amethystate = "0.29.0"

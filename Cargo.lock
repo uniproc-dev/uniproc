@@ -2049,6 +2049,8 @@ dependencies = [
 [[package]]
 name = "guicons"
 version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f427fe8bb0ba6ccc0b2cf5d9db4635f884b8a32d5e0c54c548c06108b39342b"
 dependencies = [
  "guicons-macros",
  "windows-reactor-pre",
@@ -2057,6 +2059,8 @@ dependencies = [
 [[package]]
 name = "guicons-build"
 version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14d0f57bb8d2bc76f77a3e94dfce34d3d94679a4e493022fc9be9b2205b518ea"
 dependencies = [
  "guicons-core",
  "guicons-net",
@@ -2066,6 +2070,8 @@ dependencies = [
 [[package]]
 name = "guicons-core"
 version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31ed9aed1f9adfcbf483287950cacf35f63c13b7f8495143285fd5a432c329f2"
 dependencies = [
  "dunce",
  "petgraph 0.6.5",
@@ -2077,6 +2083,8 @@ dependencies = [
 [[package]]
 name = "guicons-macros"
 version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c361a722f9b0f77278273c511ec96d05e2350b1bb2ddc7000489bfcf276eeda7"
 dependencies = [
  "guicons-core",
  "guicons-net",
@@ -2088,6 +2096,8 @@ dependencies = [
 [[package]]
 name = "guicons-net"
 version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86afada132f631e506a8329cdfaa57d59904363fbaa7decb3ebf9d676af64887"
 dependencies = [
  "guicons-core",
  "hex",
