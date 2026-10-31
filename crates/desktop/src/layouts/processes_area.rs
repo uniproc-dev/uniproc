@@ -1,6 +1,6 @@
 use domain::features::processes::{ProcessesDeps, ProcessesFeature};
 use guinea::feature::Install;
-use guinea::winui::{layout, Layout, LayoutCx};
+use guinea::winui::{mount, layout, Layout, LayoutCx};
 use windows_reactor::View;
 
 use crate::routes::ProcessesRoute;
@@ -17,10 +17,9 @@ impl Layout for ProcessesArea {
     }
 
     fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
-        let navigate = cx.navigate::<ProcessesRoute>();
-        cx.outlet(&navigate, |route, cx| match route {
-            ProcessesRoute::Overview => cx.mount::<Processes>(&()),
-            ProcessesRoute::Settings => cx.mount::<ProcessesSettings>(&()),
+        cx.outlet::<ProcessesRoute>(|route| match route {
+            ProcessesRoute::Overview => mount::<Processes>(()),
+            ProcessesRoute::Settings => mount::<ProcessesSettings>(()),
         }).into()
     }
 }

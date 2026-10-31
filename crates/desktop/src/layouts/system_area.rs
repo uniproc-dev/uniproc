@@ -1,6 +1,6 @@
 use domain::features::system::{SystemDeps, SystemFeature};
 use guinea::feature::Install;
-use guinea::winui::{layout, Layout, LayoutCx};
+use guinea::winui::{mount, layout, Layout, LayoutCx};
 use windows_reactor::View;
 
 use crate::routes::SystemRoute;
@@ -17,10 +17,9 @@ impl Layout for SystemArea {
     }
 
     fn view(&self, cx: &mut LayoutCx<'_, '_, Self>) -> View {
-        let navigate = cx.navigate::<SystemRoute>();
-        cx.outlet(&navigate, |route, cx| match route {
-            SystemRoute::Overview => cx.mount::<System>(&()),
-            SystemRoute::Tools => cx.mount::<SystemTools>(&()),
+        cx.outlet::<SystemRoute>(|route| match route {
+            SystemRoute::Overview => mount::<System>(()),
+            SystemRoute::Tools => mount::<SystemTools>(()),
         }).into()
     }
 }

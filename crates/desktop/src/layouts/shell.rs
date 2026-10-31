@@ -1,7 +1,7 @@
 use app_contracts::features::sidebar::{SetOpen, SetWidth, SidebarState};
 use domain::features::sidebar::SidebarFeature;
 use guinea::feature::Install;
-use guinea::winui::{layout, Layout, LayoutCx, UpdateCx};
+use guinea::winui::{mount, layout, Layout, LayoutCx, UpdateCx};
 use ui::ShellNav;
 use windows_reactor::{Callback, View};
 use std::cell::RefCell;
@@ -79,7 +79,7 @@ impl Layout for Shell {
             (item, remembered.unwrap_or(route))
         }).collect();
         let menu = targets.iter().map(|(item, _)| (*item, current == Some(*item))).collect();
-        let to = navigate.clone();
+        let to = navigate;
         let on_select = Callback::new(move |picked: ShellNav| {
             if let Some((_, route)) = targets.iter().find(|(item, _)| *item == picked) {
                 let _ = to.to(route.clone());
@@ -87,13 +87,13 @@ impl Layout for Shell {
         });
         let pane_footer = cx.mount::<SidebarCharts>(&()).into();
         let overlay = cx.mount::<Connecting>(&()).into();
-        let content = cx.outlet(&navigate, |route, cx| match route {
-            Route::Processes(_) => cx.mount::<ProcessesArea>(&()).keep(),
-            Route::Activity(_) => cx.mount::<ActivityArea>(&()),
-            Route::Services(_) => cx.mount::<ServicesArea>(&()).keep(),
-            Route::Wsl {} => cx.mount::<Wsl>(&()).keep(),
-            Route::System(_) => cx.mount::<SystemArea>(&()),
-            Route::Settings {} => cx.mount::<Settings>(&()),
+        let content = cx.outlet::<Route>(|route| match route {
+            Route::Processes(_) => mount::<ProcessesArea>(()).keep(),
+            Route::Activity(_) => mount::<ActivityArea>(()),
+            Route::Services(_) => mount::<ServicesArea>(()).keep(),
+            Route::Wsl {} => mount::<Wsl>(()).keep(),
+            Route::System(_) => mount::<SystemArea>(()),
+            Route::Settings {} => mount::<Settings>(()),
         }).into();
 
         ui::shell_view(ui::ShellProps {

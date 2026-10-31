@@ -17,15 +17,15 @@ members = [
 
 [workspace.dependencies]
 # --- guinea ---
-guinea = "0.33.0"
-guinea-meta-build = "0.33.0"
+guinea = "0.34.0"
+guinea-meta-build = "0.34.0"
 
-guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
-guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
-guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
-guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
-guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
-guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "332a922bb84a68a03d4ec81dad0a08ebda0beae8" }
+guinea-plugin-store = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "770c8bb3c0dca1253e9365aa0c53f14dbd8617ad" }
+guinea-plugin-l10n = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "770c8bb3c0dca1253e9365aa0c53f14dbd8617ad" }
+guinea-plugin-devtools = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "770c8bb3c0dca1253e9365aa0c53f14dbd8617ad" }
+guinea-plugin-single-instance = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "770c8bb3c0dca1253e9365aa0c53f14dbd8617ad" }
+guinea-widgets = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "770c8bb3c0dca1253e9365aa0c53f14dbd8617ad" }
+guinea-plugin-l10n-build = { git = "https://github.com/guinea-rs/guinea-plugins", rev = "770c8bb3c0dca1253e9365aa0c53f14dbd8617ad" }
 
 # --- guicons ---
 guicons = "0.16.0"
